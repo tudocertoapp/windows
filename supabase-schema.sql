@@ -22,7 +22,13 @@ CREATE TABLE IF NOT EXISTS agenda_events (
   description TEXT,
   date TEXT,
   time TEXT,
+  time_end TEXT,
   type TEXT DEFAULT 'meeting',
+  client_id UUID,
+  service_id UUID,
+  amount NUMERIC DEFAULT 0,
+  tipo TEXT DEFAULT 'pessoal',
+  status TEXT DEFAULT 'pendente',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -109,8 +115,14 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   nome TEXT DEFAULT '',
   foto TEXT,
+  profissao TEXT DEFAULT '',
+  empresa TEXT DEFAULT '',
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Colunas extras se a tabela já existir
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profissao TEXT DEFAULT '';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS empresa TEXT DEFAULT '';
 
 -- RLS: cada usuário só vê seus dados
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
@@ -125,17 +137,40 @@ ALTER TABLE boletos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE a_receber ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users own transactions" ON transactions FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own agenda_events" ON agenda_events FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own check_list_items" ON check_list_items FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own clients" ON clients FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own products" ON products FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own composite_products" ON composite_products FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own services" ON services FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own suppliers" ON suppliers FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own boletos" ON boletos FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own a_receber" ON a_receber FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users own profiles" ON profiles FOR ALL USING (auth.uid() = id);
+-- Políticas RLS: DROP IF EXISTS evita erro ao reexecutar
+DROP POLICY IF EXISTS "Users own transactions" ON transactions;
+CREATE POLICY "Users own transactions" ON transactions FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own agenda_events" ON agenda_events;
+CREATE POLICY "Users own agenda_events" ON agenda_events FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own check_list_items" ON check_list_items;
+CREATE POLICY "Users own check_list_items" ON check_list_items FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own clients" ON clients;
+CREATE POLICY "Users own clients" ON clients FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own products" ON products;
+CREATE POLICY "Users own products" ON products FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own composite_products" ON composite_products;
+CREATE POLICY "Users own composite_products" ON composite_products FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own services" ON services;
+CREATE POLICY "Users own services" ON services FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own suppliers" ON suppliers;
+CREATE POLICY "Users own suppliers" ON suppliers FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own boletos" ON boletos;
+CREATE POLICY "Users own boletos" ON boletos FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own a_receber" ON a_receber;
+CREATE POLICY "Users own a_receber" ON a_receber FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users own profiles" ON profiles;
+CREATE POLICY "Users own profiles" ON profiles FOR ALL
+  USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 -- Trigger para criar profile ao se registrar
 CREATE OR REPLACE FUNCTION handle_new_user()

@@ -21,31 +21,65 @@ const ps = StyleSheet.create({
 
 export function PerfilScreen({ onClose, isModal }) {
   const { colors } = useTheme();
-  const { profile, updateProfile } = useProfile();
+  const { profile, updateProfile, getLastFoto } = useProfile();
   const { user, signOut } = useAuth();
   const [nome, setNome] = useState(profile.nome || '');
-  const [profissao, setProfissao] = useState('');
-  const [empresa, setEmpresa] = useState('');
+  const [profissao, setProfissao] = useState(profile.profissao || '');
+  const [empresa, setEmpresa] = useState(profile.empresa || '');
   const [email, setEmail] = useState('usuario@email.com');
   const [foto, setFoto] = useState(profile.foto || null);
+  const [lastFoto, setLastFoto] = useState(null);
 
   useEffect(() => {
     setNome(profile.nome || '');
+    setProfissao(profile.profissao || '');
+    setEmpresa(profile.empresa || '');
     setFoto(profile.foto || null);
-  }, [profile.nome, profile.foto]);
+  }, [profile.nome, profile.foto, profile.profissao, profile.empresa]);
 
-  const handleSalvar = () => {
-    updateProfile({ nome: nome.trim(), foto });
-    Alert.alert('Salvo', 'Perfil atualizado com sucesso!');
+  useEffect(() => {
+    getLastFoto().then((v) => setLastFoto(v || null));
+  }, [profile.foto, getLastFoto]);
+
+  const handleSalvar = async () => {
+    try {
+      await updateProfile({ nome: nome.trim(), profissao: profissao.trim(), empresa: empresa.trim(), foto });
+      Alert.alert('Salvo', 'Perfil atualizado com sucesso!');
+    } catch (e) {
+      const msg = e?.message || '';
+      const hint = msg.includes('profissao') || msg.includes('empresa') || msg.includes('column')
+        ? '\n\nExecute no SQL do Supabase o arquivo supabase-profiles-profissao-empresa.sql'
+        : '';
+      Alert.alert('Erro ao salvar', msg + hint);
+    }
   };
 
   const handleFoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permissão', 'Precisamos de acesso à galeria.');
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: true,
+    });
     if (!result.canceled) {
-      setFoto(result.assets[0].uri);
-      updateProfile({ foto: result.assets[0].uri });
+      const asset = result.assets[0];
+      setFoto(asset.uri);
+      try {
+        if (user?.id && asset.base64) {
+          const { uploadProfilePhotoFromBase64 } = await import('../utils/uploadProfilePhoto');
+          const publicUrl = await uploadProfilePhotoFromBase64(asset.base64, user.id);
+          updateProfile({ foto: publicUrl });
+          setFoto(publicUrl);
+        } else {
+          updateProfile({ foto: asset.uri });
+        }
+      } catch (e) {
+        Alert.alert('Erro ao enviar foto', e?.message || 'Tente novamente. Crie o bucket "avatars" no Supabase Storage (público).');
+        updateProfile({ foto: asset.uri });
+      }
     }
   };
 
@@ -72,6 +106,18 @@ export function PerfilScreen({ onClose, isModal }) {
             <TouchableOpacity style={[ps.photoBtn, { borderColor: colors.border, backgroundColor: colors.card, marginTop: 10 }]} onPress={() => { setFoto(null); updateProfile({ foto: null }); }}>
               <Ionicons name="refresh-outline" size={20} color={colors.textSecondary} />
               <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>Voltar à foto padrão</Text>
+            </TouchableOpacity>
+          )}
+          {lastFoto && lastFoto !== foto && (
+            <TouchableOpacity
+              style={[ps.photoBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba(0.1), marginTop: 10 }]}
+              onPress={async () => {
+                setFoto(lastFoto);
+                await updateProfile({ foto: lastFoto });
+              }}
+            >
+              <Ionicons name="arrow-undo-outline" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Restaurar última foto</Text>
             </TouchableOpacity>
           )}
           <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 8 }}>Logo do app como padrão para novos usuários</Text>

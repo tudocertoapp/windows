@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
+import { LanguageProvider } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { FinanceProvider, useFinance } from './src/contexts/FinanceContext';
 import { PlanProvider } from './src/contexts/PlanContext';
@@ -9,6 +10,7 @@ import { ProfileProvider } from './src/contexts/ProfileContext';
 import { BanksProvider } from './src/contexts/BanksContext';
 import { ReminderProvider } from './src/contexts/ReminderContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 
 function AppWithReminders() {
@@ -22,6 +24,7 @@ function AppWithReminders() {
 
 function AppContent() {
   const { user, isGuest, loading } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
 
   if (loading) {
     return (
@@ -32,6 +35,9 @@ function AppContent() {
   }
 
   if (!user && !isGuest) {
+    if (!showLogin) {
+      return <LandingScreen onStart={() => setShowLogin(true)} />;
+    }
     return <LoginScreen />;
   }
 
@@ -52,9 +58,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
+        <LanguageProvider>
         <AuthProvider>
           <AppContent />
         </AuthProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

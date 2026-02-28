@@ -72,7 +72,13 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     setIsGuest(false);
-    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Erro ao desconectar:', e);
+    }
   };
 
   const enterAsGuest = () => setIsGuest(true);

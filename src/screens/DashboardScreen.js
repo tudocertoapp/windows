@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFinance } from '../contexts/FinanceContext';
@@ -6,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useMenu } from '../contexts/MenuContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { usePlan } from '../contexts/PlanContext';
+import { useAuth } from '../contexts/AuthContext';
 import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
@@ -50,7 +52,7 @@ const ds = StyleSheet.create({
   progressBar: { height: 6, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 3 },
   txItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, gap: 12 },
-  txIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  txIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   txDesc: { fontSize: 14, fontWeight: '500' },
   txCat: { fontSize: 11, marginTop: 2 },
   txAmount: { fontSize: 14, fontWeight: '600' },
@@ -75,9 +77,12 @@ function parseBoletoDate(str) {
 }
 
 export function DashboardScreen() {
+  const route = useRoute();
+  const navigation = useNavigation();
   const { transactions, checkListItems, agendaEvents, boletos } = useFinance();
   const { colors } = useTheme();
   const { viewMode, setViewMode, canToggleView } = usePlan();
+  const { isGuest } = useAuth();
   const { openImageGenerator } = useMenu();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
@@ -98,6 +103,12 @@ export function DashboardScreen() {
       if (raw) try { setSectionOrder(JSON.parse(raw)); } catch (_) {}
     });
   }, []);
+  useEffect(() => {
+    if (route.params?.openCardPicker) {
+      setShowCardPicker(true);
+      navigation?.setParams?.({ openCardPicker: undefined });
+    }
+  }, [route.params?.openCardPicker, navigation]);
   useEffect(() => {
     AsyncStorage.setItem(SECTIONS_ORDER_KEY, JSON.stringify(sectionOrder));
   }, [sectionOrder]);
@@ -158,7 +169,7 @@ export function DashboardScreen() {
     { id: '2', title: 'Faça upgrade do seu plano', text: 'Plano Empresa: CRM, produtos compostos e muito mais.', icon: 'rocket-outline', color: '#8b5cf6' },
     { id: '3', title: 'Indique e ganhe', text: 'Convide amigos e ganhe benefícios exclusivos.', icon: 'people-outline', color: '#f59e0b' },
     { id: '4', title: 'Novidade: Agenda com zoom', text: 'Zoom com os dedos na agenda para ver melhor seus eventos.', icon: 'calendar-outline', color: '#06b6d4' },
-    { id: '5', title: 'Novidade: Cards personalizáveis', text: 'Toque nas 3 barras para personalizar os cards do Início.', icon: 'grid-outline', color: '#ec4899' },
+    { id: '5', title: 'Novidade: Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899' },
   ];
 
   useEffect(() => {
@@ -223,7 +234,7 @@ export function DashboardScreen() {
     proximos: (
       <TouchableOpacity key="proximos" style={[ds.card, { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}} activeOpacity={0.9}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
             <AppIcon name="alarm-outline" size={22} color={colors.primary} />
           </View>
           <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Próximas tarefas e agendas</Text>
@@ -265,7 +276,7 @@ export function DashboardScreen() {
             <View style={[ds.carouselItem, { backgroundColor: item.color || colors.primary, borderColor: (item.color || colors.primary) + '80', overflow: 'hidden' }]}>
               <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
               <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
                 <AppIcon name={item.icon} size={28} color="#fff" />
               </View>
               <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
@@ -284,11 +295,11 @@ export function DashboardScreen() {
       <TouchableOpacity key="quote" style={[ds.quoteCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => openImageGenerator?.({ quote, quoteType })} activeOpacity={0.8}>
         <Text style={[ds.quoteText, { color: colors.text }]} numberOfLines={3}>"{quote}"</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, gap: 10 }}>
-          <TouchableOpacity onPress={(e) => { e.stopPropagation(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '60' }}>
+          <TouchableOpacity onPress={(e) => { e.stopPropagation(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '60' }}>
             <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={18} color={colors.primary} />
             <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{quoteType === 'motivacional' ? 'Ver versículo' : 'Ver citação'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => { e.stopPropagation(); openImageGenerator?.({ quote, quoteType }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary }}>
+          <TouchableOpacity onPress={(e) => { e.stopPropagation(); openImageGenerator?.({ quote, quoteType }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary }}>
             <Ionicons name="share-social-outline" size={18} color="#fff" />
             <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Compartilhar frase</Text>
           </TouchableOpacity>
@@ -338,7 +349,7 @@ export function DashboardScreen() {
         <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {monthTx.slice(-5).reverse().map((t) => (
             <View key={t.id} style={[ds.txItem, { borderBottomColor: colors.border }]}>
-              <View style={[ds.txIcon, { backgroundColor: t.type === 'income' ? colors.primaryRgba(0.2) : 'rgba(239,68,68,0.2)' }]}>
+              <View style={[ds.txIcon, { backgroundColor: 'transparent' }]}>
                 <AppIcon name={t.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={t.type === 'income' ? colors.primary : '#ef4444'} />
               </View>
               <View style={{ flex: 1 }}>
@@ -357,7 +368,7 @@ export function DashboardScreen() {
     agenda: (
       <TouchableOpacity key="agenda" style={[ds.card, { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}} activeOpacity={0.9}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
             <AppIcon name="calendar-outline" size={22} color={colors.primary} />
           </View>
           <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Próximos eventos</Text>
@@ -377,7 +388,7 @@ export function DashboardScreen() {
     graficos: (
       <View key="graficos" style={[ds.card, { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
             <AppIcon name="stats-chart-outline" size={22} color={colors.primary} />
           </View>
           <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Resumo do mês</Text>
@@ -402,8 +413,14 @@ export function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Início" colors={colors} useLogoImage onOrganize={() => setEditMode(!editMode)} editMode={editMode} onManageCards={() => setShowCardPicker(true)} />
+      <TopBar title="Início" colors={colors} useLogoImage hideOrganize onManageCards={() => setShowCardPicker(true)} />
       {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
+      {isGuest && (
+        <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
+          <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>Modo visitante: os dados não são salvos. Faça login para persistir.</Text>
+        </View>
+      )}
       <ScrollView showsVerticalScrollIndicator={false} scrollEnabled>
         <View style={[ds.headerLogo, { backgroundColor: colors.bg }]}>
           <Text style={[ds.monthText, { color: colors.textSecondary }]}>{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</Text>
@@ -446,6 +463,7 @@ export function DashboardScreen() {
         visibleIds={sectionOrder}
         onAdd={(id) => setSectionOrder((prev) => [...prev, id])}
         onRemove={(id) => setSectionOrder((prev) => prev.filter((x) => x !== id))}
+        onReorder={(order) => setSectionOrder(order)}
       />
     </SafeAreaView>
   );

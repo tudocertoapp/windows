@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Modal, TextInput, Alert, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, BACKGROUND_COLORS } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
@@ -125,7 +125,20 @@ function CustomSlider({ value, minimumValue, maximumValue, onValueChange, minimu
 }
 
 export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
-  const { darkMode, setDarkMode, primaryColor, setPrimaryColor, colors, primaryOptions, favoriteColors, addFavoriteColor, removeFavoriteColor, maxFavorites } = useTheme();
+  const {
+    primaryColor,
+    setPrimaryColor,
+    secondaryColor,
+    setSecondaryColor,
+    customBgColor,
+    setCustomBgColor,
+    colors,
+    primaryOptions,
+    favoriteColors,
+    addFavoriteColor,
+    removeFavoriteColor,
+    maxFavorites,
+  } = useTheme();
   const { isEmpresa } = usePlan();
   const hasPremiumColors = isEmpresa;
   const [showCreateColor, setShowCreateColor] = useState(false);
@@ -136,7 +149,6 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
   const [customName, setCustomName] = useState('');
 
   const freeColors = FREE_COLORS;
-  const paidColors = primaryOptions.filter((o) => !freeColors.some((f) => f.id === o.id));
 
   useEffect(() => {
     if (showCreateColor) {
@@ -226,49 +238,32 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
       )}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={ts.section}>
-          <Text style={[ts.sectionTitle, { color: colors.textSecondary }]}>APARÊNCIA</Text>
+          <Text style={[ts.sectionTitle, { color: colors.textSecondary }]}>Escolha o seu tema preferido!</Text>
+          <Text style={[ts.rowSub, { color: colors.textSecondary, marginBottom: 16 }]}>Seu app no seu estilo - deixe o aplicativo com a sua cara!</Text>
           <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[ts.row, ts.rowLast, { borderBottomColor: colors.border }]}>
-              <View>
-                <Text style={[ts.rowLabel, { color: colors.text }]}>Tema</Text>
-                <Text style={[ts.rowSub, { color: colors.textSecondary }]}>{darkMode ? 'Escuro' : 'Claro'}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                <TouchableOpacity
-                  onPress={() => { playTapSound(); setDarkMode(false); }}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: !darkMode ? colors.primaryRgba(0.2) : colors.border + '40',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    borderWidth: !darkMode ? 2 : 0,
-                    borderColor: colors.primary,
-                  }}
-                >
-                  <Ionicons name="sunny" size={24} color={!darkMode ? colors.primary : colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => { playTapSound(); setDarkMode(true); }}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: darkMode ? colors.primaryRgba(0.2) : colors.border + '40',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    borderWidth: darkMode ? 2 : 0,
-                    borderColor: colors.primary,
-                  }}
-                >
-                  <Ionicons name="moon" size={24} color={darkMode ? colors.primary : colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+              <Text style={[ts.rowLabel, { color: colors.text }]}>Escolha seu tema</Text>
+            </View>
+            <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16 }]}>
+              {BACKGROUND_COLORS.map((item) => {
+                const sel = customBgColor && customBgColor.toLowerCase() === item.hex.toLowerCase();
+                const r = parseInt(item.hex.slice(1, 3), 16);
+                const g = parseInt(item.hex.slice(3, 5), 16);
+                const b = parseInt(item.hex.slice(5, 7), 16);
+                const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                const checkColor = lum < 0.5 ? '#fff' : '#333';
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[ts.colorGridItem, { backgroundColor: item.hex, borderColor: colors.border }, sel && ts.colorGridItemSelected]}
+                    onPress={() => { playTapSound(); setCustomBgColor(item.hex); }}
+                  >
+                    {sel && <Ionicons name="checkmark" size={20} color={checkColor} />}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
-
-          <Text style={[ts.sectionTitle, { color: colors.textSecondary }]}>COR PRINCIPAL</Text>
 
           {!hasPremiumColors && (
             <View style={[ts.upgradeBanner, { backgroundColor: colors.primaryRgba(0.08), borderColor: colors.primary + '40' }]}>
@@ -287,23 +282,11 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
 
           <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
-              <Text style={[ts.rowLabel, { color: colors.text }]}>Cores disponíveis (plano gratuito)</Text>
-              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Toque para aplicar</Text>
-            </View>
-            {freeColors.map((item) => (
-              <ColorListItem key={item.id} item={item} selected={primaryColor.toLowerCase() === item.hex.toLowerCase()} locked={false} />
-            ))}
-          </View>
-
-          <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }}>
-              <Text style={[ts.rowLabel, { color: colors.text }]}>Criar cor personalizada</Text>
-              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>
-                {hasPremiumColors ? 'Crie uma cor e salve como favorita' : 'Atualize o plano para criar cores'}
-              </Text>
+              <Text style={[ts.rowLabel, { color: colors.text }]}>Cor principal do app</Text>
+              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Crie cores ou escolha uma</Text>
             </View>
             <TouchableOpacity
-              style={[ts.createColorRow, ts.rowLast, { borderBottomColor: colors.border }]}
+              style={[ts.createColorRow, { borderBottomColor: colors.border }]}
               onPress={() => {
                 playTapSound();
                 if (hasPremiumColors) setShowCreateColor(true);
@@ -313,54 +296,44 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
               <View style={[ts.colorSwatch, { backgroundColor: 'transparent', borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary }]}>
                 <Ionicons name="add" size={24} color={colors.primary} style={{ position: 'absolute', top: 6, left: 6 }} />
               </View>
-              <Text style={[ts.colorName, { color: colors.primary, fontWeight: '600' }]}>Criar cor e salvar como favorito</Text>
+              <Text style={[ts.colorName, { color: colors.primary, fontWeight: '600' }]}>Criar cor personalizada</Text>
               {!hasPremiumColors && <View style={[ts.lockBadge, { backgroundColor: colors.border + '60' }]}><Ionicons name="lock-closed" size={14} color={colors.textSecondary} /></View>}
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
-
-          {hasPremiumColors && favoriteColors.length > 0 && (
-            <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
-                <Text style={[ts.rowLabel, { color: colors.text }]}>Favoritas</Text>
-                <Text style={[ts.rowSub, { color: colors.textSecondary }]}>{favoriteColors.length}/{maxFavorites ?? 10} cores</Text>
-              </View>
-              {favoriteColors.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[ts.colorListItem, { borderBottomColor: colors.border }]}
-                  onPress={() => handleSelectColor(item.hex)}
-                  onLongPress={() => {
-                    playTapSound();
-                    Alert.alert('Remover', 'Remover esta cor dos favoritos?', [
-                      { text: 'Cancelar' },
-                      { text: 'Remover', style: 'destructive', onPress: () => removeFavoriteColor(item.id) },
-                    ]);
-                  }}
-                >
-                  <View style={[ts.colorSwatch, { backgroundColor: item.hex }]} />
-                  <Text style={[ts.colorName, { color: colors.text }]}>{item.name}</Text>
-                  {primaryColor.toLowerCase() === item.hex.toLowerCase() && <Ionicons name="checkmark-circle" size={24} color={colors.primary} />}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }}>
-              <Text style={[ts.rowLabel, { color: colors.text }]}>Mais cores</Text>
-              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Toque para aplicar</Text>
-            </View>
-            <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16 }]}>
-              {paidColors.map((item) => {
+            {hasPremiumColors && favoriteColors.length > 0 && favoriteColors.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[ts.colorListItem, { borderBottomColor: colors.border }]}
+                onPress={() => handleSelectColor(item.hex)}
+                onLongPress={() => {
+                  playTapSound();
+                  Alert.alert('Remover', 'Remover esta cor dos favoritos?', [
+                    { text: 'Cancelar' },
+                    { text: 'Remover', style: 'destructive', onPress: () => removeFavoriteColor(item.id) },
+                  ]);
+                }}
+              >
+                <View style={[ts.colorSwatch, { backgroundColor: item.hex }]} />
+                <Text style={[ts.colorName, { color: colors.text }]}>{item.name}</Text>
+                {primaryColor.toLowerCase() === item.hex.toLowerCase() && <Ionicons name="checkmark-circle" size={24} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+            <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12 }]}>
+              {primaryOptions.map((item) => {
                 const sel = primaryColor.toLowerCase() === item.hex.toLowerCase();
+                const locked = !freeColors.some((f) => f.id === item.id) && !hasPremiumColors;
+                const r = parseInt(item.hex.slice(1, 3), 16);
+                const g = parseInt(item.hex.slice(3, 5), 16);
+                const b = parseInt(item.hex.slice(5, 7), 16);
+                const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                const checkColor = lum < 0.5 ? '#fff' : '#333';
                 return (
                   <TouchableOpacity
                     key={item.id}
                     style={[ts.colorGridItem, { backgroundColor: item.hex }, sel && ts.colorGridItemSelected]}
-                    onPress={() => handleSelectColor(item.hex, !hasPremiumColors)}
+                    onPress={() => handleSelectColor(item.hex, locked)}
                   >
-                    {sel && hasPremiumColors && <Ionicons name="checkmark" size={20} color="#fff" />}
+                    {sel && !locked && <Ionicons name="checkmark" size={20} color={checkColor} />}
                   </TouchableOpacity>
                 );
               })}

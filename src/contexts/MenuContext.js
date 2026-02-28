@@ -5,6 +5,7 @@ export const MenuContext = createContext({
   closeAndNavigate: () => {},
   openImageGenerator: () => {},
   openAssistant: () => {},
+  openManageCards: () => {},
 });
 
 export function useMenu() {

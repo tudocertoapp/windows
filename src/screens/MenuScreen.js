@@ -31,7 +31,7 @@ const ms = StyleSheet.create({
 });
 
 export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenImageGenerator, onOpenTemas, onOpenTermos }) {
-  const { clients, products, services, boletos, checkListItems, suppliers, compositeProducts } = useFinance();
+  const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
   const { signOut } = useAuth();
@@ -60,7 +60,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
 
   const MenuItem = ({ icon, label, subtitle, onPress, badge, rightEl }) => (
     <TouchableOpacity style={[ms.menuItem, { borderBottomColor: colors.border }]} onPress={onPress || comingSoon} activeOpacity={0.6}>
-      <View style={[ms.menuIconBox, { backgroundColor: colors.primaryRgba(0.2) }]}>
+      <View style={[ms.menuIconBox, { backgroundColor: 'transparent' }]}>
         <AppIcon name={icon} size={22} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
@@ -81,7 +81,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
       {isModal && (
         <View style={[topBarStyles.bar, { backgroundColor: colors.bg }]}>
           <Text style={[topBarStyles.title, { color: colors.text }]}>Menu</Text>
-          <TouchableOpacity style={[topBarStyles.menuBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
+          <TouchableOpacity style={[topBarStyles.menuBtn, { backgroundColor: 'transparent' }]} onPress={onClose}>
             <Ionicons name="close" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
@@ -130,7 +130,6 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {showEmpresaFeatures && <MenuItem icon="people-outline" label="Clientes" subtitle="CRM e clientes" badge={`${clients.length}`} onPress={onOpenClientes} />}
           <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => goToCadastro('produtos')} />
-          {showEmpresaFeatures && <MenuItem icon="layers-outline" label="Produtos compostos" subtitle="Pacotes com vários itens" badge={`${compositeProducts?.length ?? 0}`} onPress={() => goToCadastro('produtos_compostos')} />}
           <MenuItem icon="construct-outline" label="Serviços" subtitle="Gerenciar serviços" badge={`${services.length}`} onPress={() => goToCadastro('servicos')} />
           <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
           <MenuItem icon="document-text-outline" label="Boletos" subtitle="Gerenciar boletos" badge={`${boletos.length}`} onPress={() => goToCadastro('boletos')} />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,35 +13,42 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePlan } from '../contexts/PlanContext';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-const GAP = 16;
-const CARD_MAX_WIDTH = Math.min(SW - 24, 440);
-const SCROLL_MAX_HEIGHT = Math.min(SH * 0.6, 520);
+const { width: SW } = Dimensions.get('window');
+const GAP = 20;
+const CARD_MAX_WIDTH = Math.min(SW - 32, 440);
+const SCROLL_MAX_HEIGHT = Math.min(520, 580);
+const CAROUSEL_WIDTH = CARD_MAX_WIDTH - GAP * 2;
+const CAROUSEL_HEIGHT = Math.round(CAROUSEL_WIDTH / 1.4);
 
 export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { colors } = useTheme();
-  const { suppliers, products, services } = useFinance();
+  const { suppliers, products, addCompositeProduct } = useFinance();
+  const { showEmpresaFeatures } = usePlan();
+  const carouselRef = useRef(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [name, setName] = useState(editingItem?.name || '');
   const [costPrice, setCostPrice] = useState(editingItem?.costPrice != null ? String(editingItem.costPrice) : '');
   const [price, setPrice] = useState(editingItem?.price != null ? String(editingItem.price) : '');
   const [discount, setDiscount] = useState(editingItem?.discount != null ? String(editingItem.discount) : '');
   const [unit, setUnit] = useState(editingItem?.unit || 'un');
-  const [photoUri, setPhotoUri] = useState(editingItem?.photoUri || null);
+  const [photoUris, setPhotoUris] = useState(editingItem?.photoUris?.length ? [...editingItem.photoUris] : (editingItem?.photoUri ? [editingItem.photoUri] : []));
   const [code, setCode] = useState(editingItem?.code || '');
   const [allowDiscount, setAllowDiscount] = useState(editingItem?.allowDiscount !== false);
   const [stock, setStock] = useState(editingItem?.stock != null ? String(editingItem.stock) : '0');
   const [minStock, setMinStock] = useState(editingItem?.minStock != null ? String(editingItem.minStock) : '0');
   const [supplierId, setSupplierId] = useState(editingItem?.supplierId || null);
-  const [isComposite, setIsComposite] = useState(!!(editingItem?.items?.length));
-  const [compositeItems, setCompositeItems] = useState(editingItem?.items || []);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
-  const [showItemPicker, setShowItemPicker] = useState(null);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [isCompositeProduct, setIsCompositeProduct] = useState(!!(editingItem?.isComposite));
+  const [compositeItems, setCompositeItems] = useState(editingItem?.compositeItems || []);
 
   React.useEffect(() => {
     if (visible && editingItem) {
@@ -50,27 +57,29 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setPrice(editingItem.price != null ? String(editingItem.price) : '');
       setDiscount(editingItem.discount != null ? String(editingItem.discount) : '');
       setUnit(editingItem.unit || 'un');
-      setPhotoUri(editingItem.photoUri || null);
+      setPhotoUris(editingItem.photoUris?.length ? [...editingItem.photoUris] : (editingItem.photoUri ? [editingItem.photoUri] : []));
+      setCarouselIndex(0);
       setCode(editingItem.code || '');
       setAllowDiscount(editingItem.allowDiscount !== false);
       setStock(editingItem.stock != null ? String(editingItem.stock) : '0');
       setMinStock(editingItem.minStock != null ? String(editingItem.minStock) : '0');
       setSupplierId(editingItem.supplierId || null);
-      setIsComposite(!!(editingItem.items?.length));
-      setCompositeItems(editingItem.items || []);
+      setIsCompositeProduct(!!editingItem.isComposite);
+      setCompositeItems(editingItem.compositeItems || []);
     } else if (visible && !editingItem) {
       setName('');
       setCostPrice('');
       setPrice('');
       setDiscount('');
       setUnit('un');
-      setPhotoUri(null);
+      setPhotoUris([]);
+      setCarouselIndex(0);
       setCode('');
       setAllowDiscount(true);
       setStock('0');
       setMinStock('0');
       setSupplierId(null);
-      setIsComposite(false);
+      setIsCompositeProduct(false);
       setCompositeItems([]);
     }
   }, [visible, editingItem]);
@@ -79,163 +88,223 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permissão', 'Precisamos de acesso à galeria.');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (!result.canceled) {
+      const newIndex = photoUris.length;
+      setPhotoUris((prev) => [...prev, result.assets[0].uri]);
+      setCarouselIndex(newIndex);
+      setTimeout(() => {
+        carouselRef.current?.scrollToOffset({ offset: newIndex * CAROUSEL_WIDTH, animated: true });
+      }, 100);
+    }
   };
 
-  const addCompositeItem = (type, id, qty = 1) => {
-    const list = [...compositeItems];
-    const idx = list.findIndex((x) => x.type === type && x.id === id);
-    if (idx >= 0) list[idx].qty += qty;
-    else list.push({ type, id, qty });
-    setCompositeItems(list);
-    setShowItemPicker(null);
+  const removePhoto = (index) => {
+    setPhotoUris((prev) => prev.filter((_, i) => i !== index));
+    setCarouselIndex((prev) => {
+      if (prev > index) return prev - 1;
+      if (prev === index) return Math.max(0, index - 1);
+      return prev;
+    });
   };
 
-  const updateCompositeItem = (idx, patch) => {
-    const list = [...compositeItems];
-    list[idx] = { ...list[idx], ...patch };
-    setCompositeItems(list);
+  const onCarouselScroll = (e) => {
+    const offset = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offset / CAROUSEL_WIDTH);
+    if (index >= 0 && index < photoUris.length) setCarouselIndex(index);
   };
 
-  const removeCompositeItem = (idx) => {
-    setCompositeItems((prev) => prev.filter((_, i) => i !== idx));
+  const scrollToCarouselIndex = (index) => {
+    if (carouselRef.current && index >= 0 && index < photoUris.length) {
+      carouselRef.current.scrollToOffset({ offset: index * CAROUSEL_WIDTH, animated: true });
+      setCarouselIndex(index);
+    }
   };
 
-  const getCompositeSummary = () => {
-    if (compositeItems.length === 0) return null;
-    return compositeItems
-      .map((ci) => {
-        const it = ci.type === 'product' ? products.find((p) => p.id === ci.id) : services.find((s) => s.id === ci.id);
-        return `${ci.qty}x ${it?.name || '—'}`;
-      })
-      .join(' + ');
-  };
 
   const handleSave = () => {
     if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome do produto.');
-    if (isComposite && compositeItems.length === 0) return Alert.alert('Erro', 'Adicione ao menos um item ao produto composto.');
-    const p = parseFloat(String(price).replace(',', '.')) || 0;
-    const c = parseFloat(String(costPrice).replace(',', '.')) || 0;
-    const d = parseFloat(String(discount).replace(',', '.')) || 0;
-    const st = parseInt(String(stock).replace(/\D/g, ''), 10) || 0;
-    const minSt = parseInt(String(minStock).replace(/\D/g, ''), 10) || 0;
-    const payload = {
-      name: name.trim(),
-      price: p,
-      costPrice: c,
-      discount: d,
-      unit: unit.trim() || 'un',
-      photoUri: photoUri || null,
-      code: code.trim() || null,
-      allowDiscount,
-      stock: st,
-      minStock: minSt,
-      supplierId: supplierId || null,
-      isComposite,
-      items: isComposite ? compositeItems : undefined,
-    };
-    onSave(payload);
+    if (isCompositeProduct && showEmpresaFeatures) {
+      addCompositeProduct({
+        name: name.trim(),
+        data: { items: compositeItems, price: parseFloat(String(price).replace(',', '.')) || 0 },
+      });
+      onSave({ _skipAdd: true });
+    } else {
+      const p = parseFloat(String(price).replace(',', '.')) || 0;
+      const c = parseFloat(String(costPrice).replace(',', '.')) || 0;
+      const d = parseFloat(String(discount).replace(',', '.')) || 0;
+      const st = parseInt(String(stock).replace(/\D/g, ''), 10) || 0;
+      const minSt = parseInt(String(minStock).replace(/\D/g, ''), 10) || 0;
+      const payload = {
+        name: name.trim(),
+        price: p,
+        costPrice: c,
+        discount: d,
+        unit: unit.trim() || 'un',
+        photoUris: photoUris.length > 0 ? photoUris : null,
+        code: code.trim() || null,
+        allowDiscount,
+        stock: st,
+        minStock: minSt,
+        supplierId: supplierId || null,
+      };
+      onSave(payload);
+    }
   };
+
+  const addCompositeItem = (product) => {
+    if (product) {
+      setCompositeItems((prev) => [...prev, { productId: product.id, productName: product.name, qty: 1 }]);
+      setShowProductPicker(false);
+    } else {
+      if ((products || []).length === 0) return Alert.alert('Aviso', 'Cadastre produtos antes de criar um produto composto.');
+      setShowProductPicker(true);
+    }
+  };
+
+  const updateCompositeItem = (index, field, value) => {
+    setCompositeItems((prev) => prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
+  };
+
+  const removeCompositeItem = (index) => {
+    setCompositeItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const sectionGap = { marginBottom: GAP };
 
   return (
     <Modal visible={visible} transparent animationType="fade">
       <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.header}>
+            <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.text }]}>{editingItem ? 'EDITAR PRODUTO' : 'NOVO PRODUTO'}</Text>
               <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
                 <Ionicons name="close" size={22} color={colors.primary} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" style={s.scroll} contentContainerStyle={s.scrollContent}>
-              <TouchableOpacity onPress={pickImage} style={[s.photoArea, { borderColor: colors.border, backgroundColor: colors.bg }]}>
-                {photoUri ? (
-                  <Image source={{ uri: photoUri }} style={s.photoImg} resizeMode="cover" />
-                ) : (
-                  <View style={s.photoPlaceholder}>
-                    <Ionicons name="add-circle-outline" size={48} color={colors.primary} />
-                    <Text style={[s.photoHint, { color: colors.textSecondary }]}>Toque para adicionar foto</Text>
+              {/* Carrossel de fotos */}
+              <View style={[sectionGap]}>
+                <View style={[s.photoCarouselWrap, { borderColor: colors.border, backgroundColor: colors.bg }]}>
+                  {photoUris.length > 0 ? (
+                    <View style={s.photoCarousel}>
+                      <FlatList
+                        ref={carouselRef}
+                        data={photoUris}
+                        horizontal
+                        pagingEnabled
+                        style={{ width: CAROUSEL_WIDTH, height: CAROUSEL_HEIGHT }}
+                        showsHorizontalScrollIndicator={false}
+                        onScroll={onCarouselScroll}
+                        onMomentumScrollEnd={onCarouselScroll}
+                        scrollEventThrottle={16}
+                        getItemLayout={(_, index) => ({ length: CAROUSEL_WIDTH, offset: CAROUSEL_WIDTH * index, index })}
+                        keyExtractor={(_, i) => String(i)}
+                        renderItem={({ item, index }) => (
+                          <View style={s.carouselSlide}>
+                            <Image source={{ uri: item }} style={s.photoImg} resizeMode="cover" />
+                            <TouchableOpacity style={[s.removePhotoBtn, { backgroundColor: 'rgba(0,0,0,0.6)' }]} onPress={() => removePhoto(index)}>
+                              <Ionicons name="close-circle" size={28} color="#fff" />
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      />
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={s.photoPlaceholder} onPress={pickImage}>
+                      <Ionicons name="add-circle-outline" size={48} color={colors.primary} />
+                      <Text style={[s.photoHint, { color: colors.textSecondary }]}>Toque para adicionar fotos</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {photoUris.length > 0 && (
+                  <View style={s.dotsRow}>
+                    {photoUris.map((_, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          s.dot,
+                          i === carouselIndex && s.dotActive,
+                          { backgroundColor: i === carouselIndex ? colors.primary : colors.border + '99' },
+                        ]}
+                        onPress={() => scrollToCarouselIndex(i)}
+                      />
+                    ))}
                   </View>
                 )}
-              </TouchableOpacity>
-              <View style={s.photoActions}>
-                <TouchableOpacity style={[s.photoBtn, { borderColor: colors.primary }]} onPress={pickImage}>
-                  <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
-                  <Text style={[s.photoBtnText, { color: colors.primary }]}>Carregar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.photoBtnOutline, { borderColor: colors.border }]} onPress={pickImage}>
-                  <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
-                  <Text style={[s.photoBtnTextOutline, { color: colors.textSecondary }]}>Editar</Text>
-                </TouchableOpacity>
+                <View style={[s.photoActions, sectionGap]}>
+                  <TouchableOpacity style={[s.photoBtn, { borderColor: colors.primary }]} onPress={pickImage}>
+                    <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
+                    <Text style={[s.photoBtnText, { color: colors.primary }]}>Adicionar foto</Text>
+                  </TouchableOpacity>
+                  {photoUris.length > 0 && (
+                    <Text style={[s.photoSubHint, { color: colors.textSecondary }]}>{photoUris.length} foto(s) • deslize para ver</Text>
+                  )}
+                </View>
               </View>
-              <Text style={[s.photoSubHint, { color: colors.textSecondary }]}>Toque na foto para escolher outra</Text>
 
               <Text style={[s.label, { color: colors.textSecondary }]}>NOME (EX: CAMISA)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="Camisa, Calça..." value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Camisa, Calça..." value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
 
-              <TouchableOpacity style={[s.compositeRow, { backgroundColor: colors.bg, borderColor: colors.border }]} onPress={() => setIsComposite(!isComposite)}>
-                <Text style={[s.compositeLabel, { color: colors.text }]} numberOfLines={2}>
-                  PRODUTO COMPOSTO (VÁRIOS PRODUTOS/SERVIÇOS EM UM SÓ)
-                </Text>
-                <View style={[s.checkCircle, { backgroundColor: isComposite ? colors.primary : 'transparent', borderColor: colors.primary }]}>
-                  {isComposite && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-
-              {isComposite && (
+              {showEmpresaFeatures && (
                 <>
-                  {getCompositeSummary() && (
-                    <Text style={[s.summary, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {getCompositeSummary()}
-                    </Text>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>PRODUTO COMPOSTO?</Text>
+                  <View style={[s.toggleRow, sectionGap]}>
+                    <TouchableOpacity style={[s.toggleOpt, !isCompositeProduct && { backgroundColor: colors.primary }]} onPress={() => setIsCompositeProduct(false)}>
+                      <Text style={[s.toggleText, { color: isCompositeProduct ? colors.text : '#fff' }]}>NÃO</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.toggleOpt, isCompositeProduct && { backgroundColor: colors.primary }]} onPress={() => setIsCompositeProduct(true)}>
+                      <Text style={[s.toggleText, { color: isCompositeProduct ? '#fff' : colors.text }]}>SIM</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {isCompositeProduct && (
+                    <View style={[s.compositeSection, { borderColor: colors.border, backgroundColor: colors.bg }, sectionGap]}>
+                      <Text style={[s.label, { color: colors.textSecondary, marginBottom: 12 }]}>ITENS DO PRODUTO COMPOSTO</Text>
+                      {compositeItems.map((it, idx) => (
+                        <View key={idx} style={[s.compositeItemRow, { borderColor: colors.border }, idx < compositeItems.length - 1 && { marginBottom: 12 }]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>{it.productName || 'Produto'}</Text>
+                            <TextInput style={[s.input, { marginTop: 4, paddingVertical: 8 }]} value={String(it.qty || 1)} onChangeText={(t) => updateCompositeItem(idx, 'qty', parseInt(t, 10) || 1)} keyboardType="number-pad" placeholder="Qtd" placeholderTextColor={colors.textSecondary} />
+                          </View>
+                          <TouchableOpacity onPress={() => removeCompositeItem(idx)} style={{ padding: 8 }}>
+                            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      <TouchableOpacity style={[s.addCompositeBtn, { backgroundColor: colors.primaryRgba(0.2), borderColor: colors.primary }]} onPress={() => addCompositeItem(null)}>
+                        <Ionicons name="add" size={20} color={colors.primary} />
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Adicionar produto</Text>
+                      </TouchableOpacity>
+                      {showProductPicker && (
+                        <View style={[s.picker, { marginTop: 12, backgroundColor: colors.bg, borderColor: colors.border }]}>
+                          <Text style={{ padding: 12, fontWeight: '600', color: colors.text }}>Selecione o produto</Text>
+                          {(products || []).map((p) => (
+                            <TouchableOpacity key={p.id} style={[s.pickerItem, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} onPress={() => addCompositeItem(p)}>
+                              <Text style={{ color: colors.text }}>{p.name}</Text>
+                              <Text style={{ fontSize: 12, color: colors.textSecondary }}>R$ {(p.price || 0).toFixed(2)}</Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity style={s.pickerItem} onPress={() => setShowProductPicker(false)}>
+                            <Text style={{ color: colors.primary, fontWeight: '600' }}>Cancelar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      <Text style={[s.hint, { color: colors.textSecondary, marginTop: 8 }]}>Selecione os produtos que compõem este item</Text>
+                    </View>
                   )}
-                  {compositeItems.map((ci, idx) => {
-                    const it = ci.type === 'product' ? products.find((p) => p.id === ci.id) : services.find((s) => s.id === ci.id);
-                    return (
-                      <View key={`${ci.type}-${ci.id}-${idx}`} style={[s.itemCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                        <View style={s.itemHeader}>
-                          <Text style={[s.itemLabel, { color: colors.text }]}>ITEM {idx + 1}</Text>
-                          <TouchableOpacity style={s.trashBtn} onPress={() => removeCompositeItem(idx)}>
-                            <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                          </TouchableOpacity>
-                        </View>
-                        <View style={s.itemRow}>
-                          <TouchableOpacity style={[s.typeSelect, { borderColor: colors.border }]} onPress={() => updateCompositeItem(idx, { type: ci.type === 'product' ? 'service' : 'product', id: null })}>
-                            <Text style={{ color: colors.text, fontSize: 14 }}>{ci.type === 'product' ? 'Produto' : 'Serviço'}</Text>
-                            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-                          </TouchableOpacity>
-                          <TextInput
-                            style={[s.qtyInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }]}
-                            value={String(ci.qty)}
-                            onChangeText={(t) => updateCompositeItem(idx, { qty: Math.max(1, parseInt(t.replace(/\D/g, ''), 10) || 1) })}
-                            keyboardType="number-pad"
-                          />
-                        </View>
-                        <TouchableOpacity style={[s.selectInput, { borderColor: colors.border }]} onPress={() => setShowItemPicker(idx)}>
-                          <Text style={[s.selectText, { color: it?.name ? colors.text : colors.textSecondary }]} numberOfLines={1}>
-                            {ci.type === 'product' ? (it?.name || 'Selecione produto') : (it?.name || 'Selecione serviço')}
-                          </Text>
-                          <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                  <TouchableOpacity style={[s.addItemBtn, { backgroundColor: colors.primary }]} onPress={() => setShowItemPicker('new')}>
-                    <Ionicons name="add" size={20} color="#fff" />
-                    <Text style={s.addItemText}>ADICIONAR ITEM AO COMPOSTO</Text>
-                  </TouchableOpacity>
                 </>
               )}
 
               <Text style={[s.label, { color: colors.textSecondary }]}>VARIAÇÕES (TAMANHO, COR, MARCA, ESTOQUE)</Text>
-              <TouchableOpacity style={[s.select, { borderColor: colors.border, backgroundColor: colors.bg }]}>
+              <TouchableOpacity style={[s.select, { borderColor: colors.border, backgroundColor: colors.bg }, sectionGap]}>
                 <Text style={[s.selectText, { color: colors.textSecondary }]}>Nenhum</Text>
                 <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <Text style={[s.label, { color: colors.textSecondary }]}>FORNECEDOR</Text>
-              <View style={s.row}>
+              <View style={[s.row, sectionGap]}>
                 <TouchableOpacity style={[s.select, { borderColor: colors.border, backgroundColor: colors.bg, flex: 1 }]} onPress={() => setShowSupplierPicker(true)}>
                   <Text style={[s.selectText, { color: suppliers.find((s) => s.id === supplierId)?.name ? colors.text : colors.textSecondary }]} numberOfLines={1}>
                     {suppliers.find((s) => s.id === supplierId)?.name || 'Nenhum'}
@@ -249,11 +318,11 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
               </View>
 
               {showSupplierPicker && (
-                <View style={[s.picker, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                <View style={[s.picker, { backgroundColor: colors.bg, borderColor: colors.border }, sectionGap]}>
                   <TouchableOpacity style={s.pickerItem} onPress={() => { setSupplierId(null); setShowSupplierPicker(false); }}>
                     <Text style={{ color: colors.text }}>Nenhum</Text>
                   </TouchableOpacity>
-                  {suppliers.map((sup) => (
+                  {(suppliers || []).map((sup) => (
                     <TouchableOpacity key={sup.id} style={s.pickerItem} onPress={() => { setSupplierId(sup.id); setShowSupplierPicker(false); }}>
                       <Text style={{ color: colors.text }}>{sup.name}</Text>
                     </TouchableOpacity>
@@ -264,7 +333,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
                 </View>
               )}
 
-              <View style={s.row}>
+              <View style={[s.row, sectionGap]}>
                 <View style={s.half}>
                   <Text style={[s.label, { color: colors.textSecondary }]}>PREÇO DE CUSTO</Text>
                   <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="R$ 0,00" value={costPrice} onChangeText={setCostPrice} keyboardType="decimal-pad" placeholderTextColor={colors.textSecondary} />
@@ -276,10 +345,10 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
               </View>
 
               <Text style={[s.label, { color: colors.textSecondary }]}>CÓDIGO DO PRODUTO</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="SKU, ref..." value={code} onChangeText={setCode} placeholderTextColor={colors.textSecondary} />
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="SKU, ref..." value={code} onChangeText={setCode} placeholderTextColor={colors.textSecondary} />
 
               <Text style={[s.label, { color: colors.textSecondary }]}>PERMITIR DESCONTO NA VENDA?</Text>
-              <View style={s.toggleRow}>
+              <View style={[s.toggleRow, sectionGap]}>
                 <TouchableOpacity style={[s.toggleOpt, !allowDiscount && { backgroundColor: colors.primary }]} onPress={() => setAllowDiscount(false)}>
                   <Text style={[s.toggleText, { color: allowDiscount ? colors.text : '#fff' }]}>NÃO</Text>
                 </TouchableOpacity>
@@ -288,17 +357,21 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
                 </TouchableOpacity>
               </View>
 
-              <View style={s.row}>
-                <View style={s.half}>
-                  <Text style={[s.label, { color: colors.textSecondary }]}>ESTOQUE ATUAL</Text>
-                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="0" value={stock} onChangeText={setStock} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
-                </View>
-                <View style={s.half}>
-                  <Text style={[s.label, { color: colors.textSecondary }]}>ESTOQUE MÍNIMO</Text>
-                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="0" value={minStock} onChangeText={setMinStock} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
-                </View>
-              </View>
-              <Text style={[s.hint, { color: colors.textSecondary }]}>Alerta quando estoque estiver abaixo do mínimo</Text>
+              {!isCompositeProduct && (
+                <>
+                  <View style={[s.row, sectionGap]}>
+                    <View style={s.half}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>ESTOQUE ATUAL</Text>
+                      <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="0" value={stock} onChangeText={setStock} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
+                    </View>
+                    <View style={s.half}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>ESTOQUE MÍNIMO</Text>
+                      <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="0" value={minStock} onChangeText={setMinStock} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
+                    </View>
+                  </View>
+                  <Text style={[s.hint, { color: colors.textSecondary }, sectionGap]}>Alerta quando estoque estiver abaixo do mínimo</Text>
+                </>
+              )}
             </ScrollView>
 
             <TouchableOpacity style={[s.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
@@ -307,33 +380,6 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </TouchableOpacity>
-
-      {showItemPicker !== null && (
-        <Modal visible transparent animationType="fade">
-          <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowItemPicker(null)}>
-            <View style={[s.pickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[s.pickerTitle, { color: colors.text }]}>Adicionar ao composto</Text>
-              <ScrollView style={{ maxHeight: 280 }}>
-                <Text style={[s.pickerSection, { color: colors.textSecondary }]}>Produtos</Text>
-                {products.map((p) => (
-                  <TouchableOpacity key={`p-${p.id}`} style={s.pickerItem} onPress={() => (showItemPicker === 'new' ? addCompositeItem('product', p.id) : updateCompositeItem(showItemPicker, { type: 'product', id: p.id }))}>
-                    <Text style={{ color: colors.text }}>{p.name}</Text>
-                  </TouchableOpacity>
-                ))}
-                <Text style={[s.pickerSection, { color: colors.textSecondary }]}>Serviços</Text>
-                {services.map((s) => (
-                  <TouchableOpacity key={`s-${s.id}`} style={s.pickerItem} onPress={() => (showItemPicker === 'new' ? addCompositeItem('service', s.id) : updateCompositeItem(showItemPicker, { type: 'service', id: s.id }))}>
-                    <Text style={{ color: colors.text }}>{s.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity style={[s.pickerClose, { backgroundColor: colors.primary }]} onPress={() => setShowItemPicker(null)}>
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      )}
     </Modal>
   );
 }
@@ -349,54 +395,42 @@ const s = StyleSheet.create({
     maxHeight: '95%',
     borderWidth: 1,
   },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: GAP },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 18, fontWeight: '700', textTransform: 'uppercase' },
-  closeBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  closeBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   scroll: { maxHeight: SCROLL_MAX_HEIGHT },
-  scrollContent: { paddingBottom: GAP },
-  photoArea: { width: '100%', aspectRatio: 1.6, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', overflow: 'hidden', marginBottom: GAP },
+  scrollContent: { paddingBottom: GAP * 2 },
+  photoCarouselWrap: { alignSelf: 'center', borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', overflow: 'hidden' },
+  photoCarousel: { width: CAROUSEL_WIDTH, height: CAROUSEL_HEIGHT, overflow: 'hidden' },
+  carouselSlide: { width: CAROUSEL_WIDTH, height: CAROUSEL_HEIGHT, position: 'relative' },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  dotActive: { width: 10, height: 10, borderRadius: 5 },
   photoImg: { width: '100%', height: '100%' },
-  photoPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  removePhotoBtn: { position: 'absolute', top: 8, right: 8, borderRadius: 14 },
+  photoPlaceholder: { flex: 1, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', gap: 12 },
   photoHint: { fontSize: 14 },
-  photoActions: { flexDirection: 'row', gap: GAP, marginBottom: GAP / 2 },
-  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 2 },
+  photoActions: { flexDirection: 'row', alignItems: 'center', gap: GAP },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, borderWidth: 2 },
   photoBtnText: { fontSize: 14, fontWeight: '600' },
-  photoBtnOutline: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 2 },
-  photoBtnTextOutline: { fontSize: 14, fontWeight: '600' },
-  photoSubHint: { fontSize: 11, marginBottom: GAP },
-  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  compositeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: GAP },
-  compositeLabel: { flex: 1, fontSize: 12, fontWeight: '600' },
-  checkCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, marginLeft: 12, justifyContent: 'center', alignItems: 'center' },
-  summary: { fontSize: 13, marginBottom: GAP },
-  itemCard: { padding: GAP, borderRadius: 12, borderWidth: 1, marginBottom: GAP },
-  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  itemLabel: { fontSize: 12, fontWeight: '700' },
-  trashBtn: { padding: 4 },
-  itemRow: { flexDirection: 'row', gap: GAP, marginBottom: 8 },
-  typeSelect: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  qtyInput: { width: 60, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, textAlign: 'center' },
-  selectInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, marginBottom: GAP },
-  addItemText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'flex-end', gap: GAP },
+  photoSubHint: { fontSize: 12 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 8 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, fontSize: 15 },
+  compositeSection: { padding: 16, borderRadius: 12, borderWidth: 1 },
+  compositeItemRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1 },
+  addCompositeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 2 },
+  row: { flexDirection: 'row', gap: GAP },
   half: { flex: 1 },
-  select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14 },
   selectText: { fontSize: 15 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 12 },
   addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  toggleRow: { flexDirection: 'row', gap: GAP, marginBottom: GAP },
-  toggleOpt: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
+  toggleRow: { flexDirection: 'row', gap: GAP },
+  toggleOpt: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.1)' },
   toggleText: { fontSize: 14, fontWeight: '600' },
-  hint: { fontSize: 12, marginTop: 6, marginBottom: GAP },
-  picker: { marginTop: 8, borderRadius: 12, borderWidth: 1, maxHeight: 150 },
-  pickerItem: { padding: 14, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.1)' },
-  saveBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  hint: { fontSize: 12 },
+  picker: { borderRadius: 12, borderWidth: 1, maxHeight: 160 },
+  pickerItem: { padding: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.1)' },
+  saveBtn: { borderRadius: 12, paddingVertical: 18, alignItems: 'center', marginTop: GAP },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  pickerCard: { borderRadius: 16, borderWidth: 1, padding: 16, maxHeight: 360 },
-  pickerTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  pickerSection: { fontSize: 12, fontWeight: '600', marginTop: 8, marginBottom: 4 },
-  pickerClose: { marginTop: 12, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
 });

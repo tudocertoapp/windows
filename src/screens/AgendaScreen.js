@@ -16,6 +16,7 @@ import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMenu } from '../contexts/MenuContext';
 import { TopBar } from '../components/TopBar';
+import { AgendaFormModal } from '../components/AgendaFormModal';
 import { playTapSound } from '../utils/sounds';
 
 const { width: SW } = Dimensions.get('window');
@@ -172,12 +173,13 @@ function getCalendarGrid(year, month) {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function AgendaScreen() {
-  const { agendaEvents, deleteAgendaEvent, checkListItems } = useFinance();
+  const { agendaEvents, deleteAgendaEvent, updateAgendaEvent, checkListItems } = useFinance();
   const { colors } = useTheme();
   const { openAddModal } = useMenu();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [displayedMonthDate, setDisplayedMonthDate] = useState(() => new Date());
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [agendaFormState, setAgendaFormState] = useState({ visible: false, editingEvent: null });
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth());
   const [hourScale, setHourScale] = useState(1);
@@ -220,7 +222,7 @@ export function AgendaScreen() {
               measurementReadyRef.current = true;
               const touchInViewport = centerPageY - y;
               const contentYUnderTouch = scrollOffsetRef.current + touchInViewport;
-              const { y: timelineY } = timelineLayoutRef.current;
+              const timelineY = timelineLayoutRef.current?.y ?? 0;
               const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
               const posInTimeline = contentYUnderTouch - timelineY;
               pinchFocalRatio.current = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
@@ -241,7 +243,7 @@ export function AgendaScreen() {
                 const centerPageY = (touches[0].pageY + touches[1].pageY) / 2;
                 const scrollTop = scrollViewTopRef.current;
                 const touchInViewport = centerPageY - scrollTop;
-                const { y: timelineY } = timelineLayoutRef.current;
+                const timelineY = timelineLayoutRef.current?.y ?? 0;
                 const newTimelineH = 24 * HOUR_HEIGHT * newScale;
                 const focalInNewTimeline = pinchFocalRatio.current * newTimelineH;
                 const contentYToShow = timelineY + focalInNewTimeline;
@@ -538,6 +540,7 @@ export function AgendaScreen() {
                     const duration = 60;
                     const top = ((startM - hourTop) / 60) * effectiveHourHeight;
                     const height = Math.max(40, (duration / 60) * effectiveHourHeight - 4);
+                    const isConcluido = e.status === 'concluido';
                     return (
                       <TouchableOpacity
                         key={e.id}
@@ -546,21 +549,25 @@ export function AgendaScreen() {
                           {
                             top,
                             height,
-                            backgroundColor: colors.primaryRgba(0.15),
-                            borderLeftColor: colors.primary,
+                            backgroundColor: isConcluido ? colors.primaryRgba(0.08) : colors.primaryRgba(0.15),
+                            borderLeftColor: isConcluido ? colors.textSecondary : colors.primary,
+                            opacity: isConcluido ? 0.85 : 1,
                           },
                         ]}
-                        onLongPress={() =>
-                          Alert.alert('Excluir', 'Remover este evento?', [
-                            { text: 'Cancelar' },
+                        onPress={() => {
+                          playTapSound();
+                          Alert.alert(e.title || 'Evento', 'O que deseja fazer?', [
+                            { text: 'Cancelar', style: 'cancel' },
+                            { text: 'Editar', onPress: () => setAgendaFormState({ visible: true, editingEvent: e }) },
+                            { text: isConcluido ? 'Reabrir' : 'Concluir', onPress: () => updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' }) },
                             { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
-                          ])
-                        }
+                          ]);
+                        }}
                       >
-                        <Text style={[as.eventTitle, { color: colors.text }]} numberOfLines={2}>
+                        <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]} numberOfLines={2}>
                           {e.title}
                         </Text>
-                        <Text style={[as.eventTime, { color: colors.primary }]}>{e.time || '--:--'}</Text>
+                        <Text style={[as.eventTime, { color: colors.primary }]}>{e.time || '--:--'}{e.timeEnd ? ` - ${e.timeEnd}` : ''}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -680,6 +687,15 @@ export function AgendaScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      <AgendaFormModal
+        visible={agendaFormState.visible}
+        editingEvent={agendaFormState.editingEvent}
+        initialDate={formatDayKey(selectedDate)}
+        onClose={() => setAgendaFormState({ visible: false, editingEvent: null })}
+        onOpenNewClient={() => openAddModal?.('cliente')}
+        onOpenNewService={() => openAddModal?.('servico')}
+      />
     </SafeAreaView>
   );
 }

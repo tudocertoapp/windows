@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFinance } from '../contexts/FinanceContext';
 import { MenuContext } from '../contexts/MenuContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { AgendaScreen } from '../screens/AgendaScreen';
@@ -26,7 +27,9 @@ import { BancosECartoesScreen } from '../screens/BancosECartoesScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
+import { AgendaFormModal } from '../components/AgendaFormModal';
 import { AssistantModal } from '../components/AssistantModal';
+import { ProductFormModal } from '../components/ProductFormModal';
 
 const Tab = createBottomTabNavigator();
 
@@ -38,6 +41,7 @@ export function AppNavigator() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
   const [addModalState, setAddModalState] = useState({ type: null, params: null });
+  const [productFormVisible, setProductFormVisible] = useState(false);
   const [cadastroModal, setCadastroModal] = useState(null);
   const [perfilModal, setPerfilModal] = useState(false);
   const [assinaturaModal, setAssinaturaModal] = useState(false);
@@ -51,6 +55,7 @@ export function AppNavigator() {
   const [termosModal, setTermosModal] = useState(false);
   const [bancosModal, setBancosModal] = useState(false);
   const { colors, primaryColor } = useTheme();
+  const { addProduct } = useFinance();
   const insets = useSafeAreaInsets();
 
   const navigationRef = useRef(null);
@@ -82,10 +87,15 @@ export function AppNavigator() {
       openClientes: () => { setMenuModalOpen(false); setClientesModal(true); },
       openBancos: () => { setMenuModalOpen(false); setBancosModal(true); },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
+      openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
       openImageGenerator: (params) => {
         setImageModalParams(params || {});
         setImageModal(true);
+      },
+      openManageCards: () => {
+        setMenuModalOpen(false);
+        navigationRef.current?.navigate('Início', { openCardPicker: true });
       },
     }),
     []
@@ -176,14 +186,39 @@ export function AppNavigator() {
           setMenuOpen(false);
           if (type === 'fatura') {
             menuActions.openCadastro?.('boletos');
+          } else if (type === 'produto') {
+            menuActions.openProductForm?.();
           } else {
             menuActions.openAddModal(type);
           }
         }}
         onAssistant={() => setAssistantModal(true)}
       />
-      <AddModal type={addModalState.type} params={addModalState.params} onClose={() => setAddModalState({ type: null, params: null })} />
-      <AssistantModal visible={assistantModal} onClose={() => setAssistantModal(false)} onOpenAdd={(type, params) => { setAssistantModal(false); setAddModalState({ type, params: params || null }); }} />
+      <ProductFormModal
+        visible={productFormVisible}
+        onClose={() => setProductFormVisible(false)}
+        onSave={(data) => {
+          if (data?._skipAdd) {
+            setProductFormVisible(false);
+            return;
+          }
+          addProduct(data);
+          setProductFormVisible(false);
+        }}
+        editingItem={null}
+      />
+      {addModalState.type === 'agenda' ? (
+        <AgendaFormModal
+          visible
+          initialDate={addModalState.params?.date}
+          onClose={() => setAddModalState({ type: null, params: null })}
+          onOpenNewClient={() => setCadastroModal({ section: 'clientes' })}
+          onOpenNewService={() => setCadastroModal({ section: 'servicos' })}
+        />
+      ) : (
+        <AddModal type={addModalState.type} params={addModalState.params} onClose={() => setAddModalState({ type: null, params: null })} />
+      )}
+      <AssistantModal visible={assistantModal} onClose={() => setAssistantModal(false)} onOpenAdd={(type, params) => { setAssistantModal(false); if (type === 'produto') setProductFormVisible(true); else setAddModalState({ type, params: params || null }); }} />
       <Modal visible={menuModalOpen} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <MenuScreen

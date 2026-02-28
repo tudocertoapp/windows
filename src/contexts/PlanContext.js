@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from './AuthContext';
 
-const PLAN_STORAGE_KEY = '@tudocerto_plan';
+const PLAN_STORAGE_BASE = '@tudocerto_plan';
 
 const PlanContext = createContext(undefined);
 
@@ -12,14 +13,18 @@ export const PLANS = {
 };
 
 export function PlanProvider({ children }) {
+  const { user } = useAuth();
   const [plan, setPlan] = useState(PLANS.pessoal);
   const [viewMode, setViewMode] = useState('pessoal'); // 'pessoal' | 'empresa' - nunca misturar
   const [loaded, setLoaded] = useState(false);
 
+  const storageKey = `${PLAN_STORAGE_BASE}_${user?.id || 'guest'}`;
+
   useEffect(() => {
+    setLoaded(false);
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(PLAN_STORAGE_KEY);
+        const raw = await AsyncStorage.getItem(storageKey);
         if (raw) {
           const data = JSON.parse(raw);
           if (data.plan && PLANS[data.plan]) setPlan(data.plan);
@@ -28,7 +33,7 @@ export function PlanProvider({ children }) {
       } catch (_) {}
       setLoaded(true);
     })();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (plan === PLANS.pessoal && viewMode === 'empresa') setViewMode('pessoal');
@@ -36,8 +41,8 @@ export function PlanProvider({ children }) {
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify({ plan, viewMode }));
-  }, [loaded, plan, viewMode]);
+    AsyncStorage.setItem(storageKey, JSON.stringify({ plan, viewMode }));
+  }, [loaded, plan, viewMode, storageKey]);
 
   const isEmpresa = plan === PLANS.empresa || plan === PLANS.pessoal_empresa;
   const showEmpresaFeatures = isEmpresa;

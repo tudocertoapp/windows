@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from './AuthContext';
 
-const STORAGE_KEY = '@tudocerto_banks';
+const STORAGE_BASE = '@tudocerto_banks';
 
 export const BANCOS_BRASIL = [
   { id: 'nubank', nome: 'Nubank' },
@@ -40,14 +41,20 @@ export const BANCOS_BRASIL = [
 const BanksContext = createContext(undefined);
 
 export function BanksProvider({ children }) {
+  const { user } = useAuth();
   const [banks, setBanks] = useState([]);
   const [cards, setCards] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
+  const storageKey = `${STORAGE_BASE}_${user?.id || 'guest'}`;
+
   useEffect(() => {
+    setLoaded(false);
+    setBanks([]);
+    setCards([]);
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const raw = await AsyncStorage.getItem(storageKey);
         if (raw) {
           const { banks: b, cards: c } = JSON.parse(raw);
           setBanks(Array.isArray(b) ? b : []);
@@ -56,12 +63,12 @@ export function BanksProvider({ children }) {
       } catch (_) {}
       setLoaded(true);
     })();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ banks, cards }));
-  }, [loaded, banks, cards]);
+    AsyncStorage.setItem(storageKey, JSON.stringify({ banks, cards }));
+  }, [loaded, banks, cards, storageKey]);
 
   const addBank = (bank) => {
     const id = `bank_${Date.now()}`;

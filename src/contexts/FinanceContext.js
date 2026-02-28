@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+
+function showDbError(error, context = 'salvar') {
+  const msg = error?.message || String(error) || 'Erro desconhecido';
+  Alert.alert('Erro ao ' + context, msg);
+  console.warn('Supabase error:', error);
+}
 
 const FinanceContext = createContext(undefined);
 
@@ -20,7 +27,20 @@ function toTransaction(r) {
 }
 function toAgenda(r) {
   if (!r) return null;
-  return { id: r.id, title: r.title, description: r.description, date: r.date, time: r.time, type: r.type };
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    date: r.date,
+    time: r.time,
+    timeEnd: r.time_end,
+    type: r.type,
+    clientId: r.client_id,
+    serviceId: r.service_id,
+    amount: Number(r.amount || 0),
+    tipo: r.tipo || 'pessoal',
+    status: r.status || 'pendente',
+  };
 }
 function toCheckList(r) {
   if (!r) return null;
@@ -33,8 +53,10 @@ function toClient(r) {
 function toProduct(r) {
   if (!r) return null;
   const data = r.data || {};
+  const photoUris = data.photo_uris && Array.isArray(data.photo_uris) ? data.photo_uris : (r.photo_uri ? [r.photo_uri] : []);
   return {
-    id: r.id, name: r.name, price: Number(r.price), costPrice: Number(r.cost_price || 0), discount: Number(r.discount || 0), unit: r.unit, photoUri: r.photo_uri,
+    id: r.id, name: r.name, price: Number(r.price), costPrice: Number(r.cost_price || 0), discount: Number(r.discount || 0), unit: r.unit,
+    photoUri: photoUris[0] || r.photo_uri, photoUris,
     code: data.code, allowDiscount: data.allow_discount !== false, stock: data.stock ?? 0, minStock: data.min_stock ?? 0, supplierId: data.supplier_id,
   };
 }
@@ -95,15 +117,15 @@ export function FinanceProvider({ children }) {
     setLoading(true);
     try {
       const [tx, ag, ch, cl, pr, comp, sv, su, ar] = await Promise.all([
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('agenda_events').select('*').order('date'),
-        supabase.from('check_list_items').select('*').order('created_at', { ascending: false }),
-        supabase.from('clients').select('*'),
-        supabase.from('products').select('*'),
-        supabase.from('composite_products').select('*'),
-        supabase.from('services').select('*'),
-        supabase.from('suppliers').select('*'),
-        supabase.from('a_receber').select('*'),
+        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('agenda_events').select('*').eq('user_id', user.id).order('date'),
+        supabase.from('check_list_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('clients').select('*').eq('user_id', user.id),
+        supabase.from('products').select('*').eq('user_id', user.id),
+        supabase.from('composite_products').select('*').eq('user_id', user.id),
+        supabase.from('services').select('*').eq('user_id', user.id),
+        supabase.from('suppliers').select('*').eq('user_id', user.id),
+        supabase.from('a_receber').select('*').eq('user_id', user.id),
       ]);
       if (tx.data) setTransactions((tx.data || []).map(toTransaction));
       if (ag.data) setAgendaEvents((ag.data || []).map(toAgenda));
@@ -114,7 +136,7 @@ export function FinanceProvider({ children }) {
       if (sv.data) setServices((sv.data || []).map(toService));
       if (su.data) setSuppliers((su.data || []).map(toSupplier));
       if (ar.data) setAReceber((ar.data || []).map(toAReceber));
-      const bl = await supabase.from('boletos').select('*');
+      const bl = await supabase.from('boletos').select('*').eq('user_id', user.id);
       if (bl.data) setBoletos((bl.data || []).map((r) => ({ id: r.id, ...r.data })));
     } catch (e) {
       console.warn('Erro ao carregar dados Supabase:', e);
@@ -133,9 +155,10 @@ export function FinanceProvider({ children }) {
       setTransactions((prev) => [...prev, n]);
       return;
     }
+    const txType = t.type === 'receita' ? 'income' : (t.type === 'despesa' ? 'expense' : (t.type || 'income'));
     const { data, error } = await supabase.from('transactions').insert({
       user_id: user.id,
-      type: t.type,
+      type: txType,
       amount: t.amount,
       description: t.description,
       category: t.category,
@@ -144,7 +167,8 @@ export function FinanceProvider({ children }) {
       tipo_venda: t.tipoVenda,
       desconto: t.desconto || 0,
     }).select('*').single();
-    if (!error && data) setTransactions((prev) => [toTransaction(data), ...prev]);
+    if (error) return showDbError(error, 'cadastrar transação');
+    if (data) setTransactions((prev) => [toTransaction(data), ...prev]);
   };
   const updateTransaction = async (id, data) => {
     if (!user) return setTransactions((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
@@ -167,22 +191,55 @@ export function FinanceProvider({ children }) {
 
   const addAgendaEvent = async (e) => {
     if (!user) {
-      setAgendaEvents((prev) => [...prev, { ...e, id: Date.now().toString() }]);
+      const ev = {
+        id: Date.now().toString(),
+        title: e.title || 'Evento',
+        description: e.description,
+        date: e.date,
+        time: e.time,
+        timeEnd: e.timeEnd,
+        amount: e.amount ?? 0,
+        tipo: e.tipo || 'pessoal',
+        clientId: e.clientId,
+        serviceId: e.serviceId,
+        status: e.status || 'pendente',
+      };
+      setAgendaEvents((prev) => [...prev, ev]);
       return;
     }
-    const { data } = await supabase.from('agenda_events').insert({
+    const payload = {
       user_id: user.id,
-      title: e.title,
-      description: e.description,
+      title: e.title || (e.clientId ? 'Evento' : 'Evento'),
+      description: e.description || null,
       date: e.date,
       time: e.time,
+      time_end: e.timeEnd || null,
       type: e.type || 'meeting',
-    }).select('*').single();
+      client_id: e.clientId || null,
+      service_id: e.serviceId || null,
+      amount: e.amount ?? 0,
+      tipo: e.tipo || 'pessoal',
+      status: e.status || 'pendente',
+    };
+    const { data, error } = await supabase.from('agenda_events').insert(payload).select('*').single();
+    if (error) return showDbError(error, 'cadastrar evento');
     if (data) setAgendaEvents((prev) => [...prev, toAgenda(data)]);
   };
   const updateAgendaEvent = async (id, data) => {
     if (!user) return setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
-    await supabase.from('agenda_events').update(data).eq('id', id);
+    const up = {};
+    if (data.title != null) up.title = data.title;
+    if (data.description != null) up.description = data.description;
+    if (data.date != null) up.date = data.date;
+    if (data.time != null) up.time = data.time;
+    if (data.timeEnd != null) up.time_end = data.timeEnd;
+    if (data.type != null) up.type = data.type;
+    if (data.clientId != null) up.client_id = data.clientId;
+    if (data.serviceId != null) up.service_id = data.serviceId;
+    if (data.amount != null) up.amount = data.amount;
+    if (data.tipo != null) up.tipo = data.tipo;
+    if (data.status != null) up.status = data.status;
+    await supabase.from('agenda_events').update(up).eq('id', id);
     setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteAgendaEvent = async (id) => {
@@ -196,12 +253,13 @@ export function FinanceProvider({ children }) {
       setCheckListItems((prev) => [...prev, { ...item, id: Date.now().toString() }]);
       return;
     }
-    const { data } = await supabase.from('check_list_items').insert({
+    const { data, error } = await supabase.from('check_list_items').insert({
       user_id: user.id,
       title: item.title,
       checked: item.checked ?? false,
       date: item.date,
     }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar tarefa');
     if (data) setCheckListItems((prev) => [...prev, toCheckList(data)]);
   };
   const updateCheckListItem = async (id, data) => {
@@ -217,10 +275,11 @@ export function FinanceProvider({ children }) {
 
   const addClient = async (c) => {
     if (!user) {
-      setClients((prev) => [...prev, { ...c, id: Date.now().toString(), name: c.name, foto: c.foto || null, nivel: c.nivel || 'orcamento' }]);
-      return;
+      const id = Date.now().toString();
+      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, nivel: c.nivel || 'orcamento' }]);
+      return id;
     }
-    const { data } = await supabase.from('clients').insert({
+    const { data, error } = await supabase.from('clients').insert({
       user_id: user.id,
       name: c.name,
       email: c.email,
@@ -228,7 +287,9 @@ export function FinanceProvider({ children }) {
       foto: c.foto || null,
       nivel: c.nivel || 'orcamento',
     }).select('*').single();
-    if (data) setClients((prev) => [...prev, toClient(data)]);
+    if (error) { showDbError(error, 'cadastrar cliente'); return null; }
+    if (data) { setClients((prev) => [...prev, toClient(data)]); return data.id; }
+    return null;
   };
   const updateClient = async (id, data) => {
     if (!user) return setClients((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
@@ -246,23 +307,26 @@ export function FinanceProvider({ children }) {
       setProducts((prev) => [...prev, { ...p, id: Date.now().toString() }]);
       return;
     }
+    const photoUris = (p.photoUris && p.photoUris.length > 0) ? p.photoUris : (p.photoUri ? [p.photoUri] : []);
     const dataJson = {
       ...(p.code != null && { code: p.code }),
       ...(p.allowDiscount != null && { allow_discount: p.allowDiscount }),
       ...(p.stock != null && { stock: p.stock }),
       ...(p.minStock != null && { min_stock: p.minStock }),
       ...(p.supplierId != null && { supplier_id: p.supplierId }),
+      ...(photoUris.length > 0 && { photo_uris: photoUris }),
     };
-    const { data } = await supabase.from('products').insert({
+    const { data, error } = await supabase.from('products').insert({
       user_id: user.id,
       name: p.name,
       price: p.price ?? 0,
       cost_price: p.costPrice ?? 0,
       discount: p.discount ?? 0,
       unit: p.unit || 'un',
-      photo_uri: p.photoUri,
+      photo_uri: photoUris[0] || p.photoUri,
       data: Object.keys(dataJson).length ? dataJson : undefined,
     }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar produto');
     if (data) setProducts((prev) => [...prev, toProduct(data)]);
   };
   const updateProduct = async (id, data) => {
@@ -274,8 +338,9 @@ export function FinanceProvider({ children }) {
     if (data.discount != null) up.discount = data.discount;
     if (data.unit != null) up.unit = data.unit;
     if (data.photoUri != null) up.photo_uri = data.photoUri;
-    if (data.code !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined) {
+    if (data.code !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.photoUris !== undefined) {
       const curr = (await supabase.from('products').select('data').eq('id', id).single()).data?.data || {};
+      const photoUris = data.photoUris !== undefined ? (data.photoUris?.length ? data.photoUris : []) : undefined;
       up.data = {
         ...curr,
         ...(data.code !== undefined && { code: data.code }),
@@ -283,8 +348,10 @@ export function FinanceProvider({ children }) {
         ...(data.stock !== undefined && { stock: data.stock }),
         ...(data.minStock !== undefined && { min_stock: data.minStock }),
         ...(data.supplierId !== undefined && { supplier_id: data.supplierId }),
+        ...(photoUris !== undefined && { photo_uris: photoUris }),
       };
     }
+    if (data.photoUris !== undefined) up.photo_uri = data.photoUris?.length > 0 ? data.photoUris[0] : null;
     await supabase.from('products').update(up).eq('id', id);
     setProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
@@ -299,11 +366,12 @@ export function FinanceProvider({ children }) {
       setCompositeProducts((prev) => [...prev, { ...p, id: Date.now().toString() }]);
       return;
     }
-    const { data } = await supabase.from('composite_products').insert({
+    const { data, error } = await supabase.from('composite_products').insert({
       user_id: user.id,
       name: p.name,
       data: p.data || p,
     }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar produto composto');
     if (data) setCompositeProducts((prev) => [...prev, { id: data.id, ...data.data }]);
   };
   const updateCompositeProduct = async (id, data) => {
@@ -322,13 +390,14 @@ export function FinanceProvider({ children }) {
       setServices((prev) => [...prev, { ...s, id: Date.now().toString() }]);
       return;
     }
-    const { data } = await supabase.from('services').insert({
+    const { data, error } = await supabase.from('services').insert({
       user_id: user.id,
       name: s.name,
       price: s.price ?? 0,
       discount: s.discount ?? 0,
       photo_uri: s.photoUri,
     }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar serviço');
     if (data) setServices((prev) => [...prev, toService(data)]);
   };
   const updateService = async (id, data) => {
@@ -352,12 +421,13 @@ export function FinanceProvider({ children }) {
       setSuppliers((prev) => [...prev, { ...s, id: Date.now().toString() }]);
       return;
     }
-    const { data } = await supabase.from('suppliers').insert({
+    const { data, error } = await supabase.from('suppliers').insert({
       user_id: user.id,
       name: s.name,
       email: s.email,
       phone: s.phone,
     }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar fornecedor');
     if (data) setSuppliers((prev) => [...prev, toSupplier(data)]);
   };
   const updateSupplier = async (id, data) => {
@@ -376,7 +446,8 @@ export function FinanceProvider({ children }) {
       setBoletos((prev) => [...prev, { ...b, id: Date.now().toString() }]);
       return;
     }
-    const { data } = await supabase.from('boletos').insert({ user_id: user.id, data: b }).select('*').single();
+    const { data, error } = await supabase.from('boletos').insert({ user_id: user.id, data: b }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar boleto');
     if (data) setBoletos((prev) => [...prev, { id: data.id, ...data.data }]);
   };
   const updateBoleto = async (id, data) => {
@@ -395,7 +466,7 @@ export function FinanceProvider({ children }) {
       setAReceber((prev) => [...prev, { ...r, id: Date.now().toString() }]);
       return;
     }
-    const { data } = await supabase.from('a_receber').insert({
+    const { data, error } = await supabase.from('a_receber').insert({
       user_id: user.id,
       description: r.description,
       amount: r.amount,
@@ -404,6 +475,7 @@ export function FinanceProvider({ children }) {
       total: r.total ?? 1,
       status: r.status ?? 'pendente',
     }).select('*').single();
+    if (error) return showDbError(error, 'cadastrar a receber');
     if (data) setAReceber((prev) => [...prev, toAReceber(data)]);
   };
   const updateAReceber = async (id, data) => {

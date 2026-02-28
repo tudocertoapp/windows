@@ -60,18 +60,28 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {!hideOrganize && onOrganize && (
+        {onManageCards ? (
+          <TouchableOpacity
+            style={{ padding: 8 }}
+            onPress={() => { playTapSound(); onManageCards(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <AppIcon name="grid-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        ) : !hideOrganize && onOrganize ? (
           <TouchableOpacity style={{ padding: 8 }} onPress={() => { playTapSound(); onOrganize?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
+        ) : null}
+        {!onManageCards && (
+          <TouchableOpacity
+            style={{ padding: 8 }}
+            onPress={() => { playTapSound(); openMenu?.(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="ellipsis-vertical" size={24} color={colors.primary} />
+          </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={{ padding: 8 }}
-          onPress={() => { playTapSound(); (onManageCards || openMenu)?.(); }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name={onManageCards ? 'reorder-three' : 'ellipsis-vertical'} size={24} color={colors.primary} />
-        </TouchableOpacity>
       </View>
     </View>
   );

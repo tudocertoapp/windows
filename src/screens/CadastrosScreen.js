@@ -26,7 +26,6 @@ import { ProductFormModal } from '../components/ProductFormModal';
 const SECTIONS = [
   { id: 'clientes', label: 'Clientes', icon: 'people-outline' },
   { id: 'produtos', label: 'Produtos', icon: 'cube-outline' },
-  { id: 'produtos_compostos', label: 'Compostos', icon: 'layers-outline' },
   { id: 'servicos', label: 'Serviços', icon: 'construct-outline' },
   { id: 'tarefas', label: 'Tarefas', icon: 'checkbox-outline' },
   { id: 'boletos', label: 'Boletos', icon: 'document-text-outline' },
@@ -42,7 +41,7 @@ const cs = StyleSheet.create({
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   listItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, borderWidth: 1, marginHorizontal: 16, marginBottom: 8, gap: 12 },
-  listIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  listIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   listBody: { flex: 1 },
   listTitle: { fontSize: 15, fontWeight: '600' },
   listSub: { fontSize: 12, marginTop: 2 },
@@ -57,8 +56,6 @@ function useSectionData(section) {
       return { items: finance.clients, add: finance.addClient, update: finance.updateClient, remove: finance.deleteClient, fields: ['name', 'email', 'phone'], labels: { name: 'Nome', email: 'E-mail', phone: 'Telefone' }, titleKey: 'name', subKey: 'email', hasFoto: true, hasNivel: true };
     case 'produtos':
       return { items: finance.products, add: finance.addProduct, update: finance.updateProduct, remove: finance.deleteProduct, fields: ['name', 'costPrice', 'price', 'discount', 'unit'], labels: { name: 'Nome', costPrice: 'Custo (R$)', price: 'Venda (R$)', discount: 'Desconto (R$)', unit: 'Unidade' }, titleKey: 'name', subKey: 'price' };
-    case 'produtos_compostos':
-      return { items: finance.compositeProducts, add: finance.addCompositeProduct, update: finance.updateCompositeProduct, remove: finance.deleteCompositeProduct, fields: ['name', 'price'], labels: { name: 'Nome do pacote', price: 'Preço (R$)' }, titleKey: 'name', subKey: 'price', isComposite: true };
     case 'servicos':
       return { items: finance.services, add: finance.addService, update: finance.updateService, remove: finance.deleteService, fields: ['name', 'price', 'discount'], labels: { name: 'Nome', price: 'Preço (R$)', discount: 'Desconto (R$)' }, titleKey: 'name', subKey: 'price' };
     case 'tarefas':
@@ -80,7 +77,7 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
     else if (route?.params?.section) setSection(route.params.section);
   }, [initialSection, route?.params?.section]);
   useEffect(() => {
-    if (!showEmpresaFeatures && ['clientes', 'produtos_compostos', 'fornecedores'].includes(section)) {
+    if (!showEmpresaFeatures && ['clientes', 'fornecedores'].includes(section)) {
       setSection('produtos');
     }
   }, [showEmpresaFeatures]);
@@ -89,17 +86,20 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
   const [formData, setFormData] = useState({});
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
-  const { items, add, update, remove, fields, labels, titleKey, subKey, isComposite, hasFoto, hasNivel, hasPaid } = useSectionData(section);
-  const { products, services, addProduct, updateProduct, addCompositeProduct } = useFinance();
+  const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
+  const { addProduct, updateProduct } = useFinance();
 
   const handleProductSave = (data) => {
-    const { isComposite: composite, items: compItems, ...rest } = data;
-    if (composite && compItems?.length) {
-      addCompositeProduct({ name: rest.name, data: { ...rest, items: compItems } });
-    } else if (editingItem) {
-      updateProduct(editingItem.id, rest);
+    if (data?._skipAdd) {
+      setShowForm(false);
+      setEditingItem(null);
+      setFormData({});
+      return;
+    }
+    if (editingItem) {
+      updateProduct(editingItem.id, data);
     } else {
-      addProduct(rest);
+      addProduct(data);
     }
     setShowForm(false);
     setEditingItem(null);
@@ -112,11 +112,6 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
     fields.forEach((f) => (entry[f] = (formData[f] || '').trim()));
     const required = fields[0];
     if (!entry[required]) return Alert.alert('Erro', `Preencha ${labels[required]}.`);
-    if (section === 'produtos_compostos') {
-      const p = parseFloat(String(entry.price).replace(',', '.'));
-      entry.price = isNaN(p) ? 0 : p;
-      entry.items = formData.items || [];
-    }
     if (section === 'produtos') {
       const p = parseFloat(String(entry.price).replace(',', '.'));
       const c = parseFloat(String(entry.costPrice).replace(',', '.'));
@@ -166,7 +161,6 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
       data.nivel = item.nivel || 'orcamento';
     }
     if (section === 'boletos') data.paid = item.paid ?? false;
-    if (section === 'produtos_compostos') data.items = item.items || [];
     setFormData(data);
     setShowForm(true);
   };
@@ -179,19 +173,6 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
   };
 
   const sectionInfo = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
-  const compositeItems = formData.items || [];
-  const addCompositeItem = (t, id, qty = 1) => {
-    const list = [...compositeItems];
-    const idx = list.findIndex((x) => x.type === t && x.id === id);
-    if (idx >= 0) list[idx].qty += qty;
-    else list.push({ type: t, id, qty });
-    setFormData((prev) => ({ ...prev, items: list }));
-  };
-  const removeCompositeItem = (idx) => {
-    const list = [...compositeItems];
-    list.splice(idx, 1);
-    setFormData((prev) => ({ ...prev, items: list }));
-  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -207,7 +188,7 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
       )}
       {!isModal && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }} contentContainerStyle={[cs.segment]}>
-          {SECTIONS.filter((s) => (['clientes', 'produtos_compostos', 'fornecedores'].includes(s.id) ? showEmpresaFeatures : true)).map((s) => (
+          {SECTIONS.filter((s) => (['clientes', 'fornecedores'].includes(s.id) ? showEmpresaFeatures : true)).map((s) => (
             <TouchableOpacity
               key={s.id}
               style={[cs.segmentBtn, { backgroundColor: section === s.id ? colors.primary : colors.primaryRgba(0.15) }]}
@@ -238,7 +219,7 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[cs.form, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 16, maxHeight: '90%' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{editingItem ? 'Editar' : 'Novo cadastro'}</Text>
-            <TouchableOpacity onPress={() => { setShowForm(false); setEditingItem(null); setFormData({}); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setShowForm(false); setEditingItem(null); setFormData({}); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="close" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
@@ -266,7 +247,7 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
                 {formData.foto ? (
                   <Image source={{ uri: formData.foto }} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                 ) : (
-                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                     <Ionicons name="camera" size={24} color={colors.primary} />
                   </View>
                 )}
@@ -299,39 +280,6 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
               </View>
             </>
           )}
-          {isComposite && (
-            <>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Itens do pacote</Text>
-              {compositeItems.map((ci, idx) => {
-                const it = ci.type === 'product' ? products.find((p) => p.id === ci.id) : services.find((s) => s.id === ci.id);
-                return (
-                  <View key={`${ci.type}-${ci.id}-${idx}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, color: colors.text }}>{it?.name || '—'} (x{ci.qty})</Text>
-                      <Text style={{ fontSize: 12, color: colors.textSecondary }}>{ci.type === 'product' ? 'Produto' : 'Serviço'}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => removeCompositeItem(idx)} style={{ padding: 8 }}>
-                      <Ionicons name="trash-outline" size={20} color="#ef4444" />
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4 }}>Adicionar produto ou serviço:</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {products.map((p) => (
-                  <TouchableOpacity key={`p-${p.id}`} onPress={() => addCompositeItem('product', p.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.primaryRgba(0.2) }}>
-                    <Text style={{ fontSize: 12, color: colors.text }}>{p.name} +</Text>
-                  </TouchableOpacity>
-                ))}
-                {services.map((s) => (
-                  <TouchableOpacity key={`s-${s.id}`} onPress={() => addCompositeItem('service', s.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.primaryRgba(0.2) }}>
-                    <Text style={{ fontSize: 12, color: colors.text }}>{s.name} +</Text>
-                  </TouchableOpacity>
-                ))}
-                {(products.length === 0 && services.length === 0) && <Text style={{ fontSize: 12, color: colors.textSecondary }}>Cadastre produtos e serviços antes</Text>}
-              </View>
-            </>
-          )}
           </ScrollView>
           <TouchableOpacity style={[cs.saveBtn, { backgroundColor: colors.primary, marginTop: 8 }]} onPress={handleSave}>
             <Text style={cs.saveBtnText}>Cadastrar</Text>
@@ -350,10 +298,10 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
         <View style={{ paddingVertical: 8, paddingBottom: 100 }}>
           {items.map((item) => (
             <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }]}>
-              {section === 'clientes' && item.foto ? (
-                <Image source={{ uri: item.foto }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
+              {(section === 'clientes' && item.foto) || (section === 'produtos' && item.photoUri) ? (
+                <Image source={{ uri: (section === 'clientes' ? item.foto : item.photoUri) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
               ) : (
-                <View style={[cs.listIcon, { backgroundColor: colors.primaryRgba(0.2) }]}>
+                <View style={[cs.listIcon, { backgroundColor: 'transparent' }]}>
                   <Ionicons name={sectionInfo.icon} size={20} color={colors.primary} />
                 </View>
               )}
@@ -370,14 +318,14 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
               </View>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 {section === 'boletos' && (
-                  <TouchableOpacity onPress={() => update(item.id, { ...item, paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: (item.paid ? '#10b981' : colors.border) + '40' }}>
+                  <TouchableOpacity onPress={() => update(item.id, { ...item, paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
                     <Ionicons name={item.paid ? 'checkmark-done' : 'checkmark-done-outline'} size={18} color={item.paid ? '#10b981' : colors.textSecondary} />
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: colors.primaryRgba(0.2) }}>
+                <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
                   <Ionicons name="pencil" size={18} color={colors.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.2)' }}>
+                <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
                   <Ionicons name="trash-outline" size={18} color="#ef4444" />
                 </TouchableOpacity>
               </View>

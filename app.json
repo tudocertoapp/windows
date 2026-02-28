@@ -1,1 +1,43 @@
-{"expo":{"name":"tudo-certo","slug":"snack-833373eb-44e8-4aff-9e0e-96392f657b4c","version":"1.0.0","scheme":"tudocerto","orientation":"portrait","icon":"./assets/icon.png","userInterfaceStyle":"light","splash":{"image":"./assets/splash.png","resizeMode":"contain","backgroundColor":"#ffffff"},"assetBundlePatterns":["**/*"],"plugins":["expo-speech-recognition",["expo-media-library",{"photosPermission":"Salvar imagens no álbum","savePhotosPermission":"Salvar imagens geradas"}],"expo-web-browser"],"ios":{"supportsTablet":true},"android":{"adaptiveIcon":{"foregroundImage":"./assets/adaptive-icon.png","backgroundColor":"#111827"}},"web":{"favicon":"./assets/favicon.png"}}}
+{
+  "expo": {
+    "name": "tudo-certo",
+    "slug": "snack-833373eb-44e8-4aff-9e0e-96392f657b4c",
+    "version": "1.0.0",
+    "scheme": "tudocerto",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-speech-recognition",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Salvar imagens no álbum",
+          "savePhotosPermission": "Salvar imagens geradas"
+        }
+      ],
+      "expo-web-browser",
+      ["@react-native-community/datetimepicker", {"android":{"timePicker":{"colorAccent":{"light":"#10b981","dark":"#10b981"},"textColorPrimary":{"light":"#1f2937","dark":"#f9fafb"}}}}]
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111827"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

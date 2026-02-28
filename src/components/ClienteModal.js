@@ -77,7 +77,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
                 {foto ? (
                   <Image source={{ uri: foto }} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                 ) : (
-                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                     <Ionicons name="camera" size={24} color={colors.primary} />
                   </View>
                 )}

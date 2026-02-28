@@ -20,7 +20,7 @@ const PLANOS = {
   ],
   pessoal_empresa: [
     { id: 'pe_starter', nome: 'Starter', preco: 'R$ 19,90/mês', desc: ['Separação pessoal/empresa', 'CRM com clientes', 'Produtos e serviços', 'Até 50 cadastros'], popular: false, cta: 'Escolher' },
-    { id: 'pe_pro', nome: 'Pro', preco: 'R$ 29,90/mês', desc: ['Tudo do Starter', 'Produtos compostos', 'Boletos e a receber', 'Até 200 cadastros'], popular: true, cta: 'Mais popular' },
+    { id: 'pe_pro', nome: 'Pro', preco: 'R$ 29,90/mês', desc: ['Tudo do Starter', 'Clientes e fornecedores', 'Boletos e a receber', 'Até 200 cadastros'], popular: true, cta: 'Mais popular' },
     { id: 'pe_business', nome: 'Business', preco: 'R$ 39,90/mês', desc: ['Tudo do Pro', 'Fornecedores', 'Relatórios avançados', 'Cadastros ilimitados'], popular: false, cta: 'Para crescer' },
   ],
   empresa: [

@@ -14,7 +14,7 @@ const ars = StyleSheet.create({
   totalValue: { fontSize: 28, fontWeight: '800', marginTop: 8 },
   sectionLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
   item: { flexDirection: 'row', alignItems: 'center', padding: 16, marginHorizontal: 16, marginBottom: 10, borderRadius: 14, borderWidth: 1, gap: 12 },
-  itemIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  itemIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   itemBody: { flex: 1 },
   itemDesc: { fontSize: 15, fontWeight: '600' },
   itemDate: { fontSize: 12, marginTop: 2 },
@@ -86,7 +86,7 @@ export function AReceberScreen({ onClose, isModal }) {
               ])
             }
           >
-            <View style={[ars.itemIcon, { backgroundColor: r.status === 'pago' ? colors.primaryRgba(0.3) : colors.primaryRgba(0.2) }]}>
+            <View style={[ars.itemIcon, { backgroundColor: 'transparent' }]}>
               <Ionicons name={r.status === 'pago' ? 'checkmark-circle' : 'calendar-outline'} size={22} color={colors.primary} />
             </View>
             <View style={ars.itemBody}>

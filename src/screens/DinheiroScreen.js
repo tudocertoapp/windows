@@ -85,7 +85,7 @@ export function DinheiroScreen({ route }) {
   const { colors } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, getBankName, getCardsByBankId } = useBanks();
-  const { openBancos } = useMenu();
+  const { openBancos, openManageCards } = useMenu();
   const [showValues, setShowValues] = useState(true);
   const [bankFilterTipo, setBankFilterTipo] = useState('todos');
   const [tab, setTab] = useState(route?.params?.tab || 'resumo');
@@ -172,7 +172,7 @@ export function DinheiroScreen({ route }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Dinheiro" colors={colors} hideOrganize />
+      <TopBar title="Início" colors={colors} useLogoImage onManageCards={openManageCards} />
         {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={[dns.header, { backgroundColor: colors.bg }]}>
@@ -283,7 +283,7 @@ export function DinheiroScreen({ route }) {
             <View style={[dns.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {monthTx.sort((a, b) => new Date(b.date) - new Date(a.date)).map((t) => (
                 <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border, gap: 12 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: t.type === 'income' ? colors.primaryRgba(0.2) : 'rgba(239,68,68,0.2)', justifyContent: 'center', alignItems: 'center' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                     <AppIcon name={t.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={t.type === 'income' ? colors.primary : '#ef4444'} />
                   </View>
                   <View style={{ flex: 1 }}>

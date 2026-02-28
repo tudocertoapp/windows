@@ -135,7 +135,7 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
             <TouchableOpacity
               onPress={handleMic}
               disabled={!isAvailable}
-              style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: listening ? colors.primary : colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}
+              style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: listening ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}
             >
               <Animated.View style={{ transform: [{ scale: micPulse }] }}>
                 <Ionicons name={listening ? 'mic' : 'mic-outline'} size={26} color={listening ? '#fff' : colors.primary} />
@@ -161,7 +161,7 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
           <Text style={[s.hint, { color: colors.textSecondary }]}>Ações rápidas:</Text>
           <View style={s.quickGrid}>
             {QUICK_ACTIONS.map((a) => (
-              <TouchableOpacity key={a.id} style={[s.quickBtn, { backgroundColor: colors.primaryRgba(0.15) }]} onPress={() => handleQuick(a.id)}>
+              <TouchableOpacity key={a.id} style={[s.quickBtn, { backgroundColor: 'transparent' }]} onPress={() => handleQuick(a.id)}>
                 <Ionicons name={a.icon} size={18} color={colors.primary} />
                 <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>{a.label}</Text>
               </TouchableOpacity>

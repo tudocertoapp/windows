@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Dimensions, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Dimensions, PanResponder, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,7 +7,7 @@ import { playTapSound } from '../utils/sounds';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
-const ROTATION_BASE_DURATION = 80000;
+const ROTATION_BASE_DURATION = 60000;
 const RADIUS = 140;
 const OVERLAY_OPACITY = 0.85;
 
@@ -20,6 +20,7 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
   const gestureValueRef = useRef(0);
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const btnRotateAnim = useRef(new Animated.Value(0)).current;
   const [rotationDirection, setRotationDirection] = useState(1);
   const [rotationSpeed, setRotationSpeed] = useState(1);
 
@@ -40,11 +41,13 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
       Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 10 }),
         Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(btnRotateAnim, { toValue: 1, duration: 450, useNativeDriver: true, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
       ]).start();
     } else {
       Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 0, useNativeDriver: true }),
         Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+        Animated.timing(btnRotateAnim, { toValue: 0, duration: 300, useNativeDriver: true, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
       ]).start();
       rotateAnim.setValue(0);
       gestureRotate.setValue(0);
@@ -112,6 +115,11 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
   });
 
   const angleStep = 360 / items.length;
+  const btnRotateDeg = btnRotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '45deg'],
+  });
+  const fabBottom = 44 + (44 + insets.bottom) / 2 - 27.5 + 62;
 
   const handleItemTap = (id) => {
     playTapSound();
@@ -139,23 +147,13 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
         </Text>
       </View>
       <TouchableOpacity
-        style={{
-          position: 'absolute',
-          bottom: 33,
-          left: SW / 2 - 25,
-          width: 50,
-          height: 50,
-          borderRadius: 25,
-          backgroundColor: primaryColor,
-          justifyContent: 'center',
-          alignItems: 'center',
-          elevation: 12,
-          zIndex: 30,
-        }}
+        style={[styles.fabBtn, { backgroundColor: primaryColor, bottom: fabBottom }]}
         onPress={() => { playTapSound(); onClose(); }}
         activeOpacity={0.9}
       >
-        <Ionicons name="close" size={24} color="#fff" />
+        <Animated.View style={{ transform: [{ rotate: btnRotateDeg }] }}>
+          <Ionicons name="add" size={28} color="#fff" />
+        </Animated.View>
       </TouchableOpacity>
       <Animated.View
         style={{
@@ -182,7 +180,6 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
             transform: [{ rotate: totalSpin }],
           }}
         >
-          <View style={{ position: 'absolute', width: RADIUS * 2, height: RADIUS * 2, borderRadius: RADIUS, borderWidth: 2, borderColor: primaryColor + '5D' }} />
           {items.map((item, i) => {
             const angleDeg = angleStep * i - 90;
             const angleRad = (angleDeg * Math.PI) / 180;
@@ -203,9 +200,9 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
                   onLongPress={() => handleItemLongPress(item.id)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name={item.icon} size={24} color={item.color} />
+                  <Ionicons name={item.icon} size={28} color={item.color} />
+                  <Text style={[styles.itemLabel, { color: item.color }]}>{item.label}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.itemLabel, { color: 'rgba(255,255,255,0.95)' }]}>{item.label}</Text>
               </Animated.View>
             );
           })}
@@ -242,22 +239,28 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   itemBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    minWidth: 54,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    elevation: 6,
+    backgroundColor: 'transparent',
   },
   itemLabel: {
     fontSize: 10,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 6,
+    marginTop: 4,
+  },
+  fabBtn: {
+    position: 'absolute',
+    left: SW / 2 - 27.5,
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 12,
+    zIndex: 30,
   },
   micBtn: {
     width: 72,

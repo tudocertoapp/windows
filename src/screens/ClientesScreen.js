@@ -92,7 +92,7 @@ export function ClientesScreen({ onClose, isModal }) {
               {c.foto ? (
                 <Image source={{ uri: c.foto }} style={[cls.avatar, { backgroundColor: colors.primaryRgba(0.2) }]} resizeMode="cover" />
               ) : (
-                <View style={[cls.avatar, { backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }]}>
+                <View style={[cls.avatar, { backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }]}>
                   <Ionicons name="person" size={28} color={colors.primary} />
                 </View>
               )}
@@ -122,7 +122,7 @@ export function ClientesScreen({ onClose, isModal }) {
                   </View>
                 </View>
                 <View style={cls.actionRow}>
-                  <TouchableOpacity onPress={() => openEdit(c)} style={[cls.actionBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
+                  <TouchableOpacity onPress={() => openEdit(c)} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>
                     <Ionicons name="pencil" size={18} color={colors.primary} />
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -132,7 +132,7 @@ export function ClientesScreen({ onClose, isModal }) {
                         { text: 'Excluir', style: 'destructive', onPress: () => deleteClient(c.id) },
                       ])
                     }
-                    style={[cls.actionBtn, { backgroundColor: 'rgba(239,68,68,0.2)' }]}
+                    style={[cls.actionBtn, { backgroundColor: 'transparent' }]}
                   >
                     <Ionicons name="trash-outline" size={18} color="#ef4444" />
                   </TouchableOpacity>
