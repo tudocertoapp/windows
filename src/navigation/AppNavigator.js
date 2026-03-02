@@ -60,10 +60,11 @@ export function AppNavigator() {
 
   const navigationRef = useRef(null);
 
-  const tabBarBlurBg = () => (
-    <View style={[StyleSheet.absoluteFill, { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: (colors.border || '#e5e7eb') + '99' }]}>
-      <BlurView intensity={Platform.OS === 'ios' ? 70 : 50} tint={colors.text === '#f9fafb' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: (colors.card || '#fff') + 'E6' }]} />
+  const isDark = colors.text === '#f9fafb';
+  const tabBarGlassBg = () => (
+    <View style={[StyleSheet.absoluteFill, { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.3)' }]}>
+      <BlurView intensity={Platform.OS === 'ios' ? 80 : 60} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(31,41,55,0.3)' : 'rgba(255,255,255,0.3)' }]} />
     </View>
   );
 
@@ -74,9 +75,9 @@ export function AppNavigator() {
         setMenuModalOpen(false);
         setTimeout(() => navigationRef.current?.navigate(tabName, params || {}), 200);
       },
-      openCadastro: (section) => {
+      openCadastro: (section, options) => {
         setMenuModalOpen(false);
-        setCadastroModal({ section });
+        setCadastroModal({ section, editItemId: options?.editItemId });
       },
       openPerfil: () => { setMenuModalOpen(false); setPerfilModal(true); },
       openTemas: () => { setMenuModalOpen(false); setTemasModal(true); },
@@ -129,7 +130,7 @@ export function AppNavigator() {
               shadowRadius: 10,
               elevation: 14,
             },
-            tabBarBackground: tabBarBlurBg,
+            tabBarBackground: tabBarGlassBg,
             tabBarActiveTintColor: primaryColor,
             tabBarInactiveTintColor: colors.textSecondary,
             tabBarLabelStyle: { fontSize: 9, fontWeight: '500', marginTop: 1 },
@@ -137,7 +138,7 @@ export function AppNavigator() {
           }}
         >
           <Tab.Screen name="Início" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="home-outline" size={24} color={color} /> }} />
-          <Tab.Screen name="Agenda" component={AgendaScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="calendar-outline" size={24} color={color} /> }} />
+          <Tab.Screen name="Dinheiro" component={DinheiroScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="wallet-outline" size={24} color={color} /> }} />
           <Tab.Screen
             name="Adicionar"
             component={PlaceholderScreen}
@@ -166,7 +167,7 @@ export function AppNavigator() {
               ),
             }}
           />
-          <Tab.Screen name="Dinheiro" component={DinheiroScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="wallet-outline" size={24} color={color} /> }} />
+          <Tab.Screen name="Agenda" component={AgendaScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="calendar-outline" size={24} color={color} /> }} />
           <Tab.Screen
             name="Menu"
             component={PlaceholderScreen}
@@ -210,6 +211,7 @@ export function AppNavigator() {
       {addModalState.type === 'agenda' ? (
         <AgendaFormModal
           visible
+          editingEvent={addModalState.params?.editingEvent}
           initialDate={addModalState.params?.date}
           onClose={() => setAddModalState({ type: null, params: null })}
           onOpenNewClient={() => setCadastroModal({ section: 'clientes' })}
@@ -239,7 +241,7 @@ export function AppNavigator() {
       </Modal>
       <Modal visible={!!cadastroModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <CadastrosScreen initialSection={cadastroModal?.section} onClose={() => setCadastroModal(null)} isModal />
+          <CadastrosScreen initialSection={cadastroModal?.section} initialEditItemId={cadastroModal?.editItemId} onClose={() => setCadastroModal(null)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={perfilModal} animationType="slide">

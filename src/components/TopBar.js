@@ -28,7 +28,7 @@ export const topBarStyles = StyleSheet.create({
 
 const styles = topBarStyles;
 
-export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, extendToTop = true }) {
+export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, extendToTop = true, hideMenu, hideLogoIcon }) {
   const { openMenu, openPerfil } = useMenu();
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
@@ -52,9 +52,11 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
           </View>
         ) : (
           <>
-            <View style={[styles.logoCircle, { backgroundColor: colors.primary }]}>
-              <Text style={styles.logoText}>✓</Text>
-            </View>
+            {!hideLogoIcon && (
+              <View style={[styles.logoCircle, { backgroundColor: colors.primary }]}>
+                <Text style={styles.logoText}>✓</Text>
+              </View>
+            )}
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
           </>
         )}
@@ -73,7 +75,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
             <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
-        {!onManageCards && (
+        {!onManageCards && !hideMenu && (
           <TouchableOpacity
             style={{ padding: 8 }}
             onPress={() => { playTapSound(); openMenu?.(); }}

@@ -25,7 +25,32 @@
         }
       ],
       "expo-web-browser",
-      ["@react-native-community/datetimepicker", {"android":{"timePicker":{"colorAccent":{"light":"#10b981","dark":"#10b981"},"textColorPrimary":{"light":"#1f2937","dark":"#f9fafb"}}}}]
+      [
+        "expo-navigation-bar",
+        {
+          "backgroundColor": "#00000000",
+          "position": "relative",
+          "visibility": "visible",
+          "barStyle": "auto"
+        }
+      ],
+      [
+        "@react-native-community/datetimepicker",
+        {
+          "android": {
+            "timePicker": {
+              "colorAccent": {
+                "light": "#10b981",
+                "dark": "#10b981"
+              },
+              "textColorPrimary": {
+                "light": "#1f2937",
+                "dark": "#f9fafb"
+              }
+            }
+          }
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true

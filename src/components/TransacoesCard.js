@@ -1,0 +1,41 @@
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { GlassCard } from './GlassCard';
+import { AppIcon } from './AppIcon';
+
+const s = StyleSheet.create({
+  card: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  title: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
+  txItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, gap: 12 },
+  txIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
+  txDesc: { fontSize: 14, fontWeight: '500' },
+  txCat: { fontSize: 11, marginTop: 2 },
+  txAmount: { fontSize: 14, fontWeight: '600' },
+});
+
+export function TransacoesCard({ transactions, formatCurrency, mask, colors, title }) {
+  const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
+  const m = mask || ((v) => v);
+  const t = title || 'Últimas transações';
+  const list = (transactions || []).slice(-5).reverse();
+  return (
+    <GlassCard colors={colors} style={s.card}>
+      <Text style={[s.title, { color: colors.text }]}>{t}</Text>
+      {list.map((tx) => (
+        <View key={tx.id} style={[s.txItem, { borderBottomColor: colors.border }]}>
+          <View style={[s.txIcon]}>
+            <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? colors.primary : '#ef4444'} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.txDesc, { color: colors.text }]}>{tx.description}</Text>
+            <Text style={[s.txCat, { color: colors.textSecondary }]}>{tx.category}</Text>
+          </View>
+          <Text style={[s.txAmount, { color: tx.type === 'income' ? colors.primary : '#ef4444' }]}>
+            {tx.type === 'income' ? '+' : '-'}
+            {m(fmt(tx.amount))}
+          </Text>
+        </View>
+      ))}
+    </GlassCard>
+  );
+}

@@ -73,7 +73,7 @@ export function BanksProvider({ children }) {
   const addBank = (bank) => {
     const id = `bank_${Date.now()}`;
     const temDebito = bank.tipoConta === 'debito' || bank.tipoConta === 'ambos';
-    const novo = { id, ...bank, tipoConta: bank.tipoConta || 'ambos', saldo: temDebito ? (Number(bank.saldo) || 0) : 0 };
+    const novo = { id, ...bank, tipoConta: bank.tipoConta || 'ambos', saldo: temDebito ? (Number(bank.saldo) || 0) : 0, bandeira: bank.bandeira || 'visa' };
     setBanks((prev) => [...prev, novo]);
     return id;
   };
@@ -84,7 +84,7 @@ export function BanksProvider({ children }) {
         if (b.id !== id) return b;
         const temDebito = (data.tipoConta || b.tipoConta) === 'debito' || (data.tipoConta || b.tipoConta) === 'ambos';
         const saldo = temDebito ? (data.saldo != null ? Number(data.saldo) : b.saldo) : 0;
-        return { ...b, ...data, tipoConta: data.tipoConta ?? b.tipoConta ?? 'ambos', saldo };
+        return { ...b, ...data, tipoConta: data.tipoConta ?? b.tipoConta ?? 'ambos', saldo, bandeira: data.bandeira ?? b.bandeira ?? 'visa' };
       })
     );
   };
@@ -103,6 +103,7 @@ export function BanksProvider({ children }) {
       diaFechamento: Number(card.diaFechamento) || 10,
       diaVencimento: Number(card.diaVencimento) || 15,
       saldo: Number(card.saldo) || 0,
+      bandeira: card.bandeira || 'visa',
     };
     setCards((prev) => [...prev, novo]);
     return id;
@@ -118,6 +119,7 @@ export function BanksProvider({ children }) {
               diaFechamento: data.diaFechamento != null ? Number(data.diaFechamento) : c.diaFechamento,
               diaVencimento: data.diaVencimento != null ? Number(data.diaVencimento) : c.diaVencimento,
               saldo: data.saldo != null ? Number(data.saldo) : c.saldo,
+              bandeira: data.bandeira != null ? data.bandeira : c.bandeira,
             }
           : c
       )
@@ -129,6 +131,14 @@ export function BanksProvider({ children }) {
     if (amt <= 0) return;
     setBanks((prev) =>
       prev.map((b) => (b.id === bankId ? { ...b, saldo: Math.max(0, (b.saldo || 0) - amt) } : b))
+    );
+  };
+
+  const addToBank = (bankId, amount) => {
+    const amt = Math.max(0, Number(amount) || 0);
+    if (amt <= 0) return;
+    setBanks((prev) =>
+      prev.map((b) => (b.id === bankId ? { ...b, saldo: (b.saldo || 0) + amt } : b))
     );
   };
 
@@ -167,6 +177,7 @@ export function BanksProvider({ children }) {
         getCardsByBankId,
         getBankName,
         deductFromBank,
+        addToBank,
         addToCardBalance,
       }}
     >

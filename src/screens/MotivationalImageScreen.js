@@ -10,7 +10,7 @@ import * as MediaLibrary from 'expo-media-library';
 const logoImage = require('../../assets/logo.png');
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
-const CARD_HEIGHT = Math.round(CARD_WIDTH * (5 / 4)); // 4:5 formato Instagram feed
+const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9)); // 9:16 formato Stories Instagram
 
 const CTA_PHRASE = 'Sua agenda e finanças em um só lugar! Organize sua vida com o Tudo Certo.';
 
@@ -102,7 +102,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
       ) : null}
       <ScrollView showsVerticalScrollIndicator={false}>
         <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', padding: 16 }}>Crie uma imagem com a frase do dia e compartilhe!</Text>
-        <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1, width: CARD_WIDTH, height: CARD_HEIGHT }} style={[mis.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
+        <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1, width: CARD_WIDTH, height: CARD_HEIGHT }} style={[mis.card, { width: CARD_WIDTH, height: CARD_HEIGHT, alignSelf: 'center' }]}>
           <LinearGradient colors={bg.colors} style={{ flex: 1, borderRadius: 20, overflow: 'hidden' }}>
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
               <View style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' }} />

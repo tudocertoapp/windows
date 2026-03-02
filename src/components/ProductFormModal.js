@@ -179,11 +179,16 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.text }]}>{editingItem ? 'EDITAR PRODUTO' : 'NOVO PRODUTO'}</Text>
-              <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                <Ionicons name="close" size={22} color={colors.primary} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
+                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
+                  <Ionicons name="close" size={22} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={s.scroll} contentContainerStyle={s.scrollContent}>
               {/* Carrossel de fotos */}
               <View style={[sectionGap]}>
                 <View style={[s.photoCarouselWrap, { borderColor: colors.border, backgroundColor: colors.bg }]}>

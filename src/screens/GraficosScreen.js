@@ -4,6 +4,7 @@ import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
+import { GlassCard } from '../components/GlassCard';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { PieChart } from '../components/charts/PieChart';
 import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasDespesas';
@@ -98,7 +99,7 @@ export function GraficosScreen() {
         </View>
         <View style={{ padding: 16, gap: 16 }}>
           {/* Resumo do mês */}
-          <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <GlassCard colors={colors} style={ds.card}>
             <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 12 }]}>Resumo do mês</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '40' }}>
@@ -117,10 +118,10 @@ export function GraficosScreen() {
             <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 8 }}>
               {prevIncome > 0 || prevExpense > 0 ? `Mês anterior: +${fmt(prevIncome)} / -${fmt(prevExpense)}` : 'Sem dados do mês anterior'}
             </Text>
-          </View>
+          </GlassCard>
 
           {/* Receitas vs Despesas - barras + filtro 3m/6m/12m */}
-          <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <GlassCard colors={colors} style={ds.card}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Receitas vs Despesas</Text>
               <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -141,16 +142,16 @@ export function GraficosScreen() {
               </View>
             </View>
             <BarChartReceitasDespesas monthlyData={monthlyData} colors={colors} />
-          </View>
+          </GlassCard>
 
           {/* Evolução do Saldo Mensal */}
-          <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <GlassCard colors={colors} style={ds.card}>
             <LineChartSaldo monthlyData={monthlyData} colors={colors} />
-          </View>
+          </GlassCard>
 
           {/* Gráfico de pizza */}
-          <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: 'center' }]}>
-            <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Distribuição por categoria (pizza)</Text>
+          <GlassCard colors={colors} style={[ds.card, { alignItems: 'center' }]}>
+            <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Distribuição por categoria</Text>
             {catBreakdown.length === 0 ? (
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>Nenhuma despesa no mês</Text>
             ) : (
@@ -166,11 +167,11 @@ export function GraficosScreen() {
                 </View>
               </>
             )}
-          </View>
+          </GlassCard>
 
           {/* Barras horizontais por categoria */}
-          <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Gastos por categoria (barras)</Text>
+          <GlassCard colors={colors} style={ds.card}>
+            <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Gastos por categoria</Text>
             {catBreakdown.length === 0 ? (
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16 }}>Nenhuma despesa no mês</Text>
             ) : (
@@ -200,7 +201,7 @@ export function GraficosScreen() {
                 </View>
               </>
             )}
-          </View>
+          </GlassCard>
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>

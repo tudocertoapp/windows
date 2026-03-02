@@ -67,11 +67,16 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
-            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-              <Ionicons name="close" size={20} color={colors.primary} />
-            </TouchableOpacity>
+            <View style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8, zIndex: 1 }}>
+              <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
+                <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={onClose}>
+                <Ionicons name="close" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
             <Text style={[styles.title, { color: colors.text }]}>{isEdit ? 'Editar cliente' : 'Novo cliente'}</Text>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" style={{ maxHeight: 480 }}>
+            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 480 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Foto do cliente</Text>
               <TouchableOpacity onPress={pickFoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
                 {foto ? (

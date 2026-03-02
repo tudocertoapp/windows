@@ -71,3 +71,36 @@ export async function scheduleReminder(eventId, title, dateStr, timeStr = '') {
 export async function cancelReminder(notificationId) {
   if (notificationId) await Notifications.cancelScheduledNotificationAsync(notificationId);
 }
+
+export async function scheduleAReceberReminder(arId, description, amount, dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.trim().split(/[/\-]/);
+  if (parts.length < 3) return null;
+  let day, month, year;
+  if (parts[2] && parts[2].length === 4) {
+    day = parseInt(parts[0], 10) || 1;
+    month = (parseInt(parts[1], 10) || 1) - 1;
+    year = parseInt(parts[2], 10) || new Date().getFullYear();
+  } else {
+    day = parseInt(parts[2], 10) || 1;
+    month = (parseInt(parts[1], 10) || 1) - 1;
+    year = parseInt(parts[0], 10) || new Date().getFullYear();
+  }
+  const dueDate = new Date(year, month, day);
+  const reminderDate = new Date(dueDate);
+  reminderDate.setDate(reminderDate.getDate() - 3);
+  reminderDate.setHours(9, 0, 0, 0);
+  if (reminderDate <= new Date()) return null;
+  const amtStr = typeof amount === 'number' ? amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : String(amount);
+  const trigger = { date: reminderDate, channelId: CHANNEL_ID, repeats: false };
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Lembrete: Recebimento em 3 dias',
+      body: `${amtStr} — ${description || 'A receber'}`,
+      sound: true,
+      data: { arId, type: 'a_receber' },
+    },
+    trigger,
+  });
+  return id;
+}

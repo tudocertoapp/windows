@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
@@ -14,9 +15,9 @@ import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 
 function AppWithReminders() {
-  const { agendaEvents } = useFinance();
+  const { agendaEvents, aReceber } = useFinance();
   return (
-    <ReminderProvider agendaEvents={agendaEvents}>
+    <ReminderProvider agendaEvents={agendaEvents} aReceber={aReceber}>
       <AppNavigator />
     </ReminderProvider>
   );
@@ -55,6 +56,12 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setBackgroundColorAsync('#00000000').catch(() => {});
+    }
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>

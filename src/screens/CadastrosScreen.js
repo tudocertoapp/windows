@@ -69,13 +69,23 @@ function useSectionData(section) {
   }
 }
 
-export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
+export function CadastrosScreen({ route, initialSection, initialEditItemId, onClose, isModal }) {
   const sectionFromRoute = initialSection || route?.params?.section || 'clientes';
   const [section, setSection] = useState(sectionFromRoute);
   useEffect(() => {
     if (initialSection) setSection(initialSection);
     else if (route?.params?.section) setSection(route.params.section);
   }, [initialSection, route?.params?.section]);
+  useEffect(() => {
+    if (initialEditItemId && section === 'tarefas') {
+      const item = (items || []).find((i) => i.id === initialEditItemId);
+      if (item) {
+        setEditingItem(item);
+        setFormData({ title: item.title || '' });
+        setShowForm(true);
+      }
+    }
+  }, [initialEditItemId, section, items]);
   useEffect(() => {
     if (!showEmpresaFeatures && ['clientes', 'fornecedores'].includes(section)) {
       setSection('produtos');
@@ -84,9 +94,13 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({});
+  const [boletosTipo, setBoletosTipo] = useState('pessoal');
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
   const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
+  const filteredItems = section === 'boletos' && showEmpresaFeatures
+    ? (items || []).filter((i) => (i.tipo || 'pessoal') === boletosTipo)
+    : (items || []);
   const { addProduct, updateProduct } = useFinance();
 
   const handleProductSave = (data) => {
@@ -129,6 +143,7 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
     if (section === 'boletos') {
       const a = parseFloat(String(entry.amount).replace(',', '.'));
       entry.amount = isNaN(a) ? 0 : a;
+      entry.tipo = formData.tipo || 'pessoal';
     }
     if (section === 'clientes') {
       entry.foto = formData.foto || null;
@@ -160,7 +175,10 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
       data.foto = item.foto || null;
       data.nivel = item.nivel || 'orcamento';
     }
-    if (section === 'boletos') data.paid = item.paid ?? false;
+    if (section === 'boletos') {
+      data.paid = item.paid ?? false;
+      data.tipo = item.tipo || 'pessoal';
+    }
     setFormData(data);
     setShowForm(true);
   };
@@ -205,6 +223,22 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
           <Ionicons name="add" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
+      {section === 'boletos' && showEmpresaFeatures && (
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+          <TouchableOpacity
+            style={[cs.segmentBtn, { flex: 1, backgroundColor: boletosTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.15) }]}
+            onPress={() => setBoletosTipo('pessoal')}
+          >
+            <Text style={[cs.segmentText, { color: boletosTipo === 'pessoal' ? '#fff' : colors.text }]}>Pessoal</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[cs.segmentBtn, { flex: 1, backgroundColor: boletosTipo === 'empresa' ? '#6366f1' : 'rgba(99,102,241,0.15)' }]}
+            onPress={() => setBoletosTipo('empresa')}
+          >
+            <Text style={[cs.segmentText, { color: boletosTipo === 'empresa' ? '#fff' : colors.text }]}>Empresa</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {section === 'produtos' ? (
         <ProductFormModal
           visible={showForm}
@@ -219,11 +253,16 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[cs.form, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 16, maxHeight: '90%' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{editingItem ? 'Editar' : 'Novo cadastro'}</Text>
-            <TouchableOpacity onPress={() => { setShowForm(false); setEditingItem(null); setFormData({}); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name="close" size={20} color={colors.primary} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => Keyboard.dismiss()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setShowForm(false); setEditingItem(null); setFormData({}); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="close" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" style={{ maxHeight: 360 }}>
+          <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 360 }}>
           {fields.map((f) => (
             <TextInput
               key={f}
@@ -253,6 +292,21 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
                 )}
                 <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{formData.foto ? 'Trocar foto' : 'Carregar foto'}</Text>
               </TouchableOpacity>
+            </>
+          )}
+          {showEmpresaFeatures && section === 'boletos' && (
+            <>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Tipo</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[
+                  { id: 'pessoal', label: 'Pessoal' },
+                  { id: 'empresa', label: 'Empresa' },
+                ].map((n) => (
+                  <TouchableOpacity key={n.id} onPress={() => setFormData((prev) => ({ ...prev, tipo: n.id }))} style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: (formData.tipo || 'pessoal') === n.id ? colors.primary : colors.border, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: (formData.tipo || 'pessoal') === n.id ? '#fff' : colors.text }}>{n.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </>
           )}
           {hasPaid && section === 'boletos' && (
@@ -289,14 +343,14 @@ export function CadastrosScreen({ route, initialSection, onClose, isModal }) {
         </TouchableOpacity>
       </Modal>
       )}
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <View style={cs.empty}>
           <Ionicons name={sectionInfo.icon} size={48} color={colors.textSecondary} />
           <Text style={[cs.emptyText, { color: colors.textSecondary }]}>Nenhum item cadastrado</Text>
         </View>
       ) : (
         <View style={{ paddingVertical: 8, paddingBottom: 100 }}>
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }]}>
               {(section === 'clientes' && item.foto) || (section === 'produtos' && item.photoUri) ? (
                 <Image source={{ uri: (section === 'clientes' ? item.foto : item.photoUri) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />

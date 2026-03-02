@@ -117,7 +117,15 @@ function blendWithWhite(hex, amount) {
   return `rgb(${Math.round(r + (255 - r) * w)},${Math.round(g + (255 - g) * w)},${Math.round(b + (255 - b) * w)})`;
 }
 
-function isDarkBg(hex) {
+function blendWithBlack(hex, amount) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const w = Math.min(1, Math.max(0, amount));
+  return `rgb(${Math.round(r * (1 - w))},${Math.round(g * (1 - w))},${Math.round(b * (1 - w))})`;
+}
+
+export function isDarkBg(hex) {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -139,7 +147,7 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
   };
   const bg = customBg || preset.bg;
   const bgSecondary = customBg ? blendWithWhite(customBg, 0.12) : preset.bgSecondary;
-  const darkBg = customBg ? isDarkBg(customBg) : isDarkBg(preset.bg);
+  const darkBg = isDarkBg(bg);
   const hexToRgba = (hex, a) => {
     if (!hex || !hex.startsWith('#')) return darkBg ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.35)';
     const r = parseInt(hex.slice(1, 3), 16);
@@ -147,24 +155,23 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r},${g},${b},${a})`;
   };
-  const baseBg = customBg || preset.bg;
-  const card = darkBg ? blendWithWhite(baseBg, 0.15) : blendWithWhite(baseBg, 0.28);
-  const useDarkText = customBg ? !isDarkBg(customBg) : isDarkBg(preset.bg);
-  const text = useDarkText ? '#1f2937' : '#f9fafb';
-  const textSecondary = useDarkText ? '#6b7280' : '#9ca3af';
-  const border = useDarkText ? '#e5e7eb' : '#374151';
+  const card = darkBg ? blendWithWhite(bg, 0.1) : blendWithBlack(bg, 0.06);
+  const text = darkBg ? '#f9fafb' : '#1f2937';
+  const textSecondary = darkBg ? '#9ca3af' : '#6b7280';
+  const border = darkBg ? blendWithWhite(bg, 0.18) : blendWithBlack(bg, 0.12);
   return {
     bg,
     bgSecondary,
     card,
-    border: customBg ? border : preset.border,
-    text: customBg ? text : preset.text,
-    textSecondary: customBg ? textSecondary : preset.textSecondary,
+    border,
+    text,
+    textSecondary,
     primary: primaryHex,
     secondary: secondaryHex || primaryHex,
     primaryRgba,
     expense: '#fca5a5',
     income: '#6ee7b7',
+    isDarkBg: darkBg,
   };
 }
 

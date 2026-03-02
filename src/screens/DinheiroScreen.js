@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,16 +9,26 @@ import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useBanks } from '../contexts/BanksContext';
+import { useProfile } from '../contexts/ProfileContext';
 import { useMenu } from '../contexts/MenuContext';
 import { TopBar } from '../components/TopBar';
+import { BanksCarousel } from '../components/BanksCarousel';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
+import { ContasDoMesCard } from '../components/ContasDoMesCard';
+import { TransacoesCard } from '../components/TransacoesCard';
+import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
+import { GlassCard } from '../components/GlassCard';
 import { PieChart } from '../components/charts/PieChart';
 import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasDespesas';
 import { LineChartSaldo } from '../components/charts/LineChartSaldo';
 import { CATEGORY_COLORS } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
+import { CardPickerModal } from '../components/CardPickerModal';
+import { DEFAULT_DINHEIRO_SECTIONS, DINHEIRO_CARD_TYPES } from '../constants/dashboardCards';
+
+const DINHEIRO_SECTIONS_KEY = '@tudocerto_dinheiro_sections';
 
 function buildMonthlyData(transactions, monthsCount) {
   const now = new Date();
@@ -58,9 +69,7 @@ const dns = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
   catDot: { width: 8, height: 8, borderRadius: 4 },
   progressBarChart: { height: 20, borderRadius: 3, overflow: 'hidden' },
-  bankToggle: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, gap: 8 },
-  bankToggleBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, minWidth: 90, alignItems: 'center' },
-  bankCardMini: { borderRadius: 12, overflow: 'hidden', marginBottom: 8, minHeight: 64 },
+  bankCardMini: { borderRadius: 12, overflow: 'hidden', marginBottom: 4, minHeight: 64 },
   bankCardMiniInner: { padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });
 
@@ -80,21 +89,59 @@ function formatBankMoney(v) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+const BANK_GRAD_PRESETS = [
+  { id: 'verde', grad: ['#047857', '#10b981'] },
+  { id: 'roxo', grad: ['#4338ca', '#818cf8'] },
+  { id: 'vermelho', grad: ['#b91c1c', '#ef4444'] },
+  { id: 'laranja', grad: ['#b45309', '#f59e0b'] },
+  { id: 'violeta', grad: ['#5b21b6', '#a78bfa'] },
+  { id: 'ciano', grad: ['#0e7490', '#22d3ee'] },
+  { id: 'rosa', grad: ['#9d174d', '#ec4899'] },
+  { id: 'azul', grad: ['#1d4ed8', '#60a5fa'] },
+  { id: 'teal', grad: ['#0f766e', '#2dd4bf'] },
+  { id: 'indigo', grad: ['#3730a3', '#818cf8'] },
+];
+
+function getBankGrad(bank) {
+  if (bank?.cor) {
+    const p = BANK_GRAD_PRESETS.find((x) => x.id === bank.cor);
+    if (p) return p.grad;
+  }
+  return (bank?.tipo || 'pessoal') === 'empresa' ? ['#4338ca', '#6366f1'] : ['#059669', '#10b981'];
+}
+
+
 export function DinheiroScreen({ route }) {
   const { transactions, boletos } = useFinance();
   const { colors } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, getBankName, getCardsByBankId } = useBanks();
-  const { openBancos, openManageCards } = useMenu();
+  const { profile } = useProfile();
+  const { openBancos } = useMenu();
   const [showValues, setShowValues] = useState(true);
-  const [bankFilterTipo, setBankFilterTipo] = useState('todos');
-  const [tab, setTab] = useState(route?.params?.tab || 'resumo');
+  const [sectionOrder, setSectionOrder] = useState(DEFAULT_DINHEIRO_SECTIONS);
+  const [showCardPicker, setShowCardPicker] = useState(false);
+  const [balanceFilter, setBalanceFilter] = useState('mes');
+  const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
+
   useEffect(() => {
-    if (route?.params?.tab) setTab(route.params.tab);
-  }, [route?.params?.tab]);
+    AsyncStorage.getItem(DINHEIRO_SECTIONS_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          const valid = DEFAULT_DINHEIRO_SECTIONS.filter((id) => (parsed || []).includes(id));
+          const missing = DEFAULT_DINHEIRO_SECTIONS.filter((id) => !valid.includes(id));
+          setSectionOrder(valid.length > 0 ? [...valid, ...missing] : DEFAULT_DINHEIRO_SECTIONS);
+        } catch (_) {}
+      }
+    });
+  }, []);
   useEffect(() => {
-    if (!showEmpresaFeatures && bankFilterTipo === 'empresa') setBankFilterTipo('pessoal');
-  }, [showEmpresaFeatures]);
+    AsyncStorage.setItem(DINHEIRO_SECTIONS_KEY, JSON.stringify(sectionOrder));
+  }, [sectionOrder]);
+  useEffect(() => {
+    if (route?.params?.openCardPicker) setShowCardPicker(true);
+  }, [route?.params?.openCardPicker]);
   const [rangeMonths, setRangeMonths] = useState(6);
   const now = new Date();
 
@@ -103,14 +150,21 @@ export function DinheiroScreen({ route }) {
     return transactions.filter((t) => (t.tipoVenda || 'pessoal') === viewMode);
   }, [transactions, viewMode, canToggleView]);
 
-  const monthTx = useMemo(
-    () =>
-      filteredTx.filter((t) => {
-        const d = new Date(t.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }),
-    [filteredTx]
-  );
+  const periodTx = useMemo(() => {
+    const ref = balanceFilterDate;
+    return filteredTx.filter((t) => {
+      const d = new Date(t.date);
+      if (balanceFilter === 'dia') {
+        return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      if (balanceFilter === 'mes') {
+        return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      return d.getFullYear() === ref.getFullYear();
+    });
+  }, [filteredTx, balanceFilter, balanceFilterDate]);
+
+  const monthTx = periodTx;
 
   const prevMonthTx = useMemo(() => {
     const prev = new Date(now.getFullYear(), now.getMonth() - 1);
@@ -141,9 +195,11 @@ export function DinheiroScreen({ route }) {
   const PIE_SIZE = 200;
 
   const filteredBanks = useMemo(() => {
-    if (bankFilterTipo === 'todos') return banks;
-    return banks.filter((b) => (b.tipo || 'pessoal') === bankFilterTipo);
-  }, [banks, bankFilterTipo]);
+    if (!canToggleView) return banks.filter((b) => (b.tipo || 'pessoal') === 'pessoal');
+    return banks.filter((b) => (b.tipo || 'pessoal') === viewMode);
+  }, [banks, viewMode, canToggleView]);
+
+  const carouselBanks = useMemo(() => filteredBanks.slice(0, 8), [filteredBanks]);
 
   const contasStatus = useMemo(() => {
     const hoje = new Date();
@@ -151,7 +207,8 @@ export function DinheiroScreen({ route }) {
     let pagas = { qty: 0, valor: 0 };
     let aVencer = { qty: 0, valor: 0 };
     let vencidas = { qty: 0, valor: 0 };
-    (boletos || []).forEach((b) => {
+    const list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    list.forEach((b) => {
       const d = parseBoletoDate(b.dueDate);
       const amt = Number(b.amount) || 0;
       if (b.paid) {
@@ -168,140 +225,109 @@ export function DinheiroScreen({ route }) {
       }
     });
     return { pagas, aVencer, vencidas };
-  }, [boletos]);
+  }, [boletos, viewMode, showEmpresaFeatures]);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Início" colors={colors} useLogoImage onManageCards={openManageCards} />
-        {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[dns.header, { backgroundColor: colors.bg }]}>
-          <View>
-            <Text style={[dns.title, { color: colors.text }]}>Resumo do mês</Text>
-          </View>
-          <TouchableOpacity onPress={() => setShowValues(!showValues)}>
-            <AppIcon name={showValues ? 'eye-outline' : 'eye-off-outline'} size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+  const balanceFilterLabel = balanceFilter === 'dia'
+    ? balanceFilterDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+    : balanceFilter === 'mes'
+      ? balanceFilterDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      : balanceFilterDate.getFullYear().toString();
+
+  const adjustBalanceFilterDate = (delta) => {
+    const d = new Date(balanceFilterDate);
+    if (balanceFilter === 'dia') d.setDate(d.getDate() + delta);
+    else if (balanceFilter === 'mes') d.setMonth(d.getMonth() + delta);
+    else d.setFullYear(d.getFullYear() + delta);
+    setBalanceFilterDate(d);
+  };
+
+  const sectionContent = {
+    balance: (
+      <View key="balance">
         <BalanceCard
           balance={balance}
           income={income}
           expense={expense}
-          contasPagas={contasStatus.pagas.qty > 0 ? contasStatus.pagas : null}
-          contasAVencer={contasStatus.aVencer.qty > 0 ? contasStatus.aVencer : null}
-          contasVencidas={contasStatus.vencidas.qty > 0 ? contasStatus.vencidas : null}
+          formatCurrency={fmt}
+          mask={mask}
+          colors={colors}
+          filter={balanceFilter}
+          filterLabel={balanceFilterLabel}
+          onFilterChange={(f) => { setBalanceFilter(f); setBalanceFilterDate(new Date()); }}
+          onFilterDatePrev={() => adjustBalanceFilterDate(-1)}
+          onFilterDateNext={() => adjustBalanceFilterDate(1)}
+          showValues={showValues}
+          onToggleValues={() => setShowValues(!showValues)}
+        />
+      </View>
+    ),
+    contas: (
+      <View key="contas" style={{ marginTop: 16 }}>
+        <ContasDoMesCard
+          contasPagas={contasStatus.pagas}
+          contasAVencer={contasStatus.aVencer}
+          contasVencidas={contasStatus.vencidas}
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
         />
-        <TouchableOpacity activeOpacity={1} onPress={() => { playTapSound(); openBancos?.(); }} style={{ marginTop: 16 }}>
-          <Text style={[dns.sectionTitle, { color: colors.textSecondary, paddingHorizontal: 16 }]}>BANCOS E CARTÕES</Text>
-          <View style={[dns.bankToggle, { backgroundColor: colors.bg }]}>
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); playTapSound(); setBankFilterTipo('todos'); }}
-              style={[dns.bankToggleBtn, { backgroundColor: bankFilterTipo === 'todos' ? colors.primary : colors.primaryRgba(0.12) }]}
-            >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: bankFilterTipo === 'todos' ? '#fff' : colors.text }}>Todos</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); playTapSound(); setBankFilterTipo('pessoal'); }}
-              style={[dns.bankToggleBtn, { backgroundColor: bankFilterTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.12) }]}
-            >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: bankFilterTipo === 'pessoal' ? '#fff' : colors.text }}>Pessoal</Text>
-            </TouchableOpacity>
-            {showEmpresaFeatures && (
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); playTapSound(); setBankFilterTipo('empresa'); }}
-              style={[dns.bankToggleBtn, { backgroundColor: bankFilterTipo === 'empresa' ? '#6366f1' : 'rgba(99,102,241,0.2)' }]}
-            >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: bankFilterTipo === 'empresa' ? '#fff' : '#6366f1' }}>Empresa</Text>
-            </TouchableOpacity>
-            )}
-          </View>
-          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            {filteredBanks.length === 0 ? (
-              <View style={[dns.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: 'center', paddingVertical: 20 }]}>
-                <Ionicons name="wallet-outline" size={32} color={colors.textSecondary} />
-                <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8 }}>Nenhum banco cadastrado</Text>
-              </View>
-            ) : (
-              filteredBanks.slice(0, 4).map((bank) => {
-                const cards = getCardsByBankId(bank.id);
-                const tipoConta = bank.tipoConta || 'ambos';
-                const temDebito = tipoConta === 'debito' || tipoConta === 'ambos';
-                const valor = temDebito ? (bank.saldo || 0) : cards.reduce((s, c) => s + (c.saldo || 0), 0);
-                const grad = (bank.tipo || 'pessoal') === 'empresa' ? ['#4338ca', '#6366f1'] : ['#059669', '#10b981'];
-                return (
-                  <TouchableOpacity key={bank.id} activeOpacity={0.9} onPress={() => { playTapSound(); openBancos?.(); }} style={dns.bankCardMini}>
-                    <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={dns.bankCardMiniInner}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }} numberOfLines={1}>{getBankName(bank)}</Text>
-                      <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>{showValues ? formatBankMoney(valor) : '••••'}</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                );
-              })
-            )}
-            {filteredBanks.length > 4 && (
-              <TouchableOpacity onPress={() => { playTapSound(); openBancos?.(); }} style={{ alignItems: 'center', paddingVertical: 8 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Ver todos ({filteredBanks.length})</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </TouchableOpacity>
-        <View style={[dns.tabBar, { backgroundColor: colors.border, marginTop: 16 }]}>
-          {['resumo', 'transacoes', 'graficos'].map((t) => (
-            <TouchableOpacity key={t} style={[dns.tab, tab === t && { ...dns.tabActive, backgroundColor: colors.card }]} onPress={() => setTab(t)}>
-              <Text style={[dns.tabText, tab !== t && { color: colors.textSecondary }, tab === t && { color: colors.text }]}>{t === 'resumo' ? 'Resumo' : t === 'transacoes' ? 'Transações' : 'Gráficos'}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {tab === 'resumo' && (
-          <View style={dns.section}>
-            <View style={[dns.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {catExpenses.map(([cat, amount]) => {
-                const pct = expense > 0 ? (amount / expense) * 100 : 0;
-                return (
-                  <View key={cat} style={{ marginBottom: 14 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: CATEGORY_COLORS[cat] || '#6b7280' }} />
-                        <Text style={{ fontSize: 13, fontWeight: '500', color: colors.text }}>{cat}</Text>
-                      </View>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>{mask(fmt(amount))}</Text>
-                    </View>
-                    <View style={[dns.progressBar, { backgroundColor: colors.border }]}>
-                      <View style={[dns.progressFill, { width: `${pct}%`, backgroundColor: CATEGORY_COLORS[cat] || '#6b7280' }]} />
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
+      </View>
+    ),
+    bancos: (
+      <View key="bancos" style={{ marginTop: 16 }}>
+        <Text style={[dns.sectionTitle, { color: colors.textSecondary, paddingHorizontal: 16 }]}>BANCOS E CARTÕES</Text>
+        <BanksCarousel
+          banks={carouselBanks}
+          getBankName={getBankName}
+          getCardsByBankId={getCardsByBankId}
+          getBankGrad={getBankGrad}
+          profile={profile}
+          formatBankMoney={formatBankMoney}
+          showValues={showValues}
+          onCardPress={openBancos}
+          onEmptyPress={openBancos}
+          emptyContent={
+            <GlassCard colors={colors} style={[dns.card, { alignItems: 'center', marginHorizontal: 16 }]} contentStyle={{ paddingVertical: 20 }}>
+              <Ionicons name="wallet-outline" size={32} color={colors.textSecondary} />
+              <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8 }}>Nenhum banco cadastrado</Text>
+            </GlassCard>
+          }
+          dotActiveColor={colors.primary}
+          dotInactiveColor={colors.textSecondary + '50'}
+        />
+        {filteredBanks.length > 0 && (
+          <TouchableOpacity onPress={() => { playTapSound(); openBancos?.(); }} style={{ alignItems: 'center', paddingVertical: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Ver todos os bancos e cartões</Text>
+          </TouchableOpacity>
         )}
-        {tab === 'transacoes' && (
-          <View style={dns.section}>
-            <View style={[dns.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {monthTx.sort((a, b) => new Date(b.date) - new Date(a.date)).map((t) => (
-                <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border, gap: 12 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <AppIcon name={t.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={t.type === 'income' ? colors.primary : '#ef4444'} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text }}>{t.description}</Text>
-                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{t.category}</Text>
-                  </View>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: t.type === 'income' ? colors.primary : '#ef4444' }}>
-                    {t.type === 'income' ? '+' : '-'}
-                    {mask(fmt(t.amount))}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-        {tab === 'graficos' && (
-          <View style={{ padding: 16, gap: 0 }}>
-            <View style={[dns.card, dns.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      </View>
+    ),
+    gastos: (
+      <View key="gastos" style={[dns.section, { marginTop: 16 }]}>
+        <GastosPorCategoriaCard
+          catBreakdown={catExpenses}
+          totalExpense={expense}
+          formatCurrency={fmt}
+          mask={mask}
+          colors={colors}
+          title="Gastos por categoria"
+        />
+      </View>
+    ),
+    transacoes: (
+      <View key="transacoes" style={dns.section}>
+        <TransacoesCard
+          transactions={[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date))}
+          formatCurrency={fmt}
+          mask={mask}
+          colors={colors}
+          title="Últimas transações"
+        />
+      </View>
+    ),
+    graficos: (
+          <View key="graficos" style={{ padding: 16, gap: 0 }}>
+            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
               <Text style={[dns.sectionTitle, { color: colors.text }]}>Resumo do mês</Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '40' }}>
@@ -320,8 +346,8 @@ export function DinheiroScreen({ route }) {
               <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 8 }}>
                 {prevIncome > 0 || prevExpense > 0 ? `Mês anterior: +${mask(fmt(prevIncome))} / -${mask(fmt(prevExpense))}` : 'Sem dados do mês anterior'}
               </Text>
-            </View>
-            <View style={[dns.card, dns.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            </GlassCard>
+            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Receitas vs Despesas</Text>
                 <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -333,12 +359,12 @@ export function DinheiroScreen({ route }) {
                 </View>
               </View>
               <BarChartReceitasDespesas monthlyData={monthlyData} colors={colors} />
-            </View>
-            <View style={[dns.card, dns.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            </GlassCard>
+            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
               <LineChartSaldo monthlyData={monthlyData} colors={colors} />
-            </View>
-            <View style={[dns.card, dns.chartCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: 'center' }]}>
-              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Distribuição por categoria (pizza)</Text>
+            </GlassCard>
+            <GlassCard colors={colors} style={[dns.card, dns.chartCard, { alignItems: 'center' }]}>
+              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Distribuição por categoria</Text>
               {catExpenses.length === 0 ? (
                 <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>Nenhuma despesa no mês</Text>
               ) : (
@@ -354,9 +380,9 @@ export function DinheiroScreen({ route }) {
                   </View>
                 </>
               )}
-            </View>
-            <View style={[dns.card, dns.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Gastos por categoria (barras)</Text>
+            </GlassCard>
+            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
+              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Gastos por categoria</Text>
               {catExpenses.length === 0 ? (
                 <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16 }}>Nenhuma despesa no mês</Text>
               ) : (
@@ -386,11 +412,35 @@ export function DinheiroScreen({ route }) {
                   </View>
                 </>
               )}
-            </View>
+            </GlassCard>
           </View>
-        )}
+    ),
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
+      <TopBar title="Dinheiro" colors={colors} useLogoImage hideOrganize onManageCards={() => setShowCardPicker(true)} />
+      {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, backgroundColor: colors.bg }}>
+          <Text style={{ fontSize: 11, fontWeight: '600', letterSpacing: 1, color: colors.textSecondary }}>
+            {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
+          </Text>
+        </View>
+        {sectionOrder.map((sid) => {
+          const content = sectionContent[sid];
+          if (!content) return null;
+          return <React.Fragment key={sid}>{content}</React.Fragment>;
+        })}
         <View style={{ height: 100 }} />
       </ScrollView>
+      <CardPickerModal
+        visible={showCardPicker}
+        onClose={() => setShowCardPicker(false)}
+        visibleIds={sectionOrder}
+        onReorder={(order) => setSectionOrder(order)}
+        cardTypes={DINHEIRO_CARD_TYPES}
+      />
     </SafeAreaView>
   );
 }

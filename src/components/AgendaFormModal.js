@@ -114,12 +114,17 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.header}>
               <Text style={[s.title, { color: colors.text }]}>{isEdit ? 'EDITAR AGENDA' : 'ADICIONAR AGENDA'}</Text>
-              <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => { playTapSound(); onClose(); }}>
-                <Ionicons name="close" size={22} color={colors.primary} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
+                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => { playTapSound(); onClose(); }}>
+                  <Ionicons name="close" size={22} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={s.scroll} contentContainerStyle={s.scrollContent}>
               {showEmpresaFeatures && (
                 <View style={[s.toggleRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
                   <TouchableOpacity

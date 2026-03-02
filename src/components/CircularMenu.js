@@ -9,7 +9,6 @@ const { width: SW, height: SH } = Dimensions.get('window');
 
 const ROTATION_BASE_DURATION = 60000;
 const RADIUS = 140;
-const OVERLAY_OPACITY = 0.85;
 
 export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant }) {
   const { primaryColor, colors } = useTheme();
@@ -139,10 +138,10 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
   return (
     <Modal transparent visible={isOpen} animationType="none">
       <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(0,0,0,${OVERLAY_OPACITY})`, opacity: opacityAnim }]} />
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg, opacity: opacityAnim }]} />
       </View>
       <View style={[styles.hintTop, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.hintText}>
+        <Text style={[styles.hintText, { color: colors.text }]}>
           Arraste o que você quer cadastrar para o microfone
         </Text>
       </View>
@@ -234,7 +233,6 @@ const styles = StyleSheet.create({
   hintText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
     textAlign: 'center',
     lineHeight: 20,
   },

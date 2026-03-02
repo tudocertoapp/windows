@@ -190,12 +190,11 @@ export function AgendaScreen() {
   const pinchBaseScale = useRef(1);
   const pinchBaseDist = useRef(0);
   const pinchFocalRatio = useRef(0.5);
-  const lastScrollTime = useRef(0);
   const rafId = useRef(null);
   const scrollOffsetRef = useRef(0);
   const timelineLayoutRef = useRef({ y: 0 });
-  const scrollViewTopRef = useRef(0);
   const measurementReadyRef = useRef(false);
+  const scrollViewHeightRef = useRef(400);
   const scaleRef = useRef(1);
   scaleRef.current = hourScale;
 
@@ -210,22 +209,21 @@ export function AgendaScreen() {
           const touches = ev.nativeEvent.touches;
           if (touches && touches.length === 2 && touches[0] && touches[1]) {
             setScrollEnabled(false);
-            measurementReadyRef.current = false;
             pinchBaseDist.current = Math.hypot(
               touches[1].pageX - touches[0].pageX,
               touches[1].pageY - touches[0].pageY
             );
             pinchBaseScale.current = scaleRef.current;
-            const centerPageY = (touches[0].pageY + touches[1].pageY) / 2;
-            mainScrollRef.current?.measureInWindow((_x, y) => {
-              scrollViewTopRef.current = y;
-              measurementReadyRef.current = true;
-              const touchInViewport = centerPageY - y;
-              const contentYUnderTouch = scrollOffsetRef.current + touchInViewport;
+            measurementReadyRef.current = false;
+            const fingerMidY = (touches[0].pageY + touches[1].pageY) / 2;
+            mainScrollRef.current?.measureInWindow((x, scrollViewTop, w, h) => {
+              const relativeY = fingerMidY - scrollViewTop;
+              const contentY = scrollOffsetRef.current + relativeY;
               const timelineY = timelineLayoutRef.current?.y ?? 0;
               const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
-              const posInTimeline = contentYUnderTouch - timelineY;
+              const posInTimeline = contentY - timelineY;
               pinchFocalRatio.current = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
+              measurementReadyRef.current = true;
             });
           }
         },
@@ -237,23 +235,19 @@ export function AgendaScreen() {
             const newScale = Math.max(0.5, Math.min(2, pinchBaseScale.current * ratio));
             setHourScale(newScale);
             if (measurementReadyRef.current) {
-              const now = Date.now();
-              if (now - lastScrollTime.current > 32) {
-                lastScrollTime.current = now;
-                const centerPageY = (touches[0].pageY + touches[1].pageY) / 2;
-                const scrollTop = scrollViewTopRef.current;
-                const touchInViewport = centerPageY - scrollTop;
-                const timelineY = timelineLayoutRef.current?.y ?? 0;
-                const newTimelineH = 24 * HOUR_HEIGHT * newScale;
-                const focalInNewTimeline = pinchFocalRatio.current * newTimelineH;
-                const contentYToShow = timelineY + focalInNewTimeline;
-                const newScrollY = Math.max(0, contentYToShow - touchInViewport);
-                if (rafId.current) cancelAnimationFrame(rafId.current);
-                rafId.current = requestAnimationFrame(() => {
+              const timelineY = timelineLayoutRef.current?.y ?? 0;
+              const newTimelineH = 24 * HOUR_HEIGHT * newScale;
+              const focalInNewTimeline = pinchFocalRatio.current * newTimelineH;
+              const viewH = scrollViewHeightRef.current;
+              const newScrollY = Math.max(0, timelineY + focalInNewTimeline - viewH / 2);
+              if (rafId.current) cancelAnimationFrame(rafId.current);
+              rafId.current = requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
                   mainScrollRef.current?.scrollTo({ y: newScrollY, animated: false });
-                  rafId.current = null;
+                  scrollOffsetRef.current = newScrollY;
                 });
-              }
+                rafId.current = null;
+              });
             }
           }
         },
@@ -380,123 +374,150 @@ export function AgendaScreen() {
   const isTodaySelected = isToday(selectedDate);
   const effectiveHourHeight = HOUR_HEIGHT * hourScale;
 
+  const zoomCenteredOnViewport = useCallback((delta) => {
+    const timelineY = timelineLayoutRef.current?.y ?? 0;
+    const scrollY = scrollOffsetRef.current;
+    const viewH = scrollViewHeightRef.current;
+    const centerContentY = scrollY + viewH / 2;
+    const posInTimeline = centerContentY - timelineY;
+    const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
+    const centerHourRatio = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
+    const newScale = Math.max(0.5, Math.min(2, scaleRef.current + delta));
+    setHourScale(newScale);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const newTimelineH = 24 * HOUR_HEIGHT * newScale;
+        const focalInNewTimeline = centerHourRatio * newTimelineH;
+        const newScrollY = Math.max(0, timelineY + focalInNewTimeline - viewH / 2);
+        mainScrollRef.current?.scrollTo({ y: newScrollY, animated: false });
+        scrollOffsetRef.current = newScrollY;
+      });
+    });
+  }, []);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Agenda" colors={colors} hideOrganize />
+      <TopBar title="Agenda" colors={colors} hideOrganize hideMenu hideLogoIcon />
       <View style={{ flex: 1 }} {...pinchResponder.panHandlers} collapsable={false}>
-      <ScrollView
+        {/* Parte fixa: header, carousel de dias, cabeçalho do cronograma */}
+        <View style={{ backgroundColor: colors.bg }}>
+          <View style={[as.header, { backgroundColor: colors.bg }]}>
+            <View style={as.headerLeft}>
+              <TouchableOpacity
+                style={as.monthBtn}
+                onPress={() => {
+                  playTapSound();
+                  setShowMonthPicker(true);
+                }}
+              >
+                <Text style={[as.monthText, { color: colors.text }]}>{currentMonthName.toUpperCase()} {displayedMonthDate.getFullYear()}</Text>
+                <Ionicons name="chevron-down" size={20} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[as.dayText, { color: colors.textSecondary }]}>{isToday(selectedDate) ? 'Dia atual' : `DIA ${selectedDate.getDate()}`}</Text>
+            </View>
+            <TouchableOpacity
+              style={[as.addBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                playTapSound();
+                handleAddPress();
+              }}
+            >
+              <Ionicons name="add" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={dayScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[as.dayCarousel, { backgroundColor: colors.card }]}
+            snapToInterval={DAY_ITEM_WIDTH}
+            snapToAlignment="center"
+            decelerationRate="fast"
+            onScroll={handleDayScroll}
+            onMomentumScrollEnd={handleDayScroll}
+            onScrollEndDrag={handleDayScroll}
+            scrollEventThrottle={100}
+          >
+            {daysToShow.map((d) => {
+              const key = formatDayKey(d);
+              const selected = key === selectedKey;
+              const count = (eventsByDay[key] || []).length;
+              const hasContent = daysWithContent.has(key);
+              const dayIsToday = isToday(d);
+              return (
+                <TouchableOpacity
+                  key={d.getTime()}
+                  style={[
+                    as.dayItem,
+                    {
+                      backgroundColor: selected ? (dayIsToday ? colors.primary : colors.primary) : colors.bg,
+                      borderWidth: dayIsToday ? 2 : 0,
+                      borderColor: dayIsToday ? (selected ? '#fff' : colors.primary) : 'transparent',
+                    },
+                  ]}
+                  onPress={() => handleDayPress(d)}
+                >
+                  {hasContent && <View style={{ position: 'absolute', top: 6, right: 8, width: 5, height: 5, borderRadius: 3, backgroundColor: selected ? 'rgba(255,255,255,0.9)' : colors.primary }} />}
+                  <Text style={[as.dayCount, { color: selected ? 'rgba(255,255,255,0.9)' : colors.textSecondary }]}>{count}</Text>
+                  <Text style={[as.dayNum, { color: selected ? '#fff' : colors.text }]}>{d.getDate()}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={[as.scheduleHeader, { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]}>
+            <Text style={[as.scheduleTitle, { color: colors.text }]}>
+              CRONOGRAMA — {selectedDate.getDate()} DE {currentMonthName.toUpperCase()}
+            </Text>
+            <View style={as.eventControls}>
+              <TouchableOpacity
+                style={[as.zoomBtn, { backgroundColor: colors.bg }]}
+                onPress={() => {
+                  playTapSound();
+                  zoomCenteredOnViewport(-0.2);
+                }}
+              >
+                <Ionicons name="remove" size={18} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[as.zoomBtn, { backgroundColor: colors.bg }]}
+                onPress={() => {
+                  playTapSound();
+                  zoomCenteredOnViewport(0.2);
+                }}
+              >
+                <Ionicons name="add" size={18} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[as.eventCount, { color: colors.textSecondary }]}>
+                {eventsForSelected.length} {eventsForSelected.length === 1 ? 'Evento' : 'Eventos'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+            <View style={{ width: 52 }} />
+            <View style={{ flex: 1 }} />
+          </View>
+        </View>
+
+        {/* Apenas as horas do dia rolam */}
+        <ScrollView
           ref={mainScrollRef}
+          style={{ flex: 1 }}
           scrollEnabled={scrollEnabled}
+          onLayout={(e) => { scrollViewHeightRef.current = e.nativeEvent.layout.height; }}
           onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={16}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
           contentContainerStyle={{ paddingBottom: 20 }}
         >
-        <View style={[as.header, { backgroundColor: colors.bg }]}>
-          <View style={as.headerLeft}>
-            <TouchableOpacity
-              style={as.monthBtn}
-              onPress={() => {
-                playTapSound();
-                setShowMonthPicker(true);
-              }}
-            >
-              <Text style={[as.monthText, { color: colors.text }]}>{currentMonthName.toUpperCase()} {displayedMonthDate.getFullYear()}</Text>
-              <Ionicons name="chevron-down" size={20} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[as.dayText, { color: colors.textSecondary }]}>{isToday(selectedDate) ? 'Dia atual' : `DIA ${selectedDate.getDate()}`}</Text>
-          </View>
-          <TouchableOpacity
-            style={[as.addBtn, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              playTapSound();
-              handleAddPress();
+          <View
+            onLayout={(e) => {
+              const { y } = e.nativeEvent.layout;
+              timelineLayoutRef.current = { y };
             }}
           >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          ref={dayScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[as.dayCarousel, { backgroundColor: colors.card }]}
-          snapToInterval={DAY_ITEM_WIDTH}
-          snapToAlignment="center"
-          decelerationRate="fast"
-          onScroll={handleDayScroll}
-          onMomentumScrollEnd={handleDayScroll}
-          onScrollEndDrag={handleDayScroll}
-          scrollEventThrottle={100}
-        >
-          {daysToShow.map((d) => {
-            const key = formatDayKey(d);
-            const selected = key === selectedKey;
-            const count = (eventsByDay[key] || []).length;
-            const hasContent = daysWithContent.has(key);
-            const dayIsToday = isToday(d);
-            return (
-              <TouchableOpacity
-                key={d.getTime()}
-                style={[
-                  as.dayItem,
-                  {
-                    backgroundColor: selected ? (dayIsToday ? colors.primary : colors.primary) : colors.bg,
-                    borderWidth: dayIsToday ? 2 : 0,
-                    borderColor: dayIsToday ? (selected ? '#fff' : colors.primary) : 'transparent',
-                  },
-                ]}
-                onPress={() => handleDayPress(d)}
-              >
-                {hasContent && <View style={{ position: 'absolute', top: 6, right: 8, width: 5, height: 5, borderRadius: 3, backgroundColor: selected ? 'rgba(255,255,255,0.9)' : colors.primary }} />}
-                <Text style={[as.dayCount, { color: selected ? 'rgba(255,255,255,0.9)' : colors.textSecondary }]}>{count}</Text>
-                <Text style={[as.dayNum, { color: selected ? '#fff' : colors.text }]}>{d.getDate()}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={[as.scheduleHeader, { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]}>
-          <Text style={[as.scheduleTitle, { color: colors.text }]}>
-            CRONOGRAMA — {selectedDate.getDate()} DE {currentMonthName.toUpperCase()}
-          </Text>
-          <View style={as.eventControls}>
-            <TouchableOpacity
-              style={[as.zoomBtn, { backgroundColor: colors.bg }]}
-              onPress={() => {
-                playTapSound();
-                setHourScale((s) => Math.max(0.5, s - 0.2));
-              }}
-            >
-              <Ionicons name="remove" size={18} color={colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[as.zoomBtn, { backgroundColor: colors.bg }]}
-              onPress={() => {
-                playTapSound();
-                setHourScale((s) => Math.min(2, s + 0.2));
-              }}
-            >
-              <Ionicons name="add" size={18} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[as.eventCount, { color: colors.textSecondary }]}>
-              {eventsForSelected.length} {eventsForSelected.length === 1 ? 'Evento' : 'Eventos'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: colors.border }}>
-          <View style={{ width: 52 }} />
-          <View style={{ flex: 1 }} />
-        </View>
-
-        <View
-          onLayout={(e) => {
-            const { y } = e.nativeEvent.layout;
-            timelineLayoutRef.current = { y };
-          }}
-        >
         {HOURS.map((hour) => {
           const hourTop = hour * 60;
           const showNowLine = isTodaySelected && currentMinutes >= hourTop && currentMinutes < hourTop + 60;
@@ -539,11 +560,17 @@ export function AgendaScreen() {
                     const startM = parseTimeToMinutes(e.time);
                     const duration = 60;
                     const top = ((startM - hourTop) / 60) * effectiveHourHeight;
-                    const height = Math.max(40, (duration / 60) * effectiveHourHeight - 4);
+                    const height = Math.max(48, (duration / 60) * effectiveHourHeight - 4);
                     const isConcluido = e.status === 'concluido';
+                    const openEdit = () => {
+                      playTapSound();
+                      setAgendaFormState({ visible: true, editingEvent: e });
+                    };
                     return (
                       <TouchableOpacity
                         key={e.id}
+                        activeOpacity={0.8}
+                        onPress={openEdit}
                         style={[
                           as.eventBlock,
                           {
@@ -552,22 +579,49 @@ export function AgendaScreen() {
                             backgroundColor: isConcluido ? colors.primaryRgba(0.08) : colors.primaryRgba(0.15),
                             borderLeftColor: isConcluido ? colors.textSecondary : colors.primary,
                             opacity: isConcluido ? 0.85 : 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
                           },
                         ]}
-                        onPress={() => {
-                          playTapSound();
-                          Alert.alert(e.title || 'Evento', 'O que deseja fazer?', [
-                            { text: 'Cancelar', style: 'cancel' },
-                            { text: 'Editar', onPress: () => setAgendaFormState({ visible: true, editingEvent: e }) },
-                            { text: isConcluido ? 'Reabrir' : 'Concluir', onPress: () => updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' }) },
-                            { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
-                          ]);
-                        }}
                       >
-                        <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]} numberOfLines={2}>
-                          {e.title}
-                        </Text>
-                        <Text style={[as.eventTime, { color: colors.primary }]}>{e.time || '--:--'}{e.timeEnd ? ` - ${e.timeEnd}` : ''}</Text>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]} numberOfLines={2}>
+                            {e.title}
+                          </Text>
+                          <Text style={[as.eventTime, { color: colors.primary }]}>{e.time || '--:--'}{e.timeEnd ? ` - ${e.timeEnd}` : ''}</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={(ev) => { ev?.stopPropagation?.(); openEdit(); }}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          style={{ padding: 8 }}
+                          activeOpacity={0.6}
+                        >
+                          <Ionicons name="pencil" size={16} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' }); }}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          style={{ padding: 8 }}
+                          activeOpacity={0.6}
+                        >
+                          <Ionicons name="checkmark-done" size={18} color="#10b981" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={(ev) => {
+                            ev?.stopPropagation?.();
+                            playTapSound();
+                            Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+                              { text: 'Cancelar' },
+                              { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+                            ]);
+                          }}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          style={{ padding: 8 }}
+                          activeOpacity={0.6}
+                        >
+                          <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                        </TouchableOpacity>
                       </TouchableOpacity>
                     );
                   })}
@@ -575,17 +629,17 @@ export function AgendaScreen() {
             </View>
           );
         })}
-        </View>
-
-        {eventsForSelected.length === 0 && (
-          <View style={[as.empty, { marginTop: 24 }]}>
-            <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
-            <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum evento neste dia</Text>
           </View>
-        )}
 
-        <View style={{ height: 80 }} />
-      </ScrollView>
+          {eventsForSelected.length === 0 && (
+            <View style={[as.empty, { marginTop: 24 }]}>
+              <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
+              <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum evento neste dia</Text>
+            </View>
+          )}
+
+          <View style={{ height: 80 }} />
+        </ScrollView>
       </View>
 
       <Modal visible={showMonthPicker} transparent animationType="fade">

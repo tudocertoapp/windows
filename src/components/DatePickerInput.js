@@ -71,7 +71,7 @@ export function DatePickerInput({ value, onChange, placeholder = 'DD/MM/YYYY', s
 }
 
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  iosBox: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  iosBox: { width: '100%', maxWidth: 340, borderRadius: 20, padding: 20, paddingBottom: 40 },
   iosBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 12 },
 });

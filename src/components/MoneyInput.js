@@ -2,6 +2,7 @@ import React from 'react';
 import { TextInput, View, Text, StyleSheet } from 'react-native';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { parseMoney } from '../utils/format';
 
 export function MoneyInput({ value, onChange, placeholder, style, containerStyle, ...rest }) {
   const { lang } = useLanguage();
@@ -10,24 +11,28 @@ export function MoneyInput({ value, onChange, placeholder, style, containerStyle
   const decSep = lang.decimalSep || ',';
   const thSep = lang.thousandsSep || '.';
 
-  const formatDisplay = (v) => {
-    if (!v && v !== 0) return '';
-    const s = String(v).replace(/[^\d,.\-]/g, '');
-    const parts = s.split(decSep === ',' ? ',' : '.');
-    let intPart = (parts[0] || '0').replace(/\D/g, '');
-    let decPart = (parts[1] || '').replace(/\D/g, '').slice(0, 2);
+  const formatAsCurrency = (num) => {
+    if (num == null || isNaN(num)) return '';
+    const n = Number(num);
+    const intPart = Math.floor(Math.abs(n));
+    const decPart = Math.round((Math.abs(n) - intPart) * 100);
+    let intStr = String(intPart);
     if (thSep && thSep !== decSep) {
-      intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, thSep);
+      intStr = intStr.replace(/\B(?=(\d{3})+(?!\d))/g, thSep);
     }
-    return decPart ? `${intPart}${decSep}${decPart}` : (intPart || '');
+    return `${intStr}${decSep}${String(decPart).padStart(2, '0')}`;
   };
 
   const handleChange = (text) => {
-    const formatted = formatDisplay(text);
+    const digits = String(text).replace(/\D/g, '');
+    const cents = parseInt(digits || '0', 10);
+    const num = cents / 100;
+    const formatted = formatAsCurrency(num);
     onChange?.(formatted);
   };
 
-  const displayVal = value === '' || value == null ? '' : formatDisplay(String(value));
+  const numVal = parseMoney(value);
+  const displayVal = value === '' || value == null ? '' : formatAsCurrency(isNaN(numVal) ? 0 : numVal);
 
   return (
     <View style={[s.wrap, containerStyle, { borderColor: colors.border }]}>

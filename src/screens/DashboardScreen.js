@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -11,10 +11,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
+import { ContasDoMesCard } from '../components/ContasDoMesCard';
+import { TransacoesCard } from '../components/TransacoesCard';
+import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
+import { GlassCard } from '../components/GlassCard';
 import { DraggableCard } from '../components/DraggableCard';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CATEGORY_COLORS } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
+import { playTapSound } from '../utils/sounds';
 import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
@@ -57,13 +62,15 @@ const ds = StyleSheet.create({
   txCat: { fontSize: 11, marginTop: 2 },
   txAmount: { fontSize: 14, fontWeight: '600' },
   greeting: { fontSize: 14, fontWeight: '500', marginTop: 4 },
-  carousel: { marginTop: 16, height: 195, marginHorizontal: 0, paddingVertical: 5 },
-  carouselItem: { width: SW - 48, height: 155, marginRight: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
+  carousel: { marginTop: 16, height: 200, marginHorizontal: 0, paddingVertical: 8 },
+  carouselItem: { height: 160, marginRight: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
   carouselTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
   carouselText: { fontSize: 12, opacity: 0.95, lineHeight: 18 },
   quoteCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
   quoteText: { fontSize: 14, fontStyle: 'italic', lineHeight: 22 },
   quoteType: { fontSize: 10, marginTop: 8, letterSpacing: 1 },
+  tab: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  tabText: { fontSize: 12, fontWeight: '600' },
 });
 
 function parseBoletoDate(str) {
@@ -76,20 +83,33 @@ function parseBoletoDate(str) {
   return new Date(year, month, day);
 }
 
+function parseDateKey(str) {
+  if (!str) return null;
+  const parts = String(str).trim().split(/[/\-]/);
+  if (parts.length < 3) return null;
+  const day = parseInt(parts[0], 10) || 1;
+  const month = (parseInt(parts[1], 10) || 1) - 1;
+  const year = parseInt(parts[2], 10) || new Date().getFullYear();
+  return new Date(year, month, day);
+}
+
 export function DashboardScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { transactions, checkListItems, agendaEvents, boletos } = useFinance();
+  const { transactions, checkListItems, agendaEvents, boletos, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent } = useFinance();
   const { colors } = useTheme();
-  const { viewMode, setViewMode, canToggleView } = usePlan();
+  const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro } = useMenu();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
   const [quoteType, setQuoteType] = useState('motivacional');
   const carouselRef = useRef(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const carouselItemWidth = SW - 32;
+  const CARD_WIDTH = SW * 0.82;
+  const CARD_GAP = 16;
+  const CAROUSEL_PADDING = (SW - CARD_WIDTH) / 2;
+  const SNAP_INTERVAL = CARD_WIDTH + CARD_GAP;
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const layoutsRef = useRef({});
@@ -100,7 +120,20 @@ export function DashboardScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(SECTIONS_ORDER_KEY).then((raw) => {
-      if (raw) try { setSectionOrder(JSON.parse(raw)); } catch (_) {}
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          let filtered = Array.isArray(parsed)
+            ? parsed.filter((id) => id !== 'agenda').map((id) => (id === 'tarefas' ? 'proximos' : id))
+            : DEFAULT_SECTIONS;
+          filtered = [...new Set(filtered)];
+          const base = filtered.length > 0 ? filtered : DEFAULT_SECTIONS;
+          const missing = DEFAULT_SECTIONS.filter((id) => !base.includes(id));
+          setSectionOrder([...base, ...missing]);
+        } catch (_) {}
+      } else {
+        setSectionOrder(DEFAULT_SECTIONS);
+      }
     });
   }, []);
   useEffect(() => {
@@ -110,7 +143,8 @@ export function DashboardScreen() {
     }
   }, [route.params?.openCardPicker, navigation]);
   useEffect(() => {
-    AsyncStorage.setItem(SECTIONS_ORDER_KEY, JSON.stringify(sectionOrder));
+    const toSave = sectionOrder.filter((id) => id !== 'agenda' && id !== 'tarefas');
+    AsyncStorage.setItem(SECTIONS_ORDER_KEY, JSON.stringify(toSave.length > 0 ? toSave : DEFAULT_SECTIONS));
   }, [sectionOrder]);
 
   const filteredTx = useMemo(() => {
@@ -137,7 +171,8 @@ export function DashboardScreen() {
     let pagas = { qty: 0, valor: 0 };
     let aVencer = { qty: 0, valor: 0 };
     let vencidas = { qty: 0, valor: 0 };
-    (boletos || []).forEach((b) => {
+    const list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    list.forEach((b) => {
       const d = parseBoletoDate(b.dueDate);
       const amt = Number(b.amount) || 0;
       if (b.paid) {
@@ -154,7 +189,7 @@ export function DashboardScreen() {
       }
     });
     return { pagas, aVencer, vencidas };
-  }, [boletos]);
+  }, [boletos, viewMode, showEmpresaFeatures]);
 
   const catBreakdown = useMemo(() => {
     const m = {};
@@ -177,10 +212,10 @@ export function DashboardScreen() {
     const interval = setInterval(() => {
       const next = (carouselIndex + 1) % count;
       setCarouselIndex(next);
-      carouselRef.current?.scrollToOffset({ offset: next * carouselItemWidth, animated: true });
+      carouselRef.current?.scrollToOffset({ offset: next * SNAP_INTERVAL, animated: true });
     }, 4000);
     return () => clearInterval(interval);
-  }, [carouselIndex, carouselItemWidth, carouselItems.length]);
+  }, [carouselIndex, SNAP_INTERVAL, carouselItems.length]);
 
   const handleLayoutMeasured = (id, y, height) => {
     layoutsRef.current[id] = { y, height };
@@ -230,34 +265,107 @@ export function DashboardScreen() {
     return { tarefas, agendas };
   }, [checkListItems, agendaEvents]);
 
-  const sectionMap = {
-    proximos: (
-      <TouchableOpacity key="proximos" style={[ds.card, { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}} activeOpacity={0.9}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-            <AppIcon name="alarm-outline" size={22} color={colors.primary} />
+  const proximosRecebimentos = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const em7Dias = new Date(hoje);
+    em7Dias.setDate(em7Dias.getDate() + 7);
+    return (aReceber || [])
+      .filter((r) => r.status !== 'pago' && r.dueDate)
+      .map((r) => ({ ...r, dueDateObj: parseDateKey(r.dueDate) }))
+      .filter((r) => r.dueDateObj && r.dueDateObj >= hoje && r.dueDateObj <= em7Dias)
+      .sort((a, b) => (a.dueDateObj || 0) - (b.dueDateObj || 0))
+      .slice(0, 5)
+      .map((r) => {
+        const diff = Math.ceil((r.dueDateObj - hoje) / (1000 * 60 * 60 * 24));
+        return { ...r, diasParaVencer: diff };
+      });
+  }, [aReceber]);
+
+  const taskCardBase = (icon, title, subtitle, items, renderItem, emptyText) => (
+    <TouchableOpacity
+      key={title}
+      onPress={() => navigation?.navigate?.('Agenda')}
+      activeOpacity={0.9}
+      style={{ marginHorizontal: 16, marginTop: 16 }}
+    >
+      <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+            <AppIcon name={icon} size={26} color={colors.primary} />
           </View>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Próximas tarefas e agendas</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>{title}</Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</Text>
+          </View>
+          <AppIcon name="chevron-forward" size={22} color={colors.primary} />
         </View>
-        {proximasTarefas.tarefas.length === 0 && proximasTarefas.agendas.length === 0 ? (
-          <Text style={{ fontSize: 13, color: colors.textSecondary }}>Nenhum lembrete</Text>
+        {items.length === 0 ? (
+          <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>{emptyText}</Text>
         ) : (
-          <>
-            {proximasTarefas.tarefas.map((t) => (
-              <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <AppIcon name="checkbox-outline" size={20} color={colors.primary} />
-                <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{t.title}</Text>
-              </View>
-            ))}
-            {proximasTarefas.agendas.map((e) => (
-              <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <AppIcon name="calendar-outline" size={20} color={colors.primary} />
-                <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{e.title} — {e.date}</Text>
-              </View>
-            ))}
-          </>
+          items.map((item) => renderItem(item))
         )}
-      </TouchableOpacity>
+      </GlassCard>
+    </TouchableOpacity>
+  );
+
+  const sectionMap = {
+    proximos: taskCardBase(
+      'checkmark-done-outline',
+      'Próximas tarefas',
+      proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`,
+      proximasTarefas.tarefas,
+      (t) => (
+        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
+          <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{t.title}</Text>
+          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }} style={{ padding: 6 }}>
+            <Ionicons name="pencil" size={16} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateCheckListItem(t.id, { checked: true }); }} style={{ padding: 6 }}>
+            <Ionicons name="checkmark-done" size={18} color="#10b981" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={(e) => {
+            e?.stopPropagation?.();
+            playTapSound();
+            Alert.alert('Excluir', 'Quer realmente excluir esta tarefa?', [
+              { text: 'Cancelar' },
+              { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) },
+            ]);
+          }} style={{ padding: 6 }}>
+            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+      ),
+      'Nenhuma tarefa pendente'
+    ),
+    agendamentos: taskCardBase(
+      'calendar-outline',
+      'Próximos eventos',
+      proximasTarefas.agendas.length === 0 ? 'Nada agendado' : `${proximasTarefas.agendas.length} evento${proximasTarefas.agendas.length !== 1 ? 's' : ''}`,
+      proximasTarefas.agendas,
+      (e) => (
+        <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
+          <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{e.title}</Text>
+          <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
+          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }}>
+            <Ionicons name="pencil" size={16} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') }); }} style={{ padding: 6 }}>
+            <Ionicons name="checkmark-done" size={18} color="#10b981" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={(ev) => {
+            ev?.stopPropagation?.();
+            playTapSound();
+            Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+              { text: 'Cancelar' },
+              { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+            ]);
+          }} style={{ padding: 6 }}>
+            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+      ),
+      'Nenhum evento agendado'
     ),
     carousel: (
       <View key="carousel" style={ds.carousel}>
@@ -266,14 +374,14 @@ export function DashboardScreen() {
           data={carouselItems}
           horizontal
           pagingEnabled={false}
-          snapToInterval={SW - 32}
-          snapToAlignment="start"
+          snapToInterval={SNAP_INTERVAL}
+          snapToAlignment="center"
           decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24 }}
-          onMomentumScrollEnd={(e) => setCarouselIndex(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, SW - 32)))}
+          contentContainerStyle={{ paddingHorizontal: CAROUSEL_PADDING }}
+          onMomentumScrollEnd={(e) => setCarouselIndex(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, SNAP_INTERVAL)))}
           renderItem={({ item }) => (
-            <View style={[ds.carouselItem, { backgroundColor: item.color || colors.primary, borderColor: (item.color || colors.primary) + '80', overflow: 'hidden' }]}>
+            <View style={[ds.carouselItem, { width: CARD_WIDTH, backgroundColor: item.color || colors.primary, borderColor: (item.color || colors.primary) + '80', overflow: 'hidden' }]}>
               <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
               <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
               <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
@@ -292,7 +400,8 @@ export function DashboardScreen() {
       </View>
     ),
     quote: (
-      <TouchableOpacity key="quote" style={[ds.quoteCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => openImageGenerator?.({ quote, quoteType })} activeOpacity={0.8}>
+      <TouchableOpacity key="quote" onPress={() => openImageGenerator?.({ quote, quoteType })} activeOpacity={0.8} style={{ marginHorizontal: 16, marginTop: 16 }}>
+        <GlassCard colors={colors} style={[ds.quoteCard]}>
         <Text style={[ds.quoteText, { color: colors.text }]} numberOfLines={3}>"{quote}"</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, gap: 10 }}>
           <TouchableOpacity onPress={(e) => { e.stopPropagation(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '60' }}>
@@ -304,25 +413,35 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Compartilhar frase</Text>
           </TouchableOpacity>
         </View>
+        </GlassCard>
       </TouchableOpacity>
     ),
     balance: (
-      <BalanceCard
-        key="balance"
-        balance={balance}
-        income={income}
-        expense={expense}
-        contasPagas={contasStatus.pagas.qty > 0 ? contasStatus.pagas : null}
-        contasAVencer={contasStatus.aVencer.qty > 0 ? contasStatus.aVencer : null}
-        contasVencidas={contasStatus.vencidas.qty > 0 ? contasStatus.vencidas : null}
-        formatCurrency={fmt}
-        colors={colors}
-      />
+      <View key="balance">
+        <BalanceCard
+          balance={balance}
+          income={income}
+          expense={expense}
+          formatCurrency={fmt}
+          colors={colors}
+        />
+      </View>
+    ),
+    contas: (
+      <View key="contas" style={{ marginHorizontal: 16, marginTop: 16 }}>
+        <ContasDoMesCard
+          contasPagas={contasStatus.pagas}
+          contasAVencer={contasStatus.aVencer}
+          contasVencidas={contasStatus.vencidas}
+          formatCurrency={fmt}
+          colors={colors}
+        />
+      </View>
     ),
     gastos: (
       <View key="gastos" style={ds.section}>
         <Text style={[ds.sectionTitle, { color: colors.text }]}>Gastos por Categoria</Text>
-        <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={ds.card}>
           {catBreakdown.map(([cat, amount]) => {
             const pct = expense > 0 ? (amount / expense) * 100 : 0;
             return (
@@ -340,53 +459,22 @@ export function DashboardScreen() {
               </View>
             );
           })}
-        </View>
+        </GlassCard>
       </View>
     ),
     transacoes: (
       <View key="transacoes" style={ds.section}>
-        <Text style={[ds.sectionTitle, { color: colors.text }]}>Últimas Transações</Text>
-        <View style={[ds.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {monthTx.slice(-5).reverse().map((t) => (
-            <View key={t.id} style={[ds.txItem, { borderBottomColor: colors.border }]}>
-              <View style={[ds.txIcon, { backgroundColor: 'transparent' }]}>
-                <AppIcon name={t.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={t.type === 'income' ? colors.primary : '#ef4444'} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[ds.txDesc, { color: colors.text }]}>{t.description}</Text>
-                <Text style={[ds.txCat, { color: colors.textSecondary }]}>{t.category}</Text>
-              </View>
-              <Text style={[ds.txAmount, { color: t.type === 'income' ? colors.primary : '#ef4444' }]}>
-                {t.type === 'income' ? '+' : '-'}
-                {fmt(t.amount)}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <TransacoesCard
+          transactions={monthTx}
+          formatCurrency={fmt}
+          colors={colors}
+          title="Últimas transações"
+        />
       </View>
     ),
-    agenda: (
-      <TouchableOpacity key="agenda" style={[ds.card, { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}} activeOpacity={0.9}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-            <AppIcon name="calendar-outline" size={22} color={colors.primary} />
-          </View>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Próximos eventos</Text>
-        </View>
-        {proximasTarefas.agendas.length === 0 ? (
-          <Text style={{ fontSize: 13, color: colors.textSecondary }}>Nenhum evento agendado</Text>
-        ) : (
-          proximasTarefas.agendas.map((e) => (
-            <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <AppIcon name="calendar-outline" size={20} color={colors.primary} />
-              <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{e.title} — {e.date}</Text>
-            </View>
-          ))
-        )}
-      </TouchableOpacity>
-    ),
     graficos: (
-      <View key="graficos" style={[ds.card, { marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View key="graficos">
+        <GlassCard colors={colors} style={[ds.card, { marginHorizontal: 16, marginTop: 16 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
             <AppIcon name="stats-chart-outline" size={22} color={colors.primary} />
@@ -407,6 +495,7 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 14, fontWeight: '700', color: balance >= 0 ? colors.primary : '#ef4444', marginTop: 4 }}>{fmt(balance)}</Text>
           </View>
         </View>
+        </GlassCard>
       </View>
     ),
   };
@@ -461,8 +550,6 @@ export function DashboardScreen() {
         visible={showCardPicker}
         onClose={() => setShowCardPicker(false)}
         visibleIds={sectionOrder}
-        onAdd={(id) => setSectionOrder((prev) => [...prev, id])}
-        onRemove={(id) => setSectionOrder((prev) => prev.filter((x) => x !== id))}
         onReorder={(order) => setSectionOrder(order)}
       />
     </SafeAreaView>
