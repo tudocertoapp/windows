@@ -28,7 +28,6 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nome, setNome] = useState('');
-  const [codigoIndicacao, setCodigoIndicacao] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -67,7 +66,6 @@ export function LoginScreen() {
       if (isSignUp) {
         await signUp(email.trim(), password, {
           nome: nome.trim() || email.split('@')[0],
-          codigo_indicacao: codigoIndicacao.trim() || undefined,
         });
         Alert.alert('Sucesso', 'Conta criada! Verifique seu e-mail para confirmar.');
       } else {
@@ -173,17 +171,6 @@ export function LoginScreen() {
               <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-
-          <Text style={[s.label, { color: colors.text }]}>
-            CÓDIGO DE INDICAÇÃO <Text style={{ color: colors.textSecondary, fontWeight: '400' }}>(opcional)</Text>
-          </Text>
-          <TextInput
-            style={inputStyle}
-            placeholder="ABC123"
-            placeholderTextColor={colors.textSecondary}
-            value={codigoIndicacao}
-            onChangeText={setCodigoIndicacao}
-          />
 
           <TouchableOpacity
             style={[s.btnPrimary, { backgroundColor: colors.primary }]}

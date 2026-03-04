@@ -1,4 +1,5 @@
 import React from 'react';
+import { CardHeader } from './CardHeader';
 import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard } from './GlassCard';
 import { AppIcon } from './AppIcon';
@@ -13,14 +14,13 @@ const s = StyleSheet.create({
   txAmount: { fontSize: 14, fontWeight: '600' },
 });
 
-export function TransacoesCard({ transactions, formatCurrency, mask, colors, title }) {
+export function TransacoesCard({ transactions, formatCurrency, mask, colors, title = 'Últimas transações', subtitle = 'Receitas e despesas recentes' }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
-  const t = title || 'Últimas transações';
   const list = (transactions || []).slice(-5).reverse();
   return (
     <GlassCard colors={colors} style={s.card}>
-      <Text style={[s.title, { color: colors.text }]}>{t}</Text>
+      <CardHeader icon="swap-horizontal-outline" title={title} subtitle={subtitle} colors={colors} />
       {list.map((tx) => (
         <View key={tx.id} style={[s.txItem, { borderBottomColor: colors.border }]}>
           <View style={[s.txIcon]}>

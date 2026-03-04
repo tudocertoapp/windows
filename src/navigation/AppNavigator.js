@@ -24,6 +24,8 @@ import { MenuScreen } from '../screens/MenuScreen';
 import { TemasScreen } from '../screens/TemasScreen';
 import { TermosScreen } from '../screens/TermosScreen';
 import { BancosECartoesScreen } from '../screens/BancosECartoesScreen';
+import { OrcamentoScreen } from '../screens/OrcamentoScreen';
+import { AnotacoesScreen } from '../screens/AnotacoesScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
@@ -54,6 +56,8 @@ export function AppNavigator() {
   const [temasModal, setTemasModal] = useState(false);
   const [termosModal, setTermosModal] = useState(false);
   const [bancosModal, setBancosModal] = useState(false);
+  const [orcamentoModal, setOrcamentoModal] = useState(false);
+  const [anotacoesModal, setAnotacoesModal] = useState(false);
   const { colors, primaryColor } = useTheme();
   const { addProduct } = useFinance();
   const insets = useSafeAreaInsets();
@@ -87,10 +91,13 @@ export function AppNavigator() {
       openAReceber: () => { setMenuModalOpen(false); setAReceberModal(true); },
       openClientes: () => { setMenuModalOpen(false); setClientesModal(true); },
       openBancos: () => { setMenuModalOpen(false); setBancosModal(true); },
+      openOrcamento: () => { setMenuModalOpen(false); setOrcamentoModal(true); },
+      openAnotacoes: (params) => { setMenuModalOpen(false); setAnotacoesModal(params || true); },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
       openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
       openImageGenerator: (params) => {
+        setMenuModalOpen(false);
         setImageModalParams(params || {});
         setImageModal(true);
       },
@@ -235,6 +242,8 @@ export function AppNavigator() {
             onOpenAReceber={menuActions.openAReceber}
             onOpenClientes={menuActions.openClientes}
             onOpenBancos={menuActions.openBancos}
+            onOpenOrcamento={menuActions.openOrcamento}
+            onOpenAnotacoes={menuActions.openAnotacoes}
             onOpenImageGenerator={menuActions.openImageGenerator}
           />
         </SafeAreaView>
@@ -282,6 +291,21 @@ export function AppNavigator() {
       <Modal visible={bancosModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <BancosECartoesScreen onClose={() => setBancosModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={orcamentoModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <OrcamentoScreen onClose={() => setOrcamentoModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={!!anotacoesModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <AnotacoesScreen
+            onClose={() => setAnotacoesModal(null)}
+            isModal
+            initialEditNoteId={typeof anotacoesModal === 'object' ? anotacoesModal?.editNoteId : null}
+            initialCreate={typeof anotacoesModal === 'object' && anotacoesModal?.create}
+          />
         </SafeAreaView>
       </Modal>
       <Modal visible={imageModal} animationType="slide">

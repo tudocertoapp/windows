@@ -11,6 +11,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
@@ -38,10 +39,12 @@ function nowTimeStr() {
 
 export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, onOpenNewClient, onOpenNewService }) {
   const { colors } = useTheme();
-  const { clients, services, addAgendaEvent, updateAgendaEvent } = useFinance();
+  const { clients, services, products, addAgendaEvent, updateAgendaEvent } = useFinance();
   const { showEmpresaFeatures } = usePlan();
 
   const [tipo, setTipo] = useState('pessoal');
+  const [tipoAtendimento, setTipoAtendimento] = useState('venda');
+  const [description, setDescription] = useState('');
   const [clientId, setClientId] = useState(null);
   const [serviceId, setServiceId] = useState(null);
   const [date, setDate] = useState(initialDate || todayStr());
@@ -50,26 +53,36 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
   const [timeEnd, setTimeEnd] = useState('10:00');
   const [showClientPicker, setShowClientPicker] = useState(false);
   const [showServicePicker, setShowServicePicker] = useState(false);
+  const [showItemPicker, setShowItemPicker] = useState(false);
+  const [preOrderItems, setPreOrderItems] = useState([]);
+  const [editingItemIdx, setEditingItemIdx] = useState(null);
+  const [editingItemPrice, setEditingItemPrice] = useState('0,00');
   const isEdit = Boolean(editingEvent);
 
   useEffect(() => {
     if (visible) {
       if (editingEvent) {
         setTipo(editingEvent.tipo || 'pessoal');
+        setTipoAtendimento(['venda', 'orcamento', 'manutencao'].includes(editingEvent.type) ? editingEvent.type : 'venda');
+        setDescription(editingEvent.description || editingEvent.title || '');
         setClientId(editingEvent.clientId || null);
         setServiceId(editingEvent.serviceId || null);
         setDate(editingEvent.date || todayStr());
         setAmount(editingEvent.amount != null ? String(editingEvent.amount).replace('.', ',') : '0,00');
         setTimeStart(editingEvent.time || nowTimeStr());
         setTimeEnd(editingEvent.timeEnd || '10:00');
+        setPreOrderItems(Array.isArray(editingEvent.preOrderItems) ? editingEvent.preOrderItems : []);
       } else {
         setTipo(showEmpresaFeatures ? 'empresa' : 'pessoal');
+        setTipoAtendimento('venda');
+        setDescription('');
         setClientId(null);
         setServiceId(null);
         setDate(initialDate || todayStr());
         setAmount('0,00');
         setTimeStart(nowTimeStr());
         setTimeEnd('10:00');
+        setPreOrderItems([]);
       }
     }
   }, [visible, editingEvent, initialDate, showEmpresaFeatures]);
@@ -79,20 +92,32 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
 
   const parseAmount = () => parseMoney(amount || '0');
 
+  const preOrderTotal = preOrderItems.reduce((s, i) => s + ((i.price || 0) - (i.discount || 0)) * (i.qty || 1), 0);
+
   const handleConfirm = () => {
-    if (!date?.trim()) return Alert.alert('Erro', 'Informe a data do serviço.');
+    if (!date?.trim()) return Alert.alert('Erro', 'Informe a data.');
+    if (tipo === 'pessoal' && !description?.trim()) return Alert.alert('Erro', 'Preencha a descrição do evento.');
     playTapSound();
-    const title = selectedService?.name || selectedClient?.name || 'Evento';
+    const hasPreOrder = tipo === 'empresa' && tipoAtendimento === 'venda' && preOrderItems.length > 0;
+    const title = tipo === 'pessoal'
+      ? (description?.trim() || 'Evento')
+      : (selectedClient?.name || selectedService?.name || 'Atendimento');
+    const desc = hasPreOrder
+      ? preOrderItems.map((i) => `${i.name} x${i.qty || 1}`).join(', ')
+      : (selectedClient && selectedService ? `${selectedClient.name} - ${selectedService.name}` : (selectedClient?.name || selectedService?.name || ''));
+    const amt = hasPreOrder ? preOrderTotal : parseAmount();
     const payload = {
       title,
-      description: selectedClient && selectedService ? `${selectedClient.name} - ${selectedService.name}` : (selectedClient?.name || selectedService?.name || ''),
+      description: tipo === 'pessoal' ? (description?.trim() || '') : desc,
       date,
       time: timeStart,
-      timeEnd,
-      amount: parseAmount(),
+      timeEnd: tipo === 'pessoal' ? null : timeEnd,
+      amount: tipo === 'pessoal' ? 0 : amt,
       tipo: showEmpresaFeatures ? tipo : 'pessoal',
-      clientId: showEmpresaFeatures ? clientId : null,
-      serviceId: serviceId || null,
+      clientId: tipo === 'empresa' ? clientId : null,
+      serviceId: tipo === 'empresa' && !hasPreOrder ? serviceId : null,
+      type: tipo === 'empresa' ? tipoAtendimento : 'evento',
+      preOrderItems: tipo === 'empresa' && tipoAtendimento === 'venda' ? preOrderItems : [],
     };
     if (isEdit) {
       updateAgendaEvent(editingEvent.id, payload);
@@ -113,7 +138,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboard}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.header}>
-              <Text style={[s.title, { color: colors.text }]}>{isEdit ? 'EDITAR AGENDA' : 'ADICIONAR AGENDA'}</Text>
+              <Text style={[s.title, { color: colors.text }]}>{isEdit ? (showEmpresaFeatures ? 'EDITAR ATENDIMENTO' : 'EDITAR AGENDA') : (showEmpresaFeatures ? 'ADICIONAR ATENDIMENTO' : 'ADICIONAR AGENDA')}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
                   <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
@@ -144,57 +169,161 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
                 </View>
               )}
 
-              {showEmpresaFeatures && (
+              {tipo === 'pessoal' ? (
                 <>
                   <View style={s.rowLabel}>
-                    <Text style={labelS}>CLIENTE</Text>
-                    <TouchableOpacity onPress={() => { playTapSound(); onOpenNewClient?.(); }}>
-                      <Text style={[s.novoLink, { color: colors.primary }]}>NOVO</Text>
-                    </TouchableOpacity>
+                    <Text style={labelS}>DESCRIÇÃO DO EVENTO</Text>
                   </View>
-                  <TouchableOpacity style={[s.select, { backgroundColor: colors.bg, borderColor: colors.border }]} onPress={() => setShowClientPicker(true)}>
-                    <Text style={[s.selectText, { color: selectedClient ? colors.text : colors.textSecondary }]} numberOfLines={1}>
-                      {selectedClient?.name || 'Selecionar Cliente...'}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
+                  <TextInput
+                    style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]}
+                    placeholder="Ex: Reunião, compromisso..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={description}
+                    onChangeText={setDescription}
+                    multiline
+                  />
+                  <View style={s.rowLabel}>
+                    <Text style={labelS}>DATA</Text>
+                  </View>
+                  <DatePickerInput value={date} onChange={setDate} colors={colors} style={[s.input, { backgroundColor: colors.bg }]} />
+                  <View style={s.rowLabel}>
+                    <Text style={labelS}>HORA DE INÍCIO</Text>
+                  </View>
+                  <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
+                </>
+              ) : (
+                <>
+                  {showEmpresaFeatures && (
+                    <>
+                      <View style={s.rowLabel}>
+                        <Text style={labelS}>TIPO DE ATENDIMENTO</Text>
+                      </View>
+                      <View style={[s.toggleRow, { backgroundColor: colors.bg, borderColor: colors.border, marginBottom: GAP }]}>
+                        {[
+                          { id: 'venda', label: 'Venda', icon: 'cash-outline' },
+                          { id: 'orcamento', label: 'Orçamento', icon: 'document-text-outline' },
+                          { id: 'manutencao', label: 'Garantia', icon: 'construct-outline' },
+                        ].map((opt) => (
+                          <TouchableOpacity
+                            key={opt.id}
+                            style={[s.toggleBtn, tipoAtendimento === opt.id && { backgroundColor: colors.primary }]}
+                            onPress={() => { playTapSound(); setTipoAtendimento(opt.id); }}
+                          >
+                            <Ionicons name={opt.icon} size={16} color={tipoAtendimento === opt.id ? '#fff' : colors.text} />
+                            <Text style={[s.toggleText, { fontSize: 11 }, { color: tipoAtendimento === opt.id ? '#fff' : colors.text }]}>{opt.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <View style={s.rowLabel}>
+                        <Text style={labelS}>CLIENTE</Text>
+                        <TouchableOpacity onPress={() => { playTapSound(); onOpenNewClient?.(); }}>
+                          <Text style={[s.novoLink, { color: colors.primary }]}>NOVO</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity style={[s.select, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bg, borderColor: colors.border }]} onPress={() => setShowClientPicker(true)}>
+                        {selectedClient?.foto ? (
+                          <Image source={{ uri: selectedClient.foto }} style={{ width: 36, height: 36, borderRadius: 18 }} resizeMode="cover" />
+                        ) : (
+                          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                            <Ionicons name="person-outline" size={18} color={colors.primary} />
+                          </View>
+                        )}
+                        <Text style={[s.selectText, { flex: 1, color: selectedClient ? colors.text : colors.textSecondary }]} numberOfLines={1}>
+                          {selectedClient?.name || 'Selecionar Cliente...'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      {tipoAtendimento === 'venda' ? (
+                        <>
+                          <View style={s.rowLabel}>
+                            <Text style={labelS}>ITENS DA VENDA</Text>
+                            <TouchableOpacity onPress={() => { playTapSound(); setShowItemPicker(true); }}>
+                              <Text style={[s.novoLink, { color: colors.primary }]}>ADICIONAR</Text>
+                            </TouchableOpacity>
+                          </View>
+                          {preOrderItems.length > 0 ? (
+                            <>
+                              {preOrderItems.map((item, idx) => (
+                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.bg, borderRadius: 12, marginBottom: 6 }}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{item.name}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                      <TouchableOpacity onPress={() => { playTapSound(); const q = item.qty || 1; if (q <= 1) return; setPreOrderItems((prev) => prev.map((x, i) => i === idx ? { ...x, qty: q - 1 } : x)); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                                        <Ionicons name="remove" size={16} color={colors.text} />
+                                      </TouchableOpacity>
+                                      <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, minWidth: 24, textAlign: 'center' }}>{item.qty || 1}</Text>
+                                      <TouchableOpacity onPress={() => { playTapSound(); setPreOrderItems((prev) => prev.map((x, i) => i === idx ? { ...x, qty: (x.qty || 1) + 1 } : x)); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primaryRgba?.(0.3) || colors.primary + '40', justifyContent: 'center', alignItems: 'center' }}>
+                                        <Ionicons name="add" size={16} color={colors.primary} />
+                                      </TouchableOpacity>
+                                      <Text style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 4 }}>R$ {((item.price || 0) * (item.qty || 1)).toFixed(2).replace('.', ',')}</Text>
+                                    </View>
+                                  </View>
+                                  <TouchableOpacity onPress={() => { playTapSound(); setEditingItemIdx(idx); setEditingItemPrice(String(item.price || 0).replace('.', ',')); }} style={{ padding: 6 }}>
+                                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity onPress={() => { playTapSound(); setPreOrderItems((prev) => prev.filter((_, i) => i !== idx)); }} style={{ padding: 6 }}>
+                                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary, marginTop: 4 }}>Total: R$ {preOrderTotal.toFixed(2).replace('.', ',')}</Text>
+                            </>
+                          ) : (
+                            <TouchableOpacity style={[s.select, { backgroundColor: colors.bg, borderColor: colors.border, borderStyle: 'dashed' }]} onPress={() => setShowItemPicker(true)}>
+                              <Text style={[s.selectText, { color: colors.textSecondary }]}>Adicionar produtos ou serviços</Text>
+                              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                            </TouchableOpacity>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <View style={s.rowLabel}>
+                            <Text style={labelS}>SERVIÇO</Text>
+                            <TouchableOpacity onPress={() => { playTapSound(); onOpenNewService?.(); }}>
+                              <Text style={[s.novoLink, { color: colors.primary }]}>NOVO</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <TouchableOpacity style={[s.select, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bg, borderColor: colors.border }]} onPress={() => setShowServicePicker(true)}>
+                            {selectedService?.photoUri ? (
+                              <Image source={{ uri: selectedService.photoUri }} style={{ width: 36, height: 36, borderRadius: 18 }} resizeMode="cover" />
+                            ) : (
+                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="construct-outline" size={18} color={colors.primary} />
+                              </View>
+                            )}
+                            <Text style={[s.selectText, { flex: 1, color: selectedService ? colors.text : colors.textSecondary }]} numberOfLines={1}>
+                              {selectedService?.name || 'Qual o serviço?'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        </>
+                      )}
+                      <View style={s.twoCol}>
+                        <View style={s.half}>
+                          <Text style={labelS}>DATA DO ATENDIMENTO</Text>
+                          <DatePickerInput value={date} onChange={setDate} colors={colors} style={[s.inputFlex, { backgroundColor: colors.bg }]} />
+                        </View>
+                        {!(tipoAtendimento === 'venda' && preOrderItems.length > 0) && (
+                          <View style={s.half}>
+                            <Text style={labelS}>VALOR</Text>
+                            <MoneyInput value={amount} onChange={setAmount} colors={colors} containerStyle={{ backgroundColor: colors.bg }} />
+                          </View>
+                        )}
+                      </View>
+                      <View style={s.twoCol}>
+                        <View style={s.half}>
+                          <Text style={labelS}>INÍCIO</Text>
+                          <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
+                        </View>
+                        <View style={s.half}>
+                          <Text style={labelS}>TÉRMINO</Text>
+                          <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
+                        </View>
+                      </View>
+                    </>
+                  )}
                 </>
               )}
-
-              <View style={s.rowLabel}>
-                <Text style={labelS}>SERVIÇO</Text>
-                <TouchableOpacity onPress={() => { playTapSound(); onOpenNewService?.(); }}>
-                  <Text style={[s.novoLink, { color: colors.primary }]}>NOVO</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={[s.select, { backgroundColor: colors.bg, borderColor: colors.border }]} onPress={() => setShowServicePicker(true)}>
-                <Text style={[s.selectText, { color: selectedService ? colors.text : colors.textSecondary }]} numberOfLines={1}>
-                  {selectedService?.name || 'Qual o serviço?'}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <View style={s.twoCol}>
-                <View style={s.half}>
-                  <Text style={labelS}>DATA DO SERVIÇO</Text>
-                  <DatePickerInput value={date} onChange={setDate} colors={colors} style={[s.inputFlex, { backgroundColor: colors.bg }]} />
-                </View>
-                <View style={s.half}>
-                  <Text style={labelS}>VALOR DO SERVIÇO</Text>
-                  <MoneyInput value={amount} onChange={setAmount} colors={colors} containerStyle={{ backgroundColor: colors.bg }} />
-                </View>
-              </View>
-
-              <View style={s.twoCol}>
-                <View style={s.half}>
-                  <Text style={labelS}>INÍCIO</Text>
-                  <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
-                </View>
-                <View style={s.half}>
-                  <Text style={labelS}>TÉRMINO</Text>
-                  <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
-                </View>
-              </View>
             </ScrollView>
 
             <TouchableOpacity style={[s.confirmBtn, { backgroundColor: colors.primary }]} onPress={handleConfirm}>
@@ -210,12 +339,22 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
             <View style={[s.pickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[s.pickerTitle, { color: colors.text }]}>Selecionar cliente</Text>
               <ScrollView style={{ maxHeight: 260 }}>
-                <TouchableOpacity style={s.pickerItem} onPress={() => { setClientId(null); setShowClientPicker(false); }}>
+                <TouchableOpacity style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]} onPress={() => { setClientId(null); setShowClientPicker(false); }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.border + '60', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="close-circle-outline" size={24} color={colors.textSecondary} />
+                  </View>
                   <Text style={{ color: colors.textSecondary }}>Nenhum</Text>
                 </TouchableOpacity>
                 {(clients || []).map((c) => (
-                  <TouchableOpacity key={c.id} style={s.pickerItem} onPress={() => { setClientId(c.id); setShowClientPicker(false); }}>
-                    <Text style={{ color: colors.text }}>{c.name}</Text>
+                  <TouchableOpacity key={c.id} style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]} onPress={() => { setClientId(c.id); setShowClientPicker(false); }}>
+                    {c.foto ? (
+                      <Image source={{ uri: c.foto }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="person-outline" size={22} color={colors.primary} />
+                      </View>
+                    )}
+                    <Text style={{ color: colors.text, flex: 1 }}>{c.name}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -230,16 +369,110 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
             <View style={[s.pickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[s.pickerTitle, { color: colors.text }]}>Selecionar serviço</Text>
               <ScrollView style={{ maxHeight: 260 }}>
-                <TouchableOpacity style={s.pickerItem} onPress={() => { setServiceId(null); setShowServicePicker(false); }}>
+                <TouchableOpacity style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]} onPress={() => { setServiceId(null); setShowServicePicker(false); }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.border + '60', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="close-circle-outline" size={24} color={colors.textSecondary} />
+                  </View>
                   <Text style={{ color: colors.textSecondary }}>Nenhum</Text>
                 </TouchableOpacity>
                 {(services || []).map((s) => (
-                  <TouchableOpacity key={s.id} style={s.pickerItem} onPress={() => { setServiceId(s.id); setShowServicePicker(false); if (!amount || amount === '0,00') setAmount(String(s.price || 0).replace('.', ',')); }}>
-                    <Text style={{ color: colors.text }}>{s.name} — R$ {(s.price || 0).toFixed(2)}</Text>
+                  <TouchableOpacity key={s.id} style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]} onPress={() => { setServiceId(s.id); setShowServicePicker(false); if (!amount || amount === '0,00') setAmount(String(s.price || 0).replace('.', ',')); }}>
+                    {s.photoUri ? (
+                      <Image source={{ uri: s.photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="construct-outline" size={22} color={colors.primary} />
+                      </View>
+                    )}
+                    <Text style={{ color: colors.text, flex: 1 }}>{s.name} — R$ {(s.price || 0).toFixed(2)}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {showItemPicker && (
+        <Modal visible transparent animationType="fade">
+          <TouchableOpacity style={s.overlay} onPress={() => setShowItemPicker(false)}>
+            <View style={[s.pickerCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: 360 }]}>
+              <Text style={[s.pickerTitle, { color: colors.text }]}>Adicionar produto ou serviço</Text>
+              <ScrollView style={{ maxHeight: 280 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginBottom: 8, marginTop: 4 }}>PRODUTOS</Text>
+                {(products || []).map((p) => (
+                  <TouchableOpacity
+                    key={'p-' + p.id}
+                    style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+                    onPress={() => {
+                      playTapSound();
+                      setPreOrderItems((prev) => [...prev, { id: 'p-' + p.id, name: p.name, price: p.price || 0, qty: 1, discount: 0, isProduct: true }]);
+                      setShowItemPicker(false);
+                    }}
+                  >
+                    {p.photoUri ? (
+                      <Image source={{ uri: p.photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="cube-outline" size={22} color={colors.primary} />
+                      </View>
+                    )}
+                    <Text style={{ color: colors.text, flex: 1 }}>{p.name} — R$ {(p.price || 0).toFixed(2)}</Text>
+                  </TouchableOpacity>
+                ))}
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginBottom: 8, marginTop: 12 }}>SERVIÇOS</Text>
+                {(services || []).map((s) => (
+                  <TouchableOpacity
+                    key={'s-' + s.id}
+                    style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+                    onPress={() => {
+                      playTapSound();
+                      setPreOrderItems((prev) => [...prev, { id: 's-' + s.id + '-' + String(s.price || 0).replace('.', '_'), name: s.name, price: s.price || 0, qty: 1, discount: 0, isProduct: false }]);
+                      setShowItemPicker(false);
+                    }}
+                  >
+                    {s.photoUri ? (
+                      <Image source={{ uri: s.photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="construct-outline" size={22} color={colors.primary} />
+                      </View>
+                    )}
+                    <Text style={{ color: colors.text, flex: 1 }}>{s.name} — R$ {(s.price || 0).toFixed(2)}</Text>
+                  </TouchableOpacity>
+                ))}
+                {(!products || products.length === 0) && (!services || services.length === 0) && (
+                  <Text style={{ color: colors.textSecondary, paddingVertical: 16, textAlign: 'center' }}>Cadastre produtos e serviços primeiro</Text>
+                )}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {editingItemIdx !== null && preOrderItems[editingItemIdx] && (
+        <Modal visible transparent animationType="fade">
+          <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setEditingItemIdx(null)}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}} style={[s.pickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.pickerTitle, { color: colors.text }]}>Editar valor</Text>
+              <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 12 }}>{preOrderItems[editingItemIdx]?.name}</Text>
+              <MoneyInput value={editingItemPrice} onChange={setEditingItemPrice} colors={colors} containerStyle={{ backgroundColor: colors.bg, marginBottom: 16 }} />
+              <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'flex-end' }}>
+                <TouchableOpacity onPress={() => setEditingItemIdx(null)} style={{ paddingVertical: 10, paddingHorizontal: 16 }}>
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    const val = parseMoney(editingItemPrice);
+                    setPreOrderItems((prev) => prev.map((x, i) => i === editingItemIdx ? { ...x, price: val } : x));
+                    setEditingItemIdx(null);
+                  }}
+                  style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: colors.primary, borderRadius: 10 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
       )}
@@ -274,5 +507,5 @@ const s = StyleSheet.create({
   confirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   pickerCard: { width: '100%', maxWidth: 340, borderRadius: 20, padding: GAP, borderWidth: 1 },
   pickerTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  pickerItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
+  pickerItem: { paddingVertical: 14, paddingHorizontal: 16, marginBottom: 8, borderRadius: 12, borderBottomWidth: 0, backgroundColor: 'transparent' },
 });

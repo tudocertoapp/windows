@@ -55,7 +55,16 @@ export function DatePickerInput({ value, onChange, placeholder = 'DD/MM/YYYY', s
           <Modal transparent visible>
             <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShow(false)}>
               <View style={[s.iosBox, { backgroundColor: colors?.card || '#1f2937' }]}>
-                <DateTimePicker value={tempDate} mode="date" display="spinner" onChange={handleChange} locale="pt-BR" />
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleChange}
+                  locale="pt-BR"
+                  textColor={colors?.text || '#1f2937'}
+                  themeVariant={colors?.isDarkBg ? 'dark' : 'light'}
+                  accentColor={colors?.primary}
+                />
                 <TouchableOpacity style={[s.iosBtn, { backgroundColor: colors?.primary }]} onPress={() => { handleChange(null, tempDate); setShow(false); }}>
                   <Text style={{ color: '#fff', fontWeight: '700' }}>OK</Text>
                 </TouchableOpacity>
@@ -63,7 +72,14 @@ export function DatePickerInput({ value, onChange, placeholder = 'DD/MM/YYYY', s
             </TouchableOpacity>
           </Modal>
         ) : (
-          <DateTimePicker value={tempDate} mode="date" display="default" onChange={handleChange} />
+          <DateTimePicker
+            value={tempDate}
+            mode="date"
+            display="default"
+            onChange={handleChange}
+            themeVariant={colors?.isDarkBg ? 'dark' : 'light'}
+            accentColor={colors?.primary}
+          />
         )
       )}
     </>

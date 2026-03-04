@@ -175,11 +175,13 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
   };
 }
 
+const DEFAULT_PRIMARY = '#10b981';
+
 const ThemeContext = createContext(undefined);
 
 export function ThemeProvider({ children }) {
   const [themeMode, setThemeMode] = useState('light');
-  const [primaryColor, setPrimaryColor] = useState('#10b981');
+  const [primaryColor, setPrimaryColor] = useState(DEFAULT_PRIMARY);
   const [secondaryColor, setSecondaryColor] = useState(null);
   const [customBgColor, setCustomBgColor] = useState('#f9fafb');
   const [favoriteColors, setFavoriteColors] = useState([]);
@@ -246,6 +248,12 @@ export function ThemeProvider({ children }) {
     setFavoriteColors((prev) => prev.filter((f) => f.id !== id));
   };
 
+  const applyFromProfile = (data) => {
+    if (data?.primary_color) setPrimaryColor(data.primary_color.startsWith('#') ? data.primary_color : `#${data.primary_color}`);
+    if (data?.theme_mode && THEME_PRESETS[data.theme_mode]) setThemeMode(data.theme_mode);
+    if (data?.custom_bg) setCustomBgColor(data.custom_bg);
+  };
+
   const colors = getThemeColors(themeMode, primaryColor, secondaryColor, customBgColor);
   return (
     <ThemeContext.Provider
@@ -266,6 +274,7 @@ export function ThemeProvider({ children }) {
         addFavoriteColor,
         removeFavoriteColor,
         maxFavorites: MAX_FAVORITES,
+        applyFromProfile,
       }}
     >
       {children}

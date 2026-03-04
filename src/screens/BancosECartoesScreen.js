@@ -19,6 +19,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useBanks, BANCOS_BRASIL } from '../contexts/BanksContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { usePlan } from '../contexts/PlanContext';
+import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
 import { BanksCarousel } from '../components/BanksCarousel';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
@@ -72,7 +73,7 @@ const bc = StyleSheet.create({
   headerTabText: { fontSize: 13, fontWeight: '600' },
   keyboardDismissBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.06)', alignSelf: 'flex-end', marginTop: 8 },
   suggestList: { maxHeight: 200, borderRadius: 12, borderWidth: 1, overflow: 'hidden', marginTop: 4 },
-  suggestItem: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
+  suggestItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
   suggestItemLast: { borderBottomWidth: 0 },
 });
 
@@ -83,16 +84,16 @@ function formatMoney(v) {
 }
 
 const CORES_BANCO = [
-  { id: 'verde', hex: '#059669', grad: ['#047857', '#10b981'] },
-  { id: 'roxo', hex: '#6366f1', grad: ['#4338ca', '#818cf8'] },
-  { id: 'vermelho', hex: '#dc2626', grad: ['#b91c1c', '#ef4444'] },
-  { id: 'laranja', hex: '#d97706', grad: ['#b45309', '#f59e0b'] },
-  { id: 'violeta', hex: '#7c3aed', grad: ['#5b21b6', '#a78bfa'] },
-  { id: 'ciano', hex: '#0891b2', grad: ['#0e7490', '#22d3ee'] },
-  { id: 'rosa', hex: '#be185d', grad: ['#9d174d', '#ec4899'] },
-  { id: 'azul', hex: '#2563eb', grad: ['#1d4ed8', '#60a5fa'] },
-  { id: 'teal', hex: '#0d9488', grad: ['#0f766e', '#2dd4bf'] },
-  { id: 'indigo', hex: '#4f46e5', grad: ['#3730a3', '#818cf8'] },
+  { id: 'verde', label: 'Verde', hex: '#059669', grad: ['#047857', '#10b981'] },
+  { id: 'roxo', label: 'Roxo', hex: '#6366f1', grad: ['#4338ca', '#818cf8'] },
+  { id: 'vermelho', label: 'Vermelho', hex: '#dc2626', grad: ['#b91c1c', '#ef4444'] },
+  { id: 'laranja', label: 'Laranja', hex: '#d97706', grad: ['#b45309', '#f59e0b'] },
+  { id: 'violeta', label: 'Violeta', hex: '#7c3aed', grad: ['#5b21b6', '#a78bfa'] },
+  { id: 'ciano', label: 'Ciano', hex: '#0891b2', grad: ['#0e7490', '#22d3ee'] },
+  { id: 'rosa', label: 'Rosa', hex: '#be185d', grad: ['#9d174d', '#ec4899'] },
+  { id: 'azul', label: 'Azul', hex: '#2563eb', grad: ['#1d4ed8', '#60a5fa'] },
+  { id: 'teal', label: 'Teal', hex: '#0d9488', grad: ['#0f766e', '#2dd4bf'] },
+  { id: 'indigo', label: 'Indigo', hex: '#4f46e5', grad: ['#3730a3', '#818cf8'] },
 ];
 
 function getGradientForBank(bank, defaultPessoal, defaultEmpresa) {
@@ -208,6 +209,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
   } = useBanks();
   const { profile } = useProfile();
   const { showEmpresaFeatures } = usePlan();
+  const { showValues } = useValuesVisibility();
 
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingBank, setEditingBank] = useState(null);
@@ -221,6 +223,8 @@ export function BancosECartoesScreen({ onClose, isModal }) {
     { id: 'visa', label: 'Visa' },
     { id: 'mastercard', label: 'Mastercard' },
     { id: 'elo', label: 'Elo' },
+    { id: 'hipercard', label: 'Hipercard' },
+    { id: 'amex', label: 'Amex' },
   ];
   const [form, setForm] = useState({
     bancoId: '', nomeCustom: '', tipo: 'pessoal', tipoConta: 'ambos',
@@ -228,6 +232,11 @@ export function BancosECartoesScreen({ onClose, isModal }) {
     cardName: '', cardDiaFechamento: '10', cardDiaVencimento: '15', cardSaldo: '', cardBandeira: 'visa',
   });
   const [bankSearchQuery, setBankSearchQuery] = useState('');
+  const [showBankList, setShowBankList] = useState(false);
+  const [showTipoContaList, setShowTipoContaList] = useState(false);
+  const [showBandeiraList, setShowBandeiraList] = useState(false);
+  const [showBandeiraCardList, setShowBandeiraCardList] = useState(false);
+  const [showCorList, setShowCorList] = useState(false);
 
   const bankSuggestions = bankSearchQuery.trim().length === 0
     ? BANCOS_BRASIL
@@ -248,6 +257,11 @@ export function BancosECartoesScreen({ onClose, isModal }) {
       cardName: '', cardDiaFechamento: '10', cardDiaVencimento: '15', cardSaldo: '', cardBandeira: 'visa',
     });
     setBankSearchQuery('');
+    setShowBankList(false);
+    setShowTipoContaList(false);
+    setShowBandeiraList(false);
+    setShowBandeiraCardList(false);
+    setShowCorList(false);
     setEditingBank(null);
     setEditingCard(null);
     setAddCardOnlyMode(false);
@@ -490,7 +504,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                 getBankGrad={(bank) => getGradientForBank(bank, ['#059669', '#10b981', '#34d399'], ['#4338ca', '#6366f1', '#818cf8'])}
                 profile={profile}
                 formatBankMoney={formatMoney}
-                showValues={true}
+                showValues={showValues}
                 onCardPress={(bank) => bank && openEditBank(bank)}
                 onEmptyPress={openAddBank}
                 emptyContent={
@@ -586,41 +600,65 @@ export function BancosECartoesScreen({ onClose, isModal }) {
           <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
             <ScrollView style={{ maxHeight: '90%' }} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <View style={[bc.modalContent, { backgroundColor: colors.card }]}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 16 }}>
                   {editingCard ? 'Editar cartão' : addCardOnlyMode ? 'Adicionar cartão ao banco' : editingBank ? 'Editar banco e cartão' : 'Novo banco ou cartão'}
                 </Text>
+                {showEmpresaFeatures && !addCardOnlyMode && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                    <TouchableOpacity
+                      style={[bc.headerTab, { flex: 1, borderColor: form.tipo === 'pessoal' ? colors.primary : colors.border, backgroundColor: form.tipo === 'pessoal' ? colors.primaryRgba(0.15) : 'transparent' }]}
+                      onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipo: 'pessoal' })); }}
+                    >
+                      <Text style={[bc.headerTabText, { color: form.tipo === 'pessoal' ? colors.primary : colors.textSecondary, textAlign: 'center' }]}>Pessoal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[bc.headerTab, { flex: 1, borderColor: form.tipo === 'empresa' ? '#6366f1' : colors.border, backgroundColor: form.tipo === 'empresa' ? 'rgba(99,102,241,0.15)' : 'transparent' }]}
+                      onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipo: 'empresa' })); }}
+                    >
+                      <Text style={[bc.headerTabText, { color: form.tipo === 'empresa' ? '#6366f1' : colors.textSecondary, textAlign: 'center' }]}>Empresa</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 {!editingBank && !addCardOnlyMode ? (
                   <>
                     <Text style={[bc.inputLabel, { color: colors.text }]}>Banco</Text>
-                    <TextInput
-                      style={[bc.input, { borderColor: colors.border, color: colors.text }]}
-                      value={bankSearchQuery}
-                      onChangeText={(t) => {
-                        setBankSearchQuery(t);
-                        if (!t.trim()) { setForm((f) => ({ ...f, bancoId: '', nomeCustom: '' })); return; }
-                        const match = BANCOS_BRASIL.find((b) => b.nome.toLowerCase() === t.trim().toLowerCase());
-                        if (match) setForm((f) => ({ ...f, bancoId: match.id, nomeCustom: '' }));
-                        else setForm((f) => ({ ...f, bancoId: '', nomeCustom: t.trim() }));
-                      }}
-                      placeholder="Digite para buscar..."
-                      placeholderTextColor={colors.textSecondary}
-                      returnKeyType="done"
-                      onSubmitEditing={() => Keyboard.dismiss()}
-                    />
-                    {bankSuggestions.length > 0 && (
-                      <ScrollView style={[bc.suggestList, { maxHeight: 180, borderColor: colors.border, backgroundColor: colors.card }]} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                        {bankSuggestions.map((b, i) => (
-                          <TouchableOpacity key={b.id} style={[bc.suggestItem, i === bankSuggestions.length - 1 && bc.suggestItemLast, { borderColor: colors.border }]} onPress={() => { playTapSound(); setBankSearchQuery(b.nome); setForm((f) => ({ ...f, bancoId: b.id, nomeCustom: b.id === 'outro' && bankSearchQuery.trim() ? bankSearchQuery.trim() : '' })); Keyboard.dismiss(); }}>
-                            <Text style={[bc.pickerItemText, { color: colors.text }]}>{b.nome}</Text>
-                          </TouchableOpacity>
-                        ))}
-                        {!bankSuggestions.some((s) => s.id === 'outro') && (
-                          <TouchableOpacity style={[bc.suggestItem, bc.suggestItemLast, { borderColor: colors.border }]} onPress={() => { playTapSound(); setBankSearchQuery('Outro'); setForm((f) => ({ ...f, bancoId: 'outro', nomeCustom: bankSearchQuery.trim() || '' })); Keyboard.dismiss(); }}>
-                            <Text style={[bc.pickerItemText, { color: colors.text }]}>Outro</Text>
-                          </TouchableOpacity>
-                        )}
-                      </ScrollView>
-                    )}
+                    <View style={{ position: 'relative' }}>
+                      <TextInput
+                        style={[bc.input, { borderColor: colors.border, color: colors.text, paddingRight: 40 }]}
+                        value={bankSearchQuery}
+                        onChangeText={(t) => {
+                          setBankSearchQuery(t);
+                          setShowBankList(true);
+                          if (!t.trim()) { setForm((f) => ({ ...f, bancoId: '', nomeCustom: '' })); return; }
+                          const match = BANCOS_BRASIL.find((b) => b.nome.toLowerCase() === t.trim().toLowerCase());
+                          if (match) setForm((f) => ({ ...f, bancoId: match.id, nomeCustom: '' }));
+                          else setForm((f) => ({ ...f, bancoId: '', nomeCustom: t.trim() }));
+                        }}
+                        onFocus={() => setShowBankList(true)}
+                        onBlur={() => setTimeout(() => setShowBankList(false), 200)}
+                        placeholder="Digite ou selecione o banco..."
+                        placeholderTextColor={colors.textSecondary}
+                        returnKeyType="done"
+                        onSubmitEditing={() => Keyboard.dismiss()}
+                      />
+                      <TouchableOpacity style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }} onPress={() => { playTapSound(); setShowBankList((v) => !v); Keyboard.dismiss(); }}>
+                        <Ionicons name={showBankList ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      {showBankList && bankSuggestions.length > 0 && (
+                        <ScrollView style={[bc.suggestList, { maxHeight: 200, borderColor: colors.border, backgroundColor: colors.bg, marginTop: 4 }]} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                          {bankSuggestions.map((b, i) => (
+                            <TouchableOpacity key={b.id} style={[bc.suggestItem, i === bankSuggestions.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setBankSearchQuery(b.nome); setForm((f) => ({ ...f, bancoId: b.id, nomeCustom: b.id === 'outro' ? (bankSearchQuery.trim() || '') : '' })); setShowBankList(false); Keyboard.dismiss(); }}>
+                              <Text style={[bc.pickerItemText, { color: colors.text }]}>{b.nome}</Text>
+                            </TouchableOpacity>
+                          ))}
+                          {!bankSuggestions.some((s) => s.id === 'outro') && (
+                            <TouchableOpacity style={[bc.suggestItem, bc.suggestItemLast, { borderBottomWidth: 0 }]} onPress={() => { playTapSound(); setBankSearchQuery('Outro'); setForm((f) => ({ ...f, bancoId: 'outro', nomeCustom: bankSearchQuery.trim() || '' })); setShowBankList(false); Keyboard.dismiss(); }}>
+                              <Text style={[bc.pickerItemText, { color: colors.text }]}>Outro</Text>
+                            </TouchableOpacity>
+                          )}
+                        </ScrollView>
+                      )}
+                    </View>
                   </>
                 ) : editingBank ? (
                   <View style={{ marginBottom: 8 }}>
@@ -628,56 +666,58 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                     <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{bankSearchQuery || getBankName(editingBank)}</Text>
                   </View>
                 ) : null}
-                {!addCardOnlyMode && (
-                <>
-                <Text style={[bc.inputLabel, { color: colors.text, marginTop: 16 }]}>Tipo de conta</Text>
-                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                  <TouchableOpacity style={[bc.tipoBtn, { flex: 1, minWidth: 90, borderColor: form.tipoConta === 'ambos' ? colors.primary : colors.border, backgroundColor: form.tipoConta === 'ambos' ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipoConta: 'ambos' })); }}>
-                    <Text style={[bc.pickerItemText, { color: form.tipoConta === 'ambos' ? colors.primary : colors.text, textAlign: 'center' }]}>Débito+Crédito</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[bc.tipoBtn, { flex: 1, minWidth: 90, borderColor: form.tipoConta === 'debito' ? colors.primary : colors.border, backgroundColor: form.tipoConta === 'debito' ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipoConta: 'debito' })); }}>
-                    <Text style={[bc.pickerItemText, { color: form.tipoConta === 'debito' ? colors.primary : colors.text, textAlign: 'center' }]}>Só Débito</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[bc.tipoBtn, { flex: 1, minWidth: 90, borderColor: form.tipoConta === 'credito' ? colors.primary : colors.border, backgroundColor: form.tipoConta === 'credito' ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipoConta: 'credito' })); }}>
-                    <Text style={[bc.pickerItemText, { color: form.tipoConta === 'credito' ? colors.primary : colors.text, textAlign: 'center' }]}>Só Crédito</Text>
-                  </TouchableOpacity>
-                </View>
-                {!editingBank && (
-                  <>
-                    <Text style={[bc.inputLabel, { color: colors.text, marginTop: 16 }]}>Nome personalizado (opcional)</Text>
-                    <TextInput style={[bc.input, { borderColor: colors.border, color: colors.text }]} value={form.nomeCustom} onChangeText={(t) => setForm((f) => ({ ...f, nomeCustom: t }))} placeholder="Ex: Santander Empresas" placeholderTextColor={colors.textSecondary} returnKeyType="done" onSubmitEditing={() => Keyboard.dismiss()} />
-                  </>
-                )}
-                {showEmpresaFeatures && !editingBank && (
-                  <>
-                    <Text style={[bc.inputLabel, { color: colors.text, marginTop: 16 }]}>Pessoal ou Empresa</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity style={[bc.tipoBtn, { flex: 1, borderColor: form.tipo === 'pessoal' ? colors.primary : colors.border, backgroundColor: form.tipo === 'pessoal' ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => setForm((f) => ({ ...f, tipo: 'pessoal' }))}>
-                        <Text style={[bc.pickerItemText, { color: form.tipo === 'pessoal' ? colors.primary : colors.text, textAlign: 'center' }]}>Pessoal</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[bc.tipoBtn, { flex: 1, borderColor: form.tipo === 'empresa' ? colors.primary : colors.border, backgroundColor: form.tipo === 'empresa' ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => setForm((f) => ({ ...f, tipo: 'empresa' }))}>
-                        <Text style={[bc.pickerItemText, { color: form.tipo === 'empresa' ? colors.primary : colors.text, textAlign: 'center' }]}>Empresa</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
+                {!editingBank && (form.bancoId === 'outro' || (form.nomeCustom && form.bancoId === '')) && (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={[bc.inputLabel, { color: colors.text }]}>Nome personalizado</Text>
+                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4 }}>Se não encontrou o banco na lista acima</Text>
+                    <TextInput style={[bc.input, { borderColor: colors.border, color: colors.text }]} value={form.nomeCustom} onChangeText={(t) => setForm((f) => ({ ...f, nomeCustom: t }))} placeholder="Ex: Meu Banco Regional" placeholderTextColor={colors.textSecondary} returnKeyType="done" onSubmitEditing={() => Keyboard.dismiss()} />
+                  </View>
                 )}
                 </>
                 )}
                 {!addCardOnlyMode && (
                 <>
                 <Text style={[bc.inputLabel, { color: colors.text, marginTop: 16 }]}>Cor do cartão</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-                  {CORES_BANCO.map((c) => (
-                    <TouchableOpacity key={c.id} onPress={() => { playTapSound(); setForm((f) => ({ ...f, cor: f.cor === c.id ? '' : c.id })); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.hex, borderWidth: form.cor === c.id ? 3 : 1, borderColor: form.cor === c.id ? colors.primary : colors.border }} />
-                  ))}
+                <View style={{ position: 'relative' }}>
+                  <TouchableOpacity style={[bc.input, { borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => { playTapSound(); setShowCorList((v) => !v); setShowTipoContaList(false); setShowBandeiraList(false); setShowBandeiraCardList(false); }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      {form.cor ? (
+                        <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: CORES_BANCO.find((x) => x.id === form.cor)?.hex || colors.border }} />
+                      ) : null}
+                      <Text style={[bc.pickerItemText, { color: colors.text }]}>{CORES_BANCO.find((c) => c.id === form.cor)?.label || 'Selecionar cor...'}</Text>
+                    </View>
+                    <Ionicons name={showCorList ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  {showCorList && (
+                    <ScrollView style={[bc.suggestList, { maxHeight: 220, borderColor: colors.border, backgroundColor: colors.bg, marginTop: 4 }]} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                      {CORES_BANCO.map((c, i) => (
+                        <TouchableOpacity key={c.id} style={[bc.suggestItem, i === CORES_BANCO.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, cor: f.cor === c.id ? '' : c.id })); setShowCorList(false); }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.hex, borderWidth: 1, borderColor: colors.border }} />
+                            <Text style={[bc.pickerItemText, { color: form.cor === c.id ? colors.primary : colors.text }]}>{c.label}</Text>
+                          </View>
+                          {form.cor === c.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
                 <Text style={[bc.inputLabel, { color: colors.text, marginTop: 16 }]}>Bandeira</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                  {BANDEIRAS_OPTS.map((b) => (
-                    <TouchableOpacity key={b.id} style={[bc.tipoBtn, { flex: 1, borderColor: form.bandeira === b.id ? colors.primary : colors.border, backgroundColor: form.bandeira === b.id ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, bandeira: b.id, cardBandeira: f.cardBandeira || b.id })); }}>
-                      <Text style={[bc.pickerItemText, { color: form.bandeira === b.id ? colors.primary : colors.text, textAlign: 'center' }]}>{b.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={{ position: 'relative' }}>
+                  <TouchableOpacity style={[bc.input, { borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => { playTapSound(); setShowBandeiraList((v) => !v); setShowTipoContaList(false); setShowBandeiraCardList(false); setShowCorList(false); }}>
+                    <Text style={[bc.pickerItemText, { color: colors.text }]}>{BANDEIRAS_OPTS.find((b) => b.id === form.bandeira)?.label || 'Selecionar...'}</Text>
+                    <Ionicons name={showBandeiraList ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  {showBandeiraList && (
+                    <ScrollView style={[bc.suggestList, { maxHeight: 220, borderColor: colors.border, backgroundColor: colors.bg, marginTop: 4 }]} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                      {BANDEIRAS_OPTS.map((b, i) => (
+                        <TouchableOpacity key={b.id} style={[bc.suggestItem, i === BANDEIRAS_OPTS.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, bandeira: b.id, cardBandeira: form.cardBandeira || b.id })); setShowBandeiraList(false); }}>
+                          <Text style={[bc.pickerItemText, { color: form.bandeira === b.id ? colors.primary : colors.text }]}>{b.label}</Text>
+                          {form.bandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
                 {(form.tipoConta === 'debito' || form.tipoConta === 'ambos') && (
                   <>
@@ -685,20 +725,50 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                     <TextInput style={[bc.input, { borderColor: colors.border, color: colors.text }]} value={form.saldo} onChangeText={(t) => setForm((f) => ({ ...f, saldo: t }))} placeholder="0,00" placeholderTextColor={colors.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => Keyboard.dismiss()} />
                   </>
                 )}
+                <Text style={[bc.inputLabel, { color: colors.text, marginTop: 16 }]}>Tipo de conta</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity style={{ flex: 1, flexDirection: 'column', alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: form.tipoConta === 'ambos' ? colors.primary : colors.border, backgroundColor: form.tipoConta === 'ambos' ? colors.primaryRgba(0.15) : 'transparent' }} onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipoConta: 'ambos' })); }}>
+                    <Ionicons name="layers-outline" size={24} color={form.tipoConta === 'ambos' ? colors.primary : colors.textSecondary} style={{ marginBottom: 4 }} />
+                    <Text style={[bc.pickerItemText, { color: form.tipoConta === 'ambos' ? colors.primary : colors.text, textAlign: 'center', fontSize: 12 }]}>Débito + Crédito</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 1, flexDirection: 'column', alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: form.tipoConta === 'debito' ? colors.primary : colors.border, backgroundColor: form.tipoConta === 'debito' ? colors.primaryRgba(0.15) : 'transparent' }} onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipoConta: 'debito' })); }}>
+                    <Ionicons name="wallet-outline" size={24} color={form.tipoConta === 'debito' ? colors.primary : colors.textSecondary} style={{ marginBottom: 4 }} />
+                    <Text style={[bc.pickerItemText, { color: form.tipoConta === 'debito' ? colors.primary : colors.text, textAlign: 'center', fontSize: 12 }]}>Débito</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 1, flexDirection: 'column', alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: form.tipoConta === 'credito' ? colors.primary : colors.border, backgroundColor: form.tipoConta === 'credito' ? colors.primaryRgba(0.15) : 'transparent' }} onPress={() => { playTapSound(); setForm((f) => ({ ...f, tipoConta: 'credito' })); }}>
+                    <Ionicons name="card-outline" size={24} color={form.tipoConta === 'credito' ? colors.primary : colors.textSecondary} style={{ marginBottom: 4 }} />
+                    <Text style={[bc.pickerItemText, { color: form.tipoConta === 'credito' ? colors.primary : colors.text, textAlign: 'center', fontSize: 12 }]}>Crédito</Text>
+                  </TouchableOpacity>
+                </View>
                 </>
                 )}
+                {addCardOnlyMode && editingBank && (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={[bc.inputLabel, { color: colors.textSecondary }]}>Banco</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{bankSearchQuery || getBankName(editingBank)}</Text>
+                  </View>
+                )}
                 {(form.tipoConta === 'credito' || form.tipoConta === 'ambos' || addCardOnlyMode) && (
-                  <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
-                    <Text style={[bc.inputLabel, { color: colors.primary, marginBottom: 8 }]}>CARTÃO DE CRÉDITO</Text>
+                  <View style={[bc.card, { marginTop: 20, padding: 16, borderColor: colors.border, backgroundColor: colors.bg }]}>
+                    <Text style={[bc.inputLabel, { color: colors.primary, marginBottom: 12 }]}>CARTÃO DE CRÉDITO</Text>
                     <Text style={[bc.inputLabel, { color: colors.text }]}>Nome do cartão</Text>
                     <TextInput style={[bc.input, { borderColor: colors.border, color: colors.text }]} value={form.cardName} onChangeText={(t) => setForm((f) => ({ ...f, cardName: t }))} placeholder="Ex: Nubank Ultravioleta" placeholderTextColor={colors.textSecondary} returnKeyType="done" onSubmitEditing={() => Keyboard.dismiss()} />
                     <Text style={[bc.inputLabel, { color: colors.text, marginTop: 12 }]}>Bandeira do cartão</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                      {BANDEIRAS_OPTS.map((b) => (
-                        <TouchableOpacity key={b.id} style={[bc.tipoBtn, { flex: 1, borderColor: form.cardBandeira === b.id ? colors.primary : colors.border, backgroundColor: form.cardBandeira === b.id ? colors.primaryRgba(0.15) : 'transparent' }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, cardBandeira: b.id })); }}>
-                          <Text style={[bc.pickerItemText, { color: form.cardBandeira === b.id ? colors.primary : colors.text, textAlign: 'center' }]}>{b.label}</Text>
-                        </TouchableOpacity>
-                      ))}
+                    <View style={{ position: 'relative' }}>
+                      <TouchableOpacity style={[bc.input, { borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => { playTapSound(); setShowBandeiraCardList((v) => !v); setShowTipoContaList(false); setShowBandeiraList(false); setShowCorList(false); }}>
+                        <Text style={[bc.pickerItemText, { color: colors.text }]}>{BANDEIRAS_OPTS.find((b) => b.id === form.cardBandeira)?.label || 'Selecionar...'}</Text>
+                        <Ionicons name={showBandeiraCardList ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      {showBandeiraCardList && (
+                        <ScrollView style={[bc.suggestList, { maxHeight: 220, borderColor: colors.border, backgroundColor: colors.bg, marginTop: 4 }]} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                          {BANDEIRAS_OPTS.map((b, i) => (
+                            <TouchableOpacity key={b.id} style={[bc.suggestItem, i === BANDEIRAS_OPTS.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, cardBandeira: b.id })); setShowBandeiraCardList(false); }}>
+                              <Text style={[bc.pickerItemText, { color: form.cardBandeira === b.id ? colors.primary : colors.text }]}>{b.label}</Text>
+                              {form.cardBandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
                     </View>
                     <Text style={[bc.inputLabel, { color: colors.text, marginTop: 12 }]}>Saldo da fatura (R$)</Text>
                     <TextInput style={[bc.input, { borderColor: colors.border, color: colors.text }]} value={form.cardSaldo} onChangeText={(t) => setForm((f) => ({ ...f, cardSaldo: t }))} placeholder="0,00" placeholderTextColor={colors.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => Keyboard.dismiss()} />
@@ -714,9 +784,6 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                     </View>
                   </View>
                 )}
-                <TouchableOpacity style={[bc.keyboardDismissBtn, { backgroundColor: colors.primaryRgba(0.15), alignSelf: 'flex-start', marginTop: 12 }]} onPress={() => { playTapSound(); Keyboard.dismiss(); }}>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Ocultar teclado</Text>
-                </TouchableOpacity>
                 <View style={bc.row}>
                   <TouchableOpacity style={[bc.btn, { backgroundColor: colors.border }]} onPress={() => { playTapSound(); setShowFormModal(false); resetForm(); }}>
                     <Text style={[bc.btnText, { color: colors.text }]}>Cancelar</Text>

@@ -8,18 +8,20 @@ import { useMenu } from '../contexts/MenuContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotes } from '../contexts/NotesContext';
+import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
 import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
 import { ContasDoMesCard } from '../components/ContasDoMesCard';
+import { ResumoDoMesCard } from '../components/ResumoDoMesCard';
 import { TransacoesCard } from '../components/TransacoesCard';
 import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
 import { GlassCard } from '../components/GlassCard';
 import { DraggableCard } from '../components/DraggableCard';
 import { CardPickerModal } from '../components/CardPickerModal';
-import { CATEGORY_COLORS } from '../constants/colors';
-import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
+import { formatCurrency } from '../utils/format';
 import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
@@ -96,11 +98,12 @@ function parseDateKey(str) {
 export function DashboardScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { transactions, checkListItems, agendaEvents, boletos, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent } = useFinance();
+  const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent } = useFinance();
   const { colors } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento } = useMenu();
+  const { notes, deleteNote } = useNotes();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
   const [quoteType, setQuoteType] = useState('motivacional');
@@ -112,6 +115,18 @@ export function DashboardScreen() {
   const SNAP_INTERVAL = CARD_WIDTH + CARD_GAP;
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
   const [showCardPicker, setShowCardPicker] = useState(false);
+  const [balanceFilter, setBalanceFilter] = useState('mes');
+  const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
+  const [periodStart, setPeriodStart] = useState(() => {
+    const d = new Date(new Date().getFullYear(), 0, 1);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  });
+  const [periodEnd, setPeriodEnd] = useState(() => {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  });
+  const { showValues, toggleValues } = useValuesVisibility();
+  const [showConcluidasProximos, setShowConcluidasProximos] = useState(false);
   const layoutsRef = useRef({});
   const [floatingId, setFloatingId] = useState(null);
   const now = new Date();
@@ -152,26 +167,89 @@ export function DashboardScreen() {
     return transactions.filter((t) => (t.tipoVenda || 'pessoal') === viewMode);
   }, [transactions, viewMode, canToggleView]);
 
-  const monthTx = useMemo(
-    () =>
-      filteredTx.filter((t) => {
-        const d = new Date(t.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }),
-    [filteredTx]
-  );
+  const parseDateStr = useCallback((str) => {
+    if (!str || !String(str).trim()) return null;
+    const parts = String(str).trim().split(/[/\-]/);
+    if (parts.length < 3) return null;
+    const day = parseInt(parts[0], 10) || 1;
+    const month = (parseInt(parts[1], 10) || 1) - 1;
+    const year = parseInt(parts[2], 10) || new Date().getFullYear();
+    return new Date(year, month, day);
+  }, []);
+
+  const periodTx = useMemo(() => {
+    const ref = balanceFilterDate;
+    return filteredTx.filter((t) => {
+      const d = new Date(t.date);
+      d.setHours(0, 0, 0, 0);
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return d >= start && d <= end;
+      }
+      if (balanceFilter === 'dia') {
+        return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      if (balanceFilter === 'mes') {
+        return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      return d.getFullYear() === ref.getFullYear();
+    });
+  }, [filteredTx, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
+
+  const monthTx = periodTx;
 
   const income = useMemo(() => monthTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTx]);
   const expense = useMemo(() => monthTx.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthTx]);
   const balance = income - expense;
 
+  const balanceFilterLabel = balanceFilter === 'periodo'
+    ? `${periodStart} a ${periodEnd}`
+    : balanceFilter === 'dia'
+      ? balanceFilterDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+      : balanceFilter === 'mes'
+        ? balanceFilterDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+        : balanceFilterDate.getFullYear().toString();
+
+  const adjustBalanceFilterDate = (delta) => {
+    const d = new Date(balanceFilterDate);
+    if (balanceFilter === 'dia') d.setDate(d.getDate() + delta);
+    else if (balanceFilter === 'mes') d.setMonth(d.getMonth() + delta);
+    else d.setFullYear(d.getFullYear() + delta);
+    setBalanceFilterDate(d);
+  };
+
   const contasStatus = useMemo(() => {
+    const ref = balanceFilterDate;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     let pagas = { qty: 0, valor: 0 };
     let aVencer = { qty: 0, valor: 0 };
     let vencidas = { qty: 0, valor: 0 };
-    const list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    let list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    list = list.filter((b) => {
+      const d = parseBoletoDate(b.dueDate);
+      if (!d) return false;
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        d.setHours(0, 0, 0, 0);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+        return d >= start && d <= end;
+      }
+      if (balanceFilter === 'dia') {
+        return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      if (balanceFilter === 'mes') {
+        return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      return d.getFullYear() === ref.getFullYear();
+    });
     list.forEach((b) => {
       const d = parseBoletoDate(b.dueDate);
       const amt = Number(b.amount) || 0;
@@ -189,7 +267,59 @@ export function DashboardScreen() {
       }
     });
     return { pagas, aVencer, vencidas };
-  }, [boletos, viewMode, showEmpresaFeatures]);
+  }, [boletos, viewMode, showEmpresaFeatures, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
+
+  const fmt = formatCurrency;
+  const mask = (v) => (showValues ? v : '••••••');
+
+  const prevMonthTx = useMemo(() => {
+    const prev = new Date(balanceFilterDate.getFullYear(), balanceFilterDate.getMonth() - 1);
+    return filteredTx.filter((t) => {
+      const d = new Date(t.date);
+      return d.getMonth() === prev.getMonth() && d.getFullYear() === prev.getFullYear();
+    });
+  }, [filteredTx, balanceFilterDate]);
+
+  const prevIncome = useMemo(() => prevMonthTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0), [prevMonthTx]);
+  const prevExpense = useMemo(() => prevMonthTx.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [prevMonthTx]);
+
+  const resumoStats = useMemo(() => {
+    const ref = balanceFilterDate;
+    const parseDate = (str) => {
+      if (!str) return null;
+      const s = String(str).trim();
+      const parts = s.split(/[/\-]/);
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10) || 1;
+        const month = (parseInt(parts[1], 10) || 1) - 1;
+        const year = parseInt(parts[2], 10) || ref.getFullYear();
+        return new Date(year, month, day);
+      }
+      return new Date(str);
+    };
+    const inPeriod = (d) => {
+      if (!d) return false;
+      const date = d instanceof Date ? d : parseDate(d) || new Date(d);
+      date.setHours(0, 0, 0, 0);
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return date >= start && date <= end;
+      }
+      if (balanceFilter === 'dia') return date.getDate() === ref.getDate() && date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+      if (balanceFilter === 'mes') return date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+      return date.getFullYear() === ref.getFullYear();
+    };
+    const vendas = monthTx.filter((t) => t.type === 'income').length;
+    const agendas = (agendaEvents || []).filter((e) => inPeriod(e.date)).length;
+    const tarefasConcluidas = (checkListItems || []).filter((t) => t.checked).length;
+    const novosClientes = (clients || []).filter((c) => c.createdAt && inPeriod(new Date(c.createdAt))).length;
+    const faturasPagas = contasStatus.pagas.qty;
+    return { vendas, agendas, tarefasConcluidas, novosClientes, faturasPagas };
+  }, [monthTx, agendaEvents, checkListItems, clients, contasStatus.pagas.qty, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
 
   const catBreakdown = useMemo(() => {
     const m = {};
@@ -197,14 +327,13 @@ export function DashboardScreen() {
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [monthTx]);
 
-  const fmt = formatCurrency;
-
   const carouselItems = [
     { id: '1', title: 'Gerencie suas finanças', text: 'Receitas, despesas e controle total em um só lugar.', icon: 'wallet-outline', color: '#10b981' },
-    { id: '2', title: 'Faça upgrade do seu plano', text: 'Plano Empresa: CRM, produtos compostos e muito mais.', icon: 'rocket-outline', color: '#8b5cf6' },
-    { id: '3', title: 'Indique e ganhe', text: 'Convide amigos e ganhe benefícios exclusivos.', icon: 'people-outline', color: '#f59e0b' },
-    { id: '4', title: 'Novidade: Agenda com zoom', text: 'Zoom com os dedos na agenda para ver melhor seus eventos.', icon: 'calendar-outline', color: '#06b6d4' },
-    { id: '5', title: 'Novidade: Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899' },
+    { id: '2', title: 'Limite seu orçamento', text: 'Mantenha sua vida organizada.', icon: 'cash-outline', color: '#059669', onPress: 'orcamento' },
+    { id: '3', title: 'Faça upgrade do seu plano', text: 'Plano Empresa: CRM, produtos compostos e muito mais.', icon: 'rocket-outline', color: '#8b5cf6' },
+    { id: '4', title: 'Indique e ganhe', text: 'Convide amigos e ganhe benefícios exclusivos.', icon: 'people-outline', color: '#f59e0b' },
+    { id: '5', title: 'Novidade: Agenda com zoom', text: 'Zoom com os dedos na agenda para ver melhor seus eventos.', icon: 'calendar-outline', color: '#06b6d4' },
+    { id: '6', title: 'Novidade: Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899' },
   ];
 
   useEffect(() => {
@@ -238,32 +367,56 @@ export function DashboardScreen() {
     setFloatingId(null);
   }, [floatingId, sectionOrder]);
 
+  const parseTaskDate = useCallback((dateStr) => {
+    if (!dateStr) return null;
+    const parts = String(dateStr).trim().split(/[/\-]/);
+    if (parts.length < 3) return null;
+    let day, month, year;
+    if (parts[0].length === 4) {
+      year = parseInt(parts[0], 10) || new Date().getFullYear();
+      month = (parseInt(parts[1], 10) || 1) - 1;
+      day = parseInt(parts[2], 10) || 1;
+    } else {
+      day = parseInt(parts[0], 10) || 1;
+      month = (parseInt(parts[1], 10) || 1) - 1;
+      year = parseInt(parts[2], 10) || new Date().getFullYear();
+    }
+    return new Date(year, month, day);
+  }, []);
+
   const proximasTarefas = useMemo(() => {
-    const tarefas = checkListItems.filter((t) => !t.checked).slice(0, 3);
-    const parseDate = (dateStr) => {
-      if (!dateStr) return null;
-      const parts = dateStr.trim().split(/[/\-]/);
-      if (parts.length < 3) return null;
-      const day = parseInt(parts[0], 10) || 1;
-      const month = (parseInt(parts[1], 10) || 1) - 1;
-      const year = parseInt(parts[2], 10) || new Date().getFullYear();
-      return new Date(year, month, day);
-    };
+    const prOrd = (p) => ({ urgente: 4, alta: 3, media: 2, baixa: 1 }[p] || 2);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
+    const pendentes = checkListItems
+      .filter((t) => !t.checked)
+      .sort((a, b) => {
+        const oa = a.sortOrder ?? 999;
+        const ob = b.sortOrder ?? 999;
+        if (oa !== ob) return oa - ob;
+        const da = parseTaskDate(a.date) || new Date(0);
+        const db = parseTaskDate(b.date) || new Date(0);
+        if (da.getTime() !== db.getTime()) return da - db;
+        return prOrd(b.priority) - prOrd(a.priority);
+      });
+    const concluidas = checkListItems.filter((t) => t.checked).sort((a, b) => {
+      const da = parseTaskDate(a.date) || new Date(0);
+      const db = parseTaskDate(b.date) || new Date(0);
+      return db - da;
+    });
     const agendas = agendaEvents
       .filter((e) => {
-        const d = parseDate(e.date);
+        const d = parseTaskDate(e.date);
         return d && d >= hoje;
       })
       .sort((a, b) => {
-        const da = parseDate(a.date) || new Date(9999);
-        const db = parseDate(b.date) || new Date(9999);
+        const da = parseTaskDate(a.date) || new Date(9999);
+        const db = parseTaskDate(b.date) || new Date(9999);
         return da - db;
       })
       .slice(0, 3);
-    return { tarefas, agendas };
-  }, [checkListItems, agendaEvents]);
+    return { tarefas: pendentes, concluidas, agendas };
+  }, [checkListItems, agendaEvents, parseTaskDate]);
 
   const proximosRecebimentos = useMemo(() => {
     const hoje = new Date();
@@ -282,7 +435,7 @@ export function DashboardScreen() {
       });
   }, [aReceber]);
 
-  const taskCardBase = (icon, title, subtitle, items, renderItem, emptyText) => (
+  const taskCardBase = (icon, title, subtitle, items, renderItem, emptyText, extraHeaderContent) => (
     <TouchableOpacity
       key={title}
       onPress={() => navigation?.navigate?.('Agenda')}
@@ -300,6 +453,7 @@ export function DashboardScreen() {
           </View>
           <AppIcon name="chevron-forward" size={22} color={colors.primary} />
         </View>
+        {extraHeaderContent}
         {items.length === 0 ? (
           <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>{emptyText}</Text>
         ) : (
@@ -310,48 +464,123 @@ export function DashboardScreen() {
   );
 
   const sectionMap = {
-    proximos: taskCardBase(
-      'checkmark-done-outline',
-      'Próximas tarefas',
-      proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`,
-      proximasTarefas.tarefas,
-      (t) => (
-        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
-          <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{t.title}</Text>
-          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }} style={{ padding: 6 }}>
-            <Ionicons name="pencil" size={16} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateCheckListItem(t.id, { checked: true }); }} style={{ padding: 6 }}>
-            <Ionicons name="checkmark-done" size={18} color="#10b981" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => {
-            e?.stopPropagation?.();
-            playTapSound();
-            Alert.alert('Excluir', 'Quer realmente excluir esta tarefa?', [
-              { text: 'Cancelar' },
-              { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) },
-            ]);
-          }} style={{ padding: 6 }}>
-            <Ionicons name="trash-outline" size={16} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
-      ),
-      'Nenhuma tarefa pendente'
+    proximos: (
+      <TouchableOpacity
+        key="proximos"
+        onPress={() => navigation?.navigate?.('Agenda')}
+        activeOpacity={0.9}
+        style={{ marginHorizontal: 16, marginTop: 16 }}
+      >
+        <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name="checkmark-done-outline" size={26} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>
+                {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                {showConcluidasProximos
+                  ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
+                  : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
+              </Text>
+            </View>
+            <AppIcon name="chevron-forward" size={22} color={colors.primary} />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50' }}>
+              <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>{showConcluidasProximos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50' }}>
+              <Ionicons name="add" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Criar tarefa</Text>
+            </TouchableOpacity>
+          </View>
+          {(showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas).length === 0 ? (
+            <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>
+              {showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
+            </Text>
+          ) : (
+            (showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas).map((t) => (
+              <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title}</Text>
+                  {(t.date || t.timeStart) && (
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                      {[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="pencil" size={22} color={colors.primary} />
+                </TouchableOpacity>
+                {showConcluidasProximos ? (
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateCheckListItem(t.id, { checked: false }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="arrow-undo" size={22} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateCheckListItem(t.id, { checked: true }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="checkmark-done" size={22} color="#10b981" />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={(e) => {
+                  e?.stopPropagation?.();
+                  playTapSound();
+                  Alert.alert('Excluir', 'Quer realmente excluir esta tarefa?', [
+                    { text: 'Cancelar' },
+                    { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) },
+                  ]);
+                }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </GlassCard>
+      </TouchableOpacity>
     ),
     agendamentos: taskCardBase(
       'calendar-outline',
-      'Próximos eventos',
-      proximasTarefas.agendas.length === 0 ? 'Nada agendado' : `${proximasTarefas.agendas.length} evento${proximasTarefas.agendas.length !== 1 ? 's' : ''}`,
+      (showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos',
+      proximasTarefas.agendas.length === 0
+        ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Seus atendimentos agendados' : 'Seus eventos agendados nos próximos dias')
+        : `${proximasTarefas.agendas.length} ${(showEmpresaFeatures && viewMode === 'empresa') ? 'atendimento' : 'evento'}${proximasTarefas.agendas.length !== 1 ? 's' : ''} nos próximos dias`,
       proximasTarefas.agendas,
-      (e) => (
+      (e) => {
+        const displayTitle = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+        const detailParts = [];
+        if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
+        if (e.type === 'venda') detailParts.push('Venda');
+        else if (e.type === 'orcamento') detailParts.push('Orçamento');
+        else if (e.type === 'manutencao') detailParts.push('Garantia');
+        const detailStr = detailParts.length ? detailParts.join(' · ') : null;
+        return (
         <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
-          <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{e.title}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
+            {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
+          </View>
           <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
-          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }}>
-            <Ionicons name="pencil" size={16} color={colors.primary} />
+          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="pencil" size={22} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') }); }} style={{ padding: 6 }}>
-            <Ionicons name="checkmark-done" size={18} color="#10b981" />
+          <TouchableOpacity
+            onPress={(ev) => {
+              ev?.stopPropagation?.();
+              playTapSound();
+              const isEmpresaComServico = showEmpresaFeatures && (e.tipo === 'empresa') && (e.clientId || e.serviceId || (Array.isArray(e.preOrderItems) && e.preOrderItems.length > 0));
+              if (isEmpresaComServico && e.status !== 'concluido') {
+                openAddModal?.('receita', { fromAgendaEvent: e });
+              } else {
+                updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
+              }
+            }}
+            style={{ padding: 8 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="checkmark-done" size={22} color="#10b981" />
           </TouchableOpacity>
           <TouchableOpacity onPress={(ev) => {
             ev?.stopPropagation?.();
@@ -360,12 +589,21 @@ export function DashboardScreen() {
               { text: 'Cancelar' },
               { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
             ]);
-          }} style={{ padding: 6 }}>
-            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+          }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="trash-outline" size={22} color="#ef4444" />
           </TouchableOpacity>
         </View>
-      ),
-      'Nenhum evento agendado'
+        );
+      },
+      (showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento agendado' : 'Nenhum evento agendado',
+      (
+        <View key="criar-evento" style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50' }}>
+            <Ionicons name="add" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Criar evento</Text>
+          </TouchableOpacity>
+        </View>
+      )
     ),
     carousel: (
       <View key="carousel" style={ds.carousel}>
@@ -380,17 +618,26 @@ export function DashboardScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: CAROUSEL_PADDING }}
           onMomentumScrollEnd={(e) => setCarouselIndex(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, SNAP_INTERVAL)))}
-          renderItem={({ item }) => (
-            <View style={[ds.carouselItem, { width: CARD_WIDTH, backgroundColor: item.color || colors.primary, borderColor: (item.color || colors.primary) + '80', overflow: 'hidden' }]}>
-              <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-              <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
-                <AppIcon name={item.icon} size={28} color="#fff" />
+          renderItem={({ item }) => {
+            const cardContent = (
+              <View style={[ds.carouselItem, { width: CARD_WIDTH, backgroundColor: item.color || colors.primary, borderColor: (item.color || colors.primary) + '80', overflow: 'hidden' }]}>
+                <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                  <AppIcon name={item.icon} size={28} color="#fff" />
+                </View>
+                <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
+                <Text style={[ds.carouselText, { color: 'rgba(255,255,255,0.95)' }]}>{item.text}</Text>
               </View>
-              <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
-              <Text style={[ds.carouselText, { color: 'rgba(255,255,255,0.95)' }]}>{item.text}</Text>
-            </View>
-          )}
+            );
+            return item.onPress === 'orcamento' ? (
+              <TouchableOpacity key={item.id} onPress={() => { playTapSound(); openOrcamento?.(); }} activeOpacity={0.9} style={{ width: CARD_WIDTH + 16 }}>
+                {cardContent}
+              </TouchableOpacity>
+            ) : (
+              <View key={item.id} style={{ width: CARD_WIDTH + 16 }}>{cardContent}</View>
+            );
+          }}
         />
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 }}>
           {carouselItems.map((_, i) => (
@@ -401,18 +648,85 @@ export function DashboardScreen() {
     ),
     quote: (
       <TouchableOpacity key="quote" onPress={() => openImageGenerator?.({ quote, quoteType })} activeOpacity={0.8} style={{ marginHorizontal: 16, marginTop: 16 }}>
-        <GlassCard colors={colors} style={[ds.quoteCard]}>
-        <Text style={[ds.quoteText, { color: colors.text }]} numberOfLines={3}>"{quote}"</Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, gap: 10 }}>
-          <TouchableOpacity onPress={(e) => { e.stopPropagation(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '60' }}>
-            <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={18} color={colors.primary} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{quoteType === 'motivacional' ? 'Ver versículo' : 'Ver citação'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => { e.stopPropagation(); openImageGenerator?.({ quote, quoteType }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary }}>
-            <Ionicons name="share-social-outline" size={18} color="#fff" />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Compartilhar frase</Text>
-          </TouchableOpacity>
-        </View>
+        <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={26} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>
+                {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                {quoteType === 'motivacional' ? 'Citação motivacional' : 'Palavra de sabedoria'}
+              </Text>
+            </View>
+          </View>
+          <Text style={[ds.quoteText, { color: colors.text }]} numberOfLines={3}>"{quote}"</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, gap: 10 }}>
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '60' }}>
+              <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={18} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{quoteType === 'motivacional' ? 'Ver versículo' : 'Ver citação'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); playTapSound(); openImageGenerator?.({ quote, quoteType }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary }}>
+              <Ionicons name="share-social-outline" size={18} color="#fff" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>Compartilhar frase</Text>
+            </TouchableOpacity>
+          </View>
+        </GlassCard>
+      </TouchableOpacity>
+    ),
+    anotacoes: (
+      <TouchableOpacity
+        key="anotacoes"
+        onPress={() => { playTapSound(); openAnotacoes?.(); }}
+        activeOpacity={0.9}
+        style={{ marginHorizontal: 16, marginTop: 16 }}
+      >
+        <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name="document-text-outline" size={26} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Minhas anotações</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
+              </Text>
+            </View>
+            <AppIcon name="chevron-forward" size={22} color={colors.primary} />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50' }}>
+              <Ionicons name="add" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Criar anotação</Text>
+            </TouchableOpacity>
+          </View>
+          {notes.length === 0 ? (
+            <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>Nenhuma anotação ainda</Text>
+          ) : (
+            notes.slice(0, 5).map((n) => (
+              <View key={n.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
+                <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{n.title || 'Sem título'}</Text>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ editNoteId: n.id }); }} style={{ padding: 6 }}>
+                  <Ionicons name="pencil" size={16} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    playTapSound();
+                    Alert.alert('Excluir', 'Quer excluir esta anotação?', [
+                      { text: 'Cancelar' },
+                      { text: 'Excluir', style: 'destructive', onPress: () => deleteNote(n.id) },
+                    ]);
+                  }}
+                  style={{ padding: 6 }}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
         </GlassCard>
       </TouchableOpacity>
     ),
@@ -423,43 +737,43 @@ export function DashboardScreen() {
           income={income}
           expense={expense}
           formatCurrency={fmt}
+          mask={mask}
           colors={colors}
+          filter={balanceFilter}
+          filterLabel={balanceFilterLabel}
+          filterStartDate={periodStart}
+          filterEndDate={periodEnd}
+          onFilterChange={(f) => { playTapSound(); setBalanceFilter(f); setBalanceFilterDate(new Date()); }}
+          onFilterDatePrev={() => { playTapSound(); adjustBalanceFilterDate(-1); }}
+          onFilterDateNext={() => { playTapSound(); adjustBalanceFilterDate(1); }}
+          onFilterPeriodChange={(start, end) => { setPeriodStart(start); setPeriodEnd(end); }}
+          showValues={showValues}
+          onToggleValues={() => { playTapSound(); toggleValues(); }}
         />
       </View>
     ),
     contas: (
-      <View key="contas" style={{ marginHorizontal: 16, marginTop: 16 }}>
+      <View key="contas" style={{ marginTop: 16 }}>
         <ContasDoMesCard
           contasPagas={contasStatus.pagas}
           contasAVencer={contasStatus.aVencer}
           contasVencidas={contasStatus.vencidas}
           formatCurrency={fmt}
+          mask={mask}
           colors={colors}
         />
       </View>
     ),
     gastos: (
       <View key="gastos" style={ds.section}>
-        <Text style={[ds.sectionTitle, { color: colors.text }]}>Gastos por Categoria</Text>
-        <GlassCard colors={colors} style={ds.card}>
-          {catBreakdown.map(([cat, amount]) => {
-            const pct = expense > 0 ? (amount / expense) * 100 : 0;
-            return (
-              <View key={cat} style={ds.catItem}>
-                <View style={ds.catHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={[ds.catDot, { backgroundColor: CATEGORY_COLORS[cat] || '#6b7280' }]} />
-                    <Text style={[ds.catName, { color: colors.text }]}>{cat}</Text>
-                  </View>
-                  <Text style={[ds.catAmount, { color: colors.text }]}>{fmt(amount)}</Text>
-                </View>
-                <View style={[ds.progressBar, { backgroundColor: colors.border }]}>
-                  <View style={[ds.progressFill, { width: `${pct}%`, backgroundColor: CATEGORY_COLORS[cat] || '#6b7280' }]} />
-                </View>
-              </View>
-            );
-          })}
-        </GlassCard>
+        <GastosPorCategoriaCard
+          catBreakdown={catBreakdown}
+          totalExpense={expense}
+          formatCurrency={fmt}
+          mask={mask}
+          colors={colors}
+          title="Gastos por categoria"
+        />
       </View>
     ),
     transacoes: (
@@ -467,35 +781,29 @@ export function DashboardScreen() {
         <TransacoesCard
           transactions={monthTx}
           formatCurrency={fmt}
+          mask={mask}
           colors={colors}
           title="Últimas transações"
         />
       </View>
     ),
     graficos: (
-      <View key="graficos">
-        <GlassCard colors={colors} style={[ds.card, { marginHorizontal: 16, marginTop: 16 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-            <AppIcon name="stats-chart-outline" size={22} color={colors.primary} />
-          </View>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Resumo do mês</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '40' }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary }}>RECEITAS</Text>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.primary, marginTop: 4 }}>{fmt(income)}</Text>
-          </View>
-          <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary }}>DESPESAS</Text>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#ef4444', marginTop: 4 }}>{fmt(expense)}</Text>
-          </View>
-          <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.border + '40', borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: colors.textSecondary }}>SALDO</Text>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: balance >= 0 ? colors.primary : '#ef4444', marginTop: 4 }}>{fmt(balance)}</Text>
-          </View>
-        </View>
-        </GlassCard>
+      <View key="graficos" style={{ marginTop: 16, marginHorizontal: 16 }}>
+        <ResumoDoMesCard
+          income={income}
+          expense={expense}
+          balance={balance}
+          formatCurrency={fmt}
+          mask={mask}
+          colors={colors}
+          vendas={resumoStats.vendas}
+          agendas={resumoStats.agendas}
+          tarefasConcluidas={resumoStats.tarefasConcluidas}
+          novosClientes={resumoStats.novosClientes}
+          faturasPagas={resumoStats.faturasPagas}
+          prevIncome={prevIncome}
+          prevExpense={prevExpense}
+        />
       </View>
     ),
   };

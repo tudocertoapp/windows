@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { CardHeader } from './CardHeader';
 
 const ds = StyleSheet.create({
   card: { margin: 16, padding: 20, borderRadius: 20 },
@@ -17,10 +18,10 @@ export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, fo
   const aVencer = contasAVencer || { qty: 0, valor: 0 };
   const vencidas = contasVencidas || { qty: 0, valor: 0 };
   const totalContas = pagas.qty + aVencer.qty + vencidas.qty;
-  const primaryBg = colors.primaryRgba ? colors.primaryRgba(0.4) : colors.primary + '66';
+  const redBg = 'rgba(239, 68, 68, 0.4)';
   return (
-    <View style={[ds.card, { backgroundColor: primaryBg }]}>
-      <Text style={ds.label}>FATURAS</Text>
+    <View style={[ds.card, { backgroundColor: redBg }]}>
+      <CardHeader icon="document-text-outline" title="Faturas" subtitle="Contas a pagar e vencidas" colors={colors} light />
       <View style={[ds.row, { marginTop: 12 }]}>
         <View style={[ds.box, { minWidth: '100%', marginBottom: 4 }]}>
           <Text style={ds.boxLabel}>TOTAL</Text>

@@ -8,16 +8,18 @@ import {
   Alert,
   Dimensions,
   Modal,
-  PanResponder,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMenu } from '../contexts/MenuContext';
+import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { AgendaFormModal } from '../components/AgendaFormModal';
 import { playTapSound } from '../utils/sounds';
+import { formatCurrency } from '../utils/format';
 
 const { width: SW } = Dimensions.get('window');
 const DAY_WIDTH = 44;
@@ -79,10 +81,11 @@ const as = StyleSheet.create({
     flexDirection: 'row',
     minHeight: HOUR_HEIGHT,
     borderBottomWidth: 1,
+    overflow: 'visible',
   },
   timelineHour: { width: 52, paddingTop: 6, paddingRight: 8, alignItems: 'flex-end' },
   hourText: { fontSize: 12, fontWeight: '500' },
-  timelineContent: { flex: 1, position: 'relative', minHeight: 1 },
+  timelineContent: { flex: 1, position: 'relative', minHeight: 1, overflow: 'visible' },
   eventBlock: {
     position: 'absolute',
     left: 6,
@@ -90,6 +93,7 @@ const as = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     borderLeftWidth: 4,
+    overflow: 'visible',
   },
   eventTitle: { fontSize: 14, fontWeight: '600' },
   eventTime: { fontSize: 11, marginTop: 2 },
@@ -173,9 +177,10 @@ function getCalendarGrid(year, month) {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function AgendaScreen() {
-  const { agendaEvents, deleteAgendaEvent, updateAgendaEvent, checkListItems } = useFinance();
+  const { agendaEvents, deleteAgendaEvent, updateAgendaEvent, checkListItems, clients } = useFinance();
   const { colors } = useTheme();
   const { openAddModal } = useMenu();
+  const { showEmpresaFeatures } = usePlan();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [displayedMonthDate, setDisplayedMonthDate] = useState(() => new Date());
   const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -188,7 +193,6 @@ export function AgendaScreen() {
   const mainScrollRef = useRef(null);
   const lastCenteredIndexRef = useRef(-1);
   const pinchBaseScale = useRef(1);
-  const pinchBaseDist = useRef(0);
   const pinchFocalRatio = useRef(0.5);
   const rafId = useRef(null);
   const scrollOffsetRef = useRef(0);
@@ -197,70 +201,65 @@ export function AgendaScreen() {
   const scrollViewHeightRef = useRef(400);
   const scaleRef = useRef(1);
   scaleRef.current = hourScale;
+  const containerRef = useRef(null);
+  const pinchFocalViewportY = useRef(0);
 
-  const pinchResponder = useMemo(
+  const pinchGesture = useMemo(
     () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onStartShouldSetPanResponderCapture: (ev) => (ev.nativeEvent.touches?.length || 0) === 2,
-        onMoveShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponderCapture: (ev) => (ev.nativeEvent.touches?.length || 0) === 2,
-        onPanResponderGrant: (ev) => {
-          const touches = ev.nativeEvent.touches;
-          if (touches && touches.length === 2 && touches[0] && touches[1]) {
-            setScrollEnabled(false);
-            pinchBaseDist.current = Math.hypot(
-              touches[1].pageX - touches[0].pageX,
-              touches[1].pageY - touches[0].pageY
-            );
-            pinchBaseScale.current = scaleRef.current;
-            measurementReadyRef.current = false;
-            const fingerMidY = (touches[0].pageY + touches[1].pageY) / 2;
-            mainScrollRef.current?.measureInWindow((x, scrollViewTop, w, h) => {
-              const relativeY = fingerMidY - scrollViewTop;
-              const contentY = scrollOffsetRef.current + relativeY;
+      Gesture.Pinch()
+        .onStart((e) => {
+          setScrollEnabled(false);
+          pinchBaseScale.current = scaleRef.current;
+          measurementReadyRef.current = false;
+          containerRef.current?.measureInWindow((cx, containerTop, cw, ch) => {
+            mainScrollRef.current?.measureInWindow((sx, scrollViewTop, sw, sh) => {
+              const focalY = e.focalY;
+              const fingerWindowY = containerTop + focalY;
+              const relativeY = fingerWindowY - scrollViewTop;
+              pinchFocalViewportY.current = Math.max(0, Math.min(scrollViewHeightRef.current || 400, relativeY));
+              const contentY = scrollOffsetRef.current + pinchFocalViewportY.current;
               const timelineY = timelineLayoutRef.current?.y ?? 0;
               const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
               const posInTimeline = contentY - timelineY;
               pinchFocalRatio.current = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
               measurementReadyRef.current = true;
             });
-          }
-        },
-        onPanResponderMove: (ev) => {
-          const touches = ev.nativeEvent.touches;
-          if (touches && touches.length === 2 && touches[0] && touches[1] && pinchBaseDist.current > 0) {
-            const dist = Math.hypot(touches[1].pageX - touches[0].pageX, touches[1].pageY - touches[0].pageY);
-            const ratio = dist / pinchBaseDist.current;
-            const newScale = Math.max(0.5, Math.min(2, pinchBaseScale.current * ratio));
-            setHourScale(newScale);
-            if (measurementReadyRef.current) {
-              const timelineY = timelineLayoutRef.current?.y ?? 0;
-              const newTimelineH = 24 * HOUR_HEIGHT * newScale;
-              const focalInNewTimeline = pinchFocalRatio.current * newTimelineH;
-              const viewH = scrollViewHeightRef.current;
-              const newScrollY = Math.max(0, timelineY + focalInNewTimeline - viewH / 2);
-              if (rafId.current) cancelAnimationFrame(rafId.current);
-              rafId.current = requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
+          });
+        })
+        .onUpdate((e) => {
+          const newScale = Math.max(0.5, Math.min(3, pinchBaseScale.current * e.scale));
+          setHourScale(newScale);
+          if (measurementReadyRef.current) {
+            const focalY = e.focalY;
+            containerRef.current?.measureInWindow((cx, containerTop, cw, ch) => {
+              mainScrollRef.current?.measureInWindow((sx, scrollViewTop, sw, sh) => {
+                const fingerWindowY = containerTop + focalY;
+                const relativeY = fingerWindowY - scrollViewTop;
+                const viewportY = Math.max(0, Math.min(scrollViewHeightRef.current || 400, relativeY));
+                const contentY = scrollOffsetRef.current + viewportY;
+                const timelineY = timelineLayoutRef.current?.y ?? 0;
+                const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
+                const posInTimeline = contentY - timelineY;
+                const ratio = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
+                const newTimelineH = 24 * HOUR_HEIGHT * newScale;
+                const focalInNewTimeline = ratio * newTimelineH;
+                const newScrollY = Math.max(0, timelineY + focalInNewTimeline - viewportY);
+                if (rafId.current) cancelAnimationFrame(rafId.current);
+                rafId.current = requestAnimationFrame(() => {
                   mainScrollRef.current?.scrollTo({ y: newScrollY, animated: false });
                   scrollOffsetRef.current = newScrollY;
+                  rafId.current = null;
                 });
-                rafId.current = null;
               });
-            }
+            });
           }
-        },
-        onPanResponderRelease: () => {
+        })
+        .onEnd(() => {
           if (rafId.current) cancelAnimationFrame(rafId.current);
           rafId.current = null;
           setScrollEnabled(true);
-        },
-        onPanResponderTerminate: () => {
-          if (rafId.current) cancelAnimationFrame(rafId.current);
-          setScrollEnabled(true);
-        },
-      }),
+        })
+        .runOnJS(true),
     []
   );
 
@@ -398,7 +397,8 @@ export function AgendaScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <TopBar title="Agenda" colors={colors} hideOrganize hideMenu hideLogoIcon />
-      <View style={{ flex: 1 }} {...pinchResponder.panHandlers} collapsable={false}>
+      <GestureDetector gesture={pinchGesture}>
+      <View ref={containerRef} style={{ flex: 1 }} collapsable={false}>
         {/* Parte fixa: header, carousel de dias, cabeçalho do cronograma */}
         <View style={{ backgroundColor: colors.bg }}>
           <View style={[as.header, { backgroundColor: colors.bg }]}>
@@ -560,7 +560,7 @@ export function AgendaScreen() {
                     const startM = parseTimeToMinutes(e.time);
                     const duration = 60;
                     const top = ((startM - hourTop) / 60) * effectiveHourHeight;
-                    const height = Math.max(48, (duration / 60) * effectiveHourHeight - 4);
+                    const height = Math.max(72, (duration / 60) * effectiveHourHeight - 4);
                     const isConcluido = e.status === 'concluido';
                     const openEdit = () => {
                       playTapSound();
@@ -585,43 +585,66 @@ export function AgendaScreen() {
                           },
                         ]}
                       >
-                        <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
                           <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]} numberOfLines={2}>
-                            {e.title}
+                            {((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento'}
                           </Text>
-                          <Text style={[as.eventTime, { color: colors.primary }]}>{e.time || '--:--'}{e.timeEnd ? ` - ${e.timeEnd}` : ''}</Text>
+                          <Text style={[as.eventTime, { color: colors.primary }]}>
+                            {e.time || '--:--'}{e.timeEnd ? ` - ${e.timeEnd}` : ''}
+                            {e.tipo === 'empresa' && (
+                              (() => {
+                                const p = [];
+                                if (e.amount > 0) p.push(formatCurrency(e.amount));
+                                if (e.type === 'venda') p.push('Venda');
+                                else if (e.type === 'orcamento') p.push('Orçamento');
+                                else if (e.type === 'manutencao') p.push('Garantia');
+                                return p.length ? <Text style={{ color: colors.textSecondary, fontSize: 11 }}> · {p.join(' · ')}</Text> : null;
+                              })()
+                            )}
+                          </Text>
                         </View>
-                        <TouchableOpacity
-                          onPress={(ev) => { ev?.stopPropagation?.(); openEdit(); }}
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          style={{ padding: 8 }}
-                          activeOpacity={0.6}
-                        >
-                          <Ionicons name="pencil" size={16} color={colors.primary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' }); }}
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          style={{ padding: 8 }}
-                          activeOpacity={0.6}
-                        >
-                          <Ionicons name="checkmark-done" size={18} color="#10b981" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(ev) => {
-                            ev?.stopPropagation?.();
-                            playTapSound();
-                            Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
-                              { text: 'Cancelar' },
-                              { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
-                            ]);
-                          }}
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          style={{ padding: 8 }}
-                          activeOpacity={0.6}
-                        >
-                          <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <TouchableOpacity
+                            onPress={(ev) => { ev?.stopPropagation?.(); openEdit(); }}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            style={{ padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
+                            activeOpacity={0.6}
+                          >
+                            <Ionicons name="pencil" size={22} color={colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={(ev) => {
+                              ev?.stopPropagation?.();
+                              playTapSound();
+                              const isEmpresaComServico = showEmpresaFeatures && (e.tipo === 'empresa') && (e.clientId || e.serviceId || (Array.isArray(e.preOrderItems) && e.preOrderItems.length > 0));
+                              if (isEmpresaComServico && !isConcluido) {
+                                openAddModal?.('receita', { fromAgendaEvent: e });
+                              } else {
+                                updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' });
+                              }
+                            }}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            style={{ padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
+                            activeOpacity={0.6}
+                          >
+                            <Ionicons name="checkmark-done" size={22} color="#10b981" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={(ev) => {
+                              ev?.stopPropagation?.();
+                              playTapSound();
+                              Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+                                { text: 'Cancelar' },
+                                { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+                              ]);
+                            }}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            style={{ padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
+                            activeOpacity={0.6}
+                          >
+                            <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
@@ -641,6 +664,7 @@ export function AgendaScreen() {
           <View style={{ height: 80 }} />
         </ScrollView>
       </View>
+      </GestureDetector>
 
       <Modal visible={showMonthPicker} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>

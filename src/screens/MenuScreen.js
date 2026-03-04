@@ -30,7 +30,7 @@ const ms = StyleSheet.create({
   appTitle: { fontSize: 26, fontWeight: '800', letterSpacing: 0.5, marginTop: 6 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenImageGenerator, onOpenTemas, onOpenTermos }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenImageGenerator, onOpenTemas, onOpenTermos }) {
   const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
@@ -119,11 +119,16 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>FINANCEIRO</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
+          <MenuItem icon="cash-outline" label="Meu Orçamento" subtitle="Limite de gastos por categoria" onPress={onOpenOrcamento || comingSoon} />
+        </View>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>PRODUTIVIDADE</Text>
+        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>VISUALIZAÇÃO</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="bar-chart-outline" label="Gráficos" subtitle="Ver gastos por categoria" onPress={() => goTo('Dinheiro', { tab: 'graficos' })} />
-          {showEmpresaFeatures && <MenuItem icon="wallet-outline" label="A Receber" subtitle="Valores a receber e parcelas" onPress={() => onOpenAReceber?.()} />}
+          {showEmpresaFeatures && <MenuItem icon="wallet-outline" label="Vendas a prazo" subtitle="Vendas a prazo e parcelas" onPress={() => onOpenAReceber?.()} />}
           <MenuItem icon="image-outline" label="Criar imagem Instagram" subtitle="Frase motivacional para compartilhar" onPress={() => onOpenImageGenerator?.()} />
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>CADASTROS</Text>

@@ -22,6 +22,15 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { ProductFormModal } from '../components/ProductFormModal';
+import { GlassCard } from '../components/GlassCard';
+import { DatePickerInput } from '../components/DatePickerInput';
+import { TimePickerInput } from '../components/TimePickerInput';
+import { playTapSound } from '../utils/sounds';
+
+function todayStr() {
+  const d = new Date();
+  return [String(d.getDate()).padStart(2, '0'), String(d.getMonth() + 1).padStart(2, '0'), d.getFullYear()].join('/');
+}
 
 const SECTIONS = [
   { id: 'clientes', label: 'Clientes', icon: 'people-outline' },
@@ -81,7 +90,16 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       const item = (items || []).find((i) => i.id === initialEditItemId);
       if (item) {
         setEditingItem(item);
-        setFormData({ title: item.title || '' });
+        setFormData({
+          title: item.title || '',
+          priority: item.priority || 'media',
+          date: item.date || todayStr(),
+          showTime: !!(item.timeStart || item.timeEnd),
+          timeStart: item.timeStart || '',
+          timeEnd: item.timeEnd || '',
+          description: item.description || '',
+          important: item.important ?? false,
+        });
         setShowForm(true);
       }
     }
@@ -124,8 +142,9 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
     if (section === 'produtos') return;
     const entry = {};
     fields.forEach((f) => (entry[f] = (formData[f] || '').trim()));
-    const required = fields[0];
-    if (!entry[required]) return Alert.alert('Erro', `Preencha ${labels[required]}.`);
+    const required = section === 'tarefas' ? 'title' : fields[0];
+    const requiredVal = section === 'tarefas' ? (entry.title || formData.title || '').trim() : entry[required];
+    if (!requiredVal) return Alert.alert('Erro', section === 'tarefas' ? 'Preencha o título da tarefa.' : `Preencha ${labels[required]}.`);
     if (section === 'produtos') {
       const p = parseFloat(String(entry.price).replace(',', '.'));
       const c = parseFloat(String(entry.costPrice).replace(',', '.'));
@@ -149,7 +168,17 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       entry.foto = formData.foto || null;
       entry.nivel = formData.nivel || 'orcamento';
     }
-    if (section === 'tarefas') entry.checked = false;
+    if (section === 'tarefas') {
+      entry.title = (formData.title || '').trim();
+      entry.checked = editingItem ? editingItem.checked : false;
+      entry.important = formData.important ?? false;
+      entry.priority = formData.priority || 'media';
+      entry.date = formData.date || todayStr();
+      entry.timeStart = formData.showTime ? (formData.timeStart || null) : null;
+      entry.timeEnd = formData.showTime ? (formData.timeEnd || null) : null;
+      entry.description = (formData.description || '').trim() || null;
+      if (editingItem) entry.sortOrder = editingItem.sortOrder ?? 0;
+    }
     if (section === 'boletos') entry.paid = formData.paid ?? false;
     if (editingItem) {
       update(editingItem.id, entry);
@@ -163,7 +192,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
 
   const openAdd = () => {
     setEditingItem(null);
-    setFormData({});
+    setFormData(section === 'tarefas' ? { title: '', priority: 'media', date: todayStr(), showTime: false, timeStart: '', timeEnd: '', description: '', important: false } : {});
     setShowForm(true);
   };
 
@@ -178,6 +207,16 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
     if (section === 'boletos') {
       data.paid = item.paid ?? false;
       data.tipo = item.tipo || 'pessoal';
+    }
+    if (section === 'tarefas') {
+      data.title = item.title || '';
+      data.priority = item.priority || 'media';
+      data.date = item.date || todayStr();
+      data.showTime = !!(item.timeStart || item.timeEnd);
+      data.timeStart = item.timeStart || '';
+      data.timeEnd = item.timeEnd || '';
+      data.description = item.description || '';
+      data.important = item.important ?? false;
     }
     setFormData(data);
     setShowForm(true);
@@ -254,16 +293,52 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{editingItem ? 'Editar' : 'Novo cadastro'}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity onPress={() => Keyboard.dismiss()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
-              </TouchableOpacity>
+              {section !== 'tarefas' && (
+                <TouchableOpacity onPress={() => Keyboard.dismiss()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity onPress={() => { setShowForm(false); setEditingItem(null); setFormData({}); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                 <Ionicons name="close" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
           <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 360 }}>
-          {fields.map((f) => (
+          {section === 'tarefas' ? (
+            <>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Título</Text>
+              <TextInput style={[cs.input, { borderColor: colors.border, color: colors.text }]} placeholder="Título da tarefa" value={formData.title || ''} onChangeText={(t) => setFormData((prev) => ({ ...prev, title: t }))} placeholderTextColor={colors.textSecondary} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Nível de prioridade</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {[{ id: 'baixa', label: 'Baixa' }, { id: 'media', label: 'Média' }, { id: 'alta', label: 'Alta' }, { id: 'urgente', label: 'Urgente' }].map((p) => (
+                  <TouchableOpacity key={p.id} onPress={() => setFormData((prev) => ({ ...prev, priority: p.id }))} style={{ flex: 1, minWidth: 70, padding: 12, borderRadius: 12, backgroundColor: (formData.priority || 'media') === p.id ? colors.primary : colors.border, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: (formData.priority || 'media') === p.id ? '#fff' : colors.text }}>{p.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Data</Text>
+              <DatePickerInput value={formData.date || todayStr()} onChange={(v) => setFormData((prev) => ({ ...prev, date: v }))} colors={colors} style={{ backgroundColor: colors.bg }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Adicionar horário</Text>
+                <Switch value={formData.showTime ?? false} onValueChange={(v) => setFormData((prev) => ({ ...prev, showTime: v }))} trackColor={{ false: '#e5e7eb', true: colors.primary }} thumbColor="#fff" />
+              </View>
+              {formData.showTime && (
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 }}>De</Text>
+                    <TimePickerInput value={formData.timeStart} onChange={(v) => setFormData((prev) => ({ ...prev, timeStart: v }))} placeholder="09:00" colors={colors} style={{ backgroundColor: colors.bg }} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 }}>Até</Text>
+                    <TimePickerInput value={formData.timeEnd} onChange={(v) => setFormData((prev) => ({ ...prev, timeEnd: v }))} placeholder="17:00" colors={colors} style={{ backgroundColor: colors.bg }} />
+                  </View>
+                </View>
+              )}
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Descrição (o que será feito)</Text>
+              <TextInput style={[cs.input, { borderColor: colors.border, color: colors.text, minHeight: 80, textAlignVertical: 'top' }]} placeholder="Detalhes da tarefa..." value={formData.description || ''} onChangeText={(t) => setFormData((prev) => ({ ...prev, description: t }))} placeholderTextColor={colors.textSecondary} multiline numberOfLines={4} />
+            </>
+          ) : (
+          fields.map((f) => (
             <TextInput
               key={f}
               style={[cs.input, { borderColor: colors.border, color: colors.text }]}
@@ -273,7 +348,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
               placeholderTextColor={colors.textSecondary}
               keyboardType={f === 'price' || f === 'amount' ? 'decimal-pad' : 'default'}
             />
-          ))}
+          )))}
           {hasFoto && section === 'clientes' && (
             <>
               <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Foto do cliente</Text>
@@ -334,6 +409,12 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
               </View>
             </>
           )}
+          {section === 'tarefas' && (
+            <TouchableOpacity onPress={() => setFormData((prev) => ({ ...prev, important: !(prev.important ?? false) }))} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginTop: 8 }}>
+              <Ionicons name={formData.important ? 'star' : 'star-outline'} size={24} color={formData.important ? '#f59e0b' : colors.textSecondary} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>Marcar como importante</Text>
+            </TouchableOpacity>
+          )}
           </ScrollView>
           <TouchableOpacity style={[cs.saveBtn, { backgroundColor: colors.primary, marginTop: 8 }]} onPress={handleSave}>
             <Text style={cs.saveBtnText}>Cadastrar</Text>
@@ -343,7 +424,100 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         </TouchableOpacity>
       </Modal>
       )}
-      {filteredItems.length === 0 ? (
+      {section === 'tarefas' ? (
+        <View style={{ paddingVertical: 8, paddingBottom: 100, paddingHorizontal: 16 }}>
+          {(() => {
+            const prOrd = (p) => ({ urgente: 4, alta: 3, media: 2, baixa: 1 }[p] || 2);
+            const parseDt = (str) => {
+              if (!str) return new Date(0);
+              const parts = String(str).trim().split(/[/\-]/);
+              if (parts.length < 3) return new Date(0);
+              return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+            };
+            const tarefas = filteredItems || [];
+            const aFazer = tarefas.filter((t) => !t.checked).sort((a, b) => {
+              const oa = a.sortOrder ?? 999; const ob = b.sortOrder ?? 999;
+              if (oa !== ob) return oa - ob;
+              const da = parseDt(a.date); const db = parseDt(b.date);
+              if (da.getTime() !== db.getTime()) return da - db;
+              return prOrd(b.priority) - prOrd(a.priority);
+            });
+            const concluidas = tarefas.filter((t) => t.checked).sort((a, b) => parseDt(b.date) - parseDt(a.date));
+            const moveUp = (t) => {
+              const idx = aFazer.findIndex((x) => x.id === t.id);
+              if (idx <= 0) return;
+              const prev = aFazer[idx - 1];
+              const soCur = t.sortOrder ?? idx;
+              const soPrev = prev.sortOrder ?? idx - 1;
+              update(t.id, { sortOrder: soPrev });
+              update(prev.id, { sortOrder: soCur });
+            };
+            const moveDown = (t) => {
+              const idx = aFazer.findIndex((x) => x.id === t.id);
+              if (idx < 0 || idx >= aFazer.length - 1) return;
+              const next = aFazer[idx + 1];
+              const soCur = t.sortOrder ?? idx;
+              const soNext = next.sortOrder ?? idx + 1;
+              update(t.id, { sortOrder: soNext });
+              update(next.id, { sortOrder: soCur });
+            };
+            const renderTarefa = (t, isConcluida, showReorder) => (
+              <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginBottom: 8, paddingRight: 8 }}>
+                {showReorder && (
+                  <View style={{ flexDirection: 'column', gap: 2 }}>
+                    <TouchableOpacity onPress={() => { playTapSound(); moveUp(t); }} style={{ padding: 4 }}>
+                      <Ionicons name="chevron-up" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { playTapSound(); moveDown(t); }} style={{ padding: 4 }}>
+                      <Ionicons name="chevron-down" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <TouchableOpacity onPress={() => { playTapSound(); update(t.id, { important: !(t.important ?? false) }); }} style={{ padding: 6 }}>
+                  <Ionicons name={t.important ? 'star' : 'star-outline'} size={20} color={t.important ? '#f59e0b' : colors.textSecondary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: isConcluida ? 'line-through' : 'none' }} numberOfLines={2}>{t.title}</Text>
+                  {(t.date || t.timeStart || t.description) && (
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                      {[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => { playTapSound(); openEdit(t); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="pencil" size={22} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); update(t.id, { checked: !t.checked }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name={t.checked ? 'arrow-undo' : 'checkmark-done'} size={22} color={t.checked ? colors.textSecondary : '#10b981'} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); confirmDelete(t); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            );
+            return (
+              <>
+                <GlassCard colors={colors} style={{ marginBottom: 16, padding: 16, borderWidth: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Tarefas a fazer</Text>
+                  {aFazer.length === 0 ? (
+                    <Text style={{ fontSize: 14, color: colors.textSecondary, paddingVertical: 8 }}>Nenhuma tarefa pendente</Text>
+                  ) : (
+                    aFazer.map((t) => renderTarefa(t, false, true))
+                  )}
+                </GlassCard>
+                <GlassCard colors={colors} style={{ padding: 16, borderWidth: 1, opacity: 0.9 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Tarefas concluídas</Text>
+                  {concluidas.length === 0 ? (
+                    <Text style={{ fontSize: 14, color: colors.textSecondary, paddingVertical: 8 }}>Nenhuma tarefa concluída</Text>
+                  ) : (
+                    concluidas.map((t) => renderTarefa(t, true, false))
+                  )}
+                </GlassCard>
+              </>
+            );
+          })()}
+        </View>
+      ) : filteredItems.length === 0 ? (
         <View style={cs.empty}>
           <Ionicons name={sectionInfo.icon} size={48} color={colors.textSecondary} />
           <Text style={[cs.emptyText, { color: colors.textSecondary }]}>Nenhum item cadastrado</Text>

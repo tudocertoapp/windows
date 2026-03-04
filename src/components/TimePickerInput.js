@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, TextInput, Modal, View, Text, StyleSheet, Platform } from 'react-native';
+import { TouchableOpacity, TextInput, Modal, View, Text, Platform, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 export function TimePickerInput({ value, onChange, placeholder = 'HH:MM', style, colors }) {
@@ -8,12 +8,12 @@ export function TimePickerInput({ value, onChange, placeholder = 'HH:MM', style,
 
   function parseTime(str) {
     if (!str || !str.trim()) return null;
-    const parts = String(str).trim().split(':');
+    const parts = String(str).trim().split(/[:h]/i);
     if (parts.length < 2) return null;
     const h = parseInt(parts[0], 10) || 0;
     const m = parseInt(parts[1], 10) || 0;
     const d = new Date();
-    d.setHours(h, m, 0, 0);
+    d.setHours(Math.min(23, Math.max(0, h)), Math.min(59, Math.max(0, m)), 0, 0);
     return d;
   }
 
@@ -43,7 +43,7 @@ export function TimePickerInput({ value, onChange, placeholder = 'HH:MM', style,
       <TouchableOpacity onPress={openPicker} activeOpacity={0.8}>
         <TextInput
           style={[{ borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 }, style, { borderColor: colors?.border, color: colors?.text, backgroundColor: colors?.bg }]}
-          value={value}
+          value={value || ''}
           placeholder={placeholder}
           placeholderTextColor={colors?.textSecondary}
           editable={false}
@@ -60,8 +60,9 @@ export function TimePickerInput({ value, onChange, placeholder = 'HH:MM', style,
                   mode="time"
                   display="spinner"
                   onChange={handleChange}
+                  locale="pt-BR"
                   textColor={colors?.text || '#1f2937'}
-                  themeVariant={colors?.bg === '#111827' ? 'dark' : 'light'}
+                  themeVariant={colors?.isDarkBg ? 'dark' : 'light'}
                   accentColor={colors?.primary}
                 />
                 <TouchableOpacity style={[s.iosBtn, { backgroundColor: colors?.primary }]} onPress={() => { handleChange(null, tempDate); setShow(false); }}>
@@ -76,7 +77,7 @@ export function TimePickerInput({ value, onChange, placeholder = 'HH:MM', style,
             mode="time"
             display="default"
             onChange={handleChange}
-            themeVariant={colors?.bg === '#111827' ? 'dark' : 'light'}
+            themeVariant={colors?.isDarkBg ? 'dark' : 'light'}
             accentColor={colors?.primary}
           />
         )

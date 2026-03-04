@@ -70,7 +70,7 @@ const TODAS_FORMAS_PAGAMENTO_DESPESA = [...FORMAS_PAGAMENTO_DESPESA, { id: 'tran
 
 export function AddModal({ type, params, onClose }) {
   const { colors } = useTheme();
-  const { addTransaction, addAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, clients, products, services } = useFinance();
+  const { addTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, clients, products, services } = useFinance();
   const { banks, cards, getBankById, getBankName, deductFromBank, addToBank, addToCardBalance } = useBanks();
   const { showEmpresaFeatures } = usePlan();
   const { openBancos } = useMenu();
@@ -82,22 +82,68 @@ export function AddModal({ type, params, onClose }) {
   }, [type, params]);
   useEffect(() => {
     if (type === 'receita') {
-      setTipoVenda('pessoal');
-      setClientId(null);
-      setUseNow(true);
-      setSaleItems([]);
-      setSearchPdv('');
-      setServicePriceModal(null);
-      setFormaPagamento('pix');
-      setReceitaBankId(null);
-      setModoPagamentoMultipla(false);
-      setPaymentSplits([]);
+      const fromEvent = params?.fromAgendaEvent;
+      if (fromEvent && (fromEvent.clientId || fromEvent.serviceId || (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0))) {
+        setTipoVenda('empresa');
+        setClientId(fromEvent.clientId || null);
+        setUseNow(true);
+        setFormaPagamento('pix');
+        setReceitaBankId(null);
+        setModoPagamentoMultipla(false);
+        setPaymentSplits([]);
+        if (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0) {
+          const items = fromEvent.preOrderItems.map((i) => ({
+            id: i.id || ('s-' + (i.serviceId || '') + '-' + String(i.price || 0).replace('.', '_')),
+            name: i.name,
+            price: i.price || 0,
+            discount: i.discount || 0,
+            qty: i.qty || 1,
+            isProduct: i.isProduct === true,
+            allowDiscount: i.isProduct === true,
+          }));
+          setSaleItems(items);
+          const total = items.reduce((s, i) => s + ((i.price || 0) - (i.discount || 0)) * (i.qty || 1), 0);
+          setAmount(total.toFixed(2).replace('.', ','));
+        } else {
+          const amt = Number(fromEvent.amount) || 0;
+          setAmount(amt > 0 ? amt.toFixed(2).replace('.', ',') : '');
+          if (fromEvent.serviceId && services?.length) {
+            const svc = services.find((s) => s.id === fromEvent.serviceId);
+            if (svc) {
+              setSaleItems([{ id: 's-' + svc.id + '-' + String(svc.price || 0).replace('.', '_'), name: svc.name, price: svc.price || amt || 0, discount: 0, qty: 1, isProduct: false, allowDiscount: false }]);
+              setAmount(((svc.price || amt || 0) * 1).toFixed(2).replace('.', ','));
+            } else {
+              setSaleItems([]);
+            }
+          } else {
+            setSaleItems([]);
+          }
+        }
+        setSearchPdv('');
+        setServicePriceModal(null);
+      } else {
+        setTipoVenda('pessoal');
+        setClientId(null);
+        setUseNow(true);
+        setSaleItems([]);
+        setSearchPdv('');
+        setServicePriceModal(null);
+        setFormaPagamento('pix');
+        setReceitaBankId(null);
+        setModoPagamentoMultipla(false);
+        setPaymentSplits([]);
+      }
     }
-  }, [type]);
+  }, [type, params?.fromAgendaEvent, services]);
   useEffect(() => {
     if (type === 'cliente') {
       setPhotoUri(null);
       setClientNivel('orcamento');
+    }
+    if (type === 'tarefa') {
+      const d = new Date();
+      setTaskDate([String(d.getDate()).padStart(2, '0'), String(d.getMonth() + 1).padStart(2, '0'), d.getFullYear()].join('/'));
+      setTaskPriority('media');
     }
   }, [type]);
   useEffect(() => {
@@ -167,6 +213,8 @@ export function AddModal({ type, params, onClose }) {
   const [showAddFormaModalDesp, setShowAddFormaModalDesp] = useState(false);
   const [newFormaNome, setNewFormaNome] = useState('');
   const [showPdvDropdown, setShowPdvDropdown] = useState(false);
+  const [taskDate, setTaskDate] = useState('');
+  const [taskPriority, setTaskPriority] = useState('media');
   const [voiceListening, setVoiceListening] = useState(false);
   const [micPulse] = useState(() => new Animated.Value(1));
 
@@ -269,6 +317,7 @@ export function AddModal({ type, params, onClose }) {
             }
           }
         }
+        if (params?.fromAgendaEvent?.id) updateAgendaEvent(params.fromAgendaEvent.id, { status: 'concluido' });
       } else if (type === 'receita') {
         if ((formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && !receitaBankId) return Alert.alert('Erro', 'Selecione para onde está indo o valor da receita.');
         const dateVal = useNow ? new Date().toISOString().slice(0, 10) : toYMD(date);
@@ -286,6 +335,7 @@ export function AddModal({ type, params, onClose }) {
             addAReceber({ description: descComCliente, amount: parcVal, dueDate: `${String(venc.getDate()).padStart(2, '0')}/${String(venc.getMonth() + 1).padStart(2, '0')}/${venc.getFullYear()}`, parcel: i + 1, total: n, status: 'pendente' });
           }
         }
+        if (params?.fromAgendaEvent?.id) updateAgendaEvent(params.fromAgendaEvent.id, { status: 'concluido' });
       } else if (type === 'despesa') {
         if ((formaPagamentoDespesa === 'debito' || formaPagamentoDespesa === 'transferencia') && !despesaBankId) return Alert.alert('Erro', 'Selecione o banco.');
         if (formaPagamentoDespesa === 'credito' && !despesaCardId) return Alert.alert('Erro', 'Selecione o cartão de crédito.');
@@ -311,7 +361,10 @@ export function AddModal({ type, params, onClose }) {
       addService({ name: name.trim(), price: parseMoney(price), discount: parseMoney(discount), photoUri: photoUri || null });
     } else if (type === 'tarefa') {
       if (!title.trim()) return Alert.alert('Erro', 'Preencha a tarefa.');
-      addCheckListItem({ title: title.trim(), checked: false });
+      const taskDateStr = (taskDate || '').trim();
+      const d = new Date();
+      const defaultDate = [String(d.getDate()).padStart(2, '0'), String(d.getMonth() + 1).padStart(2, '0'), d.getFullYear()].join('/');
+      addCheckListItem({ title: title.trim(), checked: false, date: taskDateStr || defaultDate, priority: taskPriority || 'media' });
     }
     onClose();
   };
@@ -403,7 +456,7 @@ export function AddModal({ type, params, onClose }) {
   if (!type) return null;
 
   return (
-    <Modal visible transparent animationType="fade">
+    <Modal visible={!!type} transparent animationType="fade">
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
@@ -426,9 +479,11 @@ export function AddModal({ type, params, onClose }) {
             </Modal>
           )}
           <View style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8, zIndex: 2 }}>
-            <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
-              <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
-            </TouchableOpacity>
+            {type !== 'tarefa' && (
+              <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
+                <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={onClose}>
               <Ionicons name="close" size={20} color={colors.primary} />
             </TouchableOpacity>
@@ -595,8 +650,15 @@ export function AddModal({ type, params, onClose }) {
                             <>
                               <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, paddingHorizontal: 12, paddingTop: 8, letterSpacing: 0.5 }}>PRODUTOS</Text>
                               {filteredProducts.slice(0, 6).map((p) => (
-                                <TouchableOpacity key={'p-' + p.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: colors.bg, marginHorizontal: 8, marginBottom: 4, borderRadius: 8 }} onPress={() => { playTapSound(); addSaleItem(p, true); setShowPdvDropdown(false); setSearchPdv(''); }}>
-                                  <Text style={{ color: colors.text, fontWeight: '500' }}>{p.name}</Text>
+                                <TouchableOpacity key={'p-' + p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: colors.bg, marginHorizontal: 8, marginBottom: 4, borderRadius: 8 }} onPress={() => { playTapSound(); addSaleItem(p, true); setShowPdvDropdown(false); setSearchPdv(''); }}>
+                                  {p.photoUri ? (
+                                    <Image source={{ uri: p.photoUri }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+                                  ) : (
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                                      <Ionicons name="cube-outline" size={20} color={colors.primary} />
+                                    </View>
+                                  )}
+                                  <Text style={{ color: colors.text, fontWeight: '500', flex: 1 }} numberOfLines={1}>{p.name}</Text>
                                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.primary }}>{formatCurrency(p.price || 0)}</Text>
                                 </TouchableOpacity>
                               ))}
@@ -606,8 +668,15 @@ export function AddModal({ type, params, onClose }) {
                             <>
                               <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, paddingHorizontal: 12, paddingTop: 4, letterSpacing: 0.5 }}>SERVIÇOS</Text>
                               {filteredServices.slice(0, 6).map((s) => (
-                                <TouchableOpacity key={'s-' + s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: colors.bg, marginHorizontal: 8, marginBottom: 4, borderRadius: 8 }} onPress={() => { playTapSound(); setServicePriceModal(s); setShowPdvDropdown(false); setSearchPdv(''); }}>
-                                  <Text style={{ color: colors.text, fontWeight: '500' }}>{s.name}</Text>
+                                <TouchableOpacity key={'s-' + s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: colors.bg, marginHorizontal: 8, marginBottom: 4, borderRadius: 8 }} onPress={() => { playTapSound(); setServicePriceModal(s); setShowPdvDropdown(false); setSearchPdv(''); }}>
+                                  {s.photoUri ? (
+                                    <Image source={{ uri: s.photoUri }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+                                  ) : (
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                                      <Ionicons name="construct-outline" size={20} color={colors.primary} />
+                                    </View>
+                                  )}
+                                  <Text style={{ color: colors.text, fontWeight: '500', flex: 1 }} numberOfLines={1}>{s.name}</Text>
                                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.primary }}>{formatCurrency(s.price || 0)}</Text>
                                 </TouchableOpacity>
                               ))}
@@ -1164,7 +1233,19 @@ export function AddModal({ type, params, onClose }) {
               </>
             )}
             {type === 'tarefa' && (
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Título da tarefa" value={title} onChangeText={setTitle} placeholderTextColor={colors.textSecondary} />
+              <>
+                <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Título da tarefa" value={title} onChangeText={setTitle} placeholderTextColor={colors.textSecondary} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Data</Text>
+                <DatePickerInput value={taskDate} onChange={setTaskDate} colors={colors} style={{ backgroundColor: colors.card }} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Prioridade</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {[{ id: 'baixa', label: 'Baixa' }, { id: 'media', label: 'Média' }, { id: 'alta', label: 'Alta' }, { id: 'urgente', label: 'Urgente' }].map((p) => (
+                    <TouchableOpacity key={p.id} onPress={() => setTaskPriority(p.id)} style={{ flex: 1, minWidth: 70, padding: 10, borderRadius: 10, backgroundColor: taskPriority === p.id ? colors.primary : colors.border, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: taskPriority === p.id ? '#fff' : colors.text }}>{p.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
           </ScrollView>
           {(() => {

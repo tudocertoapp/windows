@@ -15,17 +15,12 @@ const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9)); // 9:16 formato Stories I
 const CTA_PHRASE = 'Sua agenda e finanças em um só lugar! Organize sua vida com o Tudo Certo.';
 
 const BACKGROUNDS = [
-  { id: 'g1', colors: ['#667eea', '#764ba2'], label: 'Roxo' },
-  { id: 'g2', colors: ['#f093fb', '#f5576c'], label: 'Rosa' },
-  { id: 'g3', colors: ['#4facfe', '#00f2fe'], label: 'Céu' },
-  { id: 'g4', colors: ['#43e97b', '#38f9d7'], label: 'Verde' },
-  { id: 'g5', colors: ['#fa709a', '#fee140'], label: 'Pôr do sol' },
-  { id: 'g6', colors: ['#a8edea', '#fed6e3'], label: 'Suave' },
-  { id: 'paisagem1', colors: ['#1e3a5f', '#3498db', '#87CEEB'], label: 'Paisagem' },
-  { id: 'paisagem2', colors: ['#ff7e5f', '#feb47b', '#ffecd2'], label: 'Entardecer' },
-  { id: 'paisagem3', colors: ['#134e5e', '#71b280', '#a8e6cf'], label: 'Natureza' },
-  { id: 'paisagem4', colors: ['#4b79a1', '#283e51', '#667eea'], label: 'Montanha' },
-  { id: 'paisagem5', colors: ['#0f2027', '#203a43', '#2c5364'], label: 'Crepúsculo' },
+  { id: 'roxo', colors: ['#667eea', '#764ba2'], label: 'Roxo' },
+  { id: 'rosa', colors: ['#f093fb', '#f5576c'], label: 'Rosa' },
+  { id: 'ceu', colors: ['#4facfe', '#00f2fe'], label: 'Céu' },
+  { id: 'verde', colors: ['#43e97b', '#38f9d7'], label: 'Verde' },
+  { id: 'pordosol', colors: ['#fa709a', '#fee140'], label: 'Pôr do sol' },
+  { id: 'natureza', colors: ['#134e5e', '#71b280', '#a8e6cf'], label: 'Natureza' },
 ];
 
 const mis = StyleSheet.create({
@@ -124,8 +119,8 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
             )}
           </LinearGradient>
         </ViewShot>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Escolha o fundo (incl. paisagens):</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingHorizontal: 16, flexDirection: 'row', gap: 10 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Escolha o fundo para a imagem:</Text>
+        <View style={[mis.bgGrid, { paddingTop: 12 }]}>
           {BACKGROUNDS.map((b) => (
             <TouchableOpacity
               key={b.id}
@@ -133,8 +128,13 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
                 mis.bgOption,
                 {
                   borderWidth: bg.id === b.id ? 3 : 0,
-                  borderColor: '#fff',
+                  borderColor: colors.primary,
                   overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: bg.id === b.id ? 0.3 : 0.1,
+                  shadowRadius: 4,
+                  elevation: bg.id === b.id ? 4 : 1,
                 },
               ]}
               onPress={() => setBg(b)}
@@ -142,7 +142,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
               <LinearGradient colors={b.colors} style={{ width: '100%', height: '100%', borderRadius: 28 }} />
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Tipo de frase:</Text>
         <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 16, marginTop: 8 }}>
           <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: quoteType === 'motivacional' ? colors.primary : colors.primaryRgba(0.12), borderWidth: quoteType === 'motivacional' ? 0 : 1, borderColor: colors.primary + '80', elevation: quoteType === 'motivacional' ? 4 : 0, shadowColor: colors.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: quoteType === 'motivacional' ? 0.3 : 0, shadowRadius: 4 }} onPress={() => { setQuoteType('motivacional'); setCustomText(''); }}>
@@ -162,6 +162,9 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
           value={customText}
           onChangeText={setCustomText}
           multiline
+          autoCorrect={true}
+          spellCheck={true}
+          autoCapitalize="sentences"
         />
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginTop: 8, gap: 8 }}>
           <TouchableOpacity onPress={() => setShowLogo(!showLogo)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -178,7 +181,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
           </TouchableOpacity>
           <TouchableOpacity style={[mis.shareBtn, { flex: 1, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary }]} onPress={saveToGallery}>
             <Ionicons name="download-outline" size={22} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Cadastrar</Text>
+            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Salvar na galeria</Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 100 }} />

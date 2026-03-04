@@ -38,12 +38,19 @@ ALTER TABLE agenda_events ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'pessoal';
 ALTER TABLE agenda_events ADD COLUMN IF NOT EXISTS time_end TEXT;
 ALTER TABLE agenda_events ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pendente';
 ALTER TABLE agenda_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE agenda_events ADD COLUMN IF NOT EXISTS pre_order_items JSONB DEFAULT '[]';
 
 -- check_list_items
 ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS title TEXT;
 ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS checked BOOLEAN DEFAULT false;
 ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS date TEXT;
+ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS important BOOLEAN DEFAULT false;
 ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'media';
+ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS time_start TEXT;
+ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS time_end TEXT;
+ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE check_list_items ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
 
 -- clients
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS name TEXT;

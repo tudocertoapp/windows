@@ -17,7 +17,6 @@ export function LandingScreen({ onStart }) {
           <Image source={logoImage} style={s.logo} resizeMode="contain" />
           <View style={s.titleRow}>
             <Text style={[s.title, { color: colors.text }]}>TUDO CERTO</Text>
-            <Ionicons name="checkmark-circle" size={36} color={colors.primary} style={{ marginLeft: 8 }} />
           </View>
         </View>
 

@@ -54,7 +54,17 @@ export function BanksProvider({ children }) {
     setCards([]);
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(storageKey);
+        let raw = await AsyncStorage.getItem(storageKey);
+        if (!raw && user?.id) {
+          const guestRaw = await AsyncStorage.getItem(`${STORAGE_BASE}_guest`);
+          if (guestRaw) {
+            const { banks: b, cards: c } = JSON.parse(guestRaw);
+            if ((Array.isArray(b) && b.length > 0) || (Array.isArray(c) && c.length > 0)) {
+              raw = guestRaw;
+              await AsyncStorage.setItem(storageKey, guestRaw);
+            }
+          }
+        }
         if (raw) {
           const { banks: b, cards: c } = JSON.parse(raw);
           setBanks(Array.isArray(b) ? b : []);

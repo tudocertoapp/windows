@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, SafeAreaVi
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { formatCurrency } from '../utils/format';
 
@@ -25,6 +26,9 @@ const ars = StyleSheet.create({
 export function AReceberScreen({ onClose, isModal }) {
   const { aReceber, deleteAReceber, updateAReceber } = useFinance();
   const { colors } = useTheme();
+  const { showEmpresaFeatures } = usePlan();
+  const isVendasPrazo = showEmpresaFeatures;
+  const titleTxt = isVendasPrazo ? 'Vendas a prazo' : 'Valores a receber';
 
   const total = useMemo(() => aReceber.filter((r) => r.status !== 'pago').reduce((s, r) => s + (r.amount || 0), 0), [aReceber]);
 
@@ -48,19 +52,19 @@ export function AReceberScreen({ onClose, isModal }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>A Receber</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{isVendasPrazo ? 'Vendas a prazo' : 'A Receber'}</Text>
           <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="close" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
       ) : (
-        <TopBar title="A Receber" colors={colors} />
+        <TopBar title={isVendasPrazo ? 'Vendas a prazo' : 'A Receber'} colors={colors} />
       )}
       <View style={[ars.header, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
-        <Text style={[ars.title, { color: colors.text }]}>Valores a receber</Text>
+        <Text style={[ars.title, { color: colors.text }]}>{titleTxt}</Text>
       </View>
       <View style={[ars.totalCard, { backgroundColor: colors.primary }]}>
-        <Text style={[ars.totalLabel, { color: 'rgba(255,255,255,0.8)' }]}>TOTAL A RECEBER</Text>
+        <Text style={[ars.totalLabel, { color: 'rgba(255,255,255,0.8)' }]}>{isVendasPrazo ? 'TOTAL VENDAS A PRAZO' : 'TOTAL A RECEBER'}</Text>
         <Text style={[ars.totalValue, { color: '#fff' }]}>{formatCurrency(total)}</Text>
       </View>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -68,7 +72,7 @@ export function AReceberScreen({ onClose, isModal }) {
         {receberPorVencimento.length === 0 ? (
         <View style={ars.empty}>
           <Ionicons name="wallet-outline" size={48} color={colors.textSecondary} />
-          <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum valor a receber</Text>
+          <Text style={{ fontSize: 15, color: colors.textSecondary }}>{isVendasPrazo ? 'Nenhuma venda a prazo' : 'Nenhum valor a receber'}</Text>
           <Text style={{ fontSize: 13, color: colors.textSecondary }}>Use "A prazo" ao registrar receita para gerar parcelas</Text>
         </View>
       ) : (

@@ -53,9 +53,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
         ) : (
           <>
             {!hideLogoIcon && (
-              <View style={[styles.logoCircle, { backgroundColor: colors.primary }]}>
-                <Text style={styles.logoText}>✓</Text>
-              </View>
+              <Image source={logoImage} style={styles.logoImage} resizeMode="contain" />
             )}
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
           </>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,18 +11,20 @@ import { usePlan } from '../contexts/PlanContext';
 import { useBanks } from '../contexts/BanksContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { useMenu } from '../contexts/MenuContext';
+import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
 import { TopBar } from '../components/TopBar';
 import { BanksCarousel } from '../components/BanksCarousel';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
 import { ContasDoMesCard } from '../components/ContasDoMesCard';
+import { ResumoDoMesCard } from '../components/ResumoDoMesCard';
 import { TransacoesCard } from '../components/TransacoesCard';
 import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
 import { GlassCard } from '../components/GlassCard';
 import { PieChart } from '../components/charts/PieChart';
 import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasDespesas';
 import { LineChartSaldo } from '../components/charts/LineChartSaldo';
-import { CATEGORY_COLORS } from '../constants/colors';
+import { getCategoryColor } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
@@ -112,17 +114,25 @@ function getBankGrad(bank) {
 
 
 export function DinheiroScreen({ route }) {
-  const { transactions, boletos } = useFinance();
+  const { transactions, boletos, checkListItems, agendaEvents, clients } = useFinance();
   const { colors } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, getBankName, getCardsByBankId } = useBanks();
   const { profile } = useProfile();
   const { openBancos } = useMenu();
-  const [showValues, setShowValues] = useState(true);
+  const { showValues, toggleValues } = useValuesVisibility();
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_DINHEIRO_SECTIONS);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [balanceFilter, setBalanceFilter] = useState('mes');
   const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
+  const [periodStart, setPeriodStart] = useState(() => {
+    const d = new Date(new Date().getFullYear(), 0, 1);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  });
+  const [periodEnd, setPeriodEnd] = useState(() => {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  });
 
   useEffect(() => {
     AsyncStorage.getItem(DINHEIRO_SECTIONS_KEY).then((raw) => {
@@ -150,10 +160,29 @@ export function DinheiroScreen({ route }) {
     return transactions.filter((t) => (t.tipoVenda || 'pessoal') === viewMode);
   }, [transactions, viewMode, canToggleView]);
 
+  const parseDateStr = useCallback((str) => {
+    if (!str || !String(str).trim()) return null;
+    const parts = String(str).trim().split(/[/\-]/);
+    if (parts.length < 3) return null;
+    const day = parseInt(parts[0], 10) || 1;
+    const month = (parseInt(parts[1], 10) || 1) - 1;
+    const year = parseInt(parts[2], 10) || new Date().getFullYear();
+    return new Date(year, month, day);
+  }, []);
+
   const periodTx = useMemo(() => {
     const ref = balanceFilterDate;
     return filteredTx.filter((t) => {
       const d = new Date(t.date);
+      d.setHours(0, 0, 0, 0);
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return d >= start && d <= end;
+      }
       if (balanceFilter === 'dia') {
         return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
       }
@@ -162,7 +191,7 @@ export function DinheiroScreen({ route }) {
       }
       return d.getFullYear() === ref.getFullYear();
     });
-  }, [filteredTx, balanceFilter, balanceFilterDate]);
+  }, [filteredTx, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
 
   const monthTx = periodTx;
 
@@ -202,12 +231,33 @@ export function DinheiroScreen({ route }) {
   const carouselBanks = useMemo(() => filteredBanks.slice(0, 8), [filteredBanks]);
 
   const contasStatus = useMemo(() => {
+    const ref = balanceFilterDate;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     let pagas = { qty: 0, valor: 0 };
     let aVencer = { qty: 0, valor: 0 };
     let vencidas = { qty: 0, valor: 0 };
-    const list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    let list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    list = list.filter((b) => {
+      const d = parseBoletoDate(b.dueDate);
+      if (!d) return false;
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        d.setHours(0, 0, 0, 0);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+        return d >= start && d <= end;
+      }
+      if (balanceFilter === 'dia') {
+        return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      if (balanceFilter === 'mes') {
+        return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      }
+      return d.getFullYear() === ref.getFullYear();
+    });
     list.forEach((b) => {
       const d = parseBoletoDate(b.dueDate);
       const amt = Number(b.amount) || 0;
@@ -225,13 +275,50 @@ export function DinheiroScreen({ route }) {
       }
     });
     return { pagas, aVencer, vencidas };
-  }, [boletos, viewMode, showEmpresaFeatures]);
+  }, [boletos, viewMode, showEmpresaFeatures, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
 
-  const balanceFilterLabel = balanceFilter === 'dia'
-    ? balanceFilterDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-    : balanceFilter === 'mes'
-      ? balanceFilterDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-      : balanceFilterDate.getFullYear().toString();
+  const resumoStats = useMemo(() => {
+    const ref = balanceFilterDate;
+    const parseAgendaDate = (str) => {
+      if (!str) return null;
+      const parts = String(str).trim().split(/[/\-]/);
+      if (parts.length < 3) return null;
+      const day = parseInt(parts[0], 10) || 1;
+      const month = (parseInt(parts[1], 10) || 1) - 1;
+      const year = parseInt(parts[2], 10) || new Date().getFullYear();
+      return new Date(year, month, day);
+    };
+    const inPeriod = (d) => {
+      if (!d) return false;
+      const date = d instanceof Date ? d : (typeof d === 'string' ? parseAgendaDate(d) || new Date(d) : new Date(d));
+      date.setHours(0, 0, 0, 0);
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return date >= start && date <= end;
+      }
+      if (balanceFilter === 'dia') return date.getDate() === ref.getDate() && date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+      if (balanceFilter === 'mes') return date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+      return date.getFullYear() === ref.getFullYear();
+    };
+    const vendas = monthTx.filter((t) => t.type === 'income').length;
+    const agendas = (agendaEvents || []).filter((e) => inPeriod(e.date)).length;
+    const tarefasConcluidas = (checkListItems || []).filter((t) => t.checked).length;
+    const novosClientes = (clients || []).filter((c) => c.createdAt && inPeriod(new Date(c.createdAt))).length;
+    const faturasPagas = contasStatus.pagas.qty;
+    return { vendas, agendas, tarefasConcluidas, novosClientes, faturasPagas };
+  }, [monthTx, agendaEvents, checkListItems, clients, contasStatus.pagas.qty, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
+
+  const balanceFilterLabel = balanceFilter === 'periodo'
+    ? `${periodStart} a ${periodEnd}`
+    : balanceFilter === 'dia'
+      ? balanceFilterDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+      : balanceFilter === 'mes'
+        ? balanceFilterDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+        : balanceFilterDate.getFullYear().toString();
 
   const adjustBalanceFilterDate = (delta) => {
     const d = new Date(balanceFilterDate);
@@ -253,11 +340,14 @@ export function DinheiroScreen({ route }) {
           colors={colors}
           filter={balanceFilter}
           filterLabel={balanceFilterLabel}
+          filterStartDate={periodStart}
+          filterEndDate={periodEnd}
           onFilterChange={(f) => { setBalanceFilter(f); setBalanceFilterDate(new Date()); }}
           onFilterDatePrev={() => adjustBalanceFilterDate(-1)}
           onFilterDateNext={() => adjustBalanceFilterDate(1)}
+          onFilterPeriodChange={(start, end) => { setPeriodStart(start); setPeriodEnd(end); }}
           showValues={showValues}
-          onToggleValues={() => setShowValues(!showValues)}
+          onToggleValues={() => { playTapSound(); toggleValues(); }}
         />
       </View>
     ),
@@ -327,26 +417,23 @@ export function DinheiroScreen({ route }) {
     ),
     graficos: (
           <View key="graficos" style={{ padding: 16, gap: 0 }}>
-            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
-              <Text style={[dns.sectionTitle, { color: colors.text }]}>Resumo do mês</Text>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '40' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary }}>RECEITAS</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.primary, marginTop: 4 }}>{mask(fmt(income))}</Text>
-                </View>
-                <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary }}>DESPESAS</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#ef4444', marginTop: 4 }}>{mask(fmt(expense))}</Text>
-                </View>
-                <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.border + '40', borderWidth: 1, borderColor: colors.border }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary }}>SALDO</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: balance >= 0 ? colors.primary : '#ef4444', marginTop: 4 }}>{mask(fmt(balance))}</Text>
-                </View>
-              </View>
-              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 8 }}>
-                {prevIncome > 0 || prevExpense > 0 ? `Mês anterior: +${mask(fmt(prevIncome))} / -${mask(fmt(prevExpense))}` : 'Sem dados do mês anterior'}
-              </Text>
-            </GlassCard>
+            <View style={{ marginBottom: 16 }}>
+              <ResumoDoMesCard
+                income={income}
+                expense={expense}
+                balance={balance}
+                formatCurrency={fmt}
+                mask={mask}
+                colors={colors}
+                vendas={resumoStats.vendas}
+                agendas={resumoStats.agendas}
+                tarefasConcluidas={resumoStats.tarefasConcluidas}
+                novosClientes={resumoStats.novosClientes}
+                faturasPagas={resumoStats.faturasPagas}
+                prevIncome={prevIncome}
+                prevExpense={prevExpense}
+              />
+            </View>
             <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Receitas vs Despesas</Text>
@@ -373,7 +460,7 @@ export function DinheiroScreen({ route }) {
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16, gap: 8 }}>
                     {catExpenses.map(([cat]) => (
                       <View key={cat} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-                        <View style={[dns.catDot, { backgroundColor: CATEGORY_COLORS[cat] || colors.primary }]} />
+                        <View style={[dns.catDot, { backgroundColor: getCategoryColor(cat) }]} />
                         <Text style={{ fontSize: 12, color: colors.text }}>{cat}</Text>
                       </View>
                     ))}
@@ -394,7 +481,7 @@ export function DinheiroScreen({ route }) {
                       <View key={cat} style={{ marginBottom: 16 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <View style={[dns.catDot, { backgroundColor: CATEGORY_COLORS[cat] || colors.primary }]} />
+                            <View style={[dns.catDot, { backgroundColor: getCategoryColor(cat) }]} />
                             <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>{cat}</Text>
                           </View>
                           <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>
@@ -402,7 +489,7 @@ export function DinheiroScreen({ route }) {
                           </Text>
                         </View>
                         <View style={[dns.progressBarChart, { backgroundColor: colors.border }]}>
-                          <View style={[dns.progressFill, { width: `${barW}%`, backgroundColor: CATEGORY_COLORS[cat] || colors.primary }]} />
+                          <View style={[dns.progressFill, { width: `${barW}%`, backgroundColor: getCategoryColor(cat) }]} />
                         </View>
                       </View>
                     );

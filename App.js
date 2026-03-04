@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -9,10 +10,14 @@ import { FinanceProvider, useFinance } from './src/contexts/FinanceContext';
 import { PlanProvider } from './src/contexts/PlanContext';
 import { ProfileProvider } from './src/contexts/ProfileContext';
 import { BanksProvider } from './src/contexts/BanksContext';
+import { BudgetProvider } from './src/contexts/BudgetContext';
+import { NotesProvider } from './src/contexts/NotesContext';
 import { ReminderProvider } from './src/contexts/ReminderContext';
+import { ValuesVisibilityProvider } from './src/contexts/ValuesVisibilityContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { SplashScreen } from './src/components/SplashScreen';
 
 function AppWithReminders() {
   const { agendaEvents, aReceber } = useFinance();
@@ -26,12 +31,26 @@ function AppWithReminders() {
 function AppContent() {
   const { user, isGuest, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  const [postLoginSplash, setPostLoginSplash] = useState(false);
+  const hadUserRef = useRef(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (user || isGuest) {
+      if (!hadUserRef.current && showLogin) setPostLoginSplash(true);
+      hadUserRef.current = true;
+    } else hadUserRef.current = false;
+  }, [user, isGuest, showLogin]);
+
+  const showSplash = loading || !splashDone || postLoginSplash;
+
+  if (showSplash) {
     return (
-      <View style={[s.loading, { backgroundColor: '#111827' }]}>
-        <ActivityIndicator size="large" color="#10b981" />
-      </View>
+      <SplashScreen
+        duration={4000}
+        onFinish={() => { setSplashDone(true); setPostLoginSplash(false); }}
+        backgroundColor="#111827"
+      />
     );
   }
 
@@ -44,13 +63,19 @@ function AppContent() {
 
   return (
     <FinanceProvider>
-      <BanksProvider>
-        <PlanProvider>
-          <ProfileProvider>
-            <AppWithReminders />
-          </ProfileProvider>
-        </PlanProvider>
-      </BanksProvider>
+      <BudgetProvider>
+        <NotesProvider>
+        <BanksProvider>
+          <PlanProvider>
+            <ProfileProvider>
+              <ValuesVisibilityProvider>
+                <AppWithReminders />
+              </ValuesVisibilityProvider>
+            </ProfileProvider>
+          </PlanProvider>
+        </BanksProvider>
+        </NotesProvider>
+      </BudgetProvider>
     </FinanceProvider>
   );
 }
@@ -63,15 +88,17 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <LanguageProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

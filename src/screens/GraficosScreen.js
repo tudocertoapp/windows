@@ -9,7 +9,7 @@ import { ViewModeToggle } from '../components/ViewModeToggle';
 import { PieChart } from '../components/charts/PieChart';
 import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasDespesas';
 import { LineChartSaldo } from '../components/charts/LineChartSaldo';
-import { CATEGORY_COLORS } from '../constants/colors';
+import { getCategoryColor } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
 
 const ds = StyleSheet.create({
@@ -160,7 +160,7 @@ export function GraficosScreen() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16, gap: 8 }}>
                   {catBreakdown.map(([cat]) => (
                     <View key={cat} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-                      <View style={[ds.catDot, { backgroundColor: CATEGORY_COLORS[cat] || colors.primary }]} />
+                      <View style={[ds.catDot, { backgroundColor: getCategoryColor(cat) }]} />
                       <Text style={{ fontSize: 12, color: colors.text }}>{cat}</Text>
                     </View>
                   ))}
@@ -183,7 +183,7 @@ export function GraficosScreen() {
                     <View key={cat} style={{ marginBottom: 16 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <View style={[ds.catDot, { backgroundColor: CATEGORY_COLORS[cat] || colors.primary }]} />
+                          <View style={[ds.catDot, { backgroundColor: getCategoryColor(cat) }]} />
                           <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>{cat}</Text>
                         </View>
                         <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>
@@ -191,7 +191,7 @@ export function GraficosScreen() {
                         </Text>
                       </View>
                       <View style={[dns.progressBar, { backgroundColor: colors.border }]}>
-                        <View style={[dns.progressFill, { width: `${barW}%`, backgroundColor: CATEGORY_COLORS[cat] || colors.primary }]} />
+                        <View style={[dns.progressFill, { width: `${barW}%`, backgroundColor: getCategoryColor(cat) }]} />
                       </View>
                     </View>
                   );

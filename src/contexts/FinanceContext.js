@@ -27,6 +27,11 @@ function toTransaction(r) {
 }
 function toAgenda(r) {
   if (!r) return null;
+  let preOrderItems = [];
+  if (r.pre_order_items) {
+    if (Array.isArray(r.pre_order_items)) preOrderItems = r.pre_order_items;
+    else if (typeof r.pre_order_items === 'string') try { preOrderItems = JSON.parse(r.pre_order_items) || []; } catch { preOrderItems = []; }
+  }
   return {
     id: r.id,
     title: r.title,
@@ -40,15 +45,24 @@ function toAgenda(r) {
     amount: Number(r.amount || 0),
     tipo: r.tipo || 'pessoal',
     status: r.status || 'pendente',
+    preOrderItems,
   };
 }
 function toCheckList(r) {
   if (!r) return null;
-  return { id: r.id, title: r.title, checked: r.checked, date: r.date };
+  return {
+    id: r.id, title: r.title, checked: r.checked, date: r.date, important: r.important ?? false,
+    priority: r.priority || 'media', timeStart: r.time_start, timeEnd: r.time_end,
+    description: r.description, sortOrder: r.sort_order ?? 0,
+  };
 }
 function toClient(r) {
   if (!r) return null;
-  return { id: r.id, name: r.name, email: r.email, phone: r.phone, foto: r.foto, nivel: r.nivel };
+  let tags = [];
+  if (r.tags) {
+    tags = Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? (() => { try { return JSON.parse(r.tags) || []; } catch { return []; } })() : []);
+  }
+  return { id: r.id, name: r.name, email: r.email, phone: r.phone, foto: r.foto, nivel: r.nivel, tags, createdAt: r.created_at };
 }
 function toProduct(r) {
   if (!r) return null;
@@ -200,9 +214,11 @@ export function FinanceProvider({ children }) {
         timeEnd: e.timeEnd,
         amount: e.amount ?? 0,
         tipo: e.tipo || 'pessoal',
+        type: e.type || 'evento',
         clientId: e.clientId,
         serviceId: e.serviceId,
         status: e.status || 'pendente',
+        preOrderItems: e.preOrderItems || [],
       };
       setAgendaEvents((prev) => [...prev, ev]);
       return;
@@ -220,6 +236,7 @@ export function FinanceProvider({ children }) {
       amount: e.amount ?? 0,
       tipo: e.tipo || 'pessoal',
       status: e.status || 'pendente',
+      pre_order_items: Array.isArray(e.preOrderItems) ? e.preOrderItems : [],
     };
     const { data, error } = await supabase.from('agenda_events').insert(payload).select('*').single();
     if (error) return showDbError(error, 'cadastrar evento');
@@ -228,17 +245,18 @@ export function FinanceProvider({ children }) {
   const updateAgendaEvent = async (id, data) => {
     if (!user) return setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
     const up = {};
-    if (data.title != null) up.title = data.title;
-    if (data.description != null) up.description = data.description;
-    if (data.date != null) up.date = data.date;
-    if (data.time != null) up.time = data.time;
-    if (data.timeEnd != null) up.time_end = data.timeEnd;
-    if (data.type != null) up.type = data.type;
-    if (data.clientId != null) up.client_id = data.clientId;
-    if (data.serviceId != null) up.service_id = data.serviceId;
-    if (data.amount != null) up.amount = data.amount;
-    if (data.tipo != null) up.tipo = data.tipo;
-    if (data.status != null) up.status = data.status;
+    if (data.title !== undefined) up.title = data.title;
+    if (data.description !== undefined) up.description = data.description;
+    if (data.date !== undefined) up.date = data.date;
+    if (data.time !== undefined) up.time = data.time;
+    if (data.timeEnd !== undefined) up.time_end = data.timeEnd;
+    if (data.type !== undefined) up.type = data.type;
+    if (data.clientId !== undefined) up.client_id = data.clientId;
+    if (data.serviceId !== undefined) up.service_id = data.serviceId;
+    if (data.amount !== undefined) up.amount = data.amount;
+    if (data.tipo !== undefined) up.tipo = data.tipo;
+    if (data.status !== undefined) up.status = data.status;
+    if (data.preOrderItems !== undefined) up.pre_order_items = Array.isArray(data.preOrderItems) ? data.preOrderItems : [];
     await supabase.from('agenda_events').update(up).eq('id', id);
     setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
@@ -250,21 +268,39 @@ export function FinanceProvider({ children }) {
 
   const addCheckListItem = async (item) => {
     if (!user) {
-      setCheckListItems((prev) => [...prev, { ...item, id: Date.now().toString() }]);
+      const maxOrder = Math.max(0, ...(checkListItems || []).map((i) => (i.sortOrder ?? 0)));
+      setCheckListItems((prev) => [...prev, { ...item, id: Date.now().toString(), sortOrder: item.sortOrder ?? maxOrder + 1 }]);
       return;
     }
+    const maxOrder = Math.max(0, ...checkListItems.map((i) => (i.sortOrder ?? 0)));
     const { data, error } = await supabase.from('check_list_items').insert({
       user_id: user.id,
       title: item.title,
       checked: item.checked ?? false,
       date: item.date,
+      important: item.important ?? false,
+      priority: item.priority || 'media',
+      time_start: item.timeStart || null,
+      time_end: item.timeEnd || null,
+      description: item.description || null,
+      sort_order: item.sortOrder ?? maxOrder + 1,
     }).select('*').single();
     if (error) return showDbError(error, 'cadastrar tarefa');
     if (data) setCheckListItems((prev) => [...prev, toCheckList(data)]);
   };
   const updateCheckListItem = async (id, data) => {
     if (!user) return setCheckListItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...data } : i)));
-    await supabase.from('check_list_items').update(data).eq('id', id);
+    const up = {};
+    if (data.title !== undefined) up.title = data.title;
+    if (data.checked !== undefined) up.checked = data.checked;
+    if (data.date !== undefined) up.date = data.date;
+    if (data.important !== undefined) up.important = data.important;
+    if (data.priority !== undefined) up.priority = data.priority;
+    if (data.timeStart !== undefined) up.time_start = data.timeStart;
+    if (data.timeEnd !== undefined) up.time_end = data.timeEnd;
+    if (data.description !== undefined) up.description = data.description;
+    if (data.sortOrder !== undefined) up.sort_order = data.sortOrder;
+    if (Object.keys(up).length > 0) await supabase.from('check_list_items').update(up).eq('id', id);
     setCheckListItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...data } : i)));
   };
   const deleteCheckListItem = async (id) => {
@@ -274,9 +310,10 @@ export function FinanceProvider({ children }) {
   };
 
   const addClient = async (c) => {
+    const tagsArr = Array.isArray(c.tags) ? c.tags : [];
     if (!user) {
       const id = Date.now().toString();
-      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, nivel: c.nivel || 'orcamento' }]);
+      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, nivel: c.nivel || 'orcamento', tags: tagsArr }]);
       return id;
     }
     const { data, error } = await supabase.from('clients').insert({
@@ -286,6 +323,7 @@ export function FinanceProvider({ children }) {
       phone: c.phone,
       foto: c.foto || null,
       nivel: c.nivel || 'orcamento',
+      tags: tagsArr,
     }).select('*').single();
     if (error) { showDbError(error, 'cadastrar cliente'); return null; }
     if (data) { setClients((prev) => [...prev, toClient(data)]); return data.id; }

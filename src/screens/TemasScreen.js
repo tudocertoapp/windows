@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, BACKGROUND_COLORS } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
+import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 import { FREE_COLORS } from '../contexts/ThemeContext';
@@ -128,8 +129,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
   const {
     primaryColor,
     setPrimaryColor,
-    secondaryColor,
-    setSecondaryColor,
+    themeMode,
     customBgColor,
     setCustomBgColor,
     colors,
@@ -140,6 +140,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
     maxFavorites,
   } = useTheme();
   const { isEmpresa } = usePlan();
+  const { updateProfile } = useProfile();
   const hasPremiumColors = isEmpresa;
   const [showCreateColor, setShowCreateColor] = useState(false);
   const PICKER_LIGHTNESS = 50;
@@ -161,6 +162,14 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
 
   const pickerHex = hslToHex(pickerHue, pickerSat, PICKER_LIGHTNESS);
 
+  const saveThemeToProfile = (updates) => {
+    updateProfile({
+      primary_color: updates.primary_color ?? primaryColor,
+      theme_mode: updates.theme_mode ?? themeMode,
+      custom_bg: updates.custom_bg ?? customBgColor,
+    }).catch(() => {});
+  };
+
   const handleSelectColor = (hex, isLocked) => {
     if (isLocked) {
       playTapSound();
@@ -169,6 +178,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
     }
     playTapSound();
     setPrimaryColor(hex);
+    saveThemeToProfile({ primary_color: hex });
   };
 
   const handlePickerChange = (h, s) => {
@@ -177,6 +187,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
     const hex = hslToHex(h, s, PICKER_LIGHTNESS);
     setCustomHex(hex);
     setPrimaryColor(hex);
+    saveThemeToProfile({ primary_color: hex });
   };
 
   const handleHexInputChange = (text) => {
@@ -186,7 +197,9 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
       const { h, s } = hexToHsl(hex);
       setPickerHue(h);
       setPickerSat(Math.max(40, Math.min(90, s)));
-      setPrimaryColor(hex.toUpperCase());
+      const hexUp = hex.toUpperCase();
+      setPrimaryColor(hexUp);
+      saveThemeToProfile({ primary_color: hexUp });
     }
   };
 
@@ -256,7 +269,11 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
                   <TouchableOpacity
                     key={item.id}
                     style={[ts.colorGridItem, { backgroundColor: item.hex, borderColor: colors.border }, sel && ts.colorGridItemSelected]}
-                    onPress={() => { playTapSound(); setCustomBgColor(item.hex); }}
+                    onPress={() => {
+                      playTapSound();
+                      setCustomBgColor(item.hex);
+                      saveThemeToProfile({ custom_bg: item.hex });
+                    }}
                   >
                     {sel && <Ionicons name="checkmark" size={20} color={checkColor} />}
                   </TouchableOpacity>
@@ -331,7 +348,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
                   <TouchableOpacity
                     key={item.id}
                     style={[ts.colorGridItem, { backgroundColor: item.hex }, sel && ts.colorGridItemSelected]}
-                    onPress={() => handleSelectColor(item.hex, locked)}
+                    onPress={() => { handleSelectColor(item.hex, locked); }}
                   >
                     {sel && !locked && <Ionicons name="checkmark" size={20} color={checkColor} />}
                   </TouchableOpacity>
