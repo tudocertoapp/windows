@@ -75,3 +75,86 @@ export function parseExpenseVoice(transcript) {
 
   return result;
 }
+
+/**
+ * Detecta intenção da fala e extrai dados para abrir o formulário correto.
+ * Ex: "gastei 50 reais com pão na padaria, gasto pessoal" -> { type: 'despesa', params: { amount: '50,00', description: 'Pão', categoryDesp: 'alimentacao', subcategoryDesp: 'Padaria', tipoVenda: 'pessoal' } }
+ * Ex: "receita de 200 vendi produto empresa" -> { type: 'receita', params: { amount: '200,00', tipoVenda: 'empresa' } }
+ */
+export function parseVoiceIntent(transcript) {
+  const t = (transcript || '').trim().toLowerCase();
+  if (!t) return null;
+
+  const result = { type: null, params: {} };
+
+  if (/\b(receita|entrada|entrou|ganhei|recebi|vendi|venda)\b/.test(t)) {
+    result.type = 'receita';
+    const amount = extractAmount(transcript);
+    if (amount != null) result.params.amount = amount.toFixed(2).replace('.', ',');
+    if (/empresa|empresarial/.test(t)) result.params.tipoVenda = 'empresa';
+    else if (/pessoal/.test(t)) result.params.tipoVenda = 'pessoal';
+    const descParts = t.replace(/\b(receita|entrada|ganhei|recebi|vendi|venda|empresa|pessoal|reais|real)\b/gi, '').replace(/[\d,\.]+/g, '').trim().split(/\s+/).filter(Boolean);
+    if (descParts.length) result.params.description = descParts.join(' ').replace(/\s+/g, ' ').trim();
+    if (result.params.description) result.params.description = result.params.description.charAt(0).toUpperCase() + result.params.description.slice(1);
+    return result;
+  }
+
+  if (/\b(despesa|saída|saida|gastei|paguei|gasto)\b/.test(t)) {
+    result.type = 'despesa';
+    const parsed = parseExpenseVoice(transcript);
+    if (parsed.amount) result.params.amount = parsed.amount;
+    if (parsed.description) result.params.description = parsed.description;
+    if (parsed.categoryDesp) result.params.categoryDesp = parsed.categoryDesp;
+    if (parsed.subcategoryDesp) result.params.subcategoryDesp = parsed.subcategoryDesp;
+    if (parsed.tipoVenda) result.params.tipoVenda = parsed.tipoVenda;
+    return result;
+  }
+
+  if (/\b(novo\s+)?cliente\b/.test(t)) {
+    result.type = 'cliente';
+    return result;
+  }
+  if (/\b(evento|agenda|compromisso|reunião|reuniao|agendamento)\b/.test(t)) {
+    result.type = 'agenda';
+    return result;
+  }
+  if (/\b(novo\s+)?produto\b/.test(t)) {
+    result.type = 'produto';
+    return result;
+  }
+  if (/\b(novo\s+)?servi[çc]o\b/.test(t)) {
+    result.type = 'servico';
+    return result;
+  }
+  if (/\b(novo\s+)?fornecedor\b/.test(t)) {
+    result.type = 'fornecedor';
+    return result;
+  }
+  if (/\b(fatura|boleto|boletos)\b/.test(t)) {
+    result.type = 'fatura';
+    return result;
+  }
+  if (/\btarefa\b/.test(t)) {
+    result.type = 'tarefa';
+    return result;
+  }
+
+  const amount = extractAmount(transcript);
+  if (amount != null && amount > 0) {
+    if (/\b(gastei|paguei|gasto|despesa)\b/.test(t)) {
+      result.type = 'despesa';
+      const parsed = parseExpenseVoice(transcript);
+      result.params = { amount: parsed.amount || amount.toFixed(2).replace('.', ','), description: parsed.description, categoryDesp: parsed.categoryDesp, subcategoryDesp: parsed.subcategoryDesp, tipoVenda: parsed.tipoVenda };
+    } else if (/\b(recebi|ganhei|receita|vendi)\b/.test(t)) {
+      result.type = 'receita';
+      result.params = { amount: amount.toFixed(2).replace('.', ',') };
+    } else {
+      result.type = 'despesa';
+      const parsed = parseExpenseVoice(transcript);
+      result.params = { amount: amount.toFixed(2).replace('.', ','), description: parsed.description, categoryDesp: parsed.categoryDesp, subcategoryDesp: parsed.subcategoryDesp, tipoVenda: parsed.tipoVenda || 'pessoal' };
+    }
+    return result;
+  }
+
+  return null;
+}

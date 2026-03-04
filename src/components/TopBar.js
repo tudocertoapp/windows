@@ -28,7 +28,7 @@ export const topBarStyles = StyleSheet.create({
 
 const styles = topBarStyles;
 
-export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, extendToTop = true, hideMenu, hideLogoIcon }) {
+export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, extendToTop = true, hideMenu, hideLogoIcon }) {
   const { openMenu, openPerfil } = useMenu();
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
@@ -60,9 +60,18 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {onCalculadora ? (
+          <TouchableOpacity
+            style={{ padding: 8, backgroundColor: 'transparent' }}
+            onPress={() => { playTapSound(); onCalculadora(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <AppIcon name="calculator-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
         {onManageCards ? (
           <TouchableOpacity
-            style={{ padding: 8 }}
+            style={{ padding: 8, backgroundColor: 'transparent' }}
             onPress={() => { playTapSound(); onManageCards(); }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >

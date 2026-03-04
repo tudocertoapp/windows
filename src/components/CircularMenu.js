@@ -7,7 +7,7 @@ import { playTapSound } from '../utils/sounds';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
-const ROTATION_BASE_DURATION = 60000;
+const ROTATION_BASE_DURATION = 22000;
 const RADIUS = 140;
 
 export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant }) {

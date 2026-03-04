@@ -45,9 +45,11 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@types/react": "~19.1.10",
     "jimp": "^1.6.0",
     "patch-package": "^8.0.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "typescript": "~5.9.2"
   },
   "private": true,
   "name": "tudo-certo",

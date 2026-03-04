@@ -115,7 +115,7 @@ function getBankGrad(bank) {
 
 export function DinheiroScreen({ route }) {
   const { transactions, boletos, checkListItems, agendaEvents, clients } = useFinance();
-  const { colors } = useTheme();
+  const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, getBankName, getCardsByBankId } = useBanks();
   const { profile } = useProfile();
@@ -338,6 +338,7 @@ export function DinheiroScreen({ route }) {
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
+          lightBackground={themeMode === 'light'}
           filter={balanceFilter}
           filterLabel={balanceFilterLabel}
           filterStartDate={periodStart}
@@ -352,7 +353,7 @@ export function DinheiroScreen({ route }) {
       </View>
     ),
     contas: (
-      <View key="contas" style={{ marginTop: 16 }}>
+      <View key="contas">
         <ContasDoMesCard
           contasPagas={contasStatus.pagas}
           contasAVencer={contasStatus.aVencer}
@@ -360,6 +361,7 @@ export function DinheiroScreen({ route }) {
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
+          lightBackground={themeMode === 'light'}
         />
       </View>
     ),
@@ -416,7 +418,7 @@ export function DinheiroScreen({ route }) {
       </View>
     ),
     graficos: (
-          <View key="graficos" style={{ padding: 16, gap: 0 }}>
+          <View key="graficos" style={{ marginTop: 16, padding: 16, gap: 0 }}>
             <View style={{ marginBottom: 16 }}>
               <ResumoDoMesCard
                 income={income}

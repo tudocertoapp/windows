@@ -4,8 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 
-const NIVEL_LABELS = { orcamento: 'Orçamento', lead: 'Lead', fechou: 'Fechou' };
-
 const ETIQUETAS_GERAL = [
   { id: 'favoritos', label: 'Favoritos', icon: 'heart-outline', color: null },
   { id: 'importante', label: 'Importante', icon: null, color: '#ef4444' },
@@ -22,12 +20,15 @@ const ETIQUETAS_SUGESTOES = [
   { id: 'lead', label: 'Lead', icon: null, color: '#0d9488' },
 ];
 
+const FIELD_GAP = 16;
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  box: { width: '100%', maxWidth: 360, maxHeight: '90%', borderRadius: 20, padding: 20, gap: 12 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  box: { width: '100%', maxWidth: 360, maxHeight: '90%', borderRadius: 20, padding: 20 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  title: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   closeBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
 });
@@ -39,7 +40,6 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [foto, setFoto] = useState(null);
-  const [nivel, setNivel] = useState('orcamento');
   const [tags, setTags] = useState([]);
   const [showEtiquetasPicker, setShowEtiquetasPicker] = useState(false);
 
@@ -57,7 +57,6 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
         setPhone(cliente.phone || '');
         setAddress(cliente.address || '');
         setFoto(cliente.foto || null);
-        setNivel(cliente.nivel || 'orcamento');
         setTags(Array.isArray(cliente.tags) ? cliente.tags : []);
       } else {
         setName('');
@@ -65,7 +64,6 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
         setPhone('');
         setAddress('');
         setFoto(null);
-        setNivel('orcamento');
         setTags([]);
       }
     }
@@ -78,9 +76,15 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
     if (!result.canceled) setFoto(result.assets[0].uri);
   };
 
+  const nivelFromTags = () => {
+    if (tags.includes('lead')) return 'lead';
+    if (tags.some((t) => ['pago', 'pedido_finalizado'].includes(t))) return 'fechou';
+    return 'orcamento';
+  };
+
   const handleSave = () => {
     if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
-    onSave({ name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim(), foto: foto || null, nivel: nivel || 'orcamento', tags });
+    onSave({ name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim(), foto: foto || null, nivel: nivelFromTags(), tags });
     onClose();
   };
 
@@ -91,17 +95,19 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
-            <View style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8, zIndex: 1 }}>
-              <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
-                <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={onClose}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <View style={[styles.titleRow, { flex: 1 }]}>
+                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2) ?? (colors.primary + '25'), justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="person-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={[styles.title, { color: colors.text }]}>{isEdit ? 'Editar cliente' : 'Novo cliente'}</Text>
+              </View>
+              <TouchableOpacity style={[styles.closeBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]} onPress={onClose}>
                 <Ionicons name="close" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.title, { color: colors.text }]}>{isEdit ? 'Editar cliente' : 'Novo cliente'}</Text>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 480 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Foto do cliente</Text>
+            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
+              <Text style={[styles.label, { color: colors.text }]}>Foto do cliente</Text>
               <TouchableOpacity onPress={pickFoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
                 {foto ? (
                   <Image source={{ uri: foto }} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
@@ -112,22 +118,15 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
                 )}
                 <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{foto ? 'Trocar foto' : 'Carregar foto'}</Text>
               </TouchableOpacity>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Nível / Status</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {['orcamento', 'lead', 'fechou'].map((n) => (
-                  <TouchableOpacity key={n} onPress={() => setNivel(n)} style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: nivel === n ? colors.primary : colors.border, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: nivel === n ? '#fff' : colors.text }}>{NIVEL_LABELS[n]}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginTop: 8 }}>Etiquetas</Text>
-              <TouchableOpacity onPress={() => setShowEtiquetasPicker(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.bg }}>
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Nível / Status (etiquetas)</Text>
+              <TouchableOpacity onPress={() => setShowEtiquetasPicker(!showEtiquetasPicker)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.bg }}>
                 <Text style={{ fontSize: 15, color: tags.length ? colors.text : colors.textSecondary }}>{tags.length ? `${tags.length} etiqueta(s) selecionada(s)` : 'Selecionar etiquetas'}</Text>
-                <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+                <Ionicons name={showEtiquetasPicker ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
               </TouchableOpacity>
               {showEtiquetasPicker && (
-                <View style={{ backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 4, maxHeight: 320 }}>
-                  <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator>
+                <View style={{ backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 8, maxHeight: 300 }}>
+                  <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator nestedScrollEnabled>
                     {ETIQUETAS_GERAL.map((e) => (
                       <TouchableOpacity key={e.id} onPress={() => toggleTag(e.id)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 }}>
                         {e.icon ? (
@@ -159,9 +158,17 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
                   </TouchableOpacity>
                 </View>
               )}
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Nome</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>E-mail</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Telefone</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Endereço</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Endereço" value={address} onChangeText={setAddress} placeholderTextColor={colors.textSecondary} />
             </ScrollView>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>

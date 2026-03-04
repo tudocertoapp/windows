@@ -22,6 +22,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { ProductFormModal } from '../components/ProductFormModal';
+import { FornecedorModal } from '../components/FornecedorModal';
 import { GlassCard } from '../components/GlassCard';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { TimePickerInput } from '../components/TimePickerInput';
@@ -136,6 +137,16 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
     setShowForm(false);
     setEditingItem(null);
     setFormData({});
+  };
+
+  const handleFornecedorSave = (data) => {
+    if (editingItem) {
+      update(editingItem.id, data);
+    } else {
+      add(data);
+    }
+    setShowForm(false);
+    setEditingItem(null);
   };
 
   const handleSave = () => {
@@ -284,6 +295,13 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
           onClose={() => { setShowForm(false); setEditingItem(null); setFormData({}); }}
           onSave={handleProductSave}
           editingItem={editingItem}
+        />
+      ) : section === 'fornecedores' ? (
+        <FornecedorModal
+          visible={showForm}
+          fornecedor={editingItem}
+          onSave={handleFornecedorSave}
+          onClose={() => { setShowForm(false); setEditingItem(null); }}
         />
       ) : (
       <Modal visible={showForm} transparent animationType="fade">

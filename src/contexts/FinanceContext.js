@@ -80,7 +80,17 @@ function toService(r) {
 }
 function toSupplier(r) {
   if (!r) return null;
-  return { id: r.id, name: r.name, email: r.email, phone: r.phone };
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    phone: r.phone,
+    linkSite: r.link_site,
+    linkInstagram: r.link_instagram,
+    linkLoja: r.link_loja,
+    cnpj: r.cnpj,
+    estado: r.estado,
+  };
 }
 function toAReceber(r) {
   if (!r) return null;
@@ -456,21 +466,41 @@ export function FinanceProvider({ children }) {
 
   const addSupplier = async (s) => {
     if (!user) {
-      setSuppliers((prev) => [...prev, { ...s, id: Date.now().toString() }]);
-      return;
+      const id = Date.now().toString();
+      setSuppliers((prev) => [...prev, { id, name: s.name, email: s.email, phone: s.phone, linkSite: s.linkSite, linkInstagram: s.linkInstagram, linkLoja: s.linkLoja, cnpj: s.cnpj, estado: s.estado }]);
+      return id;
     }
     const { data, error } = await supabase.from('suppliers').insert({
       user_id: user.id,
       name: s.name,
       email: s.email,
       phone: s.phone,
+      link_site: s.linkSite || null,
+      link_instagram: s.linkInstagram || null,
+      link_loja: s.linkLoja || null,
+      cnpj: s.cnpj || null,
+      estado: s.estado || null,
     }).select('*').single();
     if (error) return showDbError(error, 'cadastrar fornecedor');
     if (data) setSuppliers((prev) => [...prev, toSupplier(data)]);
   };
+  const toSupplierUpdate = (data) => {
+    const out = {};
+    if (data.name !== undefined) out.name = data.name;
+    if (data.email !== undefined) out.email = data.email;
+    if (data.phone !== undefined) out.phone = data.phone;
+    if (data.linkSite !== undefined) out.link_site = data.linkSite;
+    if (data.linkInstagram !== undefined) out.link_instagram = data.linkInstagram;
+    if (data.linkLoja !== undefined) out.link_loja = data.linkLoja;
+    if (data.cnpj !== undefined) out.cnpj = data.cnpj;
+    if (data.estado !== undefined) out.estado = data.estado;
+    return out;
+  };
   const updateSupplier = async (id, data) => {
+    const payload = toSupplierUpdate(data);
     if (!user) return setSuppliers((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
-    await supabase.from('suppliers').update(data).eq('id', id);
+    if (Object.keys(payload).length === 0) return;
+    await supabase.from('suppliers').update(payload).eq('id', id);
     setSuppliers((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteSupplier = async (id) => {

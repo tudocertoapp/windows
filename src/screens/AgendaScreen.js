@@ -2,7 +2,6 @@ import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   Alert,
@@ -10,6 +9,7 @@ import {
   Modal,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
@@ -27,6 +27,8 @@ const DAY_MARGIN = 6;
 const DAY_ITEM_WIDTH = DAY_WIDTH + DAY_MARGIN * 2;
 const HOUR_HEIGHT = 56;
 const CAROUSEL_PADDING_V = 5;
+const MIN_ZOOM = 0.8;
+const MAX_ZOOM = 3;
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -189,78 +191,84 @@ export function AgendaScreen() {
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth());
   const [hourScale, setHourScale] = useState(1);
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [isPinching, setIsPinching] = useState(false);
   const dayScrollRef = useRef(null);
   const mainScrollRef = useRef(null);
   const lastCenteredIndexRef = useRef(-1);
   const pinchBaseScale = useRef(1);
-  const pinchFocalRatio = useRef(0.5);
   const rafId = useRef(null);
   const scrollOffsetRef = useRef(0);
   const timelineLayoutRef = useRef({ y: 0 });
-  const measurementReadyRef = useRef(false);
   const scrollViewHeightRef = useRef(400);
   const scaleRef = useRef(1);
   scaleRef.current = hourScale;
   const containerRef = useRef(null);
   const pinchFocalViewportY = useRef(0);
+  const scrollAreaTopRef = useRef(0);
+  const pendingScaleRef = useRef(null);
+  const pendingScrollRef = useRef(null);
+  const rafScheduledRef = useRef(false);
+
+  const applyPendingZoom = useCallback(() => {
+    rafScheduledRef.current = false;
+    const scale = pendingScaleRef.current;
+    let scrollY = pendingScrollRef.current;
+    if (scale != null) setHourScale(scale);
+    if (scrollY != null && mainScrollRef.current) {
+      const viewH = scrollViewHeightRef.current || 400;
+      const timelineY = timelineLayoutRef.current?.y ?? 0;
+      const contentH = timelineY + 24 * HOUR_HEIGHT * scale + 20;
+      const maxScroll = Math.max(0, contentH - viewH);
+      scrollY = Math.max(0, Math.min(scrollY, maxScroll));
+      scrollOffsetRef.current = scrollY;
+      requestAnimationFrame(() => {
+        mainScrollRef.current?.scrollTo({ y: scrollY, animated: false });
+      });
+    }
+    pendingScaleRef.current = null;
+    pendingScrollRef.current = null;
+  }, []);
 
   const pinchGesture = useMemo(
     () =>
       Gesture.Pinch()
         .onStart((e) => {
+          setIsPinching(true);
           setScrollEnabled(false);
           pinchBaseScale.current = scaleRef.current;
-          measurementReadyRef.current = false;
-          containerRef.current?.measureInWindow((cx, containerTop, cw, ch) => {
-            mainScrollRef.current?.measureInWindow((sx, scrollViewTop, sw, sh) => {
-              const focalY = e.focalY;
-              const fingerWindowY = containerTop + focalY;
-              const relativeY = fingerWindowY - scrollViewTop;
-              pinchFocalViewportY.current = Math.max(0, Math.min(scrollViewHeightRef.current || 400, relativeY));
-              const contentY = scrollOffsetRef.current + pinchFocalViewportY.current;
-              const timelineY = timelineLayoutRef.current?.y ?? 0;
-              const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
-              const posInTimeline = contentY - timelineY;
-              pinchFocalRatio.current = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
-              measurementReadyRef.current = true;
-            });
-          });
+          const viewH = scrollViewHeightRef.current || 400;
+          const top = scrollAreaTopRef.current || 0;
+          const focalY = Math.max(0, Math.min(viewH, e.focalY - top));
+          pinchFocalViewportY.current = focalY;
         })
         .onUpdate((e) => {
-          const newScale = Math.max(0.5, Math.min(3, pinchBaseScale.current * e.scale));
-          setHourScale(newScale);
-          if (measurementReadyRef.current) {
-            const focalY = e.focalY;
-            containerRef.current?.measureInWindow((cx, containerTop, cw, ch) => {
-              mainScrollRef.current?.measureInWindow((sx, scrollViewTop, sw, sh) => {
-                const fingerWindowY = containerTop + focalY;
-                const relativeY = fingerWindowY - scrollViewTop;
-                const viewportY = Math.max(0, Math.min(scrollViewHeightRef.current || 400, relativeY));
-                const contentY = scrollOffsetRef.current + viewportY;
-                const timelineY = timelineLayoutRef.current?.y ?? 0;
-                const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
-                const posInTimeline = contentY - timelineY;
-                const ratio = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
-                const newTimelineH = 24 * HOUR_HEIGHT * newScale;
-                const focalInNewTimeline = ratio * newTimelineH;
-                const newScrollY = Math.max(0, timelineY + focalInNewTimeline - viewportY);
-                if (rafId.current) cancelAnimationFrame(rafId.current);
-                rafId.current = requestAnimationFrame(() => {
-                  mainScrollRef.current?.scrollTo({ y: newScrollY, animated: false });
-                  scrollOffsetRef.current = newScrollY;
-                  rafId.current = null;
-                });
-              });
+          const oldScale = pinchBaseScale.current;
+          const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldScale * e.scale));
+          const oldScroll = scrollOffsetRef.current;
+          const focalY = pinchFocalViewportY.current;
+          const newScroll = (oldScroll + focalY) * (newScale / oldScale) - focalY;
+          pendingScaleRef.current = newScale;
+          pendingScrollRef.current = newScroll;
+          scaleRef.current = newScale;
+          if (!rafScheduledRef.current) {
+            rafScheduledRef.current = true;
+            const id = requestAnimationFrame(() => {
+              applyPendingZoom();
             });
+            rafId.current = id;
           }
         })
         .onEnd(() => {
-          if (rafId.current) cancelAnimationFrame(rafId.current);
+          if (rafScheduledRef.current) {
+            if (rafId.current) cancelAnimationFrame(rafId.current);
+            applyPendingZoom();
+          }
           rafId.current = null;
+          setIsPinching(false);
           setScrollEnabled(true);
         })
         .runOnJS(true),
-    []
+    [applyPendingZoom]
   );
 
   const handleAddPress = () => {
@@ -374,23 +382,20 @@ export function AgendaScreen() {
   const effectiveHourHeight = HOUR_HEIGHT * hourScale;
 
   const zoomCenteredOnViewport = useCallback((delta) => {
+    const oldScroll = scrollOffsetRef.current;
+    const viewH = scrollViewHeightRef.current || 400;
+    const focalY = viewH / 2;
+    const oldScale = scaleRef.current;
+    const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldScale + delta));
     const timelineY = timelineLayoutRef.current?.y ?? 0;
-    const scrollY = scrollOffsetRef.current;
-    const viewH = scrollViewHeightRef.current;
-    const centerContentY = scrollY + viewH / 2;
-    const posInTimeline = centerContentY - timelineY;
-    const timelineH = 24 * HOUR_HEIGHT * scaleRef.current;
-    const centerHourRatio = timelineH > 0 ? Math.max(0, Math.min(1, posInTimeline / timelineH)) : 0.5;
-    const newScale = Math.max(0.5, Math.min(2, scaleRef.current + delta));
+    let newScroll = (oldScroll + focalY) * (newScale / oldScale) - focalY;
+    const contentH = timelineY + 24 * HOUR_HEIGHT * newScale + 20;
+    const maxScroll = Math.max(0, contentH - viewH);
+    newScroll = Math.max(0, Math.min(newScroll, maxScroll));
     setHourScale(newScale);
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const newTimelineH = 24 * HOUR_HEIGHT * newScale;
-        const focalInNewTimeline = centerHourRatio * newTimelineH;
-        const newScrollY = Math.max(0, timelineY + focalInNewTimeline - viewH / 2);
-        mainScrollRef.current?.scrollTo({ y: newScrollY, animated: false });
-        scrollOffsetRef.current = newScrollY;
-      });
+      mainScrollRef.current?.scrollTo({ y: newScroll, animated: false });
+      scrollOffsetRef.current = newScroll;
     });
   }, []);
 
@@ -501,15 +506,23 @@ export function AgendaScreen() {
           </View>
         </View>
 
-        {/* Apenas as horas do dia rolam */}
+        {/* Apenas as horas do dia rolam — wrapper para capturar Y da área de scroll (foco do zoom) */}
+        <View
+          style={{ flex: 1 }}
+          onLayout={(e) => {
+            const { y, height } = e.nativeEvent.layout;
+            scrollAreaTopRef.current = y;
+            scrollViewHeightRef.current = height;
+          }}
+          collapsable={false}
+        >
         <ScrollView
           ref={mainScrollRef}
           style={{ flex: 1 }}
-          scrollEnabled={scrollEnabled}
-          onLayout={(e) => { scrollViewHeightRef.current = e.nativeEvent.layout.height; }}
+          scrollEnabled={scrollEnabled && !isPinching}
           onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
           scrollEventThrottle={16}
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20 }}
         >
           <View
@@ -663,6 +676,7 @@ export function AgendaScreen() {
 
           <View style={{ height: 80 }} />
         </ScrollView>
+        </View>
       </View>
       </GestureDetector>
 

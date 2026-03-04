@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { parseVoiceIntent } from '../utils/voiceExpenseParser';
 
-let ExpoSpeechRecognitionModule;
-let useSpeechRecognitionEvent = () => {}; // no-op quando módulo não disponível
+let ExpoSpeechRecognitionModule = null;
+let useSpeechRecognitionEvent = () => {}; // no-op quando módulo nativo não está disponível
 try {
   const sr = require('expo-speech-recognition');
-  ExpoSpeechRecognitionModule = sr.ExpoSpeechRecognitionModule;
-  useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
+  const mod = sr?.ExpoSpeechRecognitionModule;
+  if (mod && typeof mod.isRecognitionAvailable === 'function' && mod.isRecognitionAvailable()) {
+    ExpoSpeechRecognitionModule = mod;
+    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
+  }
 } catch (_) {}
 
 const QUICK_ACTIONS = [
@@ -51,17 +55,32 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
   const [text, setText] = useState('');
   const [listening, setListening] = useState(false);
   const [micPulse] = useState(() => new Animated.Value(1));
+  const lastTranscriptRef = useRef('');
 
-  let isAvailable = false;
-  try {
-    isAvailable = ExpoSpeechRecognitionModule?.isRecognitionAvailable?.() ?? false;
-  } catch (_) {}
+  const isAvailable = !!ExpoSpeechRecognitionModule;
 
-  useSpeechRecognitionEvent('start', () => setListening(true));
-  useSpeechRecognitionEvent('end', () => setListening(false));
+  useSpeechRecognitionEvent('start', () => {
+    setListening(true);
+    lastTranscriptRef.current = '';
+  });
   useSpeechRecognitionEvent('result', (event) => {
     const transcript = event?.results?.[0]?.[0]?.transcript ?? '';
-    if (transcript) setText((prev) => (prev ? `${prev} ${transcript}` : transcript).trim());
+    if (transcript) {
+      lastTranscriptRef.current = (lastTranscriptRef.current ? `${lastTranscriptRef.current} ` : '') + transcript;
+      setText((prev) => (prev ? `${prev} ${transcript}` : transcript).trim());
+    }
+  });
+  useSpeechRecognitionEvent('end', () => {
+    setListening(false);
+    const toParse = lastTranscriptRef.current.trim() || text.trim();
+    if (!toParse) return;
+    const parsed = parseVoiceIntent(toParse);
+    if (parsed?.type) {
+      lastTranscriptRef.current = '';
+      setText('');
+      onOpenAdd?.(parsed.type, parsed.params);
+      onClose();
+    }
   });
   useSpeechRecognitionEvent('error', (event) => {
     if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
@@ -82,8 +101,8 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
   }, [listening]);
 
   const handleMic = async () => {
-    if (!isAvailable) {
-      Alert.alert('Voz', 'Reconhecimento de voz não disponível neste dispositivo.');
+    if (!ExpoSpeechRecognitionModule) {
+      Alert.alert('Voz', 'Reconhecimento de voz não disponível neste dispositivo ou build.');
       return;
     }
     try {
@@ -108,14 +127,24 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
   };
 
   const handleSubmit = () => {
+    const toParse = text.trim();
+    if (!toParse) return;
+    const parsed = parseVoiceIntent(toParse);
+    if (parsed?.type) {
+      onOpenAdd?.(parsed.type, parsed.params);
+      onClose();
+      setText('');
+      lastTranscriptRef.current = '';
+      return;
+    }
     const cmd = parseCommand(text);
     if (typeof cmd === 'string') {
       onOpenAdd?.(cmd);
       onClose();
       setText('');
     } else if (cmd.amount && cmd.parsed) {
-      if (/receita|entrada|ganhei/i.test(text)) onOpenAdd?.('receita', { amount: cmd.amount, description: text });
-      else if (/despesa|saida|gastei/i.test(text)) onOpenAdd?.('despesa', { amount: cmd.amount, description: text });
+      if (/receita|entrada|ganhei/i.test(text)) onOpenAdd?.('receita', { amount: String(cmd.amount).replace('.', ','), description: text });
+      else if (/despesa|saida|gastei/i.test(text)) onOpenAdd?.('despesa', { amount: String(cmd.amount).replace('.', ','), description: text });
       else onOpenAdd?.('receita');
       onClose();
       setText('');

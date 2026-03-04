@@ -11,17 +11,22 @@ import { DatePickerInput } from './DatePickerInput';
 import { TimePickerInput } from './TimePickerInput';
 import { MoneyInput } from './MoneyInput';
 import { CategoryPicker, SubcategoryPicker } from './CategoryPicker';
+import { ClienteModal } from './ClienteModal';
+import { FornecedorModal } from './FornecedorModal';
 import { parseMoney, formatCurrency } from '../utils/format';
 import { playTapSound, playRecordingBeep } from '../utils/sounds';
 import { parseExpenseVoice } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_RECEITA, CATEGORIAS_DESPESA } from '../constants/categories';
 
-let ExpoSpeechRecognitionModule;
+let ExpoSpeechRecognitionModule = null;
 let useSpeechRecognitionEvent = () => {};
 try {
   const sr = require('expo-speech-recognition');
-  ExpoSpeechRecognitionModule = sr.ExpoSpeechRecognitionModule;
-  useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
+  const mod = sr?.ExpoSpeechRecognitionModule;
+  if (mod && typeof mod.isRecognitionAvailable === 'function' && mod.isRecognitionAvailable()) {
+    ExpoSpeechRecognitionModule = mod;
+    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
+  }
 } catch (_) {}
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -79,6 +84,12 @@ export function AddModal({ type, params, onClose }) {
   useEffect(() => {
     if (params?.amount != null) setAmount(String(params.amount));
     if (params?.description != null) setDescription(params.description);
+    if (params?.categoryDesp) setCategoryDesp(params.categoryDesp);
+    if (params?.subcategoryDesp) {
+      setSubcategoryDesp(params.subcategoryDesp);
+      setCategory(params.subcategoryDesp);
+    }
+    if (params?.tipoVenda) setTipoVenda(params.tipoVenda);
   }, [type, params]);
   useEffect(() => {
     if (type === 'receita') {
@@ -349,10 +360,6 @@ export function AddModal({ type, params, onClose }) {
     } else if (type === 'agenda') {
       if (!title.trim() || !date.trim()) return Alert.alert('Erro', 'Preencha título e data.');
       addAgendaEvent({ title: title.trim(), description, date, time, type: 'meeting' });
-    } else if (type === 'cliente' || type === 'fornecedor') {
-      if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
-      const add = type === 'cliente' ? addClient : addSupplier;
-      add(type === 'cliente' ? { name: name.trim(), email: email.trim(), phone: phone.trim(), foto: photoUri || null, nivel: clientNivel || 'orcamento' } : { name: name.trim(), email: email.trim(), phone: phone.trim() });
     } else if (type === 'produto') {
       if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
       addProduct({ name: name.trim(), price: parseMoney(price), costPrice: parseMoney(costPrice), discount: parseMoney(discount), unit: unit.trim() || 'un', photoUri: photoUri || null });
@@ -454,6 +461,13 @@ export function AddModal({ type, params, onClose }) {
   })();
 
   if (!type) return null;
+
+  if (type === 'cliente') {
+    return <ClienteModal visible onClose={onClose} onSave={(d) => { addClient(d); onClose(); }} cliente={null} />;
+  }
+  if (type === 'fornecedor') {
+    return <FornecedorModal visible onClose={onClose} onSave={(d) => { addSupplier(d); onClose(); }} fornecedor={null} />;
+  }
 
   return (
     <Modal visible={!!type} transparent animationType="fade">
@@ -1156,36 +1170,6 @@ export function AddModal({ type, params, onClose }) {
                     <TimePickerInput value={time} onChange={setTime} colors={colors} />
                   </View>
                 </View>
-              </>
-            )}
-            {(type === 'cliente' || type === 'fornecedor') && (
-              <>
-                {type === 'cliente' && (
-                  <>
-                    {photoUri ? (
-                      <TouchableOpacity onPress={pickImage} style={{ alignItems: 'center', marginBottom: 8 }}>
-                        <Image source={{ uri: photoUri }} style={{ width: 80, height: 80, borderRadius: 40 }} />
-                        <Text style={{ fontSize: 12, color: colors.primary, marginTop: 4 }}>Trocar foto</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity style={[styles.input, { borderColor: colors.border, borderStyle: 'dashed', alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center' }]} onPress={pickImage}>
-                        <Ionicons name="camera-outline" size={24} color={colors.primary} />
-                        <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>Foto do cliente</Text>
-                      </TouchableOpacity>
-                    )}
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>Nível / Status</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {[{ id: 'orcamento', label: 'Orçamento' }, { id: 'lead', label: 'Lead' }, { id: 'fechou', label: 'Fechou' }].map((n) => (
-                        <TouchableOpacity key={n.id} onPress={() => setClientNivel(n.id)} style={[styles.input, { flex: 1, borderColor: clientNivel === n.id ? colors.primary : colors.border, backgroundColor: clientNivel === n.id ? colors.primaryRgba(0.1) : 'transparent', paddingVertical: 10, alignItems: 'center' }]}>
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: clientNivel === n.id ? colors.primary : colors.text }}>{n.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </>
-                )}
-                <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
-                <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
-                <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
               </>
             )}
             {type === 'produto' && (

@@ -99,10 +99,10 @@ export function DashboardScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent } = useFinance();
-  const { colors } = useTheme();
+  const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openCalculadoraFull } = useMenu();
   const { notes, deleteNote } = useNotes();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
@@ -739,6 +739,7 @@ export function DashboardScreen() {
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
+          lightBackground={themeMode === 'light'}
           filter={balanceFilter}
           filterLabel={balanceFilterLabel}
           filterStartDate={periodStart}
@@ -753,7 +754,7 @@ export function DashboardScreen() {
       </View>
     ),
     contas: (
-      <View key="contas" style={{ marginTop: 16 }}>
+      <View key="contas">
         <ContasDoMesCard
           contasPagas={contasStatus.pagas}
           contasAVencer={contasStatus.aVencer}
@@ -761,6 +762,7 @@ export function DashboardScreen() {
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
+          lightBackground={themeMode === 'light'}
         />
       </View>
     ),
@@ -810,7 +812,7 @@ export function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Início" colors={colors} useLogoImage hideOrganize onManageCards={() => setShowCardPicker(true)} />
+      <TopBar title="Início" colors={colors} useLogoImage hideOrganize onManageCards={() => setShowCardPicker(true)} onCalculadora={openCalculadoraFull} />
       {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       {isGuest && (
         <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center', gap: 10 }}>

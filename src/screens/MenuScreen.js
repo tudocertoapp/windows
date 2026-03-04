@@ -30,7 +30,7 @@ const ms = StyleSheet.create({
   appTitle: { fontSize: 26, fontWeight: '800', letterSpacing: 0.5, marginTop: 6 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenImageGenerator, onOpenTemas, onOpenTermos }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull }) {
   const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
@@ -124,6 +124,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>PRODUTIVIDADE</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
+          <MenuItem icon="calculator-outline" label="Calculadora" subtitle="Calculadora completa estilo iOS" onPress={onOpenCalculadoraFull || comingSoon} />
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>VISUALIZAÇÃO</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
