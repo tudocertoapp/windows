@@ -231,45 +231,53 @@ export function AgendaScreen() {
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
-  const savedScrollY = useSharedValue(0);
+  const pinchPrevScale = useSharedValue(1);
+  const pinchPrevFocalY = useSharedValue(0);
   const scrollY = useSharedValue(0);
-  const focalY = useSharedValue(0);
   const viewHeight = useSharedValue(400);
   const mainScrollRef = useAnimatedRef();
   const AnimatedScrollView = useMemo(() => Animated.createAnimatedComponent(RNGHScrollView), []);
 
-  const setPinchingJS = useCallback((value) => setIsPinching(value), []);
+  const setPinchingJS = useCallback((v) => setIsPinching(v), []);
 
   const pinchGesture = useMemo(
     () =>
       Gesture.Pinch()
-        .onBegin(() => {
+        .onBegin((e) => {
           'worklet';
           runOnJS(setPinchingJS)(true);
           savedScale.value = scale.value;
-          savedScrollY.value = scrollY.value;
-          // Mesma regra dos botões +/-: zoom focado no centro visível da timeline.
-          focalY.value = viewHeight.value / 2;
+          pinchPrevScale.value = scale.value;
+          const vh = viewHeight.value;
+          pinchPrevFocalY.value = Math.max(0, Math.min(vh, e.focalY));
         })
         .onUpdate((e) => {
           'worklet';
-          const baseScale = savedScale.value;
-          const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, baseScale * e.scale));
-          scale.value = newScale;
-          const baseScroll = savedScrollY.value;
-          const newScroll = (baseScroll + focalY.value) * (newScale / baseScale) - focalY.value;
           const vh = viewHeight.value;
+          const focal = Math.max(0, Math.min(vh, e.focalY));
+          const startScale = savedScale.value;
+          const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, startScale * e.scale));
+          const prevScale = pinchPrevScale.value;
+          if (prevScale <= 0) return;
+
+          const ratio = newScale / prevScale;
+          const panDy = focal - pinchPrevFocalY.value;
+          const currentScroll = scrollY.value;
+          let nextScroll = (currentScroll + focal) * ratio - focal - panDy;
           const contentH = 24 * HOUR_HEIGHT * newScale + 20;
           const maxScroll = Math.max(0, contentH - vh);
-          const clamped = Math.max(0, Math.min(newScroll, maxScroll));
-          scrollTo(mainScrollRef, 0, clamped, false);
-          scrollY.value = clamped;
+          nextScroll = Math.max(0, Math.min(nextScroll, maxScroll));
+
+          scale.value = newScale;
+          pinchPrevScale.value = newScale;
+          pinchPrevFocalY.value = focal;
+          scrollY.value = nextScroll;
+          scrollTo(mainScrollRef, 0, nextScroll, false);
         })
         .onFinalize(() => {
           'worklet';
           runOnJS(setPinchingJS)(false);
-        })
-        .runOnJS(false),
+        }),
     [setPinchingJS]
   );
 
@@ -565,7 +573,7 @@ export function AgendaScreen() {
           scrollEnabled={!zoomBtnPressed && !isPinching}
           onScroll={onTimelineScroll}
           scrollEventThrottle={1}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator
           contentContainerStyle={{ paddingBottom: 20 }}
         >
           <Animated.View style={[animatedTimelineStyle, { flexDirection: 'row' }]}>
@@ -577,25 +585,19 @@ export function AgendaScreen() {
               ))}
             </View>
             <View style={[as.timelineContentFull, { height: '100%', borderColor: colors.border }]}>
-              {HOURS.map((hour) => {
-                if (hour === 0) return null;
-                return (
+              <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                {HOURS.map((hour) => (
                   <View
-                    key={`hour-line-${hour}`}
-                    pointerEvents="none"
+                    key={`hour-grid-${hour}`}
                     style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: `${(hour * 60 / 1440) * 100}%`,
-                      height: 1,
-                      backgroundColor: colors.border,
+                      height: `${100 / 24}%`,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border,
                       opacity: 0.8,
-                      zIndex: 0,
                     }}
                   />
-                );
-              })}
+                ))}
+              </View>
               {isTodaySelected && (
                 <View
                   style={{
