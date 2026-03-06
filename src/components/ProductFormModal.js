@@ -23,7 +23,7 @@ import { usePlan } from '../contexts/PlanContext';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
-const CARD_MAX_WIDTH = Math.min(SW - 32, 440);
+const CARD_MAX_WIDTH = Math.min(SW - 8, 520);
 const SCROLL_MAX_HEIGHT = Math.min(520, 580);
 const CAROUSEL_WIDTH = CARD_MAX_WIDTH - GAP * 2;
 const CAROUSEL_HEIGHT = Math.round(CAROUSEL_WIDTH / 1.4);
@@ -174,7 +174,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
+      <View style={s.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[s.header, sectionGap]}>
@@ -188,7 +189,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
               {/* Carrossel de fotos */}
               <View style={[sectionGap]}>
                 <View style={[s.photoCarouselWrap, { borderColor: colors.border, backgroundColor: colors.bg }]}>
@@ -384,13 +385,13 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
 
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: GAP },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8 },
   keyboardView: { flex: 1, width: '100%', justifyContent: 'center', maxHeight: '95%' },
   card: {
     width: '100%',

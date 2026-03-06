@@ -32,11 +32,11 @@ try {
 const { width: SW, height: SH } = Dimensions.get('window');
 const GAP = 24;
 const SECTION_GAP = 20;
-const BOX_MAX = Math.min(SW - 24, 420);
-const FORM_MAX_HEIGHT = Math.round(SH * 0.88);
+const BOX_MAX = Math.min(SW - 8, 520);
+const FORM_MAX_HEIGHT = Math.round(SH * 0.94);
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', alignItems: 'center' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 4 },
   box: { width: '100%', maxWidth: BOX_MAX, maxHeight: FORM_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: GAP, borderWidth: 1 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
@@ -94,9 +94,11 @@ export function AddModal({ type, params, onClose }) {
   useEffect(() => {
     if (type === 'receita') {
       const fromEvent = params?.fromAgendaEvent;
-      if (fromEvent && (fromEvent.clientId || fromEvent.serviceId || (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0))) {
+      const hasEmpresaPayload = fromEvent && ((fromEvent.tipo === 'empresa') || fromEvent.clientId || fromEvent.serviceId || (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0));
+      if (hasEmpresaPayload) {
         setTipoVenda('empresa');
         setClientId(fromEvent.clientId || null);
+        setDescription((fromEvent.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim());
         setUseNow(true);
         setFormaPagamento('pix');
         setReceitaBankId(null);
@@ -471,7 +473,8 @@ export function AddModal({ type, params, onClose }) {
 
   return (
     <Modal visible={!!type} transparent animationType="fade">
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
+      <View style={styles.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
           {servicePriceModal && (
@@ -493,7 +496,7 @@ export function AddModal({ type, params, onClose }) {
             </Modal>
           )}
           <View style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8, zIndex: 2 }}>
-            {type !== 'tarefa' && (
+            {type !== 'tarefa' && type !== 'receita' && (
               <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
                 <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
@@ -503,7 +506,7 @@ export function AddModal({ type, params, onClose }) {
             </TouchableOpacity>
           </View>
           <Text style={[styles.title, { color: colors.primary }]}>{type === 'receita' ? 'ADICIONAR RECEITA' : getTitle()}</Text>
-          <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: FORM_MAX_HEIGHT - 140, flexGrow: 0 }} contentContainerStyle={{ paddingRight: 4, paddingBottom: GAP }}>
+          <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={{ maxHeight: FORM_MAX_HEIGHT - 140, flexGrow: 0 }} contentContainerStyle={{ paddingRight: 4, paddingBottom: GAP }}>
             {type === 'receita' && (
               <>
                 {showEmpresaFeatures && (
@@ -1246,7 +1249,7 @@ export function AddModal({ type, params, onClose }) {
           })()}
         </TouchableOpacity>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }

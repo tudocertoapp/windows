@@ -14,7 +14,6 @@ import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
 import { ContasDoMesCard } from '../components/ContasDoMesCard';
-import { ResumoDoMesCard } from '../components/ResumoDoMesCard';
 import { TransacoesCard } from '../components/TransacoesCard';
 import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
 import { GlassCard } from '../components/GlassCard';
@@ -138,8 +137,11 @@ export function DashboardScreen() {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
+          const allowedSections = new Set(DEFAULT_SECTIONS);
           let filtered = Array.isArray(parsed)
-            ? parsed.filter((id) => id !== 'agenda').map((id) => (id === 'tarefas' ? 'proximos' : id))
+            ? parsed
+                .filter((id) => id !== 'agenda' && allowedSections.has(id === 'tarefas' ? 'proximos' : id))
+                .map((id) => (id === 'tarefas' ? 'proximos' : id))
             : DEFAULT_SECTIONS;
           filtered = [...new Set(filtered)];
           const base = filtered.length > 0 ? filtered : DEFAULT_SECTIONS;
@@ -271,55 +273,6 @@ export function DashboardScreen() {
 
   const fmt = formatCurrency;
   const mask = (v) => (showValues ? v : '••••••');
-
-  const prevMonthTx = useMemo(() => {
-    const prev = new Date(balanceFilterDate.getFullYear(), balanceFilterDate.getMonth() - 1);
-    return filteredTx.filter((t) => {
-      const d = new Date(t.date);
-      return d.getMonth() === prev.getMonth() && d.getFullYear() === prev.getFullYear();
-    });
-  }, [filteredTx, balanceFilterDate]);
-
-  const prevIncome = useMemo(() => prevMonthTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0), [prevMonthTx]);
-  const prevExpense = useMemo(() => prevMonthTx.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [prevMonthTx]);
-
-  const resumoStats = useMemo(() => {
-    const ref = balanceFilterDate;
-    const parseDate = (str) => {
-      if (!str) return null;
-      const s = String(str).trim();
-      const parts = s.split(/[/\-]/);
-      if (parts.length >= 3) {
-        const day = parseInt(parts[0], 10) || 1;
-        const month = (parseInt(parts[1], 10) || 1) - 1;
-        const year = parseInt(parts[2], 10) || ref.getFullYear();
-        return new Date(year, month, day);
-      }
-      return new Date(str);
-    };
-    const inPeriod = (d) => {
-      if (!d) return false;
-      const date = d instanceof Date ? d : parseDate(d) || new Date(d);
-      date.setHours(0, 0, 0, 0);
-      if (balanceFilter === 'periodo') {
-        const start = parseDateStr(periodStart);
-        const end = parseDateStr(periodEnd);
-        if (!start || !end) return true;
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return date >= start && date <= end;
-      }
-      if (balanceFilter === 'dia') return date.getDate() === ref.getDate() && date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
-      if (balanceFilter === 'mes') return date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
-      return date.getFullYear() === ref.getFullYear();
-    };
-    const vendas = monthTx.filter((t) => t.type === 'income').length;
-    const agendas = (agendaEvents || []).filter((e) => inPeriod(e.date)).length;
-    const tarefasConcluidas = (checkListItems || []).filter((t) => t.checked).length;
-    const novosClientes = (clients || []).filter((c) => c.createdAt && inPeriod(new Date(c.createdAt))).length;
-    const faturasPagas = contasStatus.pagas.qty;
-    return { vendas, agendas, tarefasConcluidas, novosClientes, faturasPagas };
-  }, [monthTx, agendaEvents, checkListItems, clients, contasStatus.pagas.qty, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
 
   const catBreakdown = useMemo(() => {
     const m = {};
@@ -570,8 +523,8 @@ export function DashboardScreen() {
             onPress={(ev) => {
               ev?.stopPropagation?.();
               playTapSound();
-              const isEmpresaComServico = showEmpresaFeatures && (e.tipo === 'empresa') && (e.clientId || e.serviceId || (Array.isArray(e.preOrderItems) && e.preOrderItems.length > 0));
-              if (isEmpresaComServico && e.status !== 'concluido') {
+              const isEmpresaEvent = showEmpresaFeatures && (e.tipo === 'empresa');
+              if (isEmpresaEvent && e.status !== 'concluido') {
                 openAddModal?.('receita', { fromAgendaEvent: e });
               } else {
                 updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
@@ -786,25 +739,6 @@ export function DashboardScreen() {
           mask={mask}
           colors={colors}
           title="Últimas transações"
-        />
-      </View>
-    ),
-    graficos: (
-      <View key="graficos" style={{ marginTop: 16, marginHorizontal: 16 }}>
-        <ResumoDoMesCard
-          income={income}
-          expense={expense}
-          balance={balance}
-          formatCurrency={fmt}
-          mask={mask}
-          colors={colors}
-          vendas={resumoStats.vendas}
-          agendas={resumoStats.agendas}
-          tarefasConcluidas={resumoStats.tarefasConcluidas}
-          novosClientes={resumoStats.novosClientes}
-          faturasPagas={resumoStats.faturasPagas}
-          prevIncome={prevIncome}
-          prevExpense={prevExpense}
         />
       </View>
     ),

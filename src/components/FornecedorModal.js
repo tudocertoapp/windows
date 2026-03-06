@@ -5,8 +5,8 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const FIELD_GAP = 20;
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  box: { width: '100%', maxWidth: 360, maxHeight: '90%', borderRadius: 20, padding: 20 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 12 },
+  box: { width: '100%', maxWidth: 520, maxHeight: '92%', borderRadius: 20, padding: 20 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
   title: { fontSize: 18, fontWeight: '700', flex: 1 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
@@ -73,7 +73,8 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
 
   return (
     <Modal visible transparent animationType="fade">
-      <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
+      <View style={s.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
             <View style={{ flexDirection: 'row', position: 'relative', marginBottom: 4 }}>
@@ -92,7 +93,7 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 16 }}>
+            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 16 }}>
               <Text style={[s.label, { color: colors.text, marginTop: 0 }]}>Nome</Text>
               <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome do fornecedor" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
               <View style={{ height: FIELD_GAP }} />
@@ -122,7 +123,7 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }

@@ -8,11 +8,11 @@ export const AVAILABLE_CARD_TYPES = [
   { id: 'contas', label: 'Faturas', icon: 'document-text-outline', screen: 'Início, Dinheiro' },
   { id: 'gastos', label: 'Gastos por categoria', icon: 'pie-chart-outline', screen: 'Início, Dinheiro' },
   { id: 'transacoes', label: 'Últimas transações', icon: 'swap-horizontal-outline', screen: 'Início, Dinheiro' },
-  { id: 'graficos', label: 'Resumo do mês', icon: 'stats-chart-outline', screen: 'Início, Dinheiro' },
+  { id: 'graficos', label: 'Resumo do mês', icon: 'stats-chart-outline', screen: 'Dinheiro' },
   { id: 'anotacoes', label: 'Minhas anotações', icon: 'document-text-outline', screen: 'Início' },
 ];
 
-export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'anotacoes', 'balance', 'contas', 'gastos', 'transacoes', 'graficos'];
+export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'anotacoes', 'balance', 'contas', 'gastos', 'transacoes'];
 
 /** Cards da página Dinheiro - ordem editável */
 export const DINHEIRO_CARD_TYPES = [

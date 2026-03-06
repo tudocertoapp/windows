@@ -35,6 +35,7 @@ import { VoiceListener } from '../components/VoiceListener';
 import { ProductFormModal } from '../components/ProductFormModal';
 import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
+import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverlay';
 
 const Tab = createBottomTabNavigator();
 
@@ -63,6 +64,9 @@ export function AppNavigator() {
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [anotacoesModal, setAnotacoesModal] = useState(false);
   const [calculadoraModal, setCalculadoraModal] = useState(false);
+  const [calculadoraFloating, setCalculadoraFloating] = useState(false);
+  const [calculatorExpression, setCalculatorExpression] = useState('');
+  const [calculatorResult, setCalculatorResult] = useState(null);
   const { colors, primaryColor } = useTheme();
   const { addProduct } = useFinance();
   const insets = useSafeAreaInsets();
@@ -110,7 +114,7 @@ export function AppNavigator() {
         setMenuModalOpen(false);
         navigationRef.current?.navigate('Início', { openCardPicker: true });
       },
-      openCalculadoraFull: () => setCalculadoraModal(true),
+      openCalculadoraFull: () => { setCalculadoraFloating(false); setCalculadoraModal(true); },
     }),
     []
   );
@@ -344,10 +348,24 @@ export function AppNavigator() {
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <CalculatorScreenPro
             onClose={() => setCalculadoraModal(false)}
+            onMinimize={() => { setCalculadoraModal(false); setCalculadoraFloating(true); }}
             isModal
+            expression={calculatorExpression}
+            result={calculatorResult}
+            onExpressionChange={setCalculatorExpression}
+            onResultChange={setCalculatorResult}
           />
         </SafeAreaView>
       </Modal>
+      <FloatingCalculatorOverlay
+        visible={calculadoraFloating}
+        onClose={() => setCalculadoraFloating(false)}
+        onExpand={() => { setCalculadoraFloating(false); setCalculadoraModal(true); }}
+        expression={calculatorExpression}
+        result={calculatorResult}
+        onExpressionChange={setCalculatorExpression}
+        onResultChange={setCalculatorResult}
+      />
     </MenuContext.Provider>
   );
 }

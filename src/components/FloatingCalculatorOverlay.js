@@ -6,11 +6,19 @@ import { playTapSound } from '../utils/sounds';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = '@tudocerto_calc_overlay_pos';
-const OVERLAY_WIDTH = 260;
-const OVERLAY_HEIGHT = 380;
+const OVERLAY_WIDTH = 236;
+const OVERLAY_HEIGHT = 350;
 const DRAG_THRESHOLD = 6;
 
-export function FloatingCalculatorOverlay({ visible, onClose, onExpand }) {
+export function FloatingCalculatorOverlay({
+  visible,
+  onClose,
+  onExpand,
+  expression,
+  result,
+  onExpressionChange,
+  onResultChange,
+}) {
   const insets = useSafeAreaInsets();
   const [position, setPosition] = useState(null);
   const animPos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -105,6 +113,10 @@ export function FloatingCalculatorOverlay({ visible, onClose, onExpand }) {
           isModal
           onClose={() => { playTapSound(); onClose?.(); }}
           onExpand={() => { playTapSound(); onExpand?.(); }}
+          expression={expression}
+          result={result}
+          onExpressionChange={onExpressionChange}
+          onResultChange={onResultChange}
         />
       </View>
     </Animated.View>

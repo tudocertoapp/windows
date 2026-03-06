@@ -197,6 +197,8 @@ function formatResult(value: number): string {
   const fixed = Number(value.toFixed(MAX_DECIMAL_PLACES));
   const str = String(fixed);
   if (str.includes('e')) return value.toExponential(6);
+  // Remove zeros apenas na parte decimal (ex.: 12.3400 -> 12.34), sem quebrar inteiros (300 -> 300)
+  if (!str.includes('.')) return str;
   return str.replace(/\.?0+$/, '');
 }
 

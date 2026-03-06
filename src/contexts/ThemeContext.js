@@ -59,7 +59,7 @@ export const BACKGROUND_COLORS = [
   { id: '31', hex: '#4c1d95' }, { id: '32', hex: '#581c87' }, { id: '33', hex: '#1e3a5f' },
   { id: '34', hex: '#312e81' }, { id: '35', hex: '#7c2d12' }, { id: '36', hex: '#1e1b4b' },
   { id: '37', hex: '#171e2e' }, { id: '38', hex: '#0f1419' }, { id: '39', hex: '#374151' },
-  { id: '40', hex: '#4b5563' },
+  { id: '40', hex: '#4b5563' }, { id: '41', hex: '#000000' }, { id: '42', hex: '#FFFFFF' },
 ];
 
 export const THEME_PRESETS = {

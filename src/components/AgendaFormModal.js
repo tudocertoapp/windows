@@ -12,11 +12,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
+import { useMenu } from '../contexts/MenuContext';
 import { playTapSound } from '../utils/sounds';
 import { DatePickerInput } from './DatePickerInput';
 import { TimePickerInput } from './TimePickerInput';
@@ -26,6 +28,9 @@ import { parseMoney } from '../utils/format';
 const GAP = 20;
 const INPUT_HEIGHT = 48;
 const RADIUS = 14;
+const { width: SW, height: SH } = Dimensions.get('window');
+const MODAL_MAX_WIDTH = Math.min(SW - 8, 520);
+const MODAL_SCROLL_MAX_HEIGHT = Math.round(SH * 0.7);
 
 function todayStr() {
   const d = new Date();
@@ -37,10 +42,17 @@ function nowTimeStr() {
   return [String(d.getHours()).padStart(2, '0'), String(d.getMinutes()).padStart(2, '0')].join(':');
 }
 
+function timeToMinutes(t) {
+  if (!t || typeof t !== 'string') return 0;
+  const [h, m] = t.split(':').map((x) => parseInt(x, 10));
+  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
+
 export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, onOpenNewClient, onOpenNewService }) {
   const { colors } = useTheme();
-  const { clients, services, products, addAgendaEvent, updateAgendaEvent } = useFinance();
+  const { clients, services, products, addAgendaEvent, updateAgendaEvent, deleteAgendaEvent } = useFinance();
   const { showEmpresaFeatures } = usePlan();
+  const { openAddModal } = useMenu();
 
   const [tipo, setTipo] = useState('pessoal');
   const [tipoAtendimento, setTipoAtendimento] = useState('venda');
@@ -62,6 +74,9 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
   useEffect(() => {
     if (visible) {
       if (editingEvent) {
+        const isVendaEmpresa = (editingEvent.tipo || 'pessoal') === 'empresa' && editingEvent.type === 'venda';
+        const existingItems = Array.isArray(editingEvent.preOrderItems) ? editingEvent.preOrderItems : [];
+        const fallbackService = editingEvent.serviceId ? services?.find((s) => s.id === editingEvent.serviceId) : null;
         setTipo(editingEvent.tipo || 'pessoal');
         setTipoAtendimento(['venda', 'orcamento', 'manutencao'].includes(editingEvent.type) ? editingEvent.type : 'venda');
         setDescription(editingEvent.description || editingEvent.title || '');
@@ -71,7 +86,20 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
         setAmount(editingEvent.amount != null ? String(editingEvent.amount).replace('.', ',') : '0,00');
         setTimeStart(editingEvent.time || nowTimeStr());
         setTimeEnd(editingEvent.timeEnd || '10:00');
-        setPreOrderItems(Array.isArray(editingEvent.preOrderItems) ? editingEvent.preOrderItems : []);
+        if (isVendaEmpresa && existingItems.length === 0 && fallbackService) {
+          setPreOrderItems([
+            {
+              id: 's-' + fallbackService.id + '-' + String(fallbackService.price || editingEvent.amount || 0).replace('.', '_'),
+              name: fallbackService.name,
+              price: fallbackService.price || editingEvent.amount || 0,
+              qty: 1,
+              discount: 0,
+              isProduct: false,
+            },
+          ]);
+        } else {
+          setPreOrderItems(existingItems);
+        }
       } else {
         setTipo(showEmpresaFeatures ? 'empresa' : 'pessoal');
         setTipoAtendimento('venda');
@@ -85,7 +113,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
         setPreOrderItems([]);
       }
     }
-  }, [visible, editingEvent, initialDate, showEmpresaFeatures]);
+  }, [visible, editingEvent, initialDate, showEmpresaFeatures, services]);
 
   const selectedClient = clients?.find((c) => c.id === clientId);
   const selectedService = services?.find((s) => s.id === serviceId);
@@ -97,6 +125,9 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
   const handleConfirm = () => {
     if (!date?.trim()) return Alert.alert('Erro', 'Informe a data.');
     if (tipo === 'pessoal' && !description?.trim()) return Alert.alert('Erro', 'Preencha a descrição do evento.');
+    if (timeToMinutes(timeEnd) < timeToMinutes(timeStart)) {
+      return Alert.alert('Erro', 'A hora de término não pode ser menor que a hora de início.');
+    }
     playTapSound();
     const hasPreOrder = tipo === 'empresa' && tipoAtendimento === 'venda' && preOrderItems.length > 0;
     const title = tipo === 'pessoal'
@@ -111,7 +142,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
       description: tipo === 'pessoal' ? (description?.trim() || '') : desc,
       date,
       time: timeStart,
-      timeEnd: tipo === 'pessoal' ? null : timeEnd,
+      timeEnd,
       amount: tipo === 'pessoal' ? 0 : amt,
       tipo: showEmpresaFeatures ? tipo : 'pessoal',
       clientId: tipo === 'empresa' ? clientId : null,
@@ -127,6 +158,50 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
     onClose();
   };
 
+  const handleConcluir = () => {
+    if (!isEdit) return;
+    playTapSound();
+    const hasPreOrder = tipo === 'empresa' && tipoAtendimento === 'venda' && preOrderItems.length > 0;
+    const fromAgendaEvent = {
+      ...editingEvent,
+      tipo,
+      type: tipoAtendimento,
+      date,
+      time: timeStart,
+      timeEnd,
+      clientId: tipo === 'empresa' ? clientId : null,
+      serviceId: tipo === 'empresa' && !hasPreOrder ? serviceId : null,
+      preOrderItems: tipo === 'empresa' && tipoAtendimento === 'venda' ? preOrderItems : [],
+      amount: tipo === 'empresa' ? (hasPreOrder ? preOrderTotal : parseAmount()) : 0,
+      title: tipo === 'pessoal'
+        ? (description?.trim() || editingEvent?.title || 'Evento')
+        : (selectedClient?.name || selectedService?.name || editingEvent?.title || 'Atendimento'),
+      description: tipo === 'pessoal'
+        ? (description?.trim() || '')
+        : (hasPreOrder
+          ? preOrderItems.map((i) => `${i.name} x${i.qty || 1}`).join(', ')
+          : (selectedClient && selectedService ? `${selectedClient.name} - ${selectedService.name}` : (selectedClient?.name || selectedService?.name || editingEvent?.description || ''))),
+    };
+    openAddModal?.('receita', { fromAgendaEvent });
+    onClose();
+  };
+
+  const handleExcluir = () => {
+    if (!isEdit) return;
+    playTapSound();
+    Alert.alert('Excluir atendimento', 'Quer realmente excluir este atendimento?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          deleteAgendaEvent(editingEvent.id);
+          onClose();
+        },
+      },
+    ]);
+  };
+
   const inputS = [s.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }];
   const labelS = [s.label, { color: colors.textSecondary }];
 
@@ -134,22 +209,29 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
 
   return (
     <Modal visible transparent animationType="fade">
-      <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
+      <View style={s.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboard}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.header}>
-              <Text style={[s.title, { color: colors.text }]}>{isEdit ? (showEmpresaFeatures ? 'EDITAR ATENDIMENTO' : 'EDITAR AGENDA') : (showEmpresaFeatures ? 'ADICIONAR ATENDIMENTO' : 'ADICIONAR AGENDA')}</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
-                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => { playTapSound(); onClose(); }}>
-                  <Ionicons name="close" size={22} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
+              <Text style={[s.title, { color: colors.text }]}>
+                {isEdit
+                  ? (tipo === 'pessoal' ? 'EDITAR EVENTO' : 'EDITAR ATENDIMENTO')
+                  : (tipo === 'pessoal' ? 'ADICIONAR EVENTO' : 'ADICIONAR ATENDIMENTO')}
+              </Text>
+              <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => { playTapSound(); onClose(); }}>
+                <Ionicons name="close" size={22} color={colors.primary} />
+              </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              nestedScrollEnabled
+              style={s.scroll}
+              contentContainerStyle={s.scrollContent}
+            >
               {showEmpresaFeatures && (
                 <View style={[s.toggleRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
                   <TouchableOpacity
@@ -186,10 +268,16 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
                     <Text style={labelS}>DATA</Text>
                   </View>
                   <DatePickerInput value={date} onChange={setDate} colors={colors} style={[s.input, { backgroundColor: colors.bg }]} />
-                  <View style={s.rowLabel}>
-                    <Text style={labelS}>HORA DE INÍCIO</Text>
+                  <View style={s.twoCol}>
+                    <View style={s.half}>
+                      <Text style={labelS}>INÍCIO</Text>
+                      <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
+                    </View>
+                    <View style={s.half}>
+                      <Text style={labelS}>TÉRMINO</Text>
+                      <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
+                    </View>
                   </View>
-                  <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
                 </>
               ) : (
                 <>
@@ -326,12 +414,23 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
               )}
             </ScrollView>
 
+            {isEdit && tipo === 'empresa' && (
+              <View style={s.actionsRow}>
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#10b981' }]} onPress={handleConcluir}>
+                  <Text style={s.actionText}>FATURAR</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#ef4444' }]} onPress={handleExcluir}>
+                  <Text style={s.actionText}>EXCLUIR</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity style={[s.confirmBtn, { backgroundColor: colors.primary }]} onPress={handleConfirm}>
               <Text style={s.confirmText}>CONFIRMAR</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
 
       {showClientPicker && (
         <Modal visible transparent animationType="fade">
@@ -481,13 +580,13 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
 }
 
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: GAP },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8 },
   keyboard: { width: '100%', justifyContent: 'center', alignItems: 'center' },
-  card: { width: '100%', maxWidth: 400, borderRadius: 24, padding: GAP, borderWidth: 1 },
+  card: { width: '100%', maxWidth: MODAL_MAX_WIDTH, borderRadius: 24, padding: GAP, borderWidth: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: GAP },
   title: { fontSize: 18, fontWeight: '700' },
   closeBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  scroll: { maxHeight: 420 },
+  scroll: { maxHeight: MODAL_SCROLL_MAX_HEIGHT },
   scrollContent: { paddingBottom: GAP },
   toggleRow: { flexDirection: 'row', borderRadius: RADIUS, borderWidth: 1, padding: 4, marginBottom: GAP },
   toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10 },
@@ -503,6 +602,9 @@ const s = StyleSheet.create({
   selectText: { fontSize: 15, flex: 1 },
   twoCol: { flexDirection: 'row', gap: GAP, marginBottom: GAP },
   half: { flex: 1 },
+  actionsRow: { flexDirection: 'row', gap: 10, marginTop: 2, marginBottom: 8 },
+  actionBtn: { flex: 1, borderRadius: RADIUS, paddingVertical: 12, alignItems: 'center' },
+  actionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   confirmBtn: { borderRadius: RADIUS, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
   confirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   pickerCard: { width: '100%', maxWidth: 340, borderRadius: 20, padding: GAP, borderWidth: 1 },

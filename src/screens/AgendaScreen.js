@@ -9,9 +9,9 @@ import {
   Dimensions,
   Modal,
 } from 'react-native';
-import { Gesture, GestureDetector, TouchableOpacity as GHTouchable } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { ScrollView as RNGHScrollView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, useAnimatedRef, useAnimatedScrollHandler, scrollTo, runOnJS, runOnUI } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, useAnimatedRef, useAnimatedScrollHandler, scrollTo, runOnJS } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
@@ -41,8 +41,8 @@ const as = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    paddingTop: 20,
+    paddingVertical: 4,
+    paddingTop: 2,
   },
   headerLeft: { flex: 1, alignItems: 'center' },
   monthBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -56,9 +56,12 @@ const as = StyleSheet.create({
     alignItems: 'center',
   },
   dayCarousel: {
-    paddingVertical: CAROUSEL_PADDING_V,
+    paddingTop: 4,
+    paddingBottom: 2,
     paddingHorizontal: 12,
-    marginBottom: 4,
+    marginTop: 0,
+    marginBottom: 0,
+    overflow: 'visible',
   },
   dayItem: {
     width: DAY_WIDTH,
@@ -70,17 +73,6 @@ const as = StyleSheet.create({
   },
   dayCount: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
   dayNum: { fontSize: 16, fontWeight: '700' },
-  scheduleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  scheduleTitle: { fontSize: 15, fontWeight: '700' },
-  eventControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  eventCount: { fontSize: 13, fontWeight: '600' },
-  zoomBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   timelineRow: {
     flexDirection: 'row',
     flex: 1,
@@ -96,13 +88,19 @@ const as = StyleSheet.create({
     position: 'absolute',
     borderRadius: 10,
     padding: 8,
+    paddingRight: 44,
     borderLeftWidth: 4,
-    overflow: 'hidden',
+    overflow: 'visible',
+    minHeight: 80,
   },
   eventBlockContent: { flex: 1, flexDirection: 'column', justifyContent: 'flex-start' },
-  eventTitle: { fontSize: 13, fontWeight: '600' },
-  eventTime: { fontSize: 11, marginTop: 2 },
-  eventMeta: { fontSize: 10, marginTop: 2 },
+  eventTitle: { fontSize: 12, fontWeight: '600' },
+  eventTime: { fontSize: 10, marginTop: 2 },
+  eventMeta: { fontSize: 9, marginTop: 2 },
+  eventActionsWrap: { position: 'absolute', top: 4, right: 4, alignItems: 'center', zIndex: 5 },
+  eventMenuBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  eventActionsList: { flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: 4, marginTop: 2 },
+  eventActionBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   pickerCard: { borderRadius: 20, borderWidth: 1, padding: 20, maxHeight: 420 },
   pickerTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
@@ -220,14 +218,13 @@ export function AgendaScreen() {
   const [displayedMonthDate, setDisplayedMonthDate] = useState(() => new Date());
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [agendaFormState, setAgendaFormState] = useState({ visible: false, editingEvent: null });
+  const [openEventActionsId, setOpenEventActionsId] = useState(null);
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth());
-  const [zoomBtnPressed, setZoomBtnPressed] = useState(false);
   const [isPinching, setIsPinching] = useState(false);
   const dayScrollRef = useRef(null);
   const lastCenteredIndexRef = useRef(-1);
   const containerRef = useRef(null);
-  const zoomIntervalRef = useRef(null);
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -388,56 +385,7 @@ export function AgendaScreen() {
     }
   }, [showMonthPicker, displayedMonthDate]);
 
-  useEffect(() => () => {
-    if (zoomIntervalRef.current) clearInterval(zoomIntervalRef.current);
-  }, []);
-
   const isTodaySelected = isToday(selectedDate);
-
-  const ZOOM_DELTA = 0.08;
-  const ZOOM_INTERVAL_MS = 80;
-
-  const doZoomAroundViewportCenterWorklet = useCallback((delta) => {
-    'worklet';
-    const vh = Math.max(1, viewHeight.value);
-    const oldScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, scale.value));
-    const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldScale + delta));
-    if (newScale === oldScale) return;
-
-    // Centro visível atual (em coordenadas do conteúdo)
-    const viewportCenterContentY = scrollY.value + vh / 2;
-    // Mantém o mesmo ponto no centro após mudar a escala
-    let nextScroll = viewportCenterContentY * (newScale / oldScale) - vh / 2;
-
-    const scaledContentHeight = 24 * HOUR_HEIGHT * newScale + 20;
-    const maxScroll = Math.max(0, scaledContentHeight - vh);
-    nextScroll = Math.max(0, Math.min(nextScroll, maxScroll));
-
-    scale.value = newScale;
-    scrollY.value = nextScroll;
-    scrollTo(mainScrollRef, 0, nextScroll, false);
-  }, []);
-
-  const startZoom = useCallback((direction) => {
-    setZoomBtnPressed(true);
-    playTapSound();
-    if (zoomIntervalRef.current) clearInterval(zoomIntervalRef.current);
-    runOnUI(doZoomAroundViewportCenterWorklet)(direction * ZOOM_DELTA);
-    zoomIntervalRef.current = setInterval(() => {
-      runOnUI(doZoomAroundViewportCenterWorklet)(direction * ZOOM_DELTA);
-    }, ZOOM_INTERVAL_MS);
-  }, [doZoomAroundViewportCenterWorklet]);
-
-  const startZoomIn = useCallback(() => startZoom(1), [startZoom]);
-  const startZoomOut = useCallback(() => startZoom(-1), [startZoom]);
-
-  const stopZoom = useCallback(() => {
-    setZoomBtnPressed(false);
-    if (zoomIntervalRef.current) {
-      clearInterval(zoomIntervalRef.current);
-      zoomIntervalRef.current = null;
-    }
-  }, []);
 
   const animatedTimelineStyle = useAnimatedStyle(() => ({
     height: 24 * HOUR_HEIGHT * scale.value,
@@ -484,6 +432,7 @@ export function AgendaScreen() {
             ref={dayScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
+            persistentScrollbar={false}
             contentContainerStyle={[as.dayCarousel, { backgroundColor: colors.card }]}
             snapToInterval={DAY_ITEM_WIDTH}
             snapToAlignment="center"
@@ -520,38 +469,6 @@ export function AgendaScreen() {
             })}
           </ScrollView>
 
-          <View style={[as.scheduleHeader, { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]}>
-            <Text style={[as.scheduleTitle, { color: colors.text }]}>
-              CRONOGRAMA — {selectedDate.getDate()} DE {currentMonthName.toUpperCase()}
-            </Text>
-            <View
-              style={as.eventControls}
-              onStartShouldSetResponderCapture={() => true}
-              onMoveShouldSetResponderCapture={() => true}
-              onResponderTerminationRequest={() => false}
-            >
-              <GHTouchable
-                style={[as.zoomBtn, { backgroundColor: colors.bg }]}
-                onPressIn={startZoomOut}
-                onPressOut={stopZoom}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="remove" size={18} color={colors.text} />
-              </GHTouchable>
-              <GHTouchable
-                style={[as.zoomBtn, { backgroundColor: colors.bg }]}
-                onPressIn={startZoomIn}
-                onPressOut={stopZoom}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add" size={18} color={colors.text} />
-              </GHTouchable>
-              <Text style={[as.eventCount, { color: colors.textSecondary }]}>
-                {eventsForSelected.length} {eventsForSelected.length === 1 ? 'Evento' : 'Eventos'}
-              </Text>
-            </View>
-          </View>
-
           <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
             <View style={{ width: 52 }} />
             <View style={{ flex: 1 }} />
@@ -570,7 +487,7 @@ export function AgendaScreen() {
         <AnimatedScrollView
           ref={mainScrollRef}
           style={{ flex: 1 }}
-          scrollEnabled={!zoomBtnPressed && !isPinching}
+          scrollEnabled={!isPinching}
           onScroll={onTimelineScroll}
           scrollEventThrottle={1}
           showsVerticalScrollIndicator
@@ -613,6 +530,7 @@ export function AgendaScreen() {
               )}
               {getEventLayouts(eventsForSelected).map(({ event: e, startM, endM, duration, lane, lanesUsed }) => {
                 const isConcluido = e.status === 'concluido';
+                const isActionsOpen = openEventActionsId === e.id;
                 const openEdit = () => {
                   playTapSound();
                   setAgendaFormState({ visible: true, editingEvent: e });
@@ -632,7 +550,7 @@ export function AgendaScreen() {
                         width: `${width}%`,
                         top: `${(startM / 1440) * 100}%`,
                         height: `${(duration / 1440) * 100}%`,
-                        minHeight: 44,
+                        minHeight: 80,
                         backgroundColor: isConcluido ? colors.primaryRgba(0.08) : colors.primaryRgba(0.15),
                         borderLeftColor: isConcluido ? colors.textSecondary : colors.primary,
                         opacity: isConcluido ? 0.85 : 1,
@@ -657,31 +575,45 @@ export function AgendaScreen() {
                         ) : null;
                       })()}
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2, marginTop: 4 }}>
+                    <View style={as.eventActionsWrap}>
+                      <TouchableOpacity
+                        onPress={(ev) => {
+                          ev?.stopPropagation?.();
+                          playTapSound();
+                          setOpenEventActionsId((prev) => (prev === e.id ? null : e.id));
+                        }}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        style={[as.eventMenuBtn, { backgroundColor: colors.bg + 'CC' }]}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name={isActionsOpen ? 'ellipsis-horizontal-circle' : 'ellipsis-horizontal'} size={20} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      {isActionsOpen && (
+                        <View style={as.eventActionsList}>
                           <TouchableOpacity
                             onPress={(ev) => { ev?.stopPropagation?.(); openEdit(); }}
                             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            style={{ padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
-                            activeOpacity={0.6}
+                            style={[as.eventActionBtn, { backgroundColor: colors.bg + 'E6' }]}
+                            activeOpacity={0.7}
                           >
-                            <Ionicons name="pencil" size={22} color={colors.primary} />
+                            <Ionicons name="pencil" size={18} color={colors.primary} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={(ev) => {
                               ev?.stopPropagation?.();
                               playTapSound();
-                              const isEmpresaComServico = showEmpresaFeatures && (e.tipo === 'empresa') && (e.clientId || e.serviceId || (Array.isArray(e.preOrderItems) && e.preOrderItems.length > 0));
-                              if (isEmpresaComServico && !isConcluido) {
+                              const isEmpresaEvent = showEmpresaFeatures && (e.tipo === 'empresa');
+                              if (isEmpresaEvent && !isConcluido) {
                                 openAddModal?.('receita', { fromAgendaEvent: e });
                               } else {
                                 updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' });
                               }
                             }}
                             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            style={{ padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
-                            activeOpacity={0.6}
+                            style={[as.eventActionBtn, { backgroundColor: colors.bg + 'E6' }]}
+                            activeOpacity={0.7}
                           >
-                            <Ionicons name="checkmark-done" size={22} color="#10b981" />
+                            <Ionicons name="checkmark-done" size={18} color="#10b981" />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={(ev) => {
@@ -693,12 +625,14 @@ export function AgendaScreen() {
                               ]);
                             }}
                             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            style={{ padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }}
-                            activeOpacity={0.6}
+                            style={[as.eventActionBtn, { backgroundColor: colors.bg + 'E6' }]}
+                            activeOpacity={0.7}
                           >
-                            <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                            <Ionicons name="trash-outline" size={18} color="#ef4444" />
                           </TouchableOpacity>
                         </View>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               })}

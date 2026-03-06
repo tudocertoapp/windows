@@ -22,8 +22,8 @@ const ETIQUETAS_SUGESTOES = [
 
 const FIELD_GAP = 16;
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  box: { width: '100%', maxWidth: 360, maxHeight: '90%', borderRadius: 20, padding: 20 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 12 },
+  box: { width: '100%', maxWidth: 520, maxHeight: '92%', borderRadius: 20, padding: 20 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   title: { fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
@@ -92,7 +92,8 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
 
   return (
     <Modal visible transparent animationType="fade">
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }}>
+      <View style={styles.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
@@ -106,7 +107,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
                 <Ionicons name="close" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
+            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
               <Text style={[styles.label, { color: colors.text }]}>Foto do cliente</Text>
               <TouchableOpacity onPress={pickFoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
                 {foto ? (
@@ -176,7 +177,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
