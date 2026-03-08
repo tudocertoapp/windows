@@ -2,11 +2,10 @@ import * as Haptics from 'expo-haptics';
 
 /**
  * Som de toque leve, estilo iOS.
+ * Não bloqueia a UI — em APK/release, await no haptic pode travar o app.
  */
-export async function playTapSound() {
-  try {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  } catch (_) {}
+export function playTapSound() {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
 /**

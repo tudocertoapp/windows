@@ -48,7 +48,7 @@ function timeToMinutes(t) {
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
 }
 
-export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, onOpenNewClient, onOpenNewService }) {
+export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, initialData, onOpenNewClient, onOpenNewService }) {
   const { colors } = useTheme();
   const { clients, services, products, addAgendaEvent, updateAgendaEvent, deleteAgendaEvent } = useFinance();
   const { showEmpresaFeatures } = usePlan();
@@ -69,6 +69,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
   const [preOrderItems, setPreOrderItems] = useState([]);
   const [editingItemIdx, setEditingItemIdx] = useState(null);
   const [editingItemPrice, setEditingItemPrice] = useState('0,00');
+  const [manualItemName, setManualItemName] = useState('');
+  const [manualItemPrice, setManualItemPrice] = useState('0,00');
   const isEdit = Boolean(editingEvent);
 
   useEffect(() => {
@@ -101,19 +103,25 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
           setPreOrderItems(existingItems);
         }
       } else {
-        setTipo(showEmpresaFeatures ? 'empresa' : 'pessoal');
-        setTipoAtendimento('venda');
-        setDescription('');
-        setClientId(null);
-        setServiceId(null);
-        setDate(initialDate || todayStr());
-        setAmount('0,00');
-        setTimeStart(nowTimeStr());
-        setTimeEnd('10:00');
-        setPreOrderItems([]);
+        const data = initialData || {};
+        const nextTipo = showEmpresaFeatures
+          ? (data.tipo || (showEmpresaFeatures ? 'empresa' : 'pessoal'))
+          : 'pessoal';
+        setTipo(nextTipo);
+        setTipoAtendimento(['venda', 'orcamento', 'manutencao'].includes(data.type) ? data.type : 'venda');
+        setDescription(data.description || data.title || '');
+        setClientId(data.clientId || null);
+        setServiceId(data.serviceId || null);
+        setDate(data.date || initialDate || todayStr());
+        setAmount(data.amount != null && String(data.amount).trim() !== '' ? String(data.amount) : '0,00');
+        setTimeStart(data.time || data.timeStart || nowTimeStr());
+        setTimeEnd(data.timeEnd || '10:00');
+        setPreOrderItems(Array.isArray(data.preOrderItems) ? data.preOrderItems : []);
       }
+      setManualItemName('');
+      setManualItemPrice('0,00');
     }
-  }, [visible, editingEvent, initialDate, showEmpresaFeatures, services]);
+  }, [visible, editingEvent, initialDate, initialData, showEmpresaFeatures, services]);
 
   const selectedClient = clients?.find((c) => c.id === clientId);
   const selectedService = services?.find((s) => s.id === serviceId);
@@ -121,6 +129,29 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
   const parseAmount = () => parseMoney(amount || '0');
 
   const preOrderTotal = preOrderItems.reduce((s, i) => s + ((i.price || 0) - (i.discount || 0)) * (i.qty || 1), 0);
+  const isVendaEmpresa = tipo === 'empresa' && tipoAtendimento === 'venda';
+  const totalAtendimento = isVendaEmpresa ? preOrderTotal : parseAmount();
+
+  const handleAddManualItem = () => {
+    const name = (manualItemName || '').trim();
+    const value = parseMoney(manualItemPrice || '0');
+    if (!name) return Alert.alert('Erro', 'Digite o nome do produto/serviço.');
+    if (value <= 0) return Alert.alert('Erro', 'Digite um valor maior que zero.');
+    playTapSound();
+    setPreOrderItems((prev) => [
+      ...prev,
+      {
+        id: `m-${Date.now()}`,
+        name,
+        price: value,
+        qty: 1,
+        discount: 0,
+        isProduct: false,
+      },
+    ]);
+    setManualItemName('');
+    setManualItemPrice('0,00');
+  };
 
   const handleConfirm = () => {
     if (!date?.trim()) return Alert.alert('Erro', 'Informe a data.');
@@ -189,7 +220,9 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
   const handleExcluir = () => {
     if (!isEdit) return;
     playTapSound();
-    Alert.alert('Excluir atendimento', 'Quer realmente excluir este atendimento?', [
+    const alertTitle = tipo === 'empresa' ? 'Excluir atendimento' : 'Excluir evento';
+    const alertMsg = tipo === 'empresa' ? 'Quer realmente excluir este atendimento?' : 'Quer realmente excluir este evento?';
+    Alert.alert(alertTitle, alertMsg, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Excluir',
@@ -362,6 +395,30 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
                               <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
                             </TouchableOpacity>
                           )}
+                          <View style={s.rowLabel}>
+                            <Text style={labelS}>DIGITAR PRODUTO/SERVIÇO</Text>
+                          </View>
+                          <View style={s.twoCol}>
+                            <View style={s.half}>
+                              <TextInput
+                                style={inputS}
+                                placeholder="Nome do item"
+                                placeholderTextColor={colors.textSecondary}
+                                value={manualItemName}
+                                onChangeText={setManualItemName}
+                              />
+                            </View>
+                            <View style={s.half}>
+                              <MoneyInput value={manualItemPrice} onChange={setManualItemPrice} colors={colors} containerStyle={{ backgroundColor: colors.bg }} />
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            style={[s.select, { marginTop: -8, backgroundColor: colors.bg, borderColor: colors.primary }]}
+                            onPress={handleAddManualItem}
+                          >
+                            <Text style={[s.selectText, { color: colors.primary, fontWeight: '700' }]}>Adicionar item digitado</Text>
+                            <Ionicons name="add-circle" size={20} color={colors.primary} />
+                          </TouchableOpacity>
                         </>
                       ) : (
                         <>
@@ -391,12 +448,18 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
                           <Text style={labelS}>DATA DO ATENDIMENTO</Text>
                           <DatePickerInput value={date} onChange={setDate} colors={colors} style={[s.inputFlex, { backgroundColor: colors.bg }]} />
                         </View>
-                        {!(tipoAtendimento === 'venda' && preOrderItems.length > 0) && (
-                          <View style={s.half}>
-                            <Text style={labelS}>VALOR</Text>
+                        <View style={s.half}>
+                          <Text style={labelS}>{tipoAtendimento === 'venda' ? 'VALOR TOTAL' : 'VALOR'}</Text>
+                          {tipoAtendimento === 'venda' ? (
+                            <View style={[s.inputRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                              <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>
+                                R$ {totalAtendimento.toFixed(2).replace('.', ',')}
+                              </Text>
+                            </View>
+                          ) : (
                             <MoneyInput value={amount} onChange={setAmount} colors={colors} containerStyle={{ backgroundColor: colors.bg }} />
-                          </View>
-                        )}
+                          )}
+                        </View>
                       </View>
                       <View style={s.twoCol}>
                         <View style={s.half}>
@@ -414,11 +477,13 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, o
               )}
             </ScrollView>
 
-            {isEdit && tipo === 'empresa' && (
+            {isEdit && (
               <View style={s.actionsRow}>
-                <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#10b981' }]} onPress={handleConcluir}>
-                  <Text style={s.actionText}>FATURAR</Text>
-                </TouchableOpacity>
+                {tipo === 'empresa' && (
+                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#10b981' }]} onPress={handleConcluir}>
+                    <Text style={s.actionText}>FATURAR</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#ef4444' }]} onPress={handleExcluir}>
                   <Text style={s.actionText}>EXCLUIR</Text>
                 </TouchableOpacity>

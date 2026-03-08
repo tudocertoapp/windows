@@ -26,12 +26,14 @@ import { TermosScreen } from '../screens/TermosScreen';
 import { BancosECartoesScreen } from '../screens/BancosECartoesScreen';
 import { OrcamentoScreen } from '../screens/OrcamentoScreen';
 import { AnotacoesScreen } from '../screens/AnotacoesScreen';
+import { MeusGastosScreen } from '../screens/MeusGastosScreen';
+import { ListaComprasScreen } from '../screens/ListaComprasScreen';
+import { MetasESonhosScreen } from '../screens/MetasESonhosScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
 import { AgendaFormModal } from '../components/AgendaFormModal';
 import { AssistantModal } from '../components/AssistantModal';
-import { VoiceListener } from '../components/VoiceListener';
 import { ProductFormModal } from '../components/ProductFormModal';
 import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
@@ -55,7 +57,7 @@ export function AppNavigator() {
   const [aReceberModal, setAReceberModal] = useState(false);
   const [clientesModal, setClientesModal] = useState(false);
   const [assistantModal, setAssistantModal] = useState(false);
-  const voiceListenerRef = useRef(null);
+  const [assistantAutoStartKey, setAssistantAutoStartKey] = useState(0);
   const [imageModal, setImageModal] = useState(false);
   const [imageModalParams, setImageModalParams] = useState({});
   const [temasModal, setTemasModal] = useState(false);
@@ -63,10 +65,14 @@ export function AppNavigator() {
   const [bancosModal, setBancosModal] = useState(false);
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [anotacoesModal, setAnotacoesModal] = useState(false);
+  const [meusGastosModal, setMeusGastosModal] = useState(false);
+  const [listaComprasModal, setListaComprasModal] = useState(false);
+  const [metasSonhosModal, setMetasSonhosModal] = useState(false);
   const [calculadoraModal, setCalculadoraModal] = useState(false);
   const [calculadoraFloating, setCalculadoraFloating] = useState(false);
   const [calculatorExpression, setCalculatorExpression] = useState('');
   const [calculatorResult, setCalculatorResult] = useState(null);
+  const [calculatorHistory, setCalculatorHistory] = useState([]);
   const { colors, primaryColor } = useTheme();
   const { addProduct } = useFinance();
   const insets = useSafeAreaInsets();
@@ -102,6 +108,9 @@ export function AppNavigator() {
       openBancos: () => { setMenuModalOpen(false); setBancosModal(true); },
       openOrcamento: () => { setMenuModalOpen(false); setOrcamentoModal(true); },
       openAnotacoes: (params) => { setMenuModalOpen(false); setAnotacoesModal(params || true); },
+      openMeusGastos: () => { setMenuModalOpen(false); setMeusGastosModal(true); },
+      openListaCompras: () => { setMenuModalOpen(false); setListaComprasModal(true); },
+      openMetasSonhos: () => { setMenuModalOpen(false); setMetasSonhosModal(true); },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
       openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
@@ -197,14 +206,6 @@ export function AppNavigator() {
           />
         </Tab.Navigator>
       </NavigationContainer>
-      <VoiceListener
-        ref={voiceListenerRef}
-        onResult={(type, params) => {
-          if (type === 'fatura') menuActions.openCadastro?.('boletos');
-          else if (type === 'produto') setProductFormVisible(true);
-          else setAddModalState({ type, params: params || null });
-        }}
-      />
       <CircularMenuComponent
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -220,7 +221,8 @@ export function AppNavigator() {
         }}
         onAssistant={() => {
           setMenuOpen(false);
-          voiceListenerRef.current?.startListening();
+          setAssistantAutoStartKey((prev) => prev + 1);
+          setAssistantModal(true);
         }}
       />
       <ProductFormModal
@@ -241,6 +243,7 @@ export function AppNavigator() {
           visible
           editingEvent={addModalState.params?.editingEvent}
           initialDate={addModalState.params?.date}
+          initialData={addModalState.params?.initialData}
           onClose={() => setAddModalState({ type: null, params: null })}
           onOpenNewClient={() => setCadastroModal({ section: 'clientes' })}
           onOpenNewService={() => setCadastroModal({ section: 'servicos' })}
@@ -251,6 +254,7 @@ export function AppNavigator() {
       <AssistantModal
         visible={assistantModal}
         onClose={() => setAssistantModal(false)}
+        autoStartListeningKey={assistantAutoStartKey}
         onOpenAdd={(type, params) => {
           setAssistantModal(false);
           if (type === 'fatura') menuActions.openCadastro?.('boletos');
@@ -274,6 +278,9 @@ export function AppNavigator() {
             onOpenBancos={menuActions.openBancos}
             onOpenOrcamento={menuActions.openOrcamento}
             onOpenAnotacoes={menuActions.openAnotacoes}
+            onOpenMeusGastos={menuActions.openMeusGastos}
+            onOpenListaCompras={menuActions.openListaCompras}
+            onOpenMetasSonhos={menuActions.openMetasSonhos}
             onOpenImageGenerator={menuActions.openImageGenerator}
             onOpenCalculadoraFull={menuActions.openCalculadoraFull}
           />
@@ -339,6 +346,21 @@ export function AppNavigator() {
           />
         </SafeAreaView>
       </Modal>
+      <Modal visible={metasSonhosModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <MetasESonhosScreen onClose={() => setMetasSonhosModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={listaComprasModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <ListaComprasScreen onClose={() => setListaComprasModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={meusGastosModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <MeusGastosScreen onClose={() => setMeusGastosModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
       <Modal visible={imageModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <MotivationalImageScreen onClose={() => { setImageModal(false); setImageModalParams({}); }} isModal initialQuote={imageModalParams.quote} initialQuoteType={imageModalParams.quoteType} />
@@ -352,8 +374,10 @@ export function AppNavigator() {
             isModal
             expression={calculatorExpression}
             result={calculatorResult}
+            history={calculatorHistory}
             onExpressionChange={setCalculatorExpression}
             onResultChange={setCalculatorResult}
+            onHistoryChange={setCalculatorHistory}
           />
         </SafeAreaView>
       </Modal>
@@ -363,8 +387,10 @@ export function AppNavigator() {
         onExpand={() => { setCalculadoraFloating(false); setCalculadoraModal(true); }}
         expression={calculatorExpression}
         result={calculatorResult}
+        history={calculatorHistory}
         onExpressionChange={setCalculatorExpression}
         onResultChange={setCalculatorResult}
+        onHistoryChange={setCalculatorHistory}
       />
     </MenuContext.Provider>
   );

@@ -12,6 +12,8 @@ import { ProfileProvider } from './src/contexts/ProfileContext';
 import { BanksProvider } from './src/contexts/BanksContext';
 import { BudgetProvider } from './src/contexts/BudgetContext';
 import { NotesProvider } from './src/contexts/NotesContext';
+import { ShoppingListProvider } from './src/contexts/ShoppingListContext';
+import { GoalsProvider } from './src/contexts/GoalsContext';
 import { ReminderProvider } from './src/contexts/ReminderContext';
 import { ValuesVisibilityProvider } from './src/contexts/ValuesVisibilityContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -65,6 +67,8 @@ function AppContent() {
     <FinanceProvider>
       <BudgetProvider>
         <NotesProvider>
+        <ShoppingListProvider>
+        <GoalsProvider>
         <BanksProvider>
           <PlanProvider>
             <ProfileProvider>
@@ -74,6 +78,8 @@ function AppContent() {
             </ProfileProvider>
           </PlanProvider>
         </BanksProvider>
+        </GoalsProvider>
+        </ShoppingListProvider>
         </NotesProvider>
       </BudgetProvider>
     </FinanceProvider>

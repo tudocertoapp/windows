@@ -3,17 +3,7 @@ import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView,
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { parseVoiceIntent } from '../utils/voiceExpenseParser';
-
-let ExpoSpeechRecognitionModule = null;
-let useSpeechRecognitionEvent = () => {}; // no-op quando módulo nativo não está disponível
-try {
-  const sr = require('expo-speech-recognition');
-  const mod = sr?.ExpoSpeechRecognitionModule;
-  if (mod && typeof mod.isRecognitionAvailable === 'function' && mod.isRecognitionAvailable()) {
-    ExpoSpeechRecognitionModule = mod;
-    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
-  }
-} catch (_) {}
+import VoiceRecorder from './VoiceRecorder';
 
 const QUICK_ACTIONS = [
   { id: 'receita', label: 'Receita', icon: 'trending-up' },
@@ -50,44 +40,12 @@ function parseCommand(text) {
   return { parsed: t, amount: num ? parseFloat(num[0].replace(',', '.')) : null };
 }
 
-export function AssistantModal({ visible, onClose, onOpenAdd }) {
+export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListeningKey = 0 }) {
   const { colors } = useTheme();
   const [text, setText] = useState('');
   const [listening, setListening] = useState(false);
   const [micPulse] = useState(() => new Animated.Value(1));
-  const lastTranscriptRef = useRef('');
-
-  const isAvailable = !!ExpoSpeechRecognitionModule;
-
-  useSpeechRecognitionEvent('start', () => {
-    setListening(true);
-    lastTranscriptRef.current = '';
-  });
-  useSpeechRecognitionEvent('result', (event) => {
-    const transcript = event?.results?.[0]?.[0]?.transcript ?? '';
-    if (transcript) {
-      lastTranscriptRef.current = (lastTranscriptRef.current ? `${lastTranscriptRef.current} ` : '') + transcript;
-      setText((prev) => (prev ? `${prev} ${transcript}` : transcript).trim());
-    }
-  });
-  useSpeechRecognitionEvent('end', () => {
-    setListening(false);
-    const toParse = lastTranscriptRef.current.trim() || text.trim();
-    if (!toParse) return;
-    const parsed = parseVoiceIntent(toParse);
-    if (parsed?.type) {
-      lastTranscriptRef.current = '';
-      setText('');
-      onOpenAdd?.(parsed.type, parsed.params);
-      onClose();
-    }
-  });
-  useSpeechRecognitionEvent('error', (event) => {
-    if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
-      Alert.alert('Voz', 'Não foi possível reconhecer. Verifique o microfone.');
-    }
-    setListening(false);
-  });
+  const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
 
   useEffect(() => {
     if (listening) {
@@ -100,26 +58,28 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
     }
   }, [listening]);
 
+  useEffect(() => {
+    if (visible) return;
+    if (listening) {
+      voiceActionsRef.current.stopListening?.();
+    }
+    setListening(false);
+    setText('');
+  }, [visible, listening]);
+
   const handleMic = async () => {
-    if (!ExpoSpeechRecognitionModule) {
-      Alert.alert('Voz', 'Reconhecimento de voz não disponível neste dispositivo ou build.');
+    if (listening) {
+      await voiceActionsRef.current.stopListening?.();
       return;
     }
-    try {
-      const res = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!res?.granted) {
-        Alert.alert('Permissão', 'É necessário permitir o uso do microfone para reconhecimento de voz.');
-        return;
-      }
-      if (listening) {
-        ExpoSpeechRecognitionModule.stop();
-      } else {
-        ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', interimResults: true, continuous: false });
-      }
-    } catch (e) {
-      Alert.alert('Erro', 'Não foi possível iniciar o microfone.');
-    }
+    await voiceActionsRef.current.startListening?.();
   };
+
+  useEffect(() => {
+    if (!visible || !autoStartListeningKey) return;
+    handleMic();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, autoStartListeningKey]);
 
   const handleQuick = (id) => {
     onOpenAdd?.(id);
@@ -134,7 +94,6 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
       onOpenAdd?.(parsed.type, parsed.params);
       onClose();
       setText('');
-      lastTranscriptRef.current = '';
       return;
     }
     const cmd = parseCommand(text);
@@ -161,9 +120,32 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
             <Ionicons name="close" size={20} color={colors.primary} />
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <VoiceRecorder
+              onTranscriptChange={(t) => {
+                setListening(true);
+                setText(t);
+              }}
+              onFinalTranscript={(t) => {
+                setListening(false);
+                setText(t);
+                const parsed = parseVoiceIntent(t);
+                if (parsed?.type) {
+                  onOpenAdd?.(parsed.type, parsed.params);
+                  onClose();
+                  setText('');
+                }
+              }}
+            >
+              {(voice) => {
+                voiceActionsRef.current = {
+                  startListening: voice.startListening,
+                  stopListening: voice.stopListening,
+                };
+                return null;
+              }}
+            </VoiceRecorder>
             <TouchableOpacity
               onPress={handleMic}
-              disabled={!isAvailable}
               style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: listening ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}
             >
               <Animated.View style={{ transform: [{ scale: micPulse }] }}>
@@ -172,7 +154,7 @@ export function AssistantModal({ visible, onClose, onOpenAdd }) {
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={[s.title, { color: colors.text, marginBottom: 0 }]}>Assistente Virtual</Text>
-              <Text style={{ fontSize: 11, color: colors.textSecondary }}>{isAvailable ? (listening ? 'Gravando... fale agora' : 'Toque no microfone para falar') : 'Digite para usar'}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}>{listening ? 'Ouvindo... fale agora' : 'Toque no microfone para falar'}</Text>
             </View>
           </View>
           <Text style={[s.hint, { color: colors.textSecondary }]}>Digite ou toque para cadastrar rapidamente:</Text>

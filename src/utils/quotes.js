@@ -35,7 +35,47 @@ export function getQuoteOfDay(tipo = 'motivacional') {
 
 export function getGreeting() {
   const h = new Date().getHours();
+  if (h < 5) return 'Boa madrugada';
   if (h < 12) return 'Bom dia';
   if (h < 18) return 'Boa tarde';
   return 'Boa noite';
+}
+
+const FINANCE_PROMPTS = {
+  madrugada: [
+    'Madrugada produtiva? Vamos organizar suas finanças rapidinho.',
+    'Que tal adiantar e deixar as contas em dia agora?',
+    'Bora registrar o que entrou e saiu hoje?',
+    'Vamos fechar os gastos da noite com clareza.',
+    'Se quiser, comecamos por uma despesa ou receita.',
+  ],
+  manha: [
+    'Bom ritmo de manha. Bora organizar suas financas?',
+    'Vamos comecar o dia registrando receitas e despesas?',
+    'Que tal planejar os gastos de hoje em poucos toques?',
+    'Bora deixar suas contas organizadas logo cedo?',
+    'Comece leve: registre uma movimentacao agora.',
+  ],
+  tarde: [
+    'Boa tarde! Bora atualizar suas financas?',
+    'Quer revisar os gastos da manha e seguir tranquilo?',
+    'Vamos cadastrar uma despesa rapidinho?',
+    'Bora conferir o saldo e manter tudo no controle?',
+    'Que tal registrar as movimentacoes da tarde?',
+  ],
+  noite: [
+    'Boa noite! Vamos fechar o dia com as contas em ordem?',
+    'Bora registrar o que rolou hoje nas financas?',
+    'Quer atualizar os gastos antes de encerrar o dia?',
+    'Vamos deixar tudo organizado para amanha?',
+    'Hora de revisar receitas e despesas com calma.',
+  ],
+};
+
+export function getFinancePromptByTime() {
+  const h = new Date().getHours();
+  const period = h < 5 ? 'madrugada' : h < 12 ? 'manha' : h < 18 ? 'tarde' : 'noite';
+  const list = FINANCE_PROMPTS[period] || FINANCE_PROMPTS.manha;
+  const idx = Math.floor(Math.random() * list.length);
+  return list[idx];
 }

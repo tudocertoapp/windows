@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMenu } from '../contexts/MenuContext';
 import { useProfile } from '../contexts/ProfileContext';
-import { getGreeting } from '../utils/quotes';
+import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
 
@@ -28,11 +29,20 @@ export const topBarStyles = StyleSheet.create({
 
 const styles = topBarStyles;
 
-export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, extendToTop = true, hideMenu, hideLogoIcon }) {
+export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, onChat, extendToTop = true, hideMenu, hideLogoIcon }) {
   const { openMenu, openPerfil } = useMenu();
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
   const isHome = title === 'Início' || useLogoImage;
+  const [homePrompt, setHomePrompt] = useState(() => getFinancePromptByTime());
+
+  useEffect(() => {
+    if (isHome && isFocused) {
+      setHomePrompt(getFinancePromptByTime());
+    }
+  }, [isHome, isFocused]);
+
   const Bar = (
     <View style={[topBarStyles.bar, { backgroundColor: colors.bg }]}>
       <View style={[styles.logoRow, { flex: 1 }]}>
@@ -45,9 +55,13 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
                 resizeMode="cover"
               />
             </TouchableOpacity>
-            <View>
-              <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>{getGreeting()}, {profile?.nome || 'você'}!</Text>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>Pronto para organizar o seu dia?</Text>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: 6 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                {getGreeting()}, {profile?.nome || 'você'}!
+              </Text>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
+                {homePrompt}
+              </Text>
             </View>
           </View>
         ) : (
@@ -60,6 +74,15 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {onChat ? (
+          <TouchableOpacity
+            style={{ padding: 8, backgroundColor: 'transparent' }}
+            onPress={() => { playTapSound(); onChat(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
         {onCalculadora ? (
           <TouchableOpacity
             style={{ padding: 8, backgroundColor: 'transparent' }}

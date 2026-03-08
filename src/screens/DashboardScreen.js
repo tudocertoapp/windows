@@ -9,6 +9,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotes } from '../contexts/NotesContext';
+import { useShoppingList } from '../contexts/ShoppingListContext';
 import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
 import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
@@ -17,6 +18,7 @@ import { ContasDoMesCard } from '../components/ContasDoMesCard';
 import { TransacoesCard } from '../components/TransacoesCard';
 import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
 import { GlassCard } from '../components/GlassCard';
+import { MeusGastosChat } from '../components/MeusGastosChat';
 import { DraggableCard } from '../components/DraggableCard';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { playTapSound } from '../utils/sounds';
@@ -101,8 +103,9 @@ export function DashboardScreen() {
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openCalculadoraFull } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openCalculadoraFull, openMeusGastos, openListaCompras } = useMenu();
   const { notes, deleteNote } = useNotes();
+  const { items: shoppingItems } = useShoppingList();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
   const [quoteType, setQuoteType] = useState('motivacional');
@@ -466,6 +469,9 @@ export function DashboardScreen() {
                     </Text>
                   )}
                 </View>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="cart-outline" size={22} color={colors.primary} />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="pencil" size={22} color={colors.primary} />
                 </TouchableOpacity>
@@ -629,6 +635,26 @@ export function DashboardScreen() {
         </GlassCard>
       </TouchableOpacity>
     ),
+    meusgastos: (
+      <View key="meusgastos" style={{ marginHorizontal: 16, marginTop: 16 }}>
+        <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6, overflow: 'hidden' }]} contentStyle={{ padding: 0 }}>
+          <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name="chatbubbles-outline" size={26} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Meus gastos</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>Conversa por texto, voz e foto da notinha</Text>
+            </View>
+          </View>
+          </View>
+          <View style={{ height: 330, marginTop: 6 }}>
+            <MeusGastosChat embedded />
+          </View>
+        </GlassCard>
+      </View>
+    ),
     anotacoes: (
       <TouchableOpacity
         key="anotacoes"
@@ -677,6 +703,47 @@ export function DashboardScreen() {
                 >
                   <Ionicons name="trash-outline" size={16} color="#ef4444" />
                 </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </GlassCard>
+      </TouchableOpacity>
+    ),
+    listacompras: (
+      <TouchableOpacity
+        key="listacompras"
+        onPress={() => { playTapSound(); openListaCompras?.(); }}
+        activeOpacity={0.9}
+        style={{ marginHorizontal: 16, marginTop: 16 }}
+      >
+        <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name="cart-outline" size={26} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Lista de compras</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                {shoppingItems.length === 0 ? 'Anote o que precisa comprar' : `${shoppingItems.length} item${shoppingItems.length !== 1 ? 'ns' : ''} na lista`}
+              </Text>
+            </View>
+            <AppIcon name="chevron-forward" size={22} color={colors.primary} />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50' }}>
+              <Ionicons name="add" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Adicionar item</Text>
+            </TouchableOpacity>
+          </View>
+          {shoppingItems.length === 0 ? (
+            <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>Nenhum item na lista</Text>
+          ) : (
+            shoppingItems.slice(0, 5).map((i) => (
+              <View key={i.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
+                <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  {i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}
+                </View>
+                <Text style={{ fontSize: 15, color: colors.text, flex: 1, textDecorationLine: i.checked ? 'line-through' : 'none' }} numberOfLines={1}>{i.title}</Text>
               </View>
             ))
           )}
@@ -746,7 +813,15 @@ export function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Início" colors={colors} useLogoImage hideOrganize onManageCards={() => setShowCardPicker(true)} onCalculadora={openCalculadoraFull} />
+      <TopBar
+        title="Início"
+        colors={colors}
+        useLogoImage
+        hideOrganize
+        onManageCards={() => setShowCardPicker(true)}
+        onCalculadora={openCalculadoraFull}
+        onChat={openMeusGastos}
+      />
       {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       {isGuest && (
         <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center', gap: 10 }}>

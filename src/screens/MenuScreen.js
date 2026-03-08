@@ -30,7 +30,7 @@ const ms = StyleSheet.create({
   appTitle: { fontSize: 26, fontWeight: '800', letterSpacing: 0.5, marginTop: 6 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull }) {
   const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
@@ -120,10 +120,13 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
           <MenuItem icon="cash-outline" label="Meu Orçamento" subtitle="Limite de gastos por categoria" onPress={onOpenOrcamento || comingSoon} />
+          <MenuItem icon="chatbubbles-outline" label="Meus gastos" subtitle="Conversa por texto, voz e foto" onPress={onOpenMeusGastos || comingSoon} />
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>PRODUTIVIDADE</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
+          <MenuItem icon="cart-outline" label="Lista de compras" subtitle="Anote o que precisa comprar" onPress={onOpenListaCompras || comingSoon} />
+          <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso dos seus objetivos" onPress={onOpenMetasSonhos || comingSoon} />
           <MenuItem icon="calculator-outline" label="Calculadora" subtitle="Calculadora completa estilo iOS" onPress={onOpenCalculadoraFull || comingSoon} />
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>VISUALIZAÇÃO</Text>

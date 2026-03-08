@@ -3,8 +3,8 @@
  * Ex: 10 + 5 * 3 - 2 / 4, parênteses, %
  */
 
-import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Image } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Image, Modal, ScrollView } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { playTapSound } from '../utils/sounds';
 import { calculateExpression, CALC_ERROR } from '../utils/calculator';
@@ -26,8 +26,10 @@ interface Props {
   showCurrency?: boolean;
   expression?: string;
   result?: string | null;
+  history?: Array<{ expression: string; result: string; createdAt: number }>;
   onExpressionChange?: React.Dispatch<React.SetStateAction<string>>;
   onResultChange?: React.Dispatch<React.SetStateAction<string | null>>;
+  onHistoryChange?: React.Dispatch<React.SetStateAction<Array<{ expression: string; result: string; createdAt: number }>>>;
 }
 
 export function CalculatorScreenPro({
@@ -39,14 +41,21 @@ export function CalculatorScreenPro({
   showCurrency = false,
   expression: controlledExpression,
   result: controlledResult,
+  history = [],
   onExpressionChange,
   onResultChange,
+  onHistoryChange,
 }: Props) {
   const { colors } = useTheme();
   const [internalExpression, setInternalExpression] = useState('');
   const [internalResult, setInternalResult] = useState<string | null>(null);
+  const [internalHistory, setInternalHistory] = useState<Array<{ expression: string; result: string; createdAt: number }>>([]);
+  const [lastWasEquals, setLastWasEquals] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const lastEqualsResultRef = useRef<string | null>(null);
   const expression = controlledExpression ?? internalExpression;
   const result = controlledResult !== undefined ? controlledResult : internalResult;
+  const calcHistory = onHistoryChange ? history : internalHistory;
   const setExpression = useCallback((next: React.SetStateAction<string>) => {
     if (onExpressionChange) {
       onExpressionChange(next);
@@ -61,19 +70,54 @@ export function CalculatorScreenPro({
     }
     setInternalResult(next);
   }, [onResultChange]);
+  const setHistory = useCallback((next: React.SetStateAction<Array<{ expression: string; result: string; createdAt: number }>>) => {
+    if (onHistoryChange) {
+      onHistoryChange(next);
+      return;
+    }
+    setInternalHistory(next);
+  }, [onHistoryChange]);
 
   const scale = compact ? 0.65 : 1;
   const BTN_SIZE = Math.round((compact ? 52 : Math.min(SW * 0.2, 72)) * scale);
   const BTN_GAP = compact ? 6 : 10;
 
+  const isOperator = (char: string) => ['+', '-', '*', '/'].includes(char);
+
+  const appendHistory = useCallback((expr: string, calc: string) => {
+    const cleanedExpr = expr.trim();
+    if (!cleanedExpr || calc === CALC_ERROR) return;
+    setHistory((prev) => {
+      const next = [{ expression: cleanedExpr, result: calc, createdAt: Date.now() }, ...prev];
+      return next.slice(0, 20);
+    });
+  }, [setHistory]);
+
   const handlePress = useCallback((char: string) => {
     playTapSound();
+    if (isOperator(char)) {
+      setExpression((prev) => {
+        const safePrev = prev.trim();
+        const base = lastWasEquals ? (result || lastEqualsResultRef.current || safePrev) : safePrev;
+        if (!base) return '';
+        if (/[+\-*/.]$/.test(base)) return base.replace(/[+\-*/.]$/, char);
+        return base + char;
+      });
+      setLastWasEquals(false);
+      setResult(null);
+      return;
+    }
     setExpression((prev) => {
+      if (lastWasEquals) {
+        const first = char === '.' ? '0.' : char;
+        return first;
+      }
       const next = prev + char;
       return next.length <= 100 ? next : prev;
     });
+    setLastWasEquals(false);
     setResult(null);
-  }, []);
+  }, [lastWasEquals, result, setExpression, setResult]);
 
   const handleEquals = useCallback(() => {
     playTapSound();
@@ -82,7 +126,11 @@ export function CalculatorScreenPro({
 
     const calc = calculateExpression(rawExpression);
     if (calc !== CALC_ERROR) {
+      appendHistory(rawExpression, calc);
+      lastEqualsResultRef.current = calc;
+      setExpression(calc);
       setResult(calc);
+      setLastWasEquals(true);
       return;
     }
 
@@ -91,7 +139,11 @@ export function CalculatorScreenPro({
     if (fallbackExpression && fallbackExpression !== rawExpression) {
       const fallbackCalc = calculateExpression(fallbackExpression);
       if (fallbackCalc !== CALC_ERROR) {
+        appendHistory(fallbackExpression, fallbackCalc);
+        lastEqualsResultRef.current = fallbackCalc;
+        setExpression(fallbackCalc);
         setResult(fallbackCalc);
+        setLastWasEquals(true);
         return;
       }
     }
@@ -99,19 +151,57 @@ export function CalculatorScreenPro({
     // Mantém último resultado válido em vez de forçar "Erro" na UI
     if (result && result !== CALC_ERROR) return;
     setResult(CALC_ERROR);
-  }, [expression, result, setResult]);
+  }, [appendHistory, expression, result, setExpression, setResult]);
 
   const handleClear = useCallback(() => {
     playTapSound();
     setExpression('');
     setResult(null);
+    setLastWasEquals(false);
+    lastEqualsResultRef.current = null;
   }, []);
 
   const handleBackspace = useCallback(() => {
     playTapSound();
     setExpression((prev) => prev.slice(0, -1));
+    setLastWasEquals(false);
     setResult(null);
   }, []);
+
+  const handlePercent = useCallback(() => {
+    playTapSound();
+    setExpression((prev) => {
+      const source = ((lastWasEquals && (result || lastEqualsResultRef.current)) ? (result || lastEqualsResultRef.current) : prev).trim();
+      if (!source || /[+\-*/.]$/.test(source)) return prev;
+      const matchPlusMinus = source.match(/^(.+)([+\-])(-?\d*\.?\d+)$/);
+      if (matchPlusMinus) {
+        const prefix = matchPlusMinus[1].trim();
+        const op = matchPlusMinus[2];
+        const percentVal = Number(matchPlusMinus[3]);
+        if (!Number.isFinite(percentVal)) return prev;
+        const baseCalc = calculateExpression(prefix);
+        if (baseCalc !== CALC_ERROR) {
+          const base = Number(baseCalc.replace(/,/g, '.'));
+          if (Number.isFinite(base)) {
+            const pctOfBase = base * percentVal / 100;
+            let s = String(Number(pctOfBase.toFixed(12)));
+            if (s.includes('.')) s = s.replace(/\.?0+$/, '');
+            return `${prefix}${op}${s}`;
+          }
+        }
+      }
+      const match = source.match(/^(.*?)(-?\d*\.?\d+)$/);
+      if (!match) return prev;
+      const prefix = match[1] || '';
+      const token = match[2] || '';
+      const value = Number(token);
+      if (!Number.isFinite(value)) return prev;
+      const percent = String(value / 100);
+      return `${prefix}${percent}`;
+    });
+    setLastWasEquals(false);
+    setResult(null);
+  }, [lastWasEquals, result]);
 
   const displayExpr = expression || '0';
   const displayResult = result ?? '';
@@ -173,6 +263,13 @@ export function CalculatorScreenPro({
           <Ionicons name={compact ? 'expand' : 'contract'} size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       )}
+      <TouchableOpacity
+        onPress={() => { playTapSound(); setShowHistoryModal(true); }}
+        style={styles.historyBtn}
+        hitSlop={18}
+      >
+        <Ionicons name="time-outline" size={22} color={colors.textSecondary} />
+      </TouchableOpacity>
 
       {compact ? (
         <View style={styles.compactResultWrap}>
@@ -220,7 +317,7 @@ export function CalculatorScreenPro({
       <View style={styles.pad}>
         <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP }]}>
           <Btn label="AC" onPress={handleClear} type="func" />
-          <Btn label="%" onPress={() => handlePress('%')} type="func" />
+          <Btn label="%" onPress={handlePercent} type="func" />
           <Btn label="÷" onPress={() => handlePress('/')} type="func" />
           <TouchableOpacity
             onPress={handleBackspace}
@@ -276,6 +373,46 @@ export function CalculatorScreenPro({
           </TouchableOpacity>
         </View>
       </View>
+
+      <Modal visible={showHistoryModal} transparent animationType="fade">
+          <View style={styles.historyOverlay}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowHistoryModal(false)} />
+            <View style={[styles.historyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.historyHeader}>
+                <Text style={[styles.historyTitle, { color: colors.text }]}>Histórico (20)</Text>
+                <TouchableOpacity onPress={() => { playTapSound(); setShowHistoryModal(false); }}>
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator>
+                {calcHistory.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, fontSize: 14, paddingVertical: 8 }}>Nenhuma conta ainda.</Text>
+                ) : calcHistory.map((item, idx) => (
+                  <TouchableOpacity
+                    key={`${item.createdAt}-${idx}`}
+                    onPress={() => {
+                      playTapSound();
+                      setExpression(item.result);
+                      setResult(item.result);
+                      lastEqualsResultRef.current = item.result;
+                      setLastWasEquals(true);
+                      setShowHistoryModal(false);
+                    }}
+                    activeOpacity={0.7}
+                    style={[styles.historyItem, { borderBottomColor: colors.border }]}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                      {item.expression.replace(/\*/g, '×').replace(/\//g, '÷')}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 2 }}>
+                      = {item.result}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
     </View>
   );
 }
@@ -284,6 +421,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   closeBtn: { position: 'absolute', top: 10, right: 16, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   modeBtn: { position: 'absolute', top: 10, right: 68, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  historyBtn: { position: 'absolute', top: 10, right: 120, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 44, marginBottom: 8 },
   logo: { width: 170, height: 170 },
   logoCompact: { width: 96, height: 96 },
@@ -298,4 +436,9 @@ const styles = StyleSheet.create({
   btnText: { fontWeight: '400' },
   backspace: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 8 },
   backspaceText: { fontSize: 13 },
+  historyOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  historyCard: { width: '100%', maxWidth: 420, maxHeight: '70%', borderRadius: 16, borderWidth: 1, padding: 14 },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  historyTitle: { fontSize: 16, fontWeight: '700' },
+  historyItem: { paddingVertical: 10, borderBottomWidth: 1 },
 });

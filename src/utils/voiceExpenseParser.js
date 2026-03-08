@@ -34,6 +34,33 @@ function extractAmount(text) {
   return null;
 }
 
+function normalizeTimeToken(token) {
+  if (!token) return null;
+  const raw = String(token).trim().toLowerCase().replace('h', ':');
+  if (!/^\d{1,2}(:\d{1,2})?$/.test(raw)) return null;
+  const [hPart, mPart] = raw.split(':');
+  const h = parseInt(hPart, 10);
+  const m = mPart != null ? parseInt(mPart, 10) : 0;
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function extractTimeRange(text) {
+  const t = String(text || '');
+  const patterns = [
+    /(?:às|as)\s*(\d{1,2}(?::\d{1,2})?)\s*(?:até|ate|a)\s*(?:às|as)?\s*(\d{1,2}(?::\d{1,2})?)/i,
+    /(\d{1,2}(?::\d{1,2})?)\s*(?:até|ate|a)\s*(\d{1,2}(?::\d{1,2})?)/i,
+  ];
+  for (const rx of patterns) {
+    const m = t.match(rx);
+    if (!m) continue;
+    const start = normalizeTimeToken(m[1]);
+    const end = normalizeTimeToken(m[2]);
+    if (start && end) return { start, end };
+  }
+  return null;
+}
+
 /**
  * Parseia transcrição de voz para despesa.
  * Ex: "gastei 50,00 na padaria com pão gasto empresa"
@@ -86,6 +113,26 @@ export function parseVoiceIntent(transcript) {
   if (!t) return null;
 
   const result = { type: null, params: {} };
+  const timeRange = extractTimeRange(transcript);
+
+  if (timeRange && /\b(cliente|atendimento|agenda|agendamento|evento|compromisso|reunião|reuniao|consulta)\b/.test(t)) {
+    result.type = 'agenda';
+    const isEmpresa = /\b(cliente|atendimento)\b/.test(t);
+    const cleaned = t
+      .replace(/(?:às|as)\s*\d{1,2}(?::\d{1,2})?\s*(?:até|ate|a)\s*(?:às|as)?\s*\d{1,2}(?::\d{1,2})?/gi, '')
+      .replace(/\b(tenho|marcar|marque|agendar|agendamento|agenda|evento|compromisso|reunião|reuniao|consulta|cliente|atendimento|um|uma|de|das|dos|para|pro|pra)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    result.params = {
+      tipo: isEmpresa ? 'empresa' : 'pessoal',
+      type: isEmpresa ? 'venda' : 'evento',
+      time: timeRange.start,
+      timeEnd: timeRange.end,
+      description: cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '',
+      title: cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : (isEmpresa ? 'Atendimento' : 'Evento'),
+    };
+    return result;
+  }
 
   if (/\b(receita|entrada|entrou|ganhei|recebi|vendi|venda)\b/.test(t)) {
     result.type = 'receita';

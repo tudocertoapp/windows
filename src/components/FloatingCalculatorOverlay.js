@@ -16,8 +16,10 @@ export function FloatingCalculatorOverlay({
   onExpand,
   expression,
   result,
+  history,
   onExpressionChange,
   onResultChange,
+  onHistoryChange,
 }) {
   const insets = useSafeAreaInsets();
   const [position, setPosition] = useState(null);
@@ -115,8 +117,10 @@ export function FloatingCalculatorOverlay({
           onExpand={() => { playTapSound(); onExpand?.(); }}
           expression={expression}
           result={result}
+          history={history}
           onExpressionChange={onExpressionChange}
           onResultChange={onResultChange}
+          onHistoryChange={onHistoryChange}
         />
       </View>
     </Animated.View>

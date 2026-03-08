@@ -84,7 +84,8 @@ export function AuthProvider({ children }) {
   const enterAsGuest = () => setIsGuest(true);
 
   const signInWithGoogle = async () => {
-    const redirectTo = makeRedirectUri({ path: 'auth/callback' }) || Linking.createURL('auth/callback') || makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback' });
+    // No APK, makeRedirectUri sem scheme retorna URL do Supabase. Forçar scheme do app para voltar ao app.
+    const redirectTo = makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback' }) || Linking.createURL('auth/callback') || makeRedirectUri({ path: 'auth/callback' });
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo, skipBrowserRedirect: true },

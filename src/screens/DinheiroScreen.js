@@ -119,7 +119,7 @@ export function DinheiroScreen({ route }) {
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, getBankName, getCardsByBankId } = useBanks();
   const { profile } = useProfile();
-  const { openBancos, openCalculadoraFull } = useMenu();
+  const { openBancos, openCalculadoraFull, openMeusGastos } = useMenu();
   const { showValues, toggleValues } = useValuesVisibility();
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_DINHEIRO_SECTIONS);
   const [showCardPicker, setShowCardPicker] = useState(false);
@@ -508,7 +508,15 @@ export function DinheiroScreen({ route }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <TopBar title="Dinheiro" colors={colors} useLogoImage hideOrganize onManageCards={() => setShowCardPicker(true)} onCalculadora={openCalculadoraFull} />
+      <TopBar
+        title="Dinheiro"
+        colors={colors}
+        useLogoImage
+        hideOrganize
+        onManageCards={() => setShowCardPicker(true)}
+        onCalculadora={openCalculadoraFull}
+        onChat={openMeusGastos}
+      />
       {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, backgroundColor: colors.bg }}>

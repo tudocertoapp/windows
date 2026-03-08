@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CardHeader } from './CardHeader';
+import { GlassCard } from './GlassCard';
 
 const CARD_MARGIN_H = 16;
 const CARD_MARGIN_TOP = 16;
@@ -21,28 +22,42 @@ export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, fo
   const aVencer = contasAVencer || { qty: 0, valor: 0 };
   const vencidas = contasVencidas || { qty: 0, valor: 0 };
   const totalContas = pagas.qty + aVencer.qty + vencidas.qty;
-  const redBg = lightBackground ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.4)';
   return (
-    <View style={[ds.card, { backgroundColor: redBg }]}>
-      <CardHeader icon="document-text-outline" title="Faturas" subtitle="Contas a pagar e vencidas" colors={colors} light={!lightBackground} />
+    <GlassCard
+      colors={colors}
+      style={[
+        ds.card,
+        {
+          borderColor: colors.primary + '50',
+          borderWidth: 2,
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 12,
+          elevation: 6,
+        },
+      ]}
+      contentStyle={{ padding: 20 }}
+    >
+      <CardHeader icon="document-text-outline" title="Faturas" subtitle="Contas a pagar e vencidas" colors={colors} />
       <View style={[ds.row, { marginTop: 12 }]}>
-        <View style={[ds.box, { minWidth: '100%', marginBottom: 4 }, lightBackground && { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : undefined }]}>TOTAL</Text>
-          <Text style={[ds.boxValue, { color: lightBackground ? colors.text : undefined }]}>{totalContas} {totalContas === 1 ? 'conta' : 'contas'}</Text>
+        <View style={[ds.box, { minWidth: '100%', marginBottom: 4, backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>TOTAL</Text>
+          <Text style={[ds.boxValue, { color: colors.text }]}>{totalContas} {totalContas === 1 ? 'conta' : 'contas'}</Text>
         </View>
-        <View style={[ds.box, lightBackground && { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : undefined }]}>PAGAS</Text>
-          <Text style={[ds.boxValue, { color: lightBackground ? colors.text : undefined }]}>{pagas.qty} · {m(fmt(pagas.valor))}</Text>
+        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>PAGAS</Text>
+          <Text style={[ds.boxValue, { color: colors.text }]}>{pagas.qty} · {m(fmt(pagas.valor))}</Text>
         </View>
-        <View style={[ds.box, lightBackground && { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : undefined }]}>A VENCER</Text>
-          <Text style={[ds.boxValue, { color: lightBackground ? colors.text : undefined }]}>{aVencer.qty} · {m(fmt(aVencer.valor))}</Text>
+        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>A VENCER</Text>
+          <Text style={[ds.boxValue, { color: colors.text }]}>{aVencer.qty} · {m(fmt(aVencer.valor))}</Text>
         </View>
-        <View style={[ds.box, lightBackground && { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : undefined }]}>VENCIDAS</Text>
+        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>VENCIDAS</Text>
           <Text style={[ds.boxValue, { color: lightBackground ? '#dc2626' : '#fecaca' }]}>{vencidas.qty} · {m(fmt(vencidas.valor))}</Text>
         </View>
       </View>
-    </View>
+    </GlassCard>
   );
 }

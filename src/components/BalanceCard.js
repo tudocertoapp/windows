@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from './AppIcon';
 import { CardHeader } from './CardHeader';
+import { GlassCard } from './GlassCard';
 import { playTapSound } from '../utils/sounds';
 import { DatePickerInput } from './DatePickerInput';
 
@@ -61,9 +62,6 @@ export function BalanceCard({
   const m = mask || ((v) => v);
   const hasFilter = !!filter;
   const isPeriodo = filter === 'periodo';
-  const primaryBg = lightBackground
-    ? (colors.primaryRgba ? colors.primaryRgba(0.1) : colors.primary + '1a')
-    : (colors.primaryRgba ? colors.primaryRgba(0.4) : colors.primary + '66');
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [tempStart, setTempStart] = useState(filterStartDate || formatDateStr(new Date(new Date().getFullYear(), 0, 1)));
   const [tempEnd, setTempEnd] = useState(filterEndDate || formatDateStr(new Date()));
@@ -75,19 +73,34 @@ export function BalanceCard({
   };
 
   return (
-    <View style={[ds.balanceCard, { backgroundColor: primaryBg }]}>
+    <GlassCard
+      colors={colors}
+      style={[
+        ds.balanceCard,
+        {
+          borderColor: colors.primary + '50',
+          borderWidth: 2,
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 12,
+          elevation: 6,
+        },
+      ]}
+      contentStyle={{ padding: 20 }}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, flexShrink: 1, minWidth: 0 }}>
-          <CardHeader icon="wallet-outline" title="Saldo disponível" colors={colors} light={!lightBackground} />
+          <CardHeader icon="wallet-outline" title="Saldo disponível" colors={colors} />
         </View>
         {onToggleValues && (
           <TouchableOpacity onPress={() => { playTapSound(); onToggleValues(); }} style={{ flexShrink: 0, padding: 4, marginLeft: 8 }}>
-            <AppIcon name={showValues ? 'eye-outline' : 'eye-off-outline'} size={22} color={lightBackground ? colors.textSecondary : 'rgba(255,255,255,0.9)'} />
+            <AppIcon name={showValues ? 'eye-outline' : 'eye-off-outline'} size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
       <View style={{ marginTop: -4, marginBottom: 8 }}>
-        <Text style={[ds.balanceAmount, { color: lightBackground ? colors.text : '#fff', fontSize: 24 }]}>{m(fmt(balance))}</Text>
+        <Text style={[ds.balanceAmount, { color: colors.text, fontSize: 24 }]}>{m(fmt(balance))}</Text>
       </View>
       {hasFilter && (
         <>
@@ -95,43 +108,43 @@ export function BalanceCard({
             {['dia', 'mes', 'ano', 'periodo'].map((f) => (
               <TouchableOpacity
                 key={f}
-                style={[ds.filterTab, { backgroundColor: lightBackground ? (filter === f ? colors.primaryRgba?.(0.25) : colors.primaryRgba?.(0.1)) : (filter === f ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)') }]}
+                style={[ds.filterTab, { backgroundColor: filter === f ? colors.primaryRgba?.(0.25) : colors.primaryRgba?.(0.1) }]}
                 onPress={() => { playTapSound(); onFilterChange?.(f); }}
               >
-                <Text style={[ds.filterTabText, { color: lightBackground ? colors.text : '#fff' }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
+                <Text style={[ds.filterTabText, { color: colors.text }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
               </TouchableOpacity>
             ))}
           </View>
           {isPeriodo ? (
-            <TouchableOpacity style={[ds.periodoTouch, lightBackground && { backgroundColor: colors.primaryRgba?.(0.15) }]} onPress={() => { playTapSound(); setTempStart(filterStartDate || tempStart); setTempEnd(filterEndDate || tempEnd); setShowPeriodModal(true); }}>
-              <Text style={[ds.periodoLabel, { color: lightBackground ? colors.text : '#fff' }]}>{filterLabel}</Text>
-              <Text style={{ fontSize: 11, color: lightBackground ? colors.textSecondary : 'rgba(255,255,255,0.85)' }}>Toque para alterar</Text>
+            <TouchableOpacity style={[ds.periodoTouch, { backgroundColor: colors.primaryRgba?.(0.15) }]} onPress={() => { playTapSound(); setTempStart(filterStartDate || tempStart); setTempEnd(filterEndDate || tempEnd); setShowPeriodModal(true); }}>
+              <Text style={[ds.periodoLabel, { color: colors.text }]}>{filterLabel}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}>Toque para alterar</Text>
             </TouchableOpacity>
           ) : (
             <View style={ds.navRow}>
-              <TouchableOpacity onPress={() => { playTapSound(); onFilterDatePrev?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: lightBackground ? colors.primaryRgba?.(0.2) : 'rgba(255,255,255,0.2)' }}>
-                <Ionicons name="chevron-back" size={18} color={lightBackground ? colors.text : '#fff'} />
+              <TouchableOpacity onPress={() => { playTapSound(); onFilterDatePrev?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: colors.primaryRgba?.(0.2) }}>
+                <Ionicons name="chevron-back" size={18} color={colors.text} />
               </TouchableOpacity>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: lightBackground ? colors.text : '#fff' }}>{filterLabel}</Text>
-              <TouchableOpacity onPress={() => { playTapSound(); onFilterDateNext?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: lightBackground ? colors.primaryRgba?.(0.2) : 'rgba(255,255,255,0.2)' }}>
-                <Ionicons name="chevron-forward" size={18} color={lightBackground ? colors.text : '#fff'} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>{filterLabel}</Text>
+              <TouchableOpacity onPress={() => { playTapSound(); onFilterDateNext?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: colors.primaryRgba?.(0.2) }}>
+                <Ionicons name="chevron-forward" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
           )}
         </>
       )}
       <View style={ds.balanceRow}>
-        <View style={[ds.balanceBox, lightBackground && { backgroundColor: colors.primaryRgba?.(0.12) }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : 'rgba(255,255,255,0.7)' }]}>ENTRADA</Text>
-          <Text style={[ds.boxValue, { color: lightBackground ? colors.text : '#fff' }]}>+ {m(fmt(income))}</Text>
+        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>ENTRADA</Text>
+          <Text style={[ds.boxValue, { color: colors.text }]}>+ {m(fmt(income))}</Text>
         </View>
-        <View style={[ds.balanceBox, lightBackground && { backgroundColor: colors.primaryRgba?.(0.12) }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : 'rgba(255,255,255,0.7)' }]}>SAÍDA</Text>
-          <Text style={[ds.boxValue, { color: lightBackground ? (colors.expense || '#dc2626') : (colors.expense || '#fecaca') }]}>- {m(fmt(expense))}</Text>
+        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>SAÍDA</Text>
+          <Text style={[ds.boxValue, { color: colors.expense || '#dc2626' }]}>- {m(fmt(expense))}</Text>
         </View>
-        <View style={[ds.balanceBox, lightBackground && { backgroundColor: colors.primaryRgba?.(0.12) }]}>
-          <Text style={[ds.boxLabel, { color: lightBackground ? colors.textSecondary : 'rgba(255,255,255,0.7)' }]}>SALDO</Text>
-          <Text style={[ds.boxValue, { color: lightBackground ? (balance >= 0 ? colors.primary : '#dc2626') : (balance >= 0 ? '#a7f3d0' : '#fecaca') }]}>{m(fmt(balance))}</Text>
+        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+          <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>SALDO</Text>
+          <Text style={[ds.boxValue, { color: balance >= 0 ? colors.primary : '#dc2626' }]}>{m(fmt(balance))}</Text>
         </View>
       </View>
 
@@ -156,6 +169,6 @@ export function BalanceCard({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-    </View>
+    </GlassCard>
   );
 }

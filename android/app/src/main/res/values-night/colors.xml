@@ -1,0 +1,4 @@
+<resources>
+  <color name="timePicker_numbersSelectorColor">#10b981</color>
+  <color name="timePicker_numbersTextColor">#f9fafb</color>
+</resources>
