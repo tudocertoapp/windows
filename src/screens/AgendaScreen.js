@@ -542,9 +542,11 @@ export function AgendaScreen() {
   const currentMonthName = MONTHS[currentMonthIdx];
   const currentDay = now.getDate();
 
+  const weekItemWidth = 7 * DAY_ITEM_WIDTH;
+  const weekPaddingH = (SW - weekItemWidth) / 2;
   const scrollToWeek = useCallback((weekIndex, animated = false) => {
     const clamped = Math.max(0, Math.min(weekIndex, ALL_WEEKS.length - 1));
-    const scrollX = WEEK_CAROUSEL_PADDING_H + clamped * (7 * DAY_ITEM_WIDTH);
+    const scrollX = clamped * weekItemWidth;
     weekScrollRef.current?.scrollToOffset?.({ offset: scrollX, animated });
   }, []);
 
@@ -625,7 +627,7 @@ export function AgendaScreen() {
   const handleWeekScroll = useCallback(
     (e) => {
       const offset = e.nativeEvent.contentOffset.x;
-      const weekIndex = Math.round((offset - WEEK_CAROUSEL_PADDING_H) / (7 * DAY_ITEM_WIDTH));
+      const weekIndex = Math.round(offset / weekItemWidth);
       if (weekIndex !== lastScrollWeekRef.current && weekIndex >= 0 && weekIndex < ALL_WEEKS.length) {
         lastScrollWeekRef.current = weekIndex;
         updateSelectionForWeek(weekIndex);
@@ -637,7 +639,7 @@ export function AgendaScreen() {
   const handleWeekScrollEnd = useCallback(
     (e) => {
       const offset = e.nativeEvent.contentOffset.x;
-      const weekIndex = Math.round((offset - WEEK_CAROUSEL_PADDING_H) / (7 * DAY_ITEM_WIDTH));
+      const weekIndex = Math.round(offset / weekItemWidth);
       updateSelectionForWeek(weekIndex);
     },
     [updateSelectionForWeek]
@@ -793,8 +795,8 @@ export function AgendaScreen() {
             data={ALL_WEEKS}
             keyExtractor={(week) => String(week[0]?.getTime() ?? 0)}
             horizontal
-            snapToInterval={7 * DAY_ITEM_WIDTH}
-            snapToAlignment="start"
+            snapToInterval={weekItemWidth}
+            snapToAlignment="center"
             decelerationRate="normal"
             bounces={false}
             overScrollMode="never"
@@ -803,15 +805,15 @@ export function AgendaScreen() {
             scrollEventThrottle={16}
             onMomentumScrollEnd={handleWeekScrollEnd}
             onScrollEndDrag={handleWeekScrollEnd}
-            contentContainerStyle={[as.dayCarousel, { paddingHorizontal: WEEK_CAROUSEL_PADDING_H }]}
+            contentContainerStyle={[as.dayCarousel, { paddingHorizontal: weekPaddingH }]}
             initialScrollIndex={Math.min(getWeekIndexForDate(new Date()), Math.max(0, ALL_WEEKS.length - 1))}
-            getItemLayout={(_, index) => ({ length: 7 * DAY_ITEM_WIDTH, offset: WEEK_CAROUSEL_PADDING_H + index * 7 * DAY_ITEM_WIDTH, index })}
+            getItemLayout={(_, index) => ({ length: weekItemWidth, offset: weekPaddingH + index * weekItemWidth, index })}
             initialNumToRender={5}
             maxToRenderPerBatch={3}
             windowSize={7}
             removeClippedSubviews={Platform.OS === 'android'}
             renderItem={({ item: week }) => (
-              <View style={{ width: 7 * DAY_ITEM_WIDTH, flexDirection: 'row', marginBottom: 4 }}>
+              <View style={{ width: weekItemWidth, flexDirection: 'row', marginBottom: 4 }}>
                 {week.map((d) => {
                   const key = formatDayKey(d);
                   const selected = key === selectedKey;
