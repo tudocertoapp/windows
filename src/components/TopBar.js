@@ -29,7 +29,7 @@ export const topBarStyles = StyleSheet.create({
 
 const styles = topBarStyles;
 
-export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, onChat, extendToTop = true, hideMenu, hideLogoIcon }) {
+export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, onChat, onWhatsApp, extendToTop = true, hideMenu, hideLogoIcon }) {
   const { openMenu, openPerfil } = useMenu();
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
@@ -50,7 +50,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
             <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
               <Image
-                source={profile?.foto ? { uri: profile.foto } : logoImage}
+                source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
                 style={{ width: 52, height: 52, borderRadius: 26 }}
                 resizeMode="cover"
               />
@@ -74,7 +74,15 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {onChat ? (
+        {onWhatsApp ? (
+          <TouchableOpacity
+            style={{ padding: 8, backgroundColor: 'transparent' }}
+            onPress={() => { playTapSound(); onWhatsApp(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="logo-whatsapp" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        ) : onChat ? (
           <TouchableOpacity
             style={{ padding: 8, backgroundColor: 'transparent' }}
             onPress={() => { playTapSound(); onChat(); }}

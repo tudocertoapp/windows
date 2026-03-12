@@ -39,6 +39,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [foto, setFoto] = useState(null);
   const [tags, setTags] = useState([]);
   const [showEtiquetasPicker, setShowEtiquetasPicker] = useState(false);
@@ -56,6 +57,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
         setEmail(cliente.email || '');
         setPhone(cliente.phone || '');
         setAddress(cliente.address || '');
+        setBirthDate(cliente.birthDate || cliente.dataNascimento || '');
         setFoto(cliente.foto || null);
         setTags(Array.isArray(cliente.tags) ? cliente.tags : []);
       } else {
@@ -63,6 +65,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
         setEmail('');
         setPhone('');
         setAddress('');
+        setBirthDate('');
         setFoto(null);
         setTags([]);
       }
@@ -84,7 +87,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
 
   const handleSave = () => {
     if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
-    onSave({ name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim(), foto: foto || null, nivel: nivelFromTags(), tags });
+    onSave({ name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim(), birthDate: birthDate.trim() || null, foto: foto || null, nivel: nivelFromTags(), tags });
     onClose();
   };
 
@@ -168,6 +171,9 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
               <View style={{ height: FIELD_GAP }} />
               <Text style={[styles.label, { color: colors.text }]}>Telefone</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Data de nascimento</Text>
+              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="DD/MM/AAAA (para lembrete de aniversário)" value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" placeholderTextColor={colors.textSecondary} />
               <View style={{ height: FIELD_GAP }} />
               <Text style={[styles.label, { color: colors.text }]}>Endereço</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Endereço" value={address} onChangeText={setAddress} placeholderTextColor={colors.textSecondary} />

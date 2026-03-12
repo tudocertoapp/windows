@@ -23,6 +23,9 @@ import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { ProductFormModal } from '../components/ProductFormModal';
 import { FornecedorModal } from '../components/FornecedorModal';
+import { FaturaModal } from '../components/FaturaModal';
+import { ServicoFormModal } from '../components/ServicoFormModal';
+import { TarefaFormModal } from '../components/TarefaFormModal';
 import { GlassCard } from '../components/GlassCard';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { TimePickerInput } from '../components/TimePickerInput';
@@ -140,11 +143,29 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   };
 
   const handleFornecedorSave = (data) => {
-    if (editingItem) {
-      update(editingItem.id, data);
-    } else {
-      add(data);
-    }
+    if (editingItem) update(editingItem.id, data);
+    else add(data);
+    setShowForm(false);
+    setEditingItem(null);
+  };
+
+  const handleFaturaSave = (data) => {
+    if (editingItem) update(editingItem.id, data);
+    else add(data);
+    setShowForm(false);
+    setEditingItem(null);
+  };
+
+  const handleServicoSave = (data) => {
+    if (editingItem) update(editingItem.id, data);
+    else add(data);
+    setShowForm(false);
+    setEditingItem(null);
+  };
+
+  const handleTarefaSave = (data) => {
+    if (editingItem) update(editingItem.id, data);
+    else add(data);
     setShowForm(false);
     setEditingItem(null);
   };
@@ -276,15 +297,17 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       {section === 'boletos' && showEmpresaFeatures && (
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
           <TouchableOpacity
-            style={[cs.segmentBtn, { flex: 1, backgroundColor: boletosTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.15) }]}
-            onPress={() => setBoletosTipo('pessoal')}
+            style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.15) }]}
+            onPress={() => { playTapSound(); setBoletosTipo('pessoal'); }}
           >
+            <Ionicons name="person-outline" size={18} color={boletosTipo === 'pessoal' ? '#fff' : colors.text} />
             <Text style={[cs.segmentText, { color: boletosTipo === 'pessoal' ? '#fff' : colors.text }]}>Pessoal</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[cs.segmentBtn, { flex: 1, backgroundColor: boletosTipo === 'empresa' ? '#6366f1' : 'rgba(99,102,241,0.15)' }]}
-            onPress={() => setBoletosTipo('empresa')}
+            style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'empresa' ? '#6366f1' : 'rgba(99,102,241,0.15)' }]}
+            onPress={() => { playTapSound(); setBoletosTipo('empresa'); }}
           >
+            <Ionicons name="business-outline" size={18} color={boletosTipo === 'empresa' ? '#fff' : colors.text} />
             <Text style={[cs.segmentText, { color: boletosTipo === 'empresa' ? '#fff' : colors.text }]}>Empresa</Text>
           </TouchableOpacity>
         </View>
@@ -301,6 +324,27 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
           visible={showForm}
           fornecedor={editingItem}
           onSave={handleFornecedorSave}
+          onClose={() => { setShowForm(false); setEditingItem(null); }}
+        />
+      ) : section === 'boletos' ? (
+        <FaturaModal
+          visible={showForm}
+          fatura={editingItem}
+          onSave={handleFaturaSave}
+          onClose={() => { setShowForm(false); setEditingItem(null); }}
+        />
+      ) : section === 'servicos' ? (
+        <ServicoFormModal
+          visible={showForm}
+          servico={editingItem}
+          onSave={handleServicoSave}
+          onClose={() => { setShowForm(false); setEditingItem(null); }}
+        />
+      ) : section === 'tarefas' ? (
+        <TarefaFormModal
+          visible={showForm}
+          tarefa={editingItem}
+          onSave={handleTarefaSave}
           onClose={() => { setShowForm(false); setEditingItem(null); }}
         />
       ) : (
@@ -523,7 +567,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                     aFazer.map((t) => renderTarefa(t, false, true))
                   )}
                 </GlassCard>
-                <GlassCard colors={colors} style={{ padding: 16, borderWidth: 1, opacity: 0.9 }}>
+                <GlassCard colors={colors} style={{ padding: 16, borderWidth: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Tarefas concluídas</Text>
                   {concluidas.length === 0 ? (
                     <Text style={{ fontSize: 14, color: colors.textSecondary, paddingVertical: 8 }}>Nenhuma tarefa concluída</Text>

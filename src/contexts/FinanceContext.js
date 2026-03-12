@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+
+const AGENDA_CACHE_KEY = 'tudocerto_agenda_cache';
 
 function showDbError(error, context = 'salvar') {
   const msg = error?.message || String(error) || 'Erro desconhecido';
@@ -62,7 +65,7 @@ function toClient(r) {
   if (r.tags) {
     tags = Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? (() => { try { return JSON.parse(r.tags) || []; } catch { return []; } })() : []);
   }
-  return { id: r.id, name: r.name, email: r.email, phone: r.phone, foto: r.foto, nivel: r.nivel, tags, createdAt: r.created_at };
+  return { id: r.id, name: r.name, email: r.email, phone: r.phone, foto: r.foto, nivel: r.nivel, birthDate: r.birth_date || r.birthDate, tags, createdAt: r.created_at };
 }
 function toProduct(r) {
   if (!r) return null;
@@ -136,8 +139,21 @@ export function FinanceProvider({ children }) {
       setAgendaEvents([]);
       setCheckListItems([]);
       setLoading(false);
+      AsyncStorage.removeItem(AGENDA_CACHE_KEY).catch(() => {});
       return;
     }
+    const cacheKey = `${AGENDA_CACHE_KEY}_${user.id}`;
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length >= 0) {
+            setAgendaEvents(parsed);
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
     setLoading(true);
     try {
       const [tx, ag, ch, cl, pr, comp, sv, su, ar] = await Promise.all([
@@ -152,7 +168,11 @@ export function FinanceProvider({ children }) {
         supabase.from('a_receber').select('*').eq('user_id', user.id),
       ]);
       if (tx.data) setTransactions((tx.data || []).map(toTransaction));
-      if (ag.data) setAgendaEvents((ag.data || []).map(toAgenda));
+      if (ag.data) {
+        const events = (ag.data || []).map(toAgenda);
+        setAgendaEvents(events);
+        AsyncStorage.setItem(cacheKey, JSON.stringify(events)).catch(() => {});
+      }
       if (ch.data) setCheckListItems((ch.data || []).map(toCheckList));
       if (cl.data) setClients((cl.data || []).map(toClient));
       if (pr.data) setProducts((pr.data || []).map(toProduct));
@@ -166,6 +186,20 @@ export function FinanceProvider({ children }) {
       console.warn('Erro ao carregar dados Supabase:', e);
     } finally {
       setLoading(false);
+    }
+  }, [user?.id]);
+
+  const refreshAgendaEvents = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data } = await supabase.from('agenda_events').select('*').eq('user_id', user.id).order('date');
+      if (data) {
+        const events = (data || []).map(toAgenda);
+        setAgendaEvents(events);
+        AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(events)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar agenda:', e);
     }
   }, [user?.id]);
 
@@ -250,7 +284,14 @@ export function FinanceProvider({ children }) {
     };
     const { data, error } = await supabase.from('agenda_events').insert(payload).select('*').single();
     if (error) return showDbError(error, 'cadastrar evento');
-    if (data) setAgendaEvents((prev) => [...prev, toAgenda(data)]);
+    if (data) {
+      const ev = toAgenda(data);
+      setAgendaEvents((prev) => {
+        const next = [...prev, ev];
+        if (user?.id) AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+    }
   };
   const updateAgendaEvent = async (id, data) => {
     if (!user) return setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
@@ -268,12 +309,20 @@ export function FinanceProvider({ children }) {
     if (data.status !== undefined) up.status = data.status;
     if (data.preOrderItems !== undefined) up.pre_order_items = Array.isArray(data.preOrderItems) ? data.preOrderItems : [];
     await supabase.from('agenda_events').update(up).eq('id', id);
-    setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
+    setAgendaEvents((prev) => {
+      const next = prev.map((x) => (x.id === id ? { ...x, ...data } : x));
+      if (user?.id) AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
   };
   const deleteAgendaEvent = async (id) => {
     if (!user) return setAgendaEvents((prev) => prev.filter((e) => e.id !== id));
     await supabase.from('agenda_events').delete().eq('id', id);
-    setAgendaEvents((prev) => prev.filter((e) => e.id !== id));
+    setAgendaEvents((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      if (user?.id) AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
   };
 
   const addCheckListItem = async (item) => {
@@ -323,7 +372,7 @@ export function FinanceProvider({ children }) {
     const tagsArr = Array.isArray(c.tags) ? c.tags : [];
     if (!user) {
       const id = Date.now().toString();
-      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, nivel: c.nivel || 'orcamento', tags: tagsArr }]);
+      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, birthDate: c.birthDate || null, nivel: c.nivel || 'orcamento', tags: tagsArr }]);
       return id;
     }
     const { data, error } = await supabase.from('clients').insert({
@@ -332,6 +381,7 @@ export function FinanceProvider({ children }) {
       email: c.email,
       phone: c.phone,
       foto: c.foto || null,
+      birth_date: c.birthDate || null,
       nivel: c.nivel || 'orcamento',
       tags: tagsArr,
     }).select('*').single();
@@ -341,7 +391,9 @@ export function FinanceProvider({ children }) {
   };
   const updateClient = async (id, data) => {
     if (!user) return setClients((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
-    await supabase.from('clients').update(data).eq('id', id);
+    const up = { ...data };
+    if (data.birthDate !== undefined) { up.birth_date = data.birthDate; delete up.birthDate; }
+    await supabase.from('clients').update(up).eq('id', id);
     setClients((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteClient = async (id) => {
@@ -587,6 +639,7 @@ export function FinanceProvider({ children }) {
         addAgendaEvent,
         updateAgendaEvent,
         deleteAgendaEvent,
+        refreshAgendaEvents,
         addCheckListItem,
         updateCheckListItem,
         deleteCheckListItem,

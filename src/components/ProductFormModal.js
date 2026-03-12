@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,15 +24,11 @@ const { width: SW } = Dimensions.get('window');
 const GAP = 20;
 const CARD_MAX_WIDTH = Math.min(SW - 8, 520);
 const SCROLL_MAX_HEIGHT = Math.min(520, 580);
-const CAROUSEL_WIDTH = CARD_MAX_WIDTH - GAP * 2;
-const CAROUSEL_HEIGHT = Math.round(CAROUSEL_WIDTH / 1.4);
 
 export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { colors } = useTheme();
   const { suppliers, products, addCompositeProduct } = useFinance();
   const { showEmpresaFeatures } = usePlan();
-  const carouselRef = useRef(null);
-  const [carouselIndex, setCarouselIndex] = useState(0);
   const [name, setName] = useState(editingItem?.name || '');
   const [costPrice, setCostPrice] = useState(editingItem?.costPrice != null ? String(editingItem.costPrice) : '');
   const [price, setPrice] = useState(editingItem?.price != null ? String(editingItem.price) : '');
@@ -58,7 +53,6 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setDiscount(editingItem.discount != null ? String(editingItem.discount) : '');
       setUnit(editingItem.unit || 'un');
       setPhotoUris(editingItem.photoUris?.length ? [...editingItem.photoUris] : (editingItem.photoUri ? [editingItem.photoUri] : []));
-      setCarouselIndex(0);
       setCode(editingItem.code || '');
       setAllowDiscount(editingItem.allowDiscount !== false);
       setStock(editingItem.stock != null ? String(editingItem.stock) : '0');
@@ -73,7 +67,6 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setDiscount('');
       setUnit('un');
       setPhotoUris([]);
-      setCarouselIndex(0);
       setCode('');
       setAllowDiscount(true);
       setStock('0');
@@ -88,37 +81,10 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permissão', 'Precisamos de acesso à galeria.');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled) {
-      const newIndex = photoUris.length;
-      setPhotoUris((prev) => [...prev, result.assets[0].uri]);
-      setCarouselIndex(newIndex);
-      setTimeout(() => {
-        carouselRef.current?.scrollToOffset({ offset: newIndex * CAROUSEL_WIDTH, animated: true });
-      }, 100);
-    }
+    if (!result.canceled) setPhotoUris((prev) => [...prev, result.assets[0].uri]);
   };
 
-  const removePhoto = (index) => {
-    setPhotoUris((prev) => prev.filter((_, i) => i !== index));
-    setCarouselIndex((prev) => {
-      if (prev > index) return prev - 1;
-      if (prev === index) return Math.max(0, index - 1);
-      return prev;
-    });
-  };
-
-  const onCarouselScroll = (e) => {
-    const offset = e.nativeEvent.contentOffset.x;
-    const index = Math.round(offset / CAROUSEL_WIDTH);
-    if (index >= 0 && index < photoUris.length) setCarouselIndex(index);
-  };
-
-  const scrollToCarouselIndex = (index) => {
-    if (carouselRef.current && index >= 0 && index < photoUris.length) {
-      carouselRef.current.scrollToOffset({ offset: index * CAROUSEL_WIDTH, animated: true });
-      setCarouselIndex(index);
-    }
-  };
+  const removePhoto = (index) => setPhotoUris((prev) => prev.filter((_, i) => i !== index));
 
 
   const handleSave = () => {
@@ -190,64 +156,20 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
               </View>
             </View>
             <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
-              {/* Carrossel de fotos */}
-              <View style={[sectionGap]}>
-                <View style={[s.photoCarouselWrap, { borderColor: colors.border, backgroundColor: colors.bg }]}>
-                  {photoUris.length > 0 ? (
-                    <View style={s.photoCarousel}>
-                      <FlatList
-                        ref={carouselRef}
-                        data={photoUris}
-                        horizontal
-                        pagingEnabled
-                        style={{ width: CAROUSEL_WIDTH, height: CAROUSEL_HEIGHT }}
-                        showsHorizontalScrollIndicator={false}
-                        onScroll={onCarouselScroll}
-                        onMomentumScrollEnd={onCarouselScroll}
-                        scrollEventThrottle={16}
-                        getItemLayout={(_, index) => ({ length: CAROUSEL_WIDTH, offset: CAROUSEL_WIDTH * index, index })}
-                        keyExtractor={(_, i) => String(i)}
-                        renderItem={({ item, index }) => (
-                          <View style={s.carouselSlide}>
-                            <Image source={{ uri: item }} style={s.photoImg} resizeMode="cover" />
-                            <TouchableOpacity style={[s.removePhotoBtn, { backgroundColor: 'rgba(0,0,0,0.6)' }]} onPress={() => removePhoto(index)}>
-                              <Ionicons name="close-circle" size={28} color="#fff" />
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      />
-                    </View>
-                  ) : (
-                    <TouchableOpacity style={s.photoPlaceholder} onPress={pickImage}>
-                      <Ionicons name="add-circle-outline" size={48} color={colors.primary} />
-                      <Text style={[s.photoHint, { color: colors.textSecondary }]}>Toque para adicionar fotos</Text>
+              {/* Fotos do produto */}
+              <Text style={[s.label, { color: colors.textSecondary }]}>FOTO DO PRODUTO (OPCIONAL)</Text>
+              <View style={[s.photoRow, sectionGap]}>
+                {photoUris.map((uri, idx) => (
+                  <View key={idx} style={s.photoThumbWrap}>
+                    <Image source={{ uri }} style={s.photoThumb} resizeMode="cover" />
+                    <TouchableOpacity style={s.removePhotoBtn} onPress={() => removePhoto(idx)}>
+                      <Ionicons name="close-circle" size={24} color="#fff" />
                     </TouchableOpacity>
-                  )}
-                </View>
-                {photoUris.length > 0 && (
-                  <View style={s.dotsRow}>
-                    {photoUris.map((_, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        style={[
-                          s.dot,
-                          i === carouselIndex && s.dotActive,
-                          { backgroundColor: i === carouselIndex ? colors.primary : colors.border + '99' },
-                        ]}
-                        onPress={() => scrollToCarouselIndex(i)}
-                      />
-                    ))}
                   </View>
-                )}
-                <View style={[s.photoActions, sectionGap]}>
-                  <TouchableOpacity style={[s.photoBtn, { borderColor: colors.primary }]} onPress={pickImage}>
-                    <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
-                    <Text style={[s.photoBtnText, { color: colors.primary }]}>Adicionar foto</Text>
-                  </TouchableOpacity>
-                  {photoUris.length > 0 && (
-                    <Text style={[s.photoSubHint, { color: colors.textSecondary }]}>{photoUris.length} foto(s) • deslize para ver</Text>
-                  )}
-                </View>
+                ))}
+                <TouchableOpacity onPress={pickImage} style={[s.photoAdd, { borderColor: colors.primary + '80' }]}>
+                  <Ionicons name="add" size={28} color={colors.primary} />
+                </TouchableOpacity>
               </View>
 
               <Text style={[s.label, { color: colors.textSecondary }]}>NOME (EX: CAMISA)</Text>
@@ -406,20 +328,11 @@ const s = StyleSheet.create({
   closeBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   scroll: { maxHeight: SCROLL_MAX_HEIGHT },
   scrollContent: { paddingBottom: GAP * 2 },
-  photoCarouselWrap: { alignSelf: 'center', borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', overflow: 'hidden' },
-  photoCarousel: { width: CAROUSEL_WIDTH, height: CAROUSEL_HEIGHT, overflow: 'hidden' },
-  carouselSlide: { width: CAROUSEL_WIDTH, height: CAROUSEL_HEIGHT, position: 'relative' },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  dotActive: { width: 10, height: 10, borderRadius: 5 },
-  photoImg: { width: '100%', height: '100%' },
-  removePhotoBtn: { position: 'absolute', top: 8, right: 8, borderRadius: 14 },
-  photoPlaceholder: { flex: 1, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', gap: 12 },
-  photoHint: { fontSize: 14 },
-  photoActions: { flexDirection: 'row', alignItems: 'center', gap: GAP },
-  photoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, borderWidth: 2 },
-  photoBtnText: { fontSize: 14, fontWeight: '600' },
-  photoSubHint: { fontSize: 12 },
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  photoThumbWrap: { width: 72, height: 72, borderRadius: 12, overflow: 'hidden', position: 'relative' },
+  photoThumb: { width: 72, height: 72, borderRadius: 12 },
+  removePhotoBtn: { position: 'absolute', top: 2, right: 2, padding: 2, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12 },
+  photoAdd: { width: 72, height: 72, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 8 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, fontSize: 15 },
   compositeSection: { padding: 16, borderRadius: 12, borderWidth: 1 },

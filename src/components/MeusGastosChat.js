@@ -98,7 +98,9 @@ function extractReceiptItemsFromOcr(ocrText) {
     if (skipRx.test(line)) return;
     const moneyTokens = line.match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g) || [];
     if (!moneyTokens.length) return;
-    const value = parseMoneyTokenToNumber(moneyTokens[moneyTokens.length - 1]);
+    const lastToken = moneyTokens[moneyTokens.length - 1];
+    if (looksLikeDate(lastToken)) return;
+    const value = parseMoneyTokenToNumber(lastToken);
     if (!value) return;
 
     let desc = line
@@ -125,6 +127,25 @@ function extractReceiptItemsFromOcr(ocrText) {
   return Array.from(dedup.values()).slice(0, 8);
 }
 
+/** Confere se o token parece ser data (dd/mm/yyyy, dd-mm-yyyy, etc) e não valor */
+function looksLikeDate(token) {
+  if (!token) return false;
+  const s = String(token).trim();
+  if (/\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(s)) return true;
+  if (/^\d{1,2}[\/\-\.]\d{1,2}$/.test(s)) return true;
+  if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(s)) return true;
+  return false;
+}
+
+/** Indica se a linha parece ser item de produto (qtd + preço unit) e não total */
+function looksLikeProductLine(line) {
+  const t = (line || '').toLowerCase();
+  if (/\b(qtd|quantidade|un\s*[xX]|und)\s*\d/.test(t)) return true;
+  if (/\d+\s*x\s*\d{1,3}[.,]\d{2}/.test(t)) return true;
+  if (/\b(unit|un\.?|pc)\b.*\d+[.,]\d{2}/.test(t)) return true;
+  return false;
+}
+
 function extractReceiptDataFromOcr(ocrText) {
   if (!ocrText) return null;
   const lines = String(ocrText)
@@ -133,32 +154,30 @@ function extractReceiptDataFromOcr(ocrText) {
     .filter(Boolean);
   if (!lines.length) return null;
 
-  const strongTotalLineRegex = /\b(total|valor total|vl total|total a pagar|valor a pagar|liquido|valor final)\b/i;
-  const noisyCountRegex = /\b(total de itens|itens|qtd|quantidade)\b/i;
+  const strongTotalLineRegex = /\b(total|valor total|vl\.?\s*total|total a pagar|valor a pagar|l[ií]quido|valor final|total geral|valor final a pagar|total da nota|total geral da nota|custo total)\b/i;
+  const noisyCountRegex = /\b(total de itens|n[º°] de itens|itens\s*:?\s*\d|qtd\s*:?\s*\d|quantidade)\b/i;
   const taxRegex = /\b(imposto|impostos|tribut|ibpt)\b/i;
   const moneyTokenRegex = /\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g;
 
   const collectCandidatesFromLine = (line, lineIndex, baseScore) => {
     if (taxRegex.test(line)) return [];
+    if (looksLikeProductLine(line)) return [];
     const tokens = String(line).match(moneyTokenRegex) || [];
     if (!tokens.length) return [];
-    const hasCurrency = /r\$/i.test(line);
+    const hasCurrency = /r\s*\$|reais?/i.test(line);
     const noisyLine = noisyCountRegex.test(line);
-    return tokens
-      .map((token) => {
-        const value = parseMoneyTokenToNumber(token);
-        const hasCents = /[.,]\d{2}$/.test(token);
-        if (!value) return null;
-        // Evita pegar "8 itens" como se fosse total financeiro.
-        if (noisyLine && !hasCurrency && !hasCents) return null;
-        const score =
-          baseScore +
-          (hasCurrency ? 4 : 0) +
-          (hasCents ? 3 : 0) +
-          (lineIndex / 1000);
-        return { value, score };
-      })
-      .filter(Boolean);
+    const res = [];
+    for (const token of tokens) {
+      if (looksLikeDate(token)) continue;
+      const value = parseMoneyTokenToNumber(token);
+      const hasCents = /[.,]\d{2}$/.test(token);
+      if (!value || value <= 0) continue;
+      if (noisyLine && !hasCurrency && !hasCents) continue;
+      if (value > 99999) continue;
+      const score = baseScore + (hasCurrency ? 4 : 0) + (hasCents ? 3 : 0) + (lineIndex / 1000);
+      res.push({ value, score });
+    }
+    return res;
   };
 
   const candidates = [];
@@ -166,7 +185,6 @@ function extractReceiptDataFromOcr(ocrText) {
     const line = lines[i];
     if (!strongTotalLineRegex.test(line)) continue;
     candidates.push(...collectCandidatesFromLine(line, i, 10));
-    // Em alguns cupons o valor final fica na linha seguinte.
     if (i + 1 < lines.length) {
       candidates.push(...collectCandidatesFromLine(lines[i + 1], i + 1, 8));
     }
@@ -186,20 +204,34 @@ function extractReceiptDataFromOcr(ocrText) {
     };
   }
 
-  // Fallback: procura valores monetários no terço final da nota e pega o maior com centavos.
   const start = Math.max(0, lines.length - Math.ceil(lines.length / 3));
   const tailCandidates = [];
   for (let i = start; i < lines.length; i += 1) {
+    if (looksLikeProductLine(lines[i])) continue;
     tailCandidates.push(...collectCandidatesFromLine(lines[i], i, 2));
   }
-  if (!tailCandidates.length) return null;
-  tailCandidates.sort((a, b) => b.value - a.value);
-  const total = tailCandidates[0].value;
+  if (tailCandidates.length > 0) {
+    tailCandidates.sort((a, b) => b.value - a.value);
+    const total = tailCandidates[0].value;
+    return {
+      total,
+      items,
+      itemsSum,
+      itemsMismatch: items.length > 0 ? Math.abs(itemsSum - total) > 0.05 : false,
+    };
+  }
+  const allMoneyMatches = String(ocrText).match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g) || [];
+  const allValues = allMoneyMatches
+    .map((t) => ({ v: parseMoneyTokenToNumber(t), t }))
+    .filter(({ v, t }) => v && v > 0 && v < 99999 && !looksLikeDate(t))
+    .map(({ v }) => v);
+  if (allValues.length === 0) return null;
+  const total = Math.max(...allValues);
   return {
     total,
     items,
     itemsSum,
-    itemsMismatch: items.length > 0 ? Math.abs(itemsSum - total) > 0.05 : false,
+    itemsMismatch: false,
   };
 }
 
@@ -229,6 +261,8 @@ function buildAssistantExpense(textSource) {
 }
 
 async function runOcrFromImage(imageUri) {
+  if (!imageUri || typeof imageUri !== 'string') return '';
+  const uri = String(imageUri).trim();
   const form = new FormData();
   form.append('apikey', 'helloworld');
   form.append('language', 'por');
@@ -236,7 +270,7 @@ async function runOcrFromImage(imageUri) {
   form.append('scale', 'true');
   form.append('OCREngine', '2');
   form.append('file', {
-    uri: imageUri,
+    uri,
     name: 'gasto.jpg',
     type: 'image/jpeg',
   });
@@ -244,23 +278,53 @@ async function runOcrFromImage(imageUri) {
     method: 'POST',
     body: form,
   });
-  const data = await res.json();
-  return data?.ParsedResults?.[0]?.ParsedText || '';
+  if (!res.ok) {
+    const errText = await res.text();
+    try {
+      const errJson = JSON.parse(errText);
+      if (errJson?.ErrorMessage) throw new Error(errJson.ErrorMessage);
+    } catch (_) {}
+    throw new Error(`OCR API erro ${res.status}`);
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch (_) {
+    throw new Error('Resposta inválida do OCR');
+  }
+  const text = (data?.ParsedResults?.[0]?.ParsedText || '').trim();
+  if (!text && (data?.IsErroredOnProcessing || data?.OCRExitCode !== 1)) {
+    throw new Error('OCR não conseguiu processar a imagem');
+  }
+  return text;
 }
 
 export function MeusGastosChat({ embedded = false }) {
   const { colors } = useTheme();
   const { addTransaction } = useFinance();
   const { openAddModal } = useMenu();
-  const [messages, setMessages] = useState(() => [
-    {
-      id: 'intro-assistant',
-      from: 'assistant',
-      kind: 'text',
-      text: 'Envie texto, áudio ou foto de comprovante. Eu registro o gasto automaticamente.',
-      createdAt: nowIso(),
-    },
-  ]);
+  const EXAMPLE_PHRASES = [
+    'Fui no mercado e gastei 89,90. Gasto pessoal.',
+    'Estava na farmácia e paguei 35,50.',
+    'Almoço no restaurante, R$ 48,00, gasto pessoal.',
+    'Combustível no posto, 120 reais.',
+    'Comprei material de escritório, 156,80. Empresa.',
+    'Gastei 22,90 no delivery, pessoal.',
+    'Pagamento no supermercado, total 234,15.',
+  ];
+
+  const [messages, setMessages] = useState(() => {
+    const ex = EXAMPLE_PHRASES[Math.floor(Math.random() * EXAMPLE_PHRASES.length)];
+    return [
+      {
+        id: 'intro-assistant',
+        from: 'assistant',
+        kind: 'text',
+        text: `Envie texto, áudio ou foto. Ex: "${ex}" Registro o gasto automaticamente.`,
+        createdAt: nowIso(),
+      },
+    ];
+  });
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [voiceEngine, setVoiceEngine] = useState(null);
@@ -270,11 +334,16 @@ export function MeusGastosChat({ embedded = false }) {
   const [previewImageUri, setPreviewImageUri] = useState(null);
   const handleUserContentRef = useRef(null);
   const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
+  const listRef = useRef(null);
 
   const orderedMessages = useMemo(() => messages, [messages]);
 
   const appendMessage = (msg) => {
-    setMessages((prev) => [...prev, msg]);
+    setMessages((prev) => {
+      const next = [...prev, msg];
+      setTimeout(() => listRef.current?.scrollToEnd?.({ animated: true }), 100);
+      return next;
+    });
   };
 
   const openSuggestedForm = (action) => {
@@ -332,7 +401,18 @@ export function MeusGastosChat({ embedded = false }) {
       formaPagamento: 'pix',
       tipoVenda: expense.tipoVenda,
     };
-    await addTransaction(payload);
+    try {
+      await addTransaction(payload);
+    } catch (err) {
+      appendMessage({
+        id: `assistant-save-error-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: `Identifiquei R$ ${expense.amount.toFixed(2).replace('.', ',')} mas não consegui salvar. Tente adicionar manualmente.`,
+        createdAt: nowIso(),
+      });
+      return;
+    }
     if (expense.needsCategoryQuestion) {
       appendMessage({
         id: `assistant-ok-ask-${Date.now()}`,
@@ -420,15 +500,25 @@ export function MeusGastosChat({ embedded = false }) {
     }
     if (kind === 'image' && imageUri) {
       setProcessingImage(true);
+      const loadingId = `assistant-loading-${baseId}`;
+      appendMessage({
+        id: loadingId,
+        from: 'assistant',
+        kind: 'text',
+        text: 'Lendo notinha...',
+        createdAt: nowIso(),
+      });
       try {
         const ocrText = await runOcrFromImage(imageUri);
+        setMessages((prev) => prev.filter((m) => m.id !== loadingId));
         await registerExpenseFromImageAndReply(ocrText);
-      } catch (_) {
+      } catch (err) {
+        setMessages((prev) => prev.filter((m) => m.id !== loadingId));
         appendMessage({
           id: `assistant-ocr-error-${Date.now()}`,
           from: 'assistant',
           kind: 'text',
-          text: 'Não consegui ler essa imagem agora. Envie outra foto mais nítida ou digite/grave o valor.',
+          text: 'Não consegui ler essa imagem. Envie outra foto mais nítida ou digite o valor (ex: gastei 50 no mercado).',
           createdAt: nowIso(),
         });
       } finally {
@@ -482,9 +572,12 @@ export function MeusGastosChat({ embedded = false }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
+      allowsMultipleSelection: true,
     });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    await handleUserContent({ kind: 'image', imageUri: result.assets[0].uri });
+    if (result.canceled || !result.assets?.length) return;
+    for (const asset of result.assets) {
+      if (asset?.uri) await handleUserContent({ kind: 'image', imageUri: asset.uri });
+    }
   };
 
   const handleTakePhoto = async () => {
@@ -553,7 +646,12 @@ export function MeusGastosChat({ embedded = false }) {
         >
           {item.kind === 'image' && item.imageUri ? (
             <TouchableOpacity activeOpacity={0.8} onPress={() => setPreviewImageUri(item.imageUri)}>
-              <Image source={{ uri: item.imageUri }} style={s.msgImage} resizeMode="cover" />
+              <Image
+                source={{ uri: item.imageUri }}
+                style={s.msgImage}
+                resizeMode="cover"
+                onError={() => {}}
+              />
             </TouchableOpacity>
           ) : null}
           {item.text ? (
@@ -581,12 +679,14 @@ export function MeusGastosChat({ embedded = false }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0} style={{ flex: 1 }}>
         {embedded ? (
           <ScrollView
+            ref={listRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 12, paddingBottom: 18 }}
             showsVerticalScrollIndicator
             persistentScrollbar
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
           >
             {orderedMessages.map((item) => (
               <View key={item.id}>{renderMsg({ item })}</View>
@@ -594,6 +694,7 @@ export function MeusGastosChat({ embedded = false }) {
           </ScrollView>
         ) : (
           <FlatList
+            ref={listRef}
             data={orderedMessages}
             keyExtractor={(m) => m.id}
             renderItem={renderMsg}
@@ -601,6 +702,7 @@ export function MeusGastosChat({ embedded = false }) {
             showsVerticalScrollIndicator
             nestedScrollEnabled
             style={{ flex: 1 }}
+            onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
           />
         )}
 
@@ -697,7 +799,7 @@ export function MeusGastosChat({ embedded = false }) {
                     ? 'Ouvindo... fale agora'
                     : pendingVoiceText
                       ? 'Áudio pausado. Envie ou regrave.'
-                    : 'Digite sua despesa...'
+                    : 'Ex: fui no mercado e gastei 89,90'
             }
             placeholderTextColor={colors.textSecondary}
             value={inputText}

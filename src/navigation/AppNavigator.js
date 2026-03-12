@@ -18,7 +18,6 @@ import { PerfilScreen } from '../screens/PerfilScreen';
 import { AssinaturaScreen } from '../screens/AssinaturaScreen';
 import { IndiqueScreen } from '../screens/IndiqueScreen';
 import { AReceberScreen } from '../screens/AReceberScreen';
-import { ClientesScreen } from '../screens/ClientesScreen';
 import { MotivationalImageScreen } from '../screens/MotivationalImageScreen';
 import { MenuScreen } from '../screens/MenuScreen';
 import { TemasScreen } from '../screens/TemasScreen';
@@ -29,6 +28,7 @@ import { AnotacoesScreen } from '../screens/AnotacoesScreen';
 import { MeusGastosScreen } from '../screens/MeusGastosScreen';
 import { ListaComprasScreen } from '../screens/ListaComprasScreen';
 import { MetasESonhosScreen } from '../screens/MetasESonhosScreen';
+import { MensagensWhatsAppScreen } from '../screens/MensagensWhatsAppScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
@@ -55,7 +55,6 @@ export function AppNavigator() {
   const [assinaturaModal, setAssinaturaModal] = useState(false);
   const [indiqueModal, setIndiqueModal] = useState(false);
   const [aReceberModal, setAReceberModal] = useState(false);
-  const [clientesModal, setClientesModal] = useState(false);
   const [assistantModal, setAssistantModal] = useState(false);
   const [assistantAutoStartKey, setAssistantAutoStartKey] = useState(0);
   const [imageModal, setImageModal] = useState(false);
@@ -68,6 +67,7 @@ export function AppNavigator() {
   const [meusGastosModal, setMeusGastosModal] = useState(false);
   const [listaComprasModal, setListaComprasModal] = useState(false);
   const [metasSonhosModal, setMetasSonhosModal] = useState(false);
+  const [mensagensWhatsAppModal, setMensagensWhatsAppModal] = useState(false);
   const [calculadoraModal, setCalculadoraModal] = useState(false);
   const [calculadoraFloating, setCalculadoraFloating] = useState(false);
   const [calculatorExpression, setCalculatorExpression] = useState('');
@@ -79,11 +79,11 @@ export function AppNavigator() {
 
   const navigationRef = useRef(null);
 
-  const isDark = colors.text === '#f9fafb';
+  const isDarkBg = colors.isDarkBg ?? (colors.text === '#ffffff');
   const tabBarGlassBg = () => (
-    <View style={[StyleSheet.absoluteFill, { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.3)' }]}>
-      <BlurView intensity={Platform.OS === 'ios' ? 80 : 60} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(31,41,55,0.3)' : 'rgba(255,255,255,0.3)' }]} />
+    <View style={[StyleSheet.absoluteFill, { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: isDarkBg ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.3)' }]}>
+      <BlurView intensity={Platform.OS === 'ios' ? 90 : 70} tint={isDarkBg ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: isDarkBg ? 'rgba(17,24,39,0.4)' : 'rgba(255,255,255,0.3)' }]} />
     </View>
   );
 
@@ -104,13 +104,14 @@ export function AppNavigator() {
       openAssinatura: () => { setMenuModalOpen(false); setAssinaturaModal(true); },
       openIndique: () => { setMenuModalOpen(false); setIndiqueModal(true); },
       openAReceber: () => { setMenuModalOpen(false); setAReceberModal(true); },
-      openClientes: () => { setMenuModalOpen(false); setClientesModal(true); },
+      openClientes: () => { setMenuModalOpen(false); setMensagensWhatsAppModal(true); },
       openBancos: () => { setMenuModalOpen(false); setBancosModal(true); },
       openOrcamento: () => { setMenuModalOpen(false); setOrcamentoModal(true); },
       openAnotacoes: (params) => { setMenuModalOpen(false); setAnotacoesModal(params || true); },
       openMeusGastos: () => { setMenuModalOpen(false); setMeusGastosModal(true); },
       openListaCompras: () => { setMenuModalOpen(false); setListaComprasModal(true); },
       openMetasSonhos: () => { setMenuModalOpen(false); setMetasSonhosModal(true); },
+      openMensagensWhatsApp: () => { setMenuModalOpen(false); setMensagensWhatsAppModal(true); },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
       openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
@@ -131,7 +132,7 @@ export function AppNavigator() {
   return (
     <MenuContext.Provider value={menuActions}>
       <NavigationContainer ref={navigationRef}>
-        <StatusBar style={colors.text === '#f9fafb' ? 'light' : 'dark'} backgroundColor={colors.bg} />
+        <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
         <Tab.Navigator
           screenOptions={{
             headerShown: false,
@@ -281,6 +282,7 @@ export function AppNavigator() {
             onOpenMeusGastos={menuActions.openMeusGastos}
             onOpenListaCompras={menuActions.openListaCompras}
             onOpenMetasSonhos={menuActions.openMetasSonhos}
+            onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
             onOpenImageGenerator={menuActions.openImageGenerator}
             onOpenCalculadoraFull={menuActions.openCalculadoraFull}
           />
@@ -309,11 +311,6 @@ export function AppNavigator() {
       <Modal visible={aReceberModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <AReceberScreen onClose={() => setAReceberModal(false)} isModal />
-        </SafeAreaView>
-      </Modal>
-      <Modal visible={clientesModal} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <ClientesScreen onClose={() => setClientesModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={temasModal} animationType="slide">
@@ -349,6 +346,11 @@ export function AppNavigator() {
       <Modal visible={metasSonhosModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <MetasESonhosScreen onClose={() => setMetasSonhosModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={mensagensWhatsAppModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <MensagensWhatsAppScreen onClose={() => setMensagensWhatsAppModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={listaComprasModal} animationType="slide">

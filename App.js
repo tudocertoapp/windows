@@ -22,9 +22,14 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { SplashScreen } from './src/components/SplashScreen';
 
 function AppWithReminders() {
-  const { agendaEvents, aReceber } = useFinance();
+  const { agendaEvents, aReceber, checkListItems, updateCheckListItem } = useFinance();
   return (
-    <ReminderProvider agendaEvents={agendaEvents} aReceber={aReceber}>
+    <ReminderProvider
+      agendaEvents={agendaEvents}
+      aReceber={aReceber}
+      checkListItems={checkListItems}
+      updateCheckListItem={updateCheckListItem}
+    >
       <AppNavigator />
     </ReminderProvider>
   );

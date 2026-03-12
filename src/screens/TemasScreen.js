@@ -139,9 +139,9 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
     removeFavoriteColor,
     maxFavorites,
   } = useTheme();
-  const { isEmpresa } = usePlan();
+  const { canUseCustomColors } = usePlan();
   const { updateProfile } = useProfile();
-  const hasPremiumColors = isEmpresa;
+  const hasPremiumColors = canUseCustomColors;
   const [showCreateColor, setShowCreateColor] = useState(false);
   const PICKER_LIGHTNESS = 50;
   const [pickerHue, setPickerHue] = useState(142);

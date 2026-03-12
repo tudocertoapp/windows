@@ -6,6 +6,7 @@
 2. Vá em **SQL Editor**
 3. Cole o conteúdo do arquivo `supabase-schema.sql`
 4. Clique em **Run** para criar as tabelas e políticas RLS
+5. Para **anotações** e **lista de compras** do usuário, execute também `supabase-notes-shopping.sql`
 
 ## 2. Autenticação
 

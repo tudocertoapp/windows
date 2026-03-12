@@ -3,6 +3,7 @@ import { ThemeSync } from '../components/ThemeSync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { getCachedPhotoUri, cacheProfilePhoto } from '../utils/profilePhotoCache';
 
 const PROFILE_BASE = '@tudocerto_profile';
 const LAST_FOTO_KEY = '@tudocerto_last_foto';
@@ -15,17 +16,18 @@ function getLastFotoKey(userId) {
 
 export function ProfileProvider({ children }) {
   const { user } = useAuth();
-  const [profile, setProfile] = useState({ nome: '', foto: null, profissao: '', empresa: '', primary_color: null, theme_mode: null, custom_bg: null });
+  const [profile, setProfile] = useState({ nome: '', foto: null, fotoLocal: null, profissao: '', empresa: '', primary_color: null, theme_mode: null, custom_bg: null });
   const [loaded, setLoaded] = useState(false);
 
   const profileStorageKey = `${PROFILE_BASE}_${user?.id || 'guest'}`;
 
   useEffect(() => {
-    setProfile({ nome: '', foto: null, profissao: '', empresa: '', primary_color: null, theme_mode: null, custom_bg: null });
+    setProfile({ nome: '', foto: null, fotoLocal: null, profissao: '', empresa: '', primary_color: null, theme_mode: null, custom_bg: null });
     setLoaded(false);
     (async () => {
       try {
         if (user) {
+          const cachedUri = await getCachedPhotoUri(user.id);
           let data = null;
           const { data: fullData, error } = await supabase.from('profiles').select('nome, foto, profissao, empresa, primary_color, theme_mode, custom_bg').eq('id', user.id).single();
           if (!error && fullData) {
@@ -35,9 +37,15 @@ export function ProfileProvider({ children }) {
             data = basicData ? { ...basicData, profissao: basicData.profissao || '', empresa: basicData.empresa || '', primary_color: basicData.primary_color, theme_mode: basicData.theme_mode, custom_bg: basicData.custom_bg } : null;
           }
           if (data) {
+            let fotoLocal = cachedUri;
+            if (data.foto) {
+              const localUri = await cacheProfilePhoto(data.foto, user.id);
+              if (localUri) fotoLocal = localUri;
+            }
             setProfile({
               nome: data.nome || '',
               foto: data.foto || null,
+              fotoLocal: fotoLocal || null,
               profissao: data.profissao || '',
               empresa: data.empresa || '',
               primary_color: data.primary_color || null,
@@ -48,6 +56,7 @@ export function ProfileProvider({ children }) {
             const fallback = {
               nome: user.email?.split('@')[0] || user.user_metadata?.nome || '',
               foto: null,
+              fotoLocal: cachedUri,
               profissao: '',
               empresa: '',
               primary_color: '#10b981',
@@ -69,9 +78,11 @@ export function ProfileProvider({ children }) {
           if (raw) {
             try {
               const data = JSON.parse(raw);
+              const cachedUri = await getCachedPhotoUri(user?.id);
               setProfile({
                 nome: data.nome || '',
                 foto: data.foto ?? null,
+                fotoLocal: cachedUri,
                 profissao: data.profissao || '',
                 empresa: data.empresa || '',
               });
@@ -102,7 +113,13 @@ export function ProfileProvider({ children }) {
     if (data.foto !== undefined && data.foto !== profile.foto && profile.foto) {
       await AsyncStorage.setItem(getLastFotoKey(user?.id), profile.foto);
     }
-    setProfile((p) => ({ ...p, ...data }));
+    let fotoLocal = profile.fotoLocal;
+    if (data.foto !== undefined && data.foto) {
+      const localUri = await cacheProfilePhoto(data.foto, user?.id);
+      if (localUri) fotoLocal = localUri;
+    }
+    if (data.foto === null || data.foto === '') fotoLocal = null;
+    setProfile((p) => ({ ...p, ...data, fotoLocal: data.foto !== undefined ? fotoLocal : p.fotoLocal }));
     if (user) {
       const payload = {
         id: user.id,
@@ -117,7 +134,7 @@ export function ProfileProvider({ children }) {
       if (data.custom_bg !== undefined) payload.custom_bg = data.custom_bg;
       const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
       if (error) {
-        setProfile((p) => ({ ...p, nome: profile.nome, foto: profile.foto, profissao: profile.profissao ?? '', empresa: profile.empresa ?? '' })); // reverte
+        setProfile((p) => ({ ...p, nome: profile.nome, foto: profile.foto, fotoLocal: profile.fotoLocal, profissao: profile.profissao ?? '', empresa: profile.empresa ?? '' })); // reverte
         throw new Error(error.message);
       }
     }

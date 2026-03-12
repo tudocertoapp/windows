@@ -8,6 +8,7 @@ import { usePlan } from '../contexts/PlanContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
+import { playTapSound } from '../utils/sounds';
 import { Image } from 'react-native';
 
 const logoImage = require('../../assets/logo.png');
@@ -30,10 +31,10 @@ const ms = StyleSheet.create({
   appTitle: { fontSize: 26, fontWeight: '800', letterSpacing: 0.5, marginTop: 6 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull }) {
   const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
   const { colors } = useTheme();
-  const { showEmpresaFeatures } = usePlan();
+  const { showEmpresaFeatures, planLabel, planId } = usePlan();
   const { signOut } = useAuth();
   const { profile } = useProfile();
   const [photoError, setPhotoError] = useState(false);
@@ -104,16 +105,25 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
               <Ionicons name="person-outline" size={32} color="#fff" />
             )}
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[ms.profileName, { color: colors.text }]}>{profile?.nome || 'Meu Perfil'}</Text>
             <Text style={[ms.profileSub, { color: colors.textSecondary }]}>Gerencie sua conta</Text>
+            <TouchableOpacity
+              onPress={(e) => { e?.stopPropagation?.(); playTapSound(); onOpenAssinatura?.(); }}
+              style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="rocket-outline" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>{planLabel || 'Plano Básico'}</Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>CONTA</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
           <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
-          <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge="Grátis" onPress={onOpenAssinatura} />
+          <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
           <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>FINANCEIRO</Text>
@@ -126,6 +136,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
           <MenuItem icon="cart-outline" label="Lista de compras" subtitle="Anote o que precisa comprar" onPress={onOpenListaCompras || comingSoon} />
+          <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
           <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso dos seus objetivos" onPress={onOpenMetasSonhos || comingSoon} />
           <MenuItem icon="calculator-outline" label="Calculadora" subtitle="Calculadora completa estilo iOS" onPress={onOpenCalculadoraFull || comingSoon} />
         </View>
@@ -137,16 +148,14 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>CADASTROS</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {showEmpresaFeatures && <MenuItem icon="people-outline" label="Clientes" subtitle="CRM e clientes" badge={`${clients.length}`} onPress={onOpenClientes} />}
+          <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads, contatos e mensagens" badge={`${clients.length}`} onPress={onOpenMensagensWhatsApp || comingSoon} />
           <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => goToCadastro('produtos')} />
           <MenuItem icon="construct-outline" label="Serviços" subtitle="Gerenciar serviços" badge={`${services.length}`} onPress={() => goToCadastro('servicos')} />
-          <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
           <MenuItem icon="document-text-outline" label="Boletos" subtitle="Gerenciar boletos" badge={`${boletos.length}`} onPress={() => goToCadastro('boletos')} />
           {showEmpresaFeatures && <MenuItem icon="business-outline" label="Fornecedores" subtitle="Gerenciar fornecedores" badge={`${suppliers?.length ?? 0}`} onPress={() => goToCadastro('fornecedores')} />}
         </View>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>SUPORTE</Text>
         <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <MenuItem icon="help-circle-outline" label="Ajuda" subtitle="Central de ajuda" />
           <MenuItem icon="document-text-outline" label="Termos de Uso" subtitle="Leia os termos do aplicativo" onPress={onOpenTermos || comingSoon} />
           <MenuItem icon="star-outline" label="Avaliar App" subtitle="Deixe sua avaliação" />
           <MenuItem icon="log-out-outline" label="Sair da conta" subtitle="Deslogar do aplicativo" onPress={() => Alert.alert('Sair', 'Deseja sair da sua conta?', [{ text: 'Cancelar' }, { text: 'Sair', style: 'destructive', onPress: () => { onClose?.(); signOut(); } }])} />

@@ -27,7 +27,7 @@ import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_SECTIONS } from '../constants/dashboardCards';
+import { DEFAULT_SECTIONS, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS } from '../constants/dashboardCards';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -43,11 +43,11 @@ const ds = StyleSheet.create({
   appTitle: { fontSize: 22, fontWeight: '700', marginTop: 8 },
   monthText: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
   balanceCard: { margin: 16, padding: 20, borderRadius: 20 },
-  balanceLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
+  balanceLabel: { fontSize: 10, fontWeight: '700', color: '#fff', letterSpacing: 1 },
   balanceAmount: { fontSize: 28, fontWeight: '800', color: '#fff', marginTop: 8 },
   balanceRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   balanceBox: { flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: 12 },
-  boxLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
+  boxLabel: { fontSize: 9, fontWeight: '700', color: '#fff', letterSpacing: 1 },
   boxValue: { fontSize: 14, fontWeight: '700', color: '#fff', marginTop: 4 },
   section: { paddingHorizontal: 16, marginTop: 16 },
   sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
@@ -68,7 +68,7 @@ const ds = StyleSheet.create({
   carousel: { marginTop: 16, height: 200, marginHorizontal: 0, paddingVertical: 8 },
   carouselItem: { height: 160, marginRight: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
   carouselTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  carouselText: { fontSize: 12, opacity: 0.95, lineHeight: 18 },
+  carouselText: { fontSize: 12, lineHeight: 18 },
   quoteCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
   quoteText: { fontSize: 14, fontStyle: 'italic', lineHeight: 22 },
   quoteType: { fontSize: 10, marginTop: 8, letterSpacing: 1 },
@@ -99,13 +99,13 @@ function parseDateKey(str) {
 export function DashboardScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent } = useFinance();
+  const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem } = useFinance();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openCalculadoraFull, openMeusGastos, openListaCompras } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp } = useMenu();
   const { notes, deleteNote } = useNotes();
-  const { items: shoppingItems } = useShoppingList();
+  const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
   const [quoteType, setQuoteType] = useState('motivacional');
@@ -128,6 +128,7 @@ export function DashboardScreen() {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   });
   const { showValues, toggleValues } = useValuesVisibility();
+  const [filtroListaCompras, setFiltroListaCompras] = useState('todos');
   const [showConcluidasProximos, setShowConcluidasProximos] = useState(false);
   const layoutsRef = useRef({});
   const [floatingId, setFloatingId] = useState(null);
@@ -140,7 +141,7 @@ export function DashboardScreen() {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-          const allowedSections = new Set(DEFAULT_SECTIONS);
+          const allowedSections = new Set(ALL_INICIO_IDS);
           let filtered = Array.isArray(parsed)
             ? parsed
                 .filter((id) => id !== 'agenda' && allowedSections.has(id === 'tarefas' ? 'proximos' : id))
@@ -283,14 +284,33 @@ export function DashboardScreen() {
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [monthTx]);
 
-  const carouselItems = [
-    { id: '1', title: 'Gerencie suas finanças', text: 'Receitas, despesas e controle total em um só lugar.', icon: 'wallet-outline', color: '#10b981' },
-    { id: '2', title: 'Limite seu orçamento', text: 'Mantenha sua vida organizada.', icon: 'cash-outline', color: '#059669', onPress: 'orcamento' },
-    { id: '3', title: 'Faça upgrade do seu plano', text: 'Plano Empresa: CRM, produtos compostos e muito mais.', icon: 'rocket-outline', color: '#8b5cf6' },
-    { id: '4', title: 'Indique e ganhe', text: 'Convide amigos e ganhe benefícios exclusivos.', icon: 'people-outline', color: '#f59e0b' },
-    { id: '5', title: 'Novidade: Agenda com zoom', text: 'Zoom com os dedos na agenda para ver melhor seus eventos.', icon: 'calendar-outline', color: '#06b6d4' },
-    { id: '6', title: 'Novidade: Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899' },
-  ];
+  const carouselItems = useMemo(() => {
+    const isEmpresa = viewMode === 'empresa' && showEmpresaFeatures;
+    const base = [
+      { id: '1', title: 'Gerencie suas finanças', text: 'Receitas, despesas e controle total em um só lugar.', icon: 'wallet-outline', color: '#10b981', onPress: 'dinheiro' },
+      { id: '2', title: 'Limite seu orçamento', text: 'Mantenha sua vida organizada.', icon: 'cash-outline', color: '#dc2626', onPress: 'orcamento' },
+      ...(isEmpresa ? [{ id: 'whatsapp', title: 'Envie mensagem para seus clientes', text: 'Use o WhatsApp para conversar, enviar lembretes e templates aos seus clientes.', icon: 'logo-whatsapp', color: '#25D366', onPress: 'whatsapp' }] : []),
+      { id: '3', title: 'Faça upgrade do seu plano', text: 'Plano Empresa: CRM, produtos compostos e muito mais.', icon: 'rocket-outline', color: '#8b5cf6', onPress: 'assinatura' },
+      { id: '4', title: 'Indique e ganhe', text: 'Convide amigos e ganhe benefícios exclusivos.', icon: 'people-outline', color: '#f59e0b', onPress: 'indique' },
+      { id: '5', title: 'Agenda', text: isEmpresa ? 'Agende seus clientes.' : 'Agende seus eventos.', icon: 'calendar-outline', color: '#06b6d4', onPress: 'agenda' },
+      { id: '6', title: 'Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899', onPress: 'cards' },
+    ];
+    return base;
+  }, [viewMode, showEmpresaFeatures]);
+
+  const handleCarouselPress = useCallback((item) => {
+    playTapSound();
+    switch (item.onPress) {
+      case 'dinheiro': navigation?.navigate?.('Dinheiro'); break;
+      case 'orcamento': openOrcamento?.(); break;
+      case 'assinatura': openAssinatura?.(); break;
+      case 'indique': openIndique?.(); break;
+      case 'agenda': navigation?.navigate?.('Agenda'); break;
+      case 'cards': setShowCardPicker(true); break;
+      case 'whatsapp': openMensagensWhatsApp?.(); break;
+      default: break;
+    }
+  }, [navigation, openOrcamento, openAssinatura, openIndique, openMensagensWhatsApp]);
 
   useEffect(() => {
     const count = carouselItems.length;
@@ -586,11 +606,11 @@ export function DashboardScreen() {
                   <AppIcon name={item.icon} size={28} color="#fff" />
                 </View>
                 <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
-                <Text style={[ds.carouselText, { color: 'rgba(255,255,255,0.95)' }]}>{item.text}</Text>
+                <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
               </View>
             );
-            return item.onPress === 'orcamento' ? (
-              <TouchableOpacity key={item.id} onPress={() => { playTapSound(); openOrcamento?.(); }} activeOpacity={0.9} style={{ width: CARD_WIDTH + 16 }}>
+            return item.onPress ? (
+              <TouchableOpacity key={item.id} onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ width: CARD_WIDTH + 16 }}>
                 {cardContent}
               </TouchableOpacity>
             ) : (
@@ -635,6 +655,70 @@ export function DashboardScreen() {
         </GlassCard>
       </TouchableOpacity>
     ),
+    aniversariantes: (() => {
+      const parseBirthDate = (str) => {
+        if (!str || !String(str).trim()) return null;
+        const parts = String(str).trim().split(/[/\-]/);
+        if (parts.length < 2) return null;
+        const day = parseInt(parts[0], 10) || 1;
+        const month = (parseInt(parts[1], 10) || 1) - 1;
+        const year = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
+        return new Date(year, month, day);
+      };
+      const h = new Date();
+      const day = h.getDay();
+      const diff = h.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(h);
+      mon.setDate(diff);
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      const aniversariantesSemana = (clients || []).filter((c) => {
+        const bd = c.birthDate || c.dataNascimento;
+        if (!bd) return false;
+        const d = parseBirthDate(bd) || new Date(bd);
+        if (isNaN(d.getTime())) return false;
+        const bdThisYear = new Date(h.getFullYear(), d.getMonth(), d.getDate());
+        return bdThisYear >= mon && bdThisYear <= sun;
+      });
+      const isEmpresa = showEmpresaFeatures && viewMode === 'empresa';
+      return (
+        <TouchableOpacity
+          key="aniversariantes"
+          onPress={() => { playTapSound(); openMensagensWhatsApp?.(); }}
+          activeOpacity={0.9}
+          style={{ marginHorizontal: 16, marginTop: 16 }}
+        >
+          <GlassCard colors={colors} style={[ds.card, { borderColor: '#ec4899' + '80', borderWidth: 2, padding: 20, shadowColor: '#ec4899', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(236,72,153,0.2)', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="gift-outline" size={26} color="#ec4899" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Aniversariantes da semana</Text>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                  {aniversariantesSemana.length > 0
+                    ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''}` : `${aniversariantesSemana.length} pessoa${aniversariantesSemana.length !== 1 ? 's' : ''}`)
+                    : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
+                </Text>
+              </View>
+              <AppIcon name="chevron-forward" size={22} color="#ec4899" />
+            </View>
+            {aniversariantesSemana.length > 0 ? (
+              aniversariantesSemana.slice(0, 4).map((c) => (
+                <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4, marginBottom: 4 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{c.phone || ''}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={{ fontSize: 14, color: colors.textSecondary }}>Mande uma mensagem de parabéns pelo WhatsApp</Text>
+            )}
+          </GlassCard>
+        </TouchableOpacity>
+      );
+    })(),
     meusgastos: (
       <View key="meusgastos" style={{ marginHorizontal: 16, marginTop: 16 }}>
         <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6, overflow: 'hidden' }]} contentStyle={{ padding: 0 }}>
@@ -709,47 +793,100 @@ export function DashboardScreen() {
         </GlassCard>
       </TouchableOpacity>
     ),
-    listacompras: (
-      <TouchableOpacity
-        key="listacompras"
-        onPress={() => { playTapSound(); openListaCompras?.(); }}
-        activeOpacity={0.9}
-        style={{ marginHorizontal: 16, marginTop: 16 }}
-      >
-        <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name="cart-outline" size={26} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Lista de compras</Text>
-              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                {shoppingItems.length === 0 ? 'Anote o que precisa comprar' : `${shoppingItems.length} item${shoppingItems.length !== 1 ? 'ns' : ''} na lista`}
-              </Text>
-            </View>
-            <AppIcon name="chevron-forward" size={22} color={colors.primary} />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50' }}>
-              <Ionicons name="add" size={16} color={colors.primary} />
-              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Adicionar item</Text>
-            </TouchableOpacity>
-          </View>
-          {shoppingItems.length === 0 ? (
-            <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>Nenhum item na lista</Text>
-          ) : (
-            shoppingItems.slice(0, 5).map((i) => (
-              <View key={i.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
-                <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  {i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}
-                </View>
-                <Text style={{ fontSize: 15, color: colors.text, flex: 1, textDecorationLine: i.checked ? 'line-through' : 'none' }} numberOfLines={1}>{i.title}</Text>
+    listacompras: (() => {
+      const filtered = filtroListaCompras === 'todos' ? shoppingItems : shoppingItems.filter((i) => (i.tipo || 'pessoal') === filtroListaCompras);
+      const checkedCount = filtered.filter((i) => i.checked).length;
+      const handleFinalizar = (e) => {
+        e?.stopPropagation?.();
+        playTapSound();
+        const checked = filtered.filter((i) => i.checked);
+        if (checked.length === 0) {
+          Alert.alert('Atenção', 'Nenhum item marcado como concluído para finalizar.');
+          return;
+        }
+        Alert.alert('Finalizar checklist', `${checked.length} item(ns) marcado(s) serão convertidos em tarefas. Deseja continuar?`, [
+          { text: 'Cancelar' },
+          {
+            text: 'Finalizar',
+            onPress: () => {
+              checked.forEach((i) => {
+                addCheckListItem({ title: i.title, date: i.date || undefined, checked: false, important: false, priority: 'media' });
+                deleteShoppingItem(i.id);
+              });
+              Alert.alert('Pronto!', `${checked.length} item(ns) convertido(s) em tarefas.`);
+            },
+          },
+        ]);
+      };
+      const toggleItem = (e, i) => {
+        e?.stopPropagation?.();
+        playTapSound();
+        updateShoppingItem(i.id, { checked: !i.checked });
+      };
+      return (
+        <TouchableOpacity
+          key="listacompras"
+          onPress={() => { playTapSound(); openListaCompras?.(); }}
+          activeOpacity={0.9}
+          style={{ marginHorizontal: 16, marginTop: 16 }}
+        >
+          <GlassCard colors={colors} style={[ds.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
+                <AppIcon name="cart-outline" size={26} color={colors.primary} />
               </View>
-            ))
-          )}
-        </GlassCard>
-      </TouchableOpacity>
-    ),
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Lista de compras</Text>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                  {filtered.length === 0 ? 'Anote o que precisa comprar' : `${filtered.length} item${filtered.length !== 1 ? 'ns' : ''} na lista`}
+                </Text>
+              </View>
+              <AppIcon name="chevron-forward" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('todos'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: filtroListaCompras === 'todos' ? (colors.primaryRgba(0.2) ?? colors.primary + '30') : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'todos' ? colors.primary : colors.border }}>
+                <Ionicons name="list" size={14} color={filtroListaCompras === 'todos' ? colors.primary : colors.textSecondary} />
+                <Text style={{ fontSize: 12, color: filtroListaCompras === 'todos' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Todos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('pessoal'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: filtroListaCompras === 'pessoal' ? (colors.primaryRgba(0.2) ?? colors.primary + '30') : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'pessoal' ? colors.primary : colors.border }}>
+                <Ionicons name="person-outline" size={14} color={filtroListaCompras === 'pessoal' ? colors.primary : colors.textSecondary} />
+                <Text style={{ fontSize: 12, color: filtroListaCompras === 'pessoal' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Pessoal</Text>
+              </TouchableOpacity>
+              {showEmpresaFeatures && (
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('empresa'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: filtroListaCompras === 'empresa' ? 'rgba(99,102,241,0.2)' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'empresa' ? '#6366f1' : colors.border }}>
+                  <Ionicons name="business-outline" size={14} color={filtroListaCompras === 'empresa' ? '#6366f1' : colors.textSecondary} />
+                  <Text style={{ fontSize: 12, color: filtroListaCompras === 'empresa' ? '#6366f1' : colors.textSecondary, fontWeight: '600' }}>Empresa</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '50', marginLeft: 'auto' }}>
+                <Ionicons name="add" size={16} color={colors.primary} />
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Adicionar item</Text>
+              </TouchableOpacity>
+            </View>
+            {filtered.length === 0 ? (
+              <Text style={{ fontSize: 14, color: colors.textSecondary, paddingLeft: 4 }}>Nenhum item na lista</Text>
+            ) : (
+              <>
+                {filtered.slice(0, 5).map((i) => (
+                  <TouchableOpacity key={i.id} onPress={(e) => toggleItem(e, i)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: colors.primary + '40', marginLeft: 4, marginBottom: 4 }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      {i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}
+                    </View>
+                    <Text style={{ fontSize: 15, color: colors.text, flex: 1, textDecorationLine: i.checked ? 'line-through' : 'none' }} numberOfLines={1}>{i.title}</Text>
+                  </TouchableOpacity>
+                ))}
+                {checkedCount > 0 && (
+                  <TouchableOpacity onPress={handleFinalizar} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primaryRgba(0.12), borderWidth: 1, borderColor: colors.primary + '40', marginTop: 8 }}>
+                    <Ionicons name="checkmark-done" size={18} color={colors.primary} />
+                    <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>Finalizar checklist ({checkedCount} marcado{checkedCount !== 1 ? 's' : ''})</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </GlassCard>
+        </TouchableOpacity>
+      );
+    })(),
     balance: (
       <View key="balance">
         <BalanceCard
@@ -820,12 +957,11 @@ export function DashboardScreen() {
         hideOrganize
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={openCalculadoraFull}
-        onChat={openMeusGastos}
+        onWhatsApp={openMensagensWhatsApp}
       />
       {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       {isGuest && (
-        <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
+        <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center' }}>
           <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>Modo visitante: os dados não são salvos. Faça login para persistir.</Text>
         </View>
       )}
@@ -870,6 +1006,10 @@ export function DashboardScreen() {
         onClose={() => setShowCardPicker(false)}
         visibleIds={sectionOrder}
         onReorder={(order) => setSectionOrder(order)}
+        addableFromDinheiro={DINHEIRO_ADDABLE_CARDS.filter((id) => !sectionOrder.includes(id))}
+        addableCardTypes={DINHEIRO_CARD_TYPES}
+        onAddCard={(id) => { playTapSound(); setSectionOrder((prev) => [...prev, id]); }}
+        onRemoveCard={(id) => { playTapSound(); setSectionOrder((prev) => prev.filter((x) => x !== id)); }}
       />
     </SafeAreaView>
   );

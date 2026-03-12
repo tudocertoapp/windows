@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,11 @@ import {
   InteractionManager,
 } from 'react-native';
 import { Gesture, GestureDetector, ScrollView as RNGHScrollView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, useAnimatedRef, useAnimatedScrollHandler, scrollTo, runOnJS, withTiming, withSpring, Easing } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, useAnimatedRef, useAnimatedScrollHandler, scrollTo, runOnJS, withTiming, withSpring, Easing, cancelAnimation } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMenu } from '../contexts/MenuContext';
@@ -37,7 +38,7 @@ const HOUR_HEIGHT = 56;
 const CAROUSEL_PADDING_V = 5;
 const MIN_ZOOM = 0.84;
 const MAX_ZOOM = 3;
-const CARD_GAP_PERCENT = 0;
+const CARD_GAP_PERCENT = 0.5;
 const TIMELINE_PADDING = 8;
 const SHOW_EVENT_MENU = false;
 
@@ -125,14 +126,14 @@ const as = StyleSheet.create({
   timelineHour: { width: 52, paddingTop: 6, paddingRight: 8, alignItems: 'flex-end', position: 'relative' },
   hourText: { fontSize: 12, fontWeight: '500' },
   timelineContent: { flex: 1, position: 'relative', minHeight: 1, overflow: 'visible' },
-  timelineContentFull: { flex: 1, position: 'relative', overflow: 'visible' },
+  timelineContentFull: { flex: 1, position: 'relative', overflow: 'hidden' },
   eventBlock: {
     position: 'absolute',
     borderRadius: 10,
     padding: 8,
     paddingRight: 44,
     borderLeftWidth: 4,
-    overflow: 'visible',
+    overflow: 'hidden',
     minHeight: 80,
   },
   eventBlockContent: { flex: 1, flexDirection: 'column', justifyContent: 'flex-start' },
@@ -361,7 +362,7 @@ function getCalendarGrid(year, month) {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function AgendaScreen() {
-  const { agendaEvents, deleteAgendaEvent, updateAgendaEvent, checkListItems, clients } = useFinance();
+  const { agendaEvents, deleteAgendaEvent, updateAgendaEvent, refreshAgendaEvents, checkListItems, clients } = useFinance();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
@@ -400,21 +401,19 @@ export function AgendaScreen() {
   const commitSwipeNext = useCallback(() => {
     const next = new Date(selectedDate);
     next.setDate(next.getDate() + 1);
-    contentPanX.value = SW;
+    timelineSlideX.value = 0;
     setSelectedDate(next);
     setDisplayedMonthDate(next);
     scrollToWeek(getWeekIndexForDate(next));
-    contentPanX.value = withTiming(0, { duration: SWIPE_DURATION, easing: Easing.out(Easing.cubic) });
   }, [selectedDate, scrollToWeek]);
 
   const commitSwipePrev = useCallback(() => {
     const prev = new Date(selectedDate);
     prev.setDate(prev.getDate() - 1);
-    contentPanX.value = -SW;
+    timelineSlideX.value = 0;
     setSelectedDate(prev);
     setDisplayedMonthDate(prev);
     scrollToWeek(getWeekIndexForDate(prev));
-    contentPanX.value = withTiming(0, { duration: SWIPE_DURATION, easing: Easing.out(Easing.cubic) });
   }, [selectedDate, scrollToWeek]);
 
   const panSwipeGesture = useMemo(
@@ -425,8 +424,7 @@ export function AgendaScreen() {
         .onUpdate((e) => {
           'worklet';
           const maxDrag = SW * 0.85;
-          const t = Math.max(-maxDrag, Math.min(maxDrag, e.translationX));
-          contentPanX.value = t;
+          contentPanX.value = Math.max(-maxDrag, Math.min(maxDrag, e.translationX));
         })
         .onEnd((e) => {
           'worklet';
@@ -674,6 +672,13 @@ export function AgendaScreen() {
   }, [isFocused]);
 
   useEffect(() => {
+    if (isFocused && refreshAgendaEvents) {
+      const t = setTimeout(() => refreshAgendaEvents(), 800);
+      return () => clearTimeout(t);
+    }
+  }, [isFocused, refreshAgendaEvents]);
+
+  useEffect(() => {
     const weekIndex = Math.min(getWeekIndexForDate(selectedDate), ALL_WEEKS.length - 1);
     if (weekIndex < 0) return;
     if (needsInitialWeekScroll.current) {
@@ -701,6 +706,7 @@ export function AgendaScreen() {
     transform: [{ translateX: timelineSlideX.value }],
   }));
 
+
   const prevDate = useMemo(() => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() - 1);
@@ -713,12 +719,23 @@ export function AgendaScreen() {
   }, [selectedDate]);
   const prevKey = formatDayKey(prevDate);
   const nextKey = formatDayKey(nextDate);
-  const eventsForPrev = eventsByDay[prevKey] || [];
-  const eventsForNext = eventsByDay[nextKey] || [];
+  const panelsData = useMemo(
+    () => [
+      { events: eventsByDay[prevKey] || [], showTodayLine: false },
+      { events: eventsForSelected, showTodayLine: isTodaySelected },
+      { events: eventsByDay[nextKey] || [], showTodayLine: false },
+    ],
+    [prevKey, selectedKey, nextKey, eventsForSelected, eventsByDay, isTodaySelected]
+  );
 
   const timelineSwipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: contentPanX.value }],
+    transform: [{ translateX: -SW + contentPanX.value }],
   }));
+
+  useLayoutEffect(() => {
+    cancelAnimation(contentPanX);
+    contentPanX.value = 0;
+  }, [selectedKey]);
 
   useEffect(() => {
     if (slideDirectionRef.current !== 0) {
@@ -860,10 +877,10 @@ export function AgendaScreen() {
         </View>
 
         <GestureDetector gesture={panSwipeGesture}>
-        <Animated.View style={[{ flex: 1, overflow: 'hidden' }, timelineSwipeStyle]}>
+        <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.bg }} collapsable={false}>
         <GestureDetector gesture={pinchGesture}>
         <View
-          style={{ flex: 1 }}
+          style={{ flex: 1, backgroundColor: colors.bg }}
           onLayout={(e) => {
             const { height } = e.nativeEvent.layout;
             viewHeight.value = height;
@@ -872,70 +889,84 @@ export function AgendaScreen() {
         >
         <AnimatedScrollView
           ref={mainScrollRef}
-          style={{ flex: 1 }}
+          style={{ flex: 1, backgroundColor: colors.bg }}
           scrollEnabled={!isPinching}
           onScroll={onTimelineScroll}
           scrollEventThrottle={1}
           showsVerticalScrollIndicator
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={{ paddingBottom: 20, backgroundColor: colors.bg }}
+          removeClippedSubviews={false}
         >
-          <Animated.View style={[animatedTimelineStyle, { flexDirection: 'row', position: 'relative', paddingLeft: TIMELINE_PADDING }]}>
-            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 1, left: 0 }]}>
-              {HOURS.map((hour) => (
-                <View
-                  key={`grid-${hour}`}
-                  style={{
-                    height: `${100 / 24}%`,
-                    borderBottomWidth: 1,
-                    borderBottomColor: (colors.border || '#e5e7eb') + 'E6',
-                  }}
+          <Animated.View style={[animatedTimelineStyle, { width: SW, overflow: 'hidden' }]}>
+            <Animated.View style={[timelineSwipeStyle, { flexDirection: 'row', width: SW * 3 }]}>
+            {panelsData.map(({ events, showTodayLine }, panelIdx) => (
+              <View
+                key={panelIdx}
+                style={{
+                  width: SW,
+                  flexDirection: 'row',
+                  position: 'relative',
+                  paddingLeft: TIMELINE_PADDING,
+                  backgroundColor: colors.bg,
+                  flex: 0,
+                }}
+              >
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 1, left: 0 }]}>
+                  {HOURS.map((hour) => (
+                    <View
+                      key={`grid-${panelIdx}-${hour}`}
+                      style={{
+                        height: `${100 / 24}%`,
+                        borderBottomWidth: 1,
+                        borderBottomColor: (colors.border || '#e5e7eb') + 'E6',
+                      }}
                 />
-              ))}
-            </View>
-            <View style={{ width: 52, zIndex: 2 }}>
-              {HOURS.map((hour) => (
-                <View key={hour} style={[as.timelineHour, { height: `${100 / 24}%` }]}>
-                  <Text style={[as.hourText, { color: colors.textSecondary }]}>{String(hour).padStart(2, '0')}:00</Text>
+                  ))}
                 </View>
-              ))}
-            </View>
-            {isTodaySelected && (
-              <>
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: `${(currentMinutes / 1440) * 100}%`,
-                    height: 2,
-                    marginTop: -1,
-                    backgroundColor: colors.primary,
-                    zIndex: 10,
-                  }}
-                />
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    left: TIMELINE_PADDING + 4,
-                    top: `${(currentMinutes / 1440) * 100}%`,
-                    transform: [{ translateY: -14 }],
-                    zIndex: 11,
-                    backgroundColor: colors.primary,
-                    paddingHorizontal: 8,
-                    paddingVertical: 5,
-                    borderRadius: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>
-                    {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
-                  </Text>
+                <View style={{ width: 52, zIndex: 2 }}>
+                  {HOURS.map((hour) => (
+                    <View key={`${panelIdx}-${hour}`} style={[as.timelineHour, { height: `${100 / 24}%` }]}>
+                      <Text style={[as.hourText, { color: colors.textSecondary }]}>{String(hour).padStart(2, '0')}:00</Text>
+                    </View>
+                  ))}
                 </View>
-              </>
-            )}
-            <View style={[as.timelineContentFull, { height: '100%', zIndex: 2, marginLeft: TIMELINE_PADDING }]}>
-              {getEventLayouts(eventsForSelected).map(({ event: e, startM, endM, duration, lane, lanesUsed, sameHourIndex, sameHourCount, hourStartM }) => {
+                {showTodayLine && (
+                  <>
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: `${(currentMinutes / 1440) * 100}%`,
+                        height: 2,
+                        marginTop: -1,
+                        backgroundColor: colors.primary,
+                        zIndex: 10,
+                      }}
+                    />
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        left: TIMELINE_PADDING + 4,
+                        top: `${(currentMinutes / 1440) * 100}%`,
+                        transform: [{ translateY: -14 }],
+                        zIndex: 11,
+                        backgroundColor: colors.primary,
+                        paddingHorizontal: 8,
+                        paddingVertical: 5,
+                        borderRadius: 12,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>
+                        {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
+                      </Text>
+                    </View>
+                </>
+                )}
+                <View style={[as.timelineContentFull, { height: '100%', zIndex: 2, marginLeft: TIMELINE_PADDING }]}>
+                  {getEventLayouts(events).map(({ event: e, startM, endM, duration, lane, lanesUsed, sameHourIndex, sameHourCount, hourStartM }) => {
                 const isConcluido = e.status === 'concluido';
                 const isActionsOpen = openEventActionsId === e.id;
                 const isLongEvent = duration > 60;
@@ -949,19 +980,22 @@ export function AgendaScreen() {
                 const longEventLeft = 0;
                 const longEventWidth = 100;
                 const shouldSplitByFirstHour = sameHourCount > 1;
-                const hourSlotWidth = 100 / Math.max(1, sameHourCount);
-                const hourLeft = sameHourIndex * hourSlotWidth;
+                const hourSlotWidth = (100 - (sameHourCount - 1) * CARD_GAP_PERCENT) / Math.max(1, sameHourCount);
+                const hourLeft = sameHourIndex * (hourSlotWidth + CARD_GAP_PERCENT);
                 const rowTop = shouldSplitByFirstHour && hourStartM != null
                   ? (hourStartM / 1440) * 100
                   : (startM / 1440) * 100;
                 const rowHeight = shouldSplitByFirstHour && hourStartM != null
                   ? ((endM - hourStartM) / 1440) * 100
                   : (duration / 1440) * 100;
-                const layerShiftPx = Math.min(8, lane * 3);
+                const layerShiftPx = Math.min(2, lane * 1);
+                const splitHourShiftPx = shouldSplitByFirstHour ? sameHourIndex * 2 : 0;
+                const transformPx = shouldSplitByFirstHour ? splitHourShiftPx : (isLongEvent ? layerShiftPx : 0);
                 // Quanto mais tarde o início, maior prioridade de camada/click.
                 const stackZ = shouldSplitByFirstHour
                   ? 2000 + sameHourIndex + startM
                   : 1000 + startM;
+                const isDarkBg = colors.isDarkBg ?? (colors.text === '#ffffff');
                 return (
                   <TouchableOpacity
                     key={e.id}
@@ -975,18 +1009,31 @@ export function AgendaScreen() {
                         top: `${rowTop}%`,
                         height: `${rowHeight}%`,
                         minHeight: 80,
-                        backgroundColor: isLongEvent
-                          ? (isConcluido ? colors.primaryRgba(0.12) : colors.primaryRgba(0.22))
-                          : (isConcluido ? colors.primaryRgba(0.08) : colors.primaryRgba(0.15)),
+                        overflow: 'hidden',
                         borderLeftColor: isConcluido ? colors.textSecondary : colors.primary,
-                        opacity: isConcluido ? 0.85 : 1,
-                        transform: isLongEvent && !shouldSplitByFirstHour ? [{ translateX: layerShiftPx }] : undefined,
+                        transform: transformPx ? [{ translateX: transformPx }] : undefined,
                         zIndex: stackZ,
                         elevation: stackZ,
                       },
                     ]}
                   >
-                    <View style={[as.eventBlockContent, { flex: 1 }]}>
+                    <BlurView
+                      intensity={Platform.OS === 'ios' ? 60 : 50}
+                      tint={isDarkBg ? 'dark' : 'light'}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <View
+                      style={[
+                        StyleSheet.absoluteFill,
+                        {
+                          backgroundColor: isLongEvent
+                            ? (isConcluido ? colors.primaryRgba(0.45) : colors.primaryRgba(0.55))
+                            : (isConcluido ? colors.primaryRgba(0.40) : colors.primaryRgba(0.50)),
+                          opacity: 0.92,
+                        },
+                      ]}
+                    />
+                    <View style={[as.eventBlockContent, { flex: 1, zIndex: 1 }]}>
                       <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]}>
                         {((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento'}
                       </Text>
@@ -1064,16 +1111,21 @@ export function AgendaScreen() {
                         )}
                       </View>
                     )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                    </TouchableOpacity>
+                  );
+                })}
+                </View>
+              </View>
+            ))}
+            </Animated.View>
           </Animated.View>
 
           {eventsForSelected.length === 0 && (
-            <View style={[as.empty, { marginTop: 24 }]}>
-              <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
-              <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum evento neste dia</Text>
+            <View style={{ width: SW, alignSelf: 'center' }}>
+              <View style={[as.empty, { marginTop: 24 }]}>
+                <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
+                <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum evento neste dia</Text>
+              </View>
             </View>
           )}
 
@@ -1081,7 +1133,7 @@ export function AgendaScreen() {
         </AnimatedScrollView>
         </View>
         </GestureDetector>
-        </Animated.View>
+        </View>
         </GestureDetector>
         </View>
 

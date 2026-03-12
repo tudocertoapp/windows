@@ -1,14 +1,16 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { setupNotificationChannel, requestPermissions, scheduleReminder, scheduleAReceberReminder } from '../utils/reminders';
+import { setupNotificationChannel, requestPermissions, scheduleEventReminders, scheduleTaskReminders, scheduleAReceberReminder, cancelReminders, cancelReminder } from '../utils/reminders';
 
 const ReminderContext = createContext(undefined);
 const AR_PREFIX = 'ar_';
+const TASK_PREFIX = 'task_';
 
-export function ReminderProvider({ children, agendaEvents, aReceber }) {
+export function ReminderProvider({ children, agendaEvents, aReceber, checkListItems, updateCheckListItem }) {
   const scheduledRef = useRef({});
   const arScheduledRef = useRef({});
+  const taskScheduledRef = useRef({});
   const hasRequestedRef = useRef(false);
 
   useEffect(() => {
@@ -24,17 +26,40 @@ export function ReminderProvider({ children, agendaEvents, aReceber }) {
     (agendaEvents || []).forEach((e) => {
       if (!e.date || scheduledRef.current[e.id]) return;
       const dateStr = e.date.includes('/') ? e.date : `${String(e.date).slice(8, 10)}/${String(e.date).slice(5, 7)}/${String(e.date).slice(0, 4)}`;
-      scheduleReminder(e.id, e.title || 'Evento', dateStr, e.time).then((id) => {
-        if (id) scheduledRef.current[e.id] = id;
+      const timeStr = e.time || '';
+      scheduleEventReminders(e.id, e.title || 'Evento', dateStr, timeStr, 'agenda').then((ids) => {
+        if (ids.length > 0) scheduledRef.current[e.id] = ids;
       });
     });
     Object.keys(scheduledRef.current).forEach((eventId) => {
       if (!(agendaEvents || []).find((e) => e.id === eventId)) {
-        Notifications.cancelScheduledNotificationAsync(scheduledRef.current[eventId]);
+        cancelReminders(scheduledRef.current[eventId]);
         delete scheduledRef.current[eventId];
       }
     });
   }, [agendaEvents]);
+
+  useEffect(() => {
+    (checkListItems || [])
+      .filter((t) => !t.checked && t.date)
+      .forEach((t) => {
+        const key = TASK_PREFIX + t.id;
+        if (taskScheduledRef.current[key]) return;
+        const dateStr = t.date.includes('/') ? t.date : `${String(t.date).slice(8, 10)}/${String(t.date).slice(5, 7)}/${String(t.date).slice(0, 4)}`;
+        const timeStr = t.timeStart || '';
+        scheduleTaskReminders(t.id, t.title || 'Tarefa', dateStr, timeStr).then((ids) => {
+          if (ids.length > 0) taskScheduledRef.current[key] = ids;
+        });
+      });
+    Object.keys(taskScheduledRef.current).forEach((key) => {
+      const id = key.replace(TASK_PREFIX, '');
+      const task = (checkListItems || []).find((t) => t.id === id);
+      if (!task || task.checked || !task.date) {
+        cancelReminders(taskScheduledRef.current[key]);
+        delete taskScheduledRef.current[key];
+      }
+    });
+  }, [checkListItems]);
 
   useEffect(() => {
     (aReceber || []).filter((r) => r.status !== 'pago' && r.dueDate).forEach((r) => {
@@ -47,7 +72,7 @@ export function ReminderProvider({ children, agendaEvents, aReceber }) {
     Object.keys(arScheduledRef.current).forEach((key) => {
       const id = key.replace(AR_PREFIX, '');
       if (!(aReceber || []).find((r) => r.id === id && r.status !== 'pago')) {
-        Notifications.cancelScheduledNotificationAsync(arScheduledRef.current[key]);
+        cancelReminder(arScheduledRef.current[key]);
         delete arScheduledRef.current[key];
       }
     });
@@ -56,14 +81,29 @@ export function ReminderProvider({ children, agendaEvents, aReceber }) {
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((n) => {
       const data = n.request.content.data || {};
-      if (data.type === 'agenda') {
-        Alert.alert('Lembrete: Amanhã', n.request.content.body || 'Evento amanhã', [{ text: 'OK' }], { cancelable: true });
+      const body = n.request.content.body || '';
+
+      if (data.type === 'tarefa' && data.eventId && updateCheckListItem) {
+        Alert.alert(
+          n.request.content.title || 'Lembrete',
+          body,
+          [
+            { text: 'OK', style: 'cancel' },
+            {
+              text: 'Concluir tarefa',
+              onPress: () => updateCheckListItem(data.eventId, { checked: true }),
+            },
+          ],
+          { cancelable: true }
+        );
+      } else if (data.type === 'agenda') {
+        Alert.alert(n.request.content.title || 'Lembrete', body, [{ text: 'OK' }], { cancelable: true });
       } else if (data.type === 'a_receber') {
-        Alert.alert('Lembrete: Recebimento em 3 dias', n.request.content.body || 'Valor a receber', [{ text: 'OK' }], { cancelable: true });
+        Alert.alert('Lembrete: Recebimento em 3 dias', body, [{ text: 'OK' }], { cancelable: true });
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [updateCheckListItem]);
 
   return <ReminderContext.Provider value={{}}>{children}</ReminderContext.Provider>;
 }

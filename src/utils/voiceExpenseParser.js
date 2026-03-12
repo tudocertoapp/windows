@@ -87,7 +87,7 @@ export function parseExpenseVoice(transcript) {
   }
 
   const descParts = [];
-  const stopWords = ['gastei', 'gasto', 'paguei', 'paguei', 'na', 'no', 'com', 'de', 'da', 'do', 'empresa', 'pessoal', 'reais', 'real'];
+  const stopWords = ['gastei', 'gasto', 'paguei', 'paguei', 'na', 'no', 'em', 'com', 'de', 'da', 'do', 'empresa', 'pessoal', 'reais', 'real', 'fui', 'foi', 'estava', 'estive', 'em', 'total'];
   const numPattern = /[\d,\.]+/;
   for (const w of words) {
     const clean = w.replace(/[,\.]/g, '');
@@ -146,7 +146,7 @@ export function parseVoiceIntent(transcript) {
     return result;
   }
 
-  if (/\b(despesa|saída|saida|gastei|paguei|gasto)\b/.test(t)) {
+  if (/\b(despesa|saída|saida|gastei|paguei|gasto|fui|foi em|estava na|estava no)\b/.test(t)) {
     result.type = 'despesa';
     const parsed = parseExpenseVoice(transcript);
     if (parsed.amount) result.params.amount = parsed.amount;
@@ -188,7 +188,7 @@ export function parseVoiceIntent(transcript) {
 
   const amount = extractAmount(transcript);
   if (amount != null && amount > 0) {
-    if (/\b(gastei|paguei|gasto|despesa)\b/.test(t)) {
+    if (/\b(gastei|paguei|gasto|despesa|fui|foi em|estava na|estava no)\b/.test(t)) {
       result.type = 'despesa';
       const parsed = parseExpenseVoice(transcript);
       result.params = { amount: parsed.amount || amount.toFixed(2).replace('.', ','), description: parsed.description, categoryDesp: parsed.categoryDesp, subcategoryDesp: parsed.subcategoryDesp, tipoVenda: parsed.tipoVenda };

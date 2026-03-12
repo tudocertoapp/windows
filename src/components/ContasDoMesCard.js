@@ -8,11 +8,11 @@ const CARD_MARGIN_TOP = 16;
 
 const ds = StyleSheet.create({
   card: { marginHorizontal: CARD_MARGIN_H, marginTop: CARD_MARGIN_TOP, marginBottom: 0, padding: 20, borderRadius: 20 },
-  label: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
+  label: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   row: { flexDirection: 'row', gap: 12, marginTop: 16, flexWrap: 'wrap' },
-  box: { flex: 1, minWidth: 90, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: 12 },
-  boxLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
-  boxValue: { fontSize: 14, fontWeight: '700', color: '#fff', marginTop: 4 },
+  box: { flex: 1, minWidth: 90, borderRadius: 12, padding: 12 },
+  boxLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  boxValue: { fontSize: 14, fontWeight: '700', marginTop: 4 },
 });
 
 export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, formatCurrency, mask, colors, lightBackground }) {

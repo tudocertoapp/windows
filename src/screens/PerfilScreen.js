@@ -97,7 +97,7 @@ export function PerfilScreen({ onClose, isModal }) {
       )}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingTop: 24, paddingBottom: 16 }}>
-          <Image source={foto ? { uri: foto } : logoImage} style={ps.avatar} resizeMode="cover" />
+          <Image source={(profile.fotoLocal || foto) ? { uri: profile.fotoLocal || foto } : logoImage} style={ps.avatar} resizeMode="cover" />
           <TouchableOpacity style={[ps.photoBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={handleFoto}>
             <Ionicons name="camera-outline" size={20} color={colors.primary} />
             <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Carregar ou editar foto</Text>

@@ -12,9 +12,9 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBanks, BANCOS_BRASIL } from '../contexts/BanksContext';
 import { useProfile } from '../contexts/ProfileContext';
@@ -84,113 +84,118 @@ function formatMoney(v) {
 }
 
 const CORES_BANCO = [
-  { id: 'verde', label: 'Verde', hex: '#059669', grad: ['#047857', '#10b981'] },
-  { id: 'roxo', label: 'Roxo', hex: '#6366f1', grad: ['#4338ca', '#818cf8'] },
-  { id: 'vermelho', label: 'Vermelho', hex: '#dc2626', grad: ['#b91c1c', '#ef4444'] },
-  { id: 'laranja', label: 'Laranja', hex: '#d97706', grad: ['#b45309', '#f59e0b'] },
-  { id: 'violeta', label: 'Violeta', hex: '#7c3aed', grad: ['#5b21b6', '#a78bfa'] },
-  { id: 'ciano', label: 'Ciano', hex: '#0891b2', grad: ['#0e7490', '#22d3ee'] },
-  { id: 'rosa', label: 'Rosa', hex: '#be185d', grad: ['#9d174d', '#ec4899'] },
-  { id: 'azul', label: 'Azul', hex: '#2563eb', grad: ['#1d4ed8', '#60a5fa'] },
-  { id: 'teal', label: 'Teal', hex: '#0d9488', grad: ['#0f766e', '#2dd4bf'] },
-  { id: 'indigo', label: 'Indigo', hex: '#4f46e5', grad: ['#3730a3', '#818cf8'] },
+  { id: 'verde', label: 'Verde', hex: '#059669' },
+  { id: 'roxo', label: 'Roxo', hex: '#6366f1' },
+  { id: 'vermelho', label: 'Vermelho', hex: '#dc2626' },
+  { id: 'azul', label: 'Azul', hex: '#2563eb' },
+  { id: 'laranja', label: 'Laranja', hex: '#d97706' },
 ];
 
 function getGradientForBank(bank, defaultPessoal, defaultEmpresa) {
   if (bank?.cor) {
-    const preset = CORES_BANCO.find((c) => c.id === bank.cor || c.hex === bank.cor);
-    if (preset) return preset.grad;
-    if (typeof bank.cor === 'string' && bank.cor.startsWith('#')) return [bank.cor, bank.cor];
+    const preset = CORES_BANCO.find((c) => c.id === bank.cor);
+    if (preset) return [preset.hex, preset.hex];
   }
-  return (bank?.tipo || 'pessoal') === 'empresa' ? defaultEmpresa : defaultPessoal;
+  const def = (bank?.tipo || 'pessoal') === 'empresa' ? defaultEmpresa : defaultPessoal;
+  return Array.isArray(def) ? def : [def, def];
 }
 
-function BankCard({ bank, getBankName, getCardsByBankId, formatMoney, openEditBank, handleRemoveBank, openEditCard, handleRemoveCard, onAddCardToBank, gradientColors }) {
+function getBankLogo(bank) {
+  const base = BANCOS_BRASIL.find((b) => b.id === (bank?.bancoId || 'outro'));
+  return base?.logo || null;
+}
+
+function BankLogo({ bank, size = 44, colors }) {
+  const logo = getBankLogo(bank);
+  const base = BANCOS_BRASIL.find((b) => b.id === (bank?.bancoId || 'outro'));
+  const nomeExib = base?.nome || bank?.nomeCustom || '?';
+  const iniciais = (nomeExib || '?').slice(0, 2).toUpperCase();
+  if (logo) {
+    return (
+      <Image source={{ uri: logo }} style={{ width: size, height: size, borderRadius: size / 2 }} resizeMode="contain" onError={() => null} />
+    );
+  }
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ fontSize: size * 0.4, fontWeight: '800', color: colors.primary }}>{iniciais}</Text>
+    </View>
+  );
+}
+
+function BankCard({ bank, getBankName, getCardsByBankId, formatMoney, openEditBank, handleRemoveBank, openEditCard, handleRemoveCard, onAddCardToBank, colors, showValues }) {
   const bankCards = getCardsByBankId(bank.id);
   const nomeExibicao = getBankName(bank);
   const tipoConta = bank.tipoConta || 'ambos';
   const temDebito = tipoConta === 'debito' || tipoConta === 'ambos';
   const temCredito = tipoConta === 'credito' || tipoConta === 'ambos';
   const ehAmbos = tipoConta === 'ambos';
-
-  const LinhaDebito = () => (
-    <View style={[bc.creditoCard, { marginTop: 6, backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-      <Ionicons name="wallet-outline" size={20} color="rgba(255,255,255,0.95)" />
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-        <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.85)' }}>Débito</Text>
-        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>·</Text>
-        <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>{formatMoney(bank.saldo)}</Text>
-        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>· Saldo corrente</Text>
-      </View>
-    </View>
-  );
-
-  const LinhaCredito = ({ card }) => (
-    <TouchableOpacity
-      style={bc.creditoCard}
-      onPress={() => openEditCard(card)}
-      activeOpacity={0.8}
-    >
-      <Ionicons name="card" size={20} color="rgba(255,255,255,0.95)" style={{ marginRight: 4 }} />
-      <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-        <Text style={bc.creditoCardName} numberOfLines={1}>{card.name}</Text>
-        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>·</Text>
-        <Text style={[bc.creditoCardInfo, { flexShrink: 0 }]}>Fech. {card.diaFechamento} Venc. {card.diaVencimento}</Text>
-        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>·</Text>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>{formatMoney(card.saldo || 0)}</Text>
-      </View>
-      <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleRemoveCard(card); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4, marginLeft: 4 }}>
-        <Ionicons name="trash-outline" size={16} color="rgba(255,255,255,0.8)" />
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-
-  const LinhaCreditoVazio = () => (
-    <TouchableOpacity style={bc.debitoCard} onPress={() => onAddCardToBank?.(bank)} activeOpacity={0.8}>
-      <Ionicons name="card-outline" size={20} color="rgba(255,255,255,0.9)" />
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>Crédito</Text>
-        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Adicione um cartão</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const mask = (v) => (showValues ? v : '••••••');
 
   return (
-    <View style={bc.bankCard}>
-      <LinearGradient colors={gradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={bc.bankCardInner}>
-        <View style={bc.bankCardHeader}>
-          <Text style={bc.bankCardName} numberOfLines={1}>{nomeExibicao}</Text>
-          <View style={{ flexDirection: 'row', gap: 4, flexShrink: 0 }}>
-            <TouchableOpacity onPress={() => openEditBank(bank)} style={{ padding: 6 }}>
-              <Ionicons name="pencil-outline" size={20} color="rgba(255,255,255,0.9)" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleRemoveBank(bank)} style={{ padding: 6 }}>
-              <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.9)" />
-            </TouchableOpacity>
+    <View style={[bc.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+      <View style={bc.cardHeader}>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }} onPress={() => openEditBank(bank)} activeOpacity={0.7}>
+          <BankLogo bank={bank} size={48} colors={colors} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[bc.bankName, { color: colors.text }]} numberOfLines={1}>{nomeExibicao}</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {temDebito && <View style={[bc.badge, { backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '25' }]}><Text style={[bc.badgeText, { color: colors.primary }]}>Débito</Text></View>}
+              {temCredito && <View style={[bc.badge, { backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '25' }]}><Text style={[bc.badgeText, { color: colors.primary }]}>Crédito</Text></View>}
+            </View>
           </View>
+        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          <TouchableOpacity onPress={() => openEditBank(bank)} style={{ padding: 8 }}>
+            <Ionicons name="pencil-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleRemoveBank(bank)} style={{ padding: 8 }}>
+            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+          </TouchableOpacity>
         </View>
-
-        {ehAmbos ? (
-          <View style={{ marginTop: 4 }}>
-            <LinhaDebito />
-            {bankCards.length > 0 ? bankCards.map((card) => <LinhaCredito key={card.id} card={card} />) : <LinhaCreditoVazio />}
-          </View>
-        ) : temDebito ? (
-          <>
-            <Text style={bc.bankCardSaldo}>{formatMoney(bank.saldo)}</Text>
-            <Text style={bc.bankCardSub}>Conta corrente · Saldo disponível</Text>
-          </>
-        ) : null}
-
-        {temCredito && !ehAmbos && (
-          <View style={{ marginTop: 6 }}>
-            {bankCards.length > 0 ? bankCards.map((card) => <LinhaCredito key={card.id} card={card} />) : <LinhaCreditoVazio />}
+      </View>
+      <View style={[bc.cardBody, { paddingTop: 8, paddingHorizontal: 16 }]}>
+        {temDebito && (
+          <View style={[bc.cardItem, { backgroundColor: colors.bg }]}>
+            <Ionicons name="wallet-outline" size={20} color={colors.primary} />
+            <View style={bc.cardInfo}>
+              <Text style={[bc.cardTitle, { color: colors.text }]}>Débito</Text>
+              <Text style={[bc.cardSub, { color: colors.textSecondary }]}>{mask(formatMoney(bank.saldo))} · Saldo corrente</Text>
+            </View>
           </View>
         )}
-      </LinearGradient>
+        {temCredito && bankCards.length > 0 && bankCards.map((card) => (
+          <TouchableOpacity key={card.id} style={[bc.cardItem, { backgroundColor: colors.bg }]} onPress={() => openEditCard(card)} activeOpacity={0.7}>
+            <Ionicons name="card-outline" size={20} color={colors.primary} />
+            <View style={[bc.cardInfo, { flex: 1 }]}>
+              <Text style={[bc.cardTitle, { color: colors.text }]}>{card.name}</Text>
+              <Text style={[bc.cardSub, { color: colors.textSecondary }]}>Bandeira: {BANDEIRAS_OPTS.find((b) => b.id === card.bandeira)?.label || card.bandeira} · Fech. {card.diaFechamento} Venc. {card.diaVencimento} · {mask(formatMoney(card.saldo || 0))}</Text>
+            </View>
+            <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleRemoveCard(card); }} hitSlop={8} style={{ padding: 4 }}>
+              <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
+        {temCredito && bankCards.length === 0 && (
+          <TouchableOpacity style={[bc.cardItem, { backgroundColor: colors.bg, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.border }]} onPress={() => onAddCardToBank?.(bank)} activeOpacity={0.7}>
+            <Ionicons name="card-outline" size={20} color={colors.primary} />
+            <View style={bc.cardInfo}>
+              <Text style={[bc.cardTitle, { color: colors.text }]}>Crédito</Text>
+              <Text style={[bc.cardSub, { color: colors.textSecondary }]}>Adicionar cartão</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
+
+const BANDEIRAS_OPTS = [
+  { id: 'visa', label: 'Visa' },
+  { id: 'mastercard', label: 'Mastercard' },
+  { id: 'elo', label: 'Elo' },
+  { id: 'hipercard', label: 'Hipercard' },
+  { id: 'amex', label: 'Amex' },
+];
 
 export function BancosECartoesScreen({ onClose, isModal }) {
   const { colors } = useTheme();
@@ -219,13 +224,6 @@ export function BancosECartoesScreen({ onClose, isModal }) {
 
   const filteredBanksForCarousel = banks.filter((b) => (b.tipo || 'pessoal') === filtroTipo);
 
-  const BANDEIRAS_OPTS = [
-    { id: 'visa', label: 'Visa' },
-    { id: 'mastercard', label: 'Mastercard' },
-    { id: 'elo', label: 'Elo' },
-    { id: 'hipercard', label: 'Hipercard' },
-    { id: 'amex', label: 'Amex' },
-  ];
   const [form, setForm] = useState({
     bancoId: '', nomeCustom: '', tipo: 'pessoal', tipoConta: 'ambos',
     saldo: '', cor: '', bandeira: 'visa',
@@ -565,7 +563,8 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                       openEditCard={openEditCard}
                       handleRemoveCard={handleRemoveCard}
                       onAddCardToBank={openAddCardToBank}
-                      gradientColors={getGradientForBank(bank, ['#059669', '#10b981', '#34d399'], ['#4338ca', '#6366f1', '#818cf8'])}
+                      colors={colors}
+                      showValues={showValues}
                     />
                   ))}
                 </View>
@@ -585,7 +584,8 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                       openEditCard={openEditCard}
                       handleRemoveCard={handleRemoveCard}
                       onAddCardToBank={openAddCardToBank}
-                      gradientColors={getGradientForBank(bank, ['#059669', '#10b981', '#34d399'], ['#4338ca', '#6366f1', '#818cf8'])}
+                      colors={colors}
+                      showValues={showValues}
                     />
                   ))}
                 </View>
@@ -676,8 +676,9 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                           </TouchableOpacity>
                           <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
                             {bankSuggestions.map((b, i) => (
-                              <TouchableOpacity key={b.id} style={[bc.suggestItem, i === bankSuggestions.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setBankSearchQuery(b.nome); setForm((f) => ({ ...f, bancoId: b.id, nomeCustom: b.id === 'outro' ? (bankSearchQuery.trim() || '') : '' })); setShowBankList(false); Keyboard.dismiss(); }}>
-                                <Text style={[bc.pickerItemText, { color: colors.text }]}>{b.nome}</Text>
+                              <TouchableOpacity key={b.id} style={[bc.suggestItem, i === bankSuggestions.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]} onPress={() => { playTapSound(); setBankSearchQuery(b.nome); setForm((f) => ({ ...f, bancoId: b.id, nomeCustom: b.id === 'outro' ? (bankSearchQuery.trim() || '') : '' })); setShowBankList(false); Keyboard.dismiss(); }}>
+                                {b.logo ? <Image source={{ uri: b.logo }} style={{ width: 32, height: 32, borderRadius: 16 }} resizeMode="contain" onError={() => null} /> : <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '25', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>{(b.nome || '?').slice(0, 2).toUpperCase()}</Text></View>}
+                                <Text style={[bc.pickerItemText, { color: colors.text, flex: 1 }]}>{b.nome}</Text>
                               </TouchableOpacity>
                             ))}
                             {!bankSuggestions.some((s) => s.id === 'outro') && (

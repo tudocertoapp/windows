@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, SafeAreaView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
+import { useMenu } from '../contexts/MenuContext';
+import { openWhatsApp } from '../utils/whatsapp';
 import { useTheme } from '../contexts/ThemeContext';
 import { TopBar } from '../components/TopBar';
 import { ClienteModal } from '../components/ClienteModal';
@@ -15,10 +17,10 @@ const cls = StyleSheet.create({
   cardBody: { flex: 1 },
   cardName: { fontSize: 16, fontWeight: '700' },
   cardInfo: { fontSize: 13, marginTop: 2, color: '#6b7280' },
-  crmRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  crmBox: { flex: 1, padding: 10, borderRadius: 10, alignItems: 'center' },
-  crmNum: { fontSize: 18, fontWeight: '800' },
-  crmLabel: { fontSize: 10, marginTop: 2 },
+  crmRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  crmBox: { flex: 1, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  crmNum: { fontSize: 14, fontWeight: '800' },
+  crmLabel: { fontSize: 9, marginTop: 1 },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: { padding: 8, borderRadius: 8 },
@@ -30,6 +32,7 @@ const NIVEL_COLORS = { orcamento: '#6b7280', lead: '#f59e0b', fechou: '#10b981' 
 export function ClientesScreen({ onClose, isModal }) {
   const { clients, agendaEvents, addClient, updateClient, deleteClient } = useFinance();
   const { colors } = useTheme();
+  const { openMensagensWhatsApp } = useMenu();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
 
@@ -74,11 +77,22 @@ export function ClientesScreen({ onClose, isModal }) {
       ) : (
         <TopBar title="Clientes" colors={colors} hideOrganize />
       )}
-      <View style={[cls.header, { backgroundColor: colors.bg, borderBottomColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>CRM — {clients.length} clientes</Text>
-        <TouchableOpacity style={[cls.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+      <View style={[cls.header, { backgroundColor: colors.bg, borderBottomColor: colors.border, flexDirection: 'column', alignItems: 'stretch' }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>CRM — {clients.length} clientes</Text>
+          <TouchableOpacity style={[cls.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {clients.some((c) => c.phone?.trim()) && (
+          <TouchableOpacity
+            onPress={() => openMensagensWhatsApp?.()}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#25D36620', borderWidth: 1, borderColor: '#25D36660', minHeight: 44 }}
+          >
+            <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#25D366' }}>Conversar com clientes no WhatsApp</Text>
+          </TouchableOpacity>
+        )}
       </View>
       {clients.length === 0 ? (
         <View style={cls.empty}>
@@ -117,7 +131,7 @@ export function ClientesScreen({ onClose, isModal }) {
                     <Text style={[cls.crmLabel, { color: colors.textSecondary }]}>Concluídos</Text>
                   </View>
                   <View style={[cls.crmBox, { backgroundColor: colors.primaryRgba(0.15) }]}>
-                    <Text style={[cls.crmNum, { color: colors.primary, fontSize: 14 }]}>{formatCurrency(c.totalRecebido || 0)}</Text>
+                    <Text style={[cls.crmNum, { color: colors.primary, fontSize: 14 }]} numberOfLines={1}>{formatCurrency(c.totalRecebido || 0)}</Text>
                     <Text style={[cls.crmLabel, { color: colors.textSecondary }]}>Recebido</Text>
                   </View>
                 </View>
@@ -138,7 +152,16 @@ export function ClientesScreen({ onClose, isModal }) {
                   </TouchableOpacity>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              {c.phone?.trim() ? (
+                <TouchableOpacity
+                  onPress={() => openWhatsApp(c.phone)}
+                  style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#25D366', justifyContent: 'center', alignItems: 'center' }}
+                >
+                  <Ionicons name="logo-whatsapp" size={22} color="#fff" />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              )}
             </View>
           ))}
           <View style={{ height: 100 }} />

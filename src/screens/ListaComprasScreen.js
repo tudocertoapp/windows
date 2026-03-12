@@ -79,8 +79,9 @@ export function ListaComprasScreen({ onClose, isModal }) {
   const { showEmpresaFeatures } = usePlan();
   const { items, addItem, updateItem, deleteItem } = useShoppingList();
   const { addCheckListItem } = useFinance();
-  const [filtroTipo, setFiltroTipo] = useState('pessoal');
+  const [filtroTipo, setFiltroTipo] = useState('todos');
   const [modalItem, setModalItem] = useState(null);
+  const [modalTipo, setModalTipo] = useState('pessoal');
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
   const [photoUris, setPhotoUris] = useState([]);
@@ -100,6 +101,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
   const removePhoto = (idx) => setPhotoUris((prev) => prev.filter((_, i) => i !== idx));
 
   const filteredItems = useMemo(() => {
+    if (filtroTipo === 'todos') return items;
     return items.filter((i) => (i.tipo || 'pessoal') === filtroTipo);
   }, [items, filtroTipo]);
 
@@ -107,7 +109,8 @@ export function ListaComprasScreen({ onClose, isModal }) {
     playTapSound();
     const hoje = new Date();
     const dateStr = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
-    setModalItem({ id: null, tipo: filtroTipo });
+    setModalItem({ id: null, tipo: null });
+    setModalTipo(filtroTipo === 'todos' ? 'pessoal' : filtroTipo);
     setEditTitle('');
     setEditDate(dateStr);
     setPhotoUris([]);
@@ -116,6 +119,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
   const openEdit = (item) => {
     playTapSound();
     setModalItem(item);
+    setModalTipo(item.tipo || 'pessoal');
     setEditTitle(item.title || '');
     setEditDate(item.date || '');
     setPhotoUris(item.photoUris || []);
@@ -124,9 +128,9 @@ export function ListaComprasScreen({ onClose, isModal }) {
   const handleSave = () => {
     const payload = { title: editTitle, date: editDate.trim() || null, photoUris };
     if (modalItem?.id) {
-      updateItem(modalItem.id, payload);
+      updateItem(modalItem.id, { ...payload, tipo: modalTipo });
     } else {
-      addItem({ ...payload, tipo: filtroTipo });
+      addItem({ ...payload, tipo: modalTipo });
     }
     playTapSound();
     setModalItem(null);
@@ -140,6 +144,28 @@ export function ListaComprasScreen({ onClose, isModal }) {
     ]);
   };
 
+  const checkedCount = useMemo(() => filteredItems.filter((i) => i.checked).length, [filteredItems]);
+  const handleFinalizarChecklist = () => {
+    playTapSound();
+    const checked = filteredItems.filter((i) => i.checked);
+    if (checked.length === 0) {
+      Alert.alert('Atenção', 'Nenhum item marcado como concluído para finalizar.');
+      return;
+    }
+    Alert.alert('Finalizar checklist', `${checked.length} item(ns) marcado(s) serão convertidos em tarefas. Deseja continuar?`, [
+      { text: 'Cancelar' },
+      {
+        text: 'Finalizar',
+        onPress: () => {
+          checked.forEach((i) => {
+            addCheckListItem({ title: i.title, date: i.date || undefined, checked: false, important: false, priority: 'media' });
+            deleteItem(i.id);
+          });
+          Alert.alert('Pronto!', `${checked.length} item(ns) convertido(s) em tarefas.`);
+        },
+      },
+    ]);
+  };
   const handleConvertToTask = (item) => {
     playTapSound();
     addCheckListItem({
@@ -174,6 +200,19 @@ export function ListaComprasScreen({ onClose, isModal }) {
             style={[
               lcs.headerTab,
               {
+                borderColor: filtroTipo === 'todos' ? colors.primary : colors.border,
+                backgroundColor: filtroTipo === 'todos' ? (colors.primaryRgba?.(0.15) ?? colors.primary + '25') : 'transparent',
+              },
+            ]}
+            onPress={() => { playTapSound(); setFiltroTipo('todos'); }}
+          >
+            <Ionicons name="list" size={18} color={filtroTipo === 'todos' ? colors.primary : colors.textSecondary} />
+            <Text style={[lcs.headerTabText, { color: filtroTipo === 'todos' ? colors.primary : colors.textSecondary }]}>Todos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              lcs.headerTab,
+              {
                 borderColor: filtroTipo === 'pessoal' ? colors.primary : colors.border,
                 backgroundColor: filtroTipo === 'pessoal' ? (colors.primaryRgba?.(0.15) ?? colors.primary + '25') : 'transparent',
               },
@@ -203,13 +242,24 @@ export function ListaComprasScreen({ onClose, isModal }) {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={lcs.section}>
-          <TouchableOpacity
-            onPress={openNew}
-            style={[lcs.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.08) || colors.primary + '15' }]}
-          >
-            <AppIcon name="add-circle-outline" size={24} color={colors.primary} />
-            <Text style={[lcs.addBtnText, { color: colors.primary }]}>Adicionar item</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+            <TouchableOpacity
+              onPress={openNew}
+              style={[lcs.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.08) || colors.primary + '15', flex: 1, minWidth: 140 }]}
+            >
+              <AppIcon name="add-circle-outline" size={24} color={colors.primary} />
+              <Text style={[lcs.addBtnText, { color: colors.primary }]}>Adicionar item</Text>
+            </TouchableOpacity>
+            {checkedCount > 0 && (
+              <TouchableOpacity
+                onPress={handleFinalizarChecklist}
+                style={[lcs.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.15) || colors.primary + '25', flex: 1, minWidth: 140 }]}
+              >
+                <Ionicons name="checkmark-done" size={24} color={colors.primary} />
+                <Text style={[lcs.addBtnText, { color: colors.primary }]}>Finalizar ({checkedCount})</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {filteredItems.length === 0 ? (
             <View style={lcs.empty}>
@@ -280,6 +330,37 @@ export function ListaComprasScreen({ onClose, isModal }) {
                   <Ionicons name="close-circle" size={28} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
+              {(
+                <>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 }}>Tipo</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                    <TouchableOpacity
+                      onPress={() => { playTapSound(); setModalTipo('pessoal'); }}
+                      style={[
+                        lcs.headerTab,
+                        { flex: 1, marginBottom: 0 },
+                        { borderColor: modalTipo === 'pessoal' ? colors.primary : colors.border, backgroundColor: modalTipo === 'pessoal' ? (colors.primaryRgba?.(0.15) ?? colors.primary + '25') : 'transparent' },
+                      ]}
+                    >
+                      <Ionicons name="person-outline" size={18} color={modalTipo === 'pessoal' ? colors.primary : colors.textSecondary} />
+                      <Text style={[lcs.headerTabText, { color: modalTipo === 'pessoal' ? colors.primary : colors.textSecondary }]}>Pessoal</Text>
+                    </TouchableOpacity>
+                    {showEmpresaFeatures && (
+                      <TouchableOpacity
+                        onPress={() => { playTapSound(); setModalTipo('empresa'); }}
+                        style={[
+                          lcs.headerTab,
+                          { flex: 1, marginBottom: 0 },
+                          { borderColor: modalTipo === 'empresa' ? '#6366f1' : colors.border, backgroundColor: modalTipo === 'empresa' ? 'rgba(99,102,241,0.15)' : 'transparent' },
+                        ]}
+                      >
+                        <Ionicons name="business-outline" size={18} color={modalTipo === 'empresa' ? '#6366f1' : colors.textSecondary} />
+                        <Text style={[lcs.headerTabText, { color: modalTipo === 'empresa' ? '#6366f1' : colors.textSecondary }]}>Empresa</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 }}>Foto (opcional)</Text>
               <View style={lcs.photoRow}>
                 {photoUris.map((uri, idx) => (

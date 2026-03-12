@@ -452,13 +452,15 @@ export function DinheiroScreen({ route }) {
             <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
               <LineChartSaldo monthlyData={monthlyData} colors={colors} />
             </GlassCard>
-            <GlassCard colors={colors} style={[dns.card, dns.chartCard, { alignItems: 'center' }]}>
-              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Distribuição por categoria</Text>
+            <GlassCard colors={colors} style={[dns.card, dns.chartCard, { alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16, alignSelf: 'center' }]}>Distribuição por categoria</Text>
               {catExpenses.length === 0 ? (
                 <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>Nenhuma despesa no mês</Text>
               ) : (
                 <>
-                  <PieChart data={catExpenses} size={PIE_SIZE} colors={colors} />
+                  <View style={{ alignSelf: 'center' }}>
+                    <PieChart data={catExpenses} size={PIE_SIZE} colors={colors} />
+                  </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16, gap: 8 }}>
                     {catExpenses.map(([cat]) => (
                       <View key={cat} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>

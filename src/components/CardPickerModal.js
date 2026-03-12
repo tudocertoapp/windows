@@ -15,7 +15,7 @@ function getCardById(id, cardTypes) {
   return cardTypes.find((c) => c.id === id);
 }
 
-export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardTypes = AVAILABLE_CARD_TYPES }) {
+export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardTypes = AVAILABLE_CARD_TYPES, addableFromDinheiro = [], addableCardTypes = [], onAddCard, onRemoveCard }) {
   const { colors } = useTheme();
   const [order, setOrder] = useState(visibleIds);
 
@@ -24,6 +24,7 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
   }, [visibleIds, visible]);
 
   const visibleCards = order.map((id) => getCardById(id, cardTypes)).filter(Boolean);
+  const addableCards = addableFromDinheiro.map((id) => getCardById(id, addableCardTypes.length ? addableCardTypes : cardTypes)).filter(Boolean);
 
   const moveUp = useCallback((id) => {
     const idx = order.indexOf(id);
@@ -91,28 +92,61 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
                     <Text style={[s.itemLabel, { color: colors.text }]}>{card.label}</Text>
                     <Text style={[s.itemScreen, { color: colors.textSecondary }]}>{card.screen}</Text>
                   </View>
-                  <View style={s.reorderBtns}>
-                    <TouchableOpacity
-                      onPress={() => handleArrowPress('up', card.id)}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                      style={[s.arrowBtn, index === 0 && s.arrowDisabled]}
-                      disabled={index === 0}
-                      activeOpacity={1}
-                    >
-                      <Ionicons name="chevron-up" size={24} color={index === 0 ? colors.textSecondary + '60' : colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleArrowPress('down', card.id)}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                      style={[s.arrowBtn, index === visibleCards.length - 1 && s.arrowDisabled]}
-                      disabled={index === visibleCards.length - 1}
-                      activeOpacity={1}
-                    >
-                      <Ionicons name="chevron-down" size={24} color={index === visibleCards.length - 1 ? colors.textSecondary + '60' : colors.primary} />
-                    </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={s.reorderBtns}>
+                      <TouchableOpacity
+                        onPress={() => handleArrowPress('up', card.id)}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        style={[s.arrowBtn, index === 0 && s.arrowDisabled]}
+                        disabled={index === 0}
+                        activeOpacity={1}
+                      >
+                        <Ionicons name="chevron-up" size={24} color={index === 0 ? colors.textSecondary + '60' : colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleArrowPress('down', card.id)}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        style={[s.arrowBtn, index === visibleCards.length - 1 && s.arrowDisabled]}
+                        disabled={index === visibleCards.length - 1}
+                        activeOpacity={1}
+                      >
+                        <Ionicons name="chevron-down" size={24} color={index === visibleCards.length - 1 ? colors.textSecondary + '60' : colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                    {onRemoveCard && (
+                      <TouchableOpacity onPress={() => { playTapSound(); onRemoveCard(card.id); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 6 }}>
+                        <Ionicons name="close-circle-outline" size={22} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))
+            )}
+            {addableCards.length > 0 && onAddCard && (
+              <>
+                <Text style={[s.sectionTitle, { color: colors.text, marginTop: 20 }]}>Adicionar da página Dinheiro</Text>
+                <Text style={[s.sectionSubtitle, { color: colors.textSecondary }]}>Toque para trazer o card para a tela inicial</Text>
+                {addableCards.map((card) => (
+                  <TouchableOpacity
+                    key={card.id}
+                    onPress={() => { playTapSound(); onAddCard(card.id); }}
+                    style={[s.item, s.addableItem, { backgroundColor: colors.bg, borderColor: colors.primary + '50', borderStyle: 'dashed' }]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[s.iconWrap, { backgroundColor: colors.primaryRgba?.(0.15) ?? colors.primary + '25' }]}>
+                      <Ionicons name={card.icon} size={22} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.itemLabel, { color: colors.text }]}>{card.label}</Text>
+                      <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Página Dinheiro</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Adicionar</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
             )}
           </ScrollView>
         </View>
@@ -127,9 +161,11 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
   title: { fontSize: 18, fontWeight: '700' },
   sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 12 },
+  sectionSubtitle: { fontSize: 12, marginBottom: 12 },
   list: { flex: 1, padding: 16 },
   listContent: { paddingBottom: 60 },
   item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 10, gap: 12 },
+  addableItem: { borderWidth: 2 },
   iconWrap: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   itemLabel: { fontSize: 15, fontWeight: '600' },
   itemScreen: { fontSize: 12, marginTop: 2 },

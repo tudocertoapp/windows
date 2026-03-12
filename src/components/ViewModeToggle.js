@@ -5,7 +5,7 @@ import { playTapSound } from '../utils/sounds';
 
 const OPTIONS = [
   { id: 'pessoal', label: 'Pessoal', icon: 'person-outline' },
-  { id: 'empresa', label: 'Empresa', icon: 'rocket-outline' },
+  { id: 'empresa', label: 'Empresa', icon: 'business-outline' },
 ];
 
 /**

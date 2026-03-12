@@ -16,7 +16,7 @@ export function GlassCard({ children, style, contentStyle, colors }) {
     : 'rgba(0, 0, 0, 0.08)';
 
   return (
-    <View style={[styles.wrapper, wrapperStyle, { borderColor, opacity: 0.7 }]}>
+    <View style={[styles.wrapper, wrapperStyle, { borderColor }]}>
       <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor }]} />
       <View style={[styles.content, contentPadding, contentStyle]}>{children}</View>

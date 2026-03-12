@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 
-const FIELD_GAP = 20;
-const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 12 },
-  box: { width: '100%', maxWidth: 520, maxHeight: '92%', borderRadius: 20, padding: 20 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
-  title: { fontSize: 18, fontWeight: '700', flex: 1 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  closeBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  keyboardBtn: { position: 'absolute', top: 12, right: 52, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-});
+const { width: SW } = Dimensions.get('window');
+const GAP = 20;
+const CARD_MAX_WIDTH = Math.min(SW - 8, 520);
+const SCROLL_MAX_HEIGHT = Math.min(520, 580);
 
 export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
   const { colors } = useTheme();
@@ -71,55 +75,52 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
 
   if (!visible) return null;
 
+  const sectionGap = { marginBottom: GAP };
+
   return (
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
-            <View style={{ flexDirection: 'row', position: 'relative', marginBottom: 4 }}>
-              <View style={[s.titleRow, { flex: 1, marginBottom: 0 }]}>
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2) ?? (colors.primary + '25'), justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="business-outline" size={22} color={colors.primary} />
-                </View>
-                <Text style={[s.title, { color: colors.text }]}>{isEdit ? 'Editar fornecedor' : 'Novo fornecedor'}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8, position: 'absolute', top: -8, right: 0 }}>
-                <TouchableOpacity style={[s.keyboardBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]} onPress={() => Keyboard.dismiss()}>
-                  <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.header, sectionGap]}>
+              <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR FORNECEDOR' : 'NOVO FORNECEDOR'}</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
+                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]} onPress={onClose}>
-                  <Ionicons name="close" size={20} color={colors.primary} />
+                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
+                  <Ionicons name="close" size={22} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 16 }}>
-              <Text style={[s.label, { color: colors.text, marginTop: 0 }]}>Nome</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome do fornecedor" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>E-mail</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>Telefone</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>Site (URL)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="https://..." value={linkSite} onChangeText={setLinkSite} keyboardType="url" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>Instagram (URL)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="https://instagram.com/..." value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>Loja (URL)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="Link da loja" value={linkLoja} onChangeText={setLinkLoja} keyboardType="url" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>CNPJ</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="00.000.000/0000-00" value={cnpj} onChangeText={setCnpj} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[s.label, { color: colors.text }]}>Estado (UF)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text }]} placeholder="Ex: SP, RJ" value={estado} onChangeText={setEstado} placeholderTextColor={colors.textSecondary} maxLength={2} />
+            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
+              <Text style={[s.label, { color: colors.textSecondary }]}>NOME</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Nome do fornecedor" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>E-MAIL</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>TELEFONE</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>SITE (URL)</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="https://..." value={linkSite} onChangeText={setLinkSite} keyboardType="url" placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>INSTAGRAM (URL)</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="https://instagram.com/..." value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>LOJA (URL)</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Link da loja" value={linkLoja} onChangeText={setLinkLoja} keyboardType="url" placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>CNPJ</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="00.000.000/0000-00" value={cnpj} onChangeText={setCnpj} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>ESTADO (UF)</Text>
+              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="Ex: SP, RJ" value={estado} onChangeText={setEstado} placeholderTextColor={colors.textSecondary} maxLength={2} />
             </ScrollView>
             <TouchableOpacity style={[s.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
-              <Text style={s.saveBtnText}>{isEdit ? 'Salvar' : 'Cadastrar'}</Text>
+              <Text style={s.saveBtnText}>{isEdit ? 'Salvar alterações' : 'CADASTRAR FORNECEDOR'}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
@@ -127,3 +128,18 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
     </Modal>
   );
 }
+
+const s = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8 },
+  keyboardView: { flex: 1, width: '100%', justifyContent: 'center', maxHeight: '95%' },
+  card: { width: '100%', maxWidth: CARD_MAX_WIDTH, borderRadius: 20, padding: GAP, maxHeight: '95%', borderWidth: 1 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 18, fontWeight: '700', textTransform: 'uppercase' },
+  closeBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  scroll: { maxHeight: SCROLL_MAX_HEIGHT },
+  scrollContent: { paddingBottom: GAP * 2 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 8 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, fontSize: 15 },
+  saveBtn: { borderRadius: 12, paddingVertical: 18, alignItems: 'center', marginTop: GAP },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+});

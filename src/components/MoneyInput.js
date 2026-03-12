@@ -36,7 +36,7 @@ export function MoneyInput({ value, onChange, placeholder, style, containerStyle
 
   return (
     <View style={[s.wrap, containerStyle, { borderColor: colors.border }]}>
-      <Text style={[s.prefix, { color: colors.textSecondary }]}>{prefix} </Text>
+      <Text style={[s.prefix, { color: colors.text }]}>{prefix} </Text>
       <TextInput
         {...rest}
         style={[s.input, style, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}

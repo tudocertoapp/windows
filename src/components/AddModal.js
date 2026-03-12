@@ -13,6 +13,8 @@ import { MoneyInput } from './MoneyInput';
 import { CategoryPicker, SubcategoryPicker } from './CategoryPicker';
 import { ClienteModal } from './ClienteModal';
 import { FornecedorModal } from './FornecedorModal';
+import { ServicoFormModal } from './ServicoFormModal';
+import { TarefaFormModal } from './TarefaFormModal';
 import { parseMoney, formatCurrency } from '../utils/format';
 import { playTapSound, playRecordingBeep } from '../utils/sounds';
 import { parseExpenseVoice } from '../utils/voiceExpenseParser';
@@ -470,6 +472,12 @@ export function AddModal({ type, params, onClose }) {
   if (type === 'fornecedor') {
     return <FornecedorModal visible onClose={onClose} onSave={(d) => { addSupplier(d); onClose(); }} fornecedor={null} />;
   }
+  if (type === 'servico') {
+    return <ServicoFormModal visible servico={null} onClose={onClose} onSave={(d) => { addService(d); onClose(); }} />;
+  }
+  if (type === 'tarefa') {
+    return <TarefaFormModal visible tarefa={null} onClose={onClose} onSave={(d) => { addCheckListItem(d); onClose(); }} />;
+  }
 
   return (
     <Modal visible={!!type} transparent animationType="fade">
@@ -517,14 +525,14 @@ export function AddModal({ type, params, onClose }) {
                         style={[styles.toggleBtn, { backgroundColor: tipoVenda === 'pessoal' ? colors.primary : 'transparent' }]}
                         onPress={() => { setTipoVenda('pessoal'); setClientId(null); }}
                       >
-                        <Ionicons name="document-text-outline" size={18} color={tipoVenda === 'pessoal' ? '#fff' : colors.text} />
+                        <Ionicons name="person-outline" size={18} color={tipoVenda === 'pessoal' ? '#fff' : colors.text} />
                         <Text style={[styles.toggleText, { color: tipoVenda === 'pessoal' ? '#fff' : colors.text }]}>PESSOAL</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.toggleBtn, { backgroundColor: tipoVenda === 'empresa' ? colors.primary : 'transparent' }]}
                         onPress={() => setTipoVenda('empresa')}
                       >
-                        <Ionicons name="bag-outline" size={18} color={tipoVenda === 'empresa' ? '#fff' : colors.text} />
+                        <Ionicons name="business-outline" size={18} color={tipoVenda === 'empresa' ? '#fff' : colors.text} />
                         <Text style={[styles.toggleText, { color: tipoVenda === 'empresa' ? '#fff' : colors.text }]}>EMPRESA</Text>
                       </TouchableOpacity>
                     </View>
@@ -1013,7 +1021,8 @@ export function AddModal({ type, params, onClose }) {
                 {showEmpresaFeatures && (
                 <View style={{ flexDirection: 'row', gap: GAP, marginBottom: GAP }}>
                   {['pessoal', 'empresa'].map((t) => (
-                    <TouchableOpacity key={t} style={[styles.input, { flex: 1, borderColor: tipoVenda === t ? colors.primary : colors.border, backgroundColor: tipoVenda === t ? colors.primaryRgba(0.1) : 'transparent' }]} onPress={() => setTipoVenda(t)}>
+                    <TouchableOpacity key={t} style={[styles.input, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: tipoVenda === t ? colors.primary : colors.border, backgroundColor: tipoVenda === t ? colors.primaryRgba(0.1) : 'transparent' }]} onPress={() => setTipoVenda(t)}>
+                      <Ionicons name={t === 'pessoal' ? 'person-outline' : 'business-outline'} size={18} color={tipoVenda === t ? colors.primary : colors.text} />
                       <Text style={{ fontSize: 14, fontWeight: '600', color: tipoVenda === t ? colors.primary : colors.text }}>{t === 'pessoal' ? 'Pessoal' : 'Empresa'}</Text>
                     </TouchableOpacity>
                   ))}

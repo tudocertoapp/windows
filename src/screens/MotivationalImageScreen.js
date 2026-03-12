@@ -12,7 +12,7 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
 const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9)); // 9:16 formato Stories Instagram
 
-const CTA_PHRASE = 'Sua agenda e finanças em um só lugar! Organize sua vida com o Tudo Certo.';
+const CTA_PHRASE = 'Agenda e finanças em um app. Tudo Certo.';
 
 const BACKGROUNDS = [
   { id: 'roxo', colors: ['#667eea', '#764ba2'], label: 'Roxo' },
@@ -95,9 +95,10 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
           </TouchableOpacity>
         </View>
       ) : null}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', padding: 16 }}>Crie uma imagem com a frase do dia e compartilhe!</Text>
-        <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1, width: CARD_WIDTH, height: CARD_HEIGHT }} style={[mis.card, { width: CARD_WIDTH, height: CARD_HEIGHT, alignSelf: 'center' }]}>
+      <ScrollView showsVerticalScrollIndicator contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', padding: 16 }}>Crie e compartilhe sua imagem.</Text>
+        <View style={{ alignSelf: 'center', transform: [{ scale: 0.77 }], marginVertical: 8 }}>
+          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1, width: CARD_WIDTH, height: CARD_HEIGHT }} style={[mis.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
           <LinearGradient colors={bg.colors} style={{ flex: 1, borderRadius: 20, overflow: 'hidden' }}>
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
               <View style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' }} />
@@ -118,8 +119,9 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
               </View>
             )}
           </LinearGradient>
-        </ViewShot>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Escolha o fundo para a imagem:</Text>
+          </ViewShot>
+        </View>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Escolha o fundo:</Text>
         <View style={[mis.bgGrid, { paddingTop: 12 }]}>
           {BACKGROUNDS.map((b) => (
             <TouchableOpacity

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -8,7 +8,7 @@ import { playTapSound } from '../utils/sounds';
 
 const CATEGORIAS = [
   { id: 'pessoal', label: 'Pessoal', icon: 'person-outline' },
-  { id: 'empresa', label: 'Empresa', icon: 'rocket-outline' },
+  { id: 'empresa', label: 'Empresa', icon: 'business-outline' },
   { id: 'pessoal_empresa', label: 'Pessoal + Empresa', icon: 'business-outline' },
 ];
 
@@ -67,17 +67,22 @@ const as = StyleSheet.create({
 
 export function AssinaturaScreen({ onClose, isModal }) {
   const { colors } = useTheme();
-  const { plan, setPlan } = usePlan();
+  const { planId, setPlanId, plan } = usePlan();
   const [categoriaAtiva, setCategoriaAtiva] = useState(plan === PLANS.empresa ? 'empresa' : plan === PLANS.pessoal_empresa ? 'pessoal_empresa' : 'pessoal');
 
   const planosCategoria = PLANOS[categoriaAtiva];
   const mensagemUpgrade = MENSAGENS_UPGRADE[categoriaAtiva];
-  const isPlanoGratuito = plan === PLANS.pessoal;
+  const isPlanoGratuito = planId === 'pessoal';
+
+  useEffect(() => {
+    if (['pe_starter', 'pe_pro', 'pe_business'].includes(planId)) setCategoriaAtiva('pessoal_empresa');
+    else if (['emp_small', 'emp_medium', 'emp_enterprise'].includes(planId)) setCategoriaAtiva('empresa');
+    else if (['pessoal', 'pessoal_plus', 'pessoal_premium'].includes(planId)) setCategoriaAtiva('pessoal');
+  }, [planId]);
 
   const handleSelecionar = (planoId) => {
     playTapSound();
-    const planKey = MAP_ID_TO_PLAN[planoId];
-    if (planKey) setPlan(planKey);
+    if (MAP_ID_TO_PLAN[planoId]) setPlanId(planoId);
   };
 
   return (
@@ -124,10 +129,7 @@ export function AssinaturaScreen({ onClose, isModal }) {
 
         {planosCategoria.map((p) => {
           const isGratis = p.preco === 'Grátis';
-          const isSelected =
-            (p.id === 'pessoal' && plan === PLANS.pessoal) ||
-            (p.id === 'pe_starter' && plan === PLANS.pessoal_empresa) ||
-            (p.id === 'emp_small' && plan === PLANS.empresa);
+          const isSelected = planId === p.id;
           return (
             <TouchableOpacity
               key={p.id}
@@ -156,10 +158,12 @@ export function AssinaturaScreen({ onClose, isModal }) {
                 </View>
               ))}
               <TouchableOpacity
-                style={[as.ctaBtn, { backgroundColor: isGratis ? colors.border : colors.primary }]}
+                style={[as.ctaBtn, { backgroundColor: isSelected ? colors.border : (isGratis ? colors.border : colors.primary) }]}
                 onPress={() => handleSelecionar(p.id)}
               >
-                <Text style={{ fontSize: 15, fontWeight: '700', color: isGratis ? colors.textSecondary : '#fff' }}>{p.cta}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: isSelected ? colors.textSecondary : (isGratis ? colors.textSecondary : '#fff') }}>
+                  {isSelected ? 'Plano atual' : (isGratis ? p.cta : 'Selecionar plano')}
+                </Text>
               </TouchableOpacity>
             </TouchableOpacity>
           );

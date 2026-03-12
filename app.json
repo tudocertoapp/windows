@@ -16,6 +16,12 @@
       "**/*"
     ],
     "plugins": [
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Permitir acessar contatos para importar e cadastrar clientes."
+        }
+      ],
       "expo-speech-recognition",
       [
         "expo-media-library",

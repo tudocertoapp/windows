@@ -24,7 +24,9 @@ import { DatePickerInput } from './DatePickerInput';
 import { TimePickerInput } from './TimePickerInput';
 import { MoneyInput } from './MoneyInput';
 import { parseMoney } from '../utils/format';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const DEFAULT_TIME_START_KEY = '@tudocerto_agenda_default_time_start';
 const GAP = 20;
 const INPUT_HEIGHT = 48;
 const RADIUS = 14;
@@ -72,6 +74,22 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('0,00');
   const isEdit = Boolean(editingEvent);
+
+  useEffect(() => {
+    if (visible && !editingEvent && !(initialData?.time || initialData?.timeStart)) {
+      AsyncStorage.getItem(DEFAULT_TIME_START_KEY).then((saved) => {
+        if (saved && typeof saved === 'string' && saved.trim() && /^\d{1,2}:\d{2}$/.test(saved.trim())) {
+          setTimeStart(saved.trim());
+        }
+      });
+    }
+  }, [visible, editingEvent, initialData?.time, initialData?.timeStart]);
+
+  const handleSetDefaultTimeStart = () => {
+    playTapSound();
+    AsyncStorage.setItem(DEFAULT_TIME_START_KEY, timeStart);
+    Alert.alert('Salvo', `Hora de início padrão definida: ${timeStart}`);
+  };
 
   useEffect(() => {
     if (visible) {
@@ -311,6 +329,10 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                       <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
                     </View>
                   </View>
+                  <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
+                    <Ionicons name="time-outline" size={18} color={colors.primary} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
+                  </TouchableOpacity>
                 </>
               ) : (
                 <>
@@ -471,6 +493,10 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                           <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
                         </View>
                       </View>
+                      <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
+                        <Ionicons name="time-outline" size={18} color={colors.primary} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
+                      </TouchableOpacity>
                     </>
                   )}
                 </>

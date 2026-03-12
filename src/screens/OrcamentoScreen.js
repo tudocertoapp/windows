@@ -19,6 +19,7 @@ import { topBarStyles } from '../components/TopBar';
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 import { CATEGORY_COLORS } from '../constants/colors';
 import { formatCurrency, parseMoney } from '../utils/format';
+import { playTapSound } from '../utils/sounds';
 
 const os = StyleSheet.create({
   container: { flex: 1 },
@@ -38,6 +39,7 @@ const os = StyleSheet.create({
   emptyCard: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24 },
   emptyText: { fontSize: 14, textAlign: 'center', marginTop: 8 },
   addLimitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', marginTop: 16 },
+  addBtnText: { fontSize: 15, fontWeight: '700' },
 });
 
 function getAllExpenseCategories(transactions) {
@@ -109,6 +111,7 @@ export function OrcamentoScreen({ onClose, isModal }) {
 
   const [editingLimit, setEditingLimit] = useState(null);
   const [inputVal, setInputVal] = useState('');
+  const [showAddList, setShowAddList] = useState(false);
 
   const handleSaveLimit = (cat) => {
     const parsed = parseMoney(inputVal);
@@ -254,13 +257,21 @@ export function OrcamentoScreen({ onClose, isModal }) {
           )}
 
           <View style={os.section}>
-            <Text style={[os.sectionTitle, { color: colors.textSecondary }]}>
-              {withLimit.length > 0 ? 'ADICIONAR OU EDITAR LIMITE' : 'DEFINIR LIMITES POR CATEGORIA'}
-            </Text>
-            {withoutLimit.map(({ category, spent }) => {
-              const isEditing = editingLimit === category;
-              return (
-                <View key={category} style={[os.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => { playTapSound(); setShowAddList((v) => !v); }}
+              style={[os.addLimitBtn, { borderColor: colors.primary + '60', backgroundColor: (colors.primaryRgba && colors.primaryRgba(0.08)) || colors.primary + '15' }]}
+            >
+              <AppIcon name={showAddList ? 'chevron-up' : 'add-circle-outline'} size={22} color={colors.primary} />
+              <Text style={[os.addBtnText, { color: colors.primary }]}>
+                {showAddList ? 'Ocultar categorias' : withoutLimit.length > 0 ? 'Escolher categorias para adicionar limite' : 'Nenhuma categoria disponível'}
+              </Text>
+            </TouchableOpacity>
+            {showAddList && (
+              <View style={{ marginTop: 12 }}>
+                {withoutLimit.map(({ category, spent }) => {
+                  const isEditing = editingLimit === category;
+                  return (
+                    <View key={category} style={[os.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={os.catRow}>
                     <View style={[os.catIcon, { backgroundColor: getCategoryColor(category) + '25' }]}>
                       <AppIcon name={getCategoryIcon(category)} size={20} color={getCategoryColor(category)} />
@@ -306,8 +317,10 @@ export function OrcamentoScreen({ onClose, isModal }) {
                     </View>
                   )}
                 </View>
-              );
-            })}
+                  );
+                })}
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

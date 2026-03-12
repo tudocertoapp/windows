@@ -71,8 +71,8 @@ export const THEME_PRESETS = {
     bgSecondary: '#fff',
     card: '#fff',
     border: '#e5e7eb',
-    text: '#1f2937',
-    textSecondary: '#6b7280',
+    text: '#000000',
+    textSecondary: '#4b5563',
   },
   dark: {
     id: 'dark',
@@ -82,8 +82,8 @@ export const THEME_PRESETS = {
     bgSecondary: '#1f2937',
     card: '#1f2937',
     border: '#374151',
-    text: '#f9fafb',
-    textSecondary: '#9ca3af',
+    text: '#ffffff',
+    textSecondary: '#f3f4f6',
   },
   archipelago: {
     id: 'archipelago',
@@ -93,8 +93,8 @@ export const THEME_PRESETS = {
     bgSecondary: '#f0f9ff',
     card: '#f0f9ff',
     border: '#7dd3fc',
-    text: '#0c4a6e',
-    textSecondary: '#0369a1',
+    text: '#000000',
+    textSecondary: '#0c4a6e',
   },
   sunset: {
     id: 'sunset',
@@ -104,8 +104,8 @@ export const THEME_PRESETS = {
     bgSecondary: '#fffbeb',
     card: '#fffbeb',
     border: '#fed7aa',
-    text: '#431407',
-    textSecondary: '#9a3412',
+    text: '#000000',
+    textSecondary: '#431407',
   },
 };
 
@@ -156,8 +156,8 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
     return `rgba(${r},${g},${b},${a})`;
   };
   const card = darkBg ? blendWithWhite(bg, 0.1) : blendWithBlack(bg, 0.06);
-  const text = darkBg ? '#f9fafb' : '#1f2937';
-  const textSecondary = darkBg ? '#9ca3af' : '#6b7280';
+  const text = darkBg ? '#ffffff' : '#000000';
+  const textSecondary = darkBg ? '#f3f4f6' : '#4b5563';
   const border = darkBg ? blendWithWhite(bg, 0.18) : blendWithBlack(bg, 0.12);
   return {
     bg,

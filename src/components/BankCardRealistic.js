@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BANCOS_BRASIL } from '../contexts/BanksContext';
 
 const BANDEIRAS = {
   visa: { label: 'VISA', style: 'visa' },
@@ -60,6 +61,11 @@ const logoStyles = StyleSheet.create({
   mcText: { fontSize: 5, fontWeight: '800', color: '#fff', letterSpacing: 0.5, zIndex: 1 },
 });
 
+function getBankLogo(bank) {
+  const base = BANCOS_BRASIL.find((b) => b.id === (bank?.bancoId || 'outro'));
+  return base?.logo || null;
+}
+
 function maskCardNumber(id) {
   const num = String(id || '').replace(/\D/g, '').slice(-4) || '1234';
   return `•••• •••• •••• ${num}`;
@@ -101,7 +107,13 @@ export function BankCardRealistic({
           <ChipSimulado cardWidth={width} />
         </View>
         <View style={styles.topRow}>
-          <View style={{ width: 1, height: 1 }} />
+          {getBankLogo(bank) ? (
+            <Image source={{ uri: getBankLogo(bank) }} style={{ width: 40, height: 40, borderRadius: 8 }} resizeMode="contain" onError={() => null} />
+          ) : (
+            <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{(getBankName(bank) || '?').slice(0, 2).toUpperCase()}</Text>
+            </View>
+          )}
           <BandeiraLogo bandeira={bandeira} />
         </View>
 

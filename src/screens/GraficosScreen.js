@@ -150,13 +150,15 @@ export function GraficosScreen() {
           </GlassCard>
 
           {/* Gráfico de pizza */}
-          <GlassCard colors={colors} style={[ds.card, { alignItems: 'center' }]}>
-            <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Distribuição por categoria</Text>
+          <GlassCard colors={colors} style={[ds.card, { alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16, alignSelf: 'center' }]}>Distribuição por categoria</Text>
             {catBreakdown.length === 0 ? (
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>Nenhuma despesa no mês</Text>
             ) : (
               <>
-                <PieChart data={catBreakdown} size={PIE_SIZE} colors={colors} />
+                <View style={{ alignSelf: 'center' }}>
+                  <PieChart data={catBreakdown} size={PIE_SIZE} colors={colors} />
+                </View>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16, gap: 8 }}>
                   {catBreakdown.map(([cat]) => (
                     <View key={cat} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
