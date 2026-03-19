@@ -96,7 +96,8 @@
       },
       "eas": {
         "projectId": "a78ed1ea-e90c-4080-b124-2536a33f7b5b"
-      }
+      },
+      "googleVisionApiKey": ""
     }
   }
 }

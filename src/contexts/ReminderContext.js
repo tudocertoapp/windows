@@ -24,7 +24,7 @@ export function ReminderProvider({ children, agendaEvents, aReceber, checkListIt
 
   useEffect(() => {
     (agendaEvents || []).forEach((e) => {
-      if (!e.date || scheduledRef.current[e.id]) return;
+      if (!e.date || !(e.time || '').trim() || scheduledRef.current[e.id]) return;
       const dateStr = e.date.includes('/') ? e.date : `${String(e.date).slice(8, 10)}/${String(e.date).slice(5, 7)}/${String(e.date).slice(0, 4)}`;
       const timeStr = e.time || '';
       scheduleEventReminders(e.id, e.title || 'Evento', dateStr, timeStr, 'agenda').then((ids) => {
@@ -41,7 +41,7 @@ export function ReminderProvider({ children, agendaEvents, aReceber, checkListIt
 
   useEffect(() => {
     (checkListItems || [])
-      .filter((t) => !t.checked && t.date)
+      .filter((t) => !t.checked && t.date && (t.timeStart || '').trim())
       .forEach((t) => {
         const key = TASK_PREFIX + t.id;
         if (taskScheduledRef.current[key]) return;
@@ -54,7 +54,7 @@ export function ReminderProvider({ children, agendaEvents, aReceber, checkListIt
     Object.keys(taskScheduledRef.current).forEach((key) => {
       const id = key.replace(TASK_PREFIX, '');
       const task = (checkListItems || []).find((t) => t.id === id);
-      if (!task || task.checked || !task.date) {
+      if (!task || task.checked || !task.date || !(task.timeStart || '').trim()) {
         cancelReminders(taskScheduledRef.current[key]);
         delete taskScheduledRef.current[key];
       }

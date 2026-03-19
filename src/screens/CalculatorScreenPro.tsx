@@ -79,8 +79,12 @@ export function CalculatorScreenPro({
   }, [onHistoryChange]);
 
   const scale = compact ? 0.65 : 1;
-  const BTN_SIZE = Math.round((compact ? 52 : Math.min(SW * 0.2, 72)) * scale);
+  const SIDE_PAD = 15;
+  const BOTTOM_PAD = 15;
   const BTN_GAP = compact ? 6 : 10;
+  const BTN_SIZE = compact
+    ? Math.round(52 * scale)
+    : Math.round((SW - SIDE_PAD * 2 - BTN_GAP * 3) / 4);
 
   const isOperator = (char: string) => ['+', '-', '*', '/'].includes(char);
 
@@ -171,33 +175,11 @@ export function CalculatorScreenPro({
   const handlePercent = useCallback(() => {
     playTapSound();
     setExpression((prev) => {
-      const source = ((lastWasEquals && (result || lastEqualsResultRef.current)) ? (result || lastEqualsResultRef.current) : prev).trim();
-      if (!source || /[+\-*/.]$/.test(source)) return prev;
-      const matchPlusMinus = source.match(/^(.+)([+\-])(-?\d*\.?\d+)$/);
-      if (matchPlusMinus) {
-        const prefix = matchPlusMinus[1].trim();
-        const op = matchPlusMinus[2];
-        const percentVal = Number(matchPlusMinus[3]);
-        if (!Number.isFinite(percentVal)) return prev;
-        const baseCalc = calculateExpression(prefix);
-        if (baseCalc !== CALC_ERROR) {
-          const base = Number(baseCalc.replace(/,/g, '.'));
-          if (Number.isFinite(base)) {
-            const pctOfBase = base * percentVal / 100;
-            let s = String(Number(pctOfBase.toFixed(12)));
-            if (s.includes('.')) s = s.replace(/\.?0+$/, '');
-            return `${prefix}${op}${s}`;
-          }
-        }
-      }
-      const match = source.match(/^(.*?)(-?\d*\.?\d+)$/);
-      if (!match) return prev;
-      const prefix = match[1] || '';
-      const token = match[2] || '';
-      const value = Number(token);
-      if (!Number.isFinite(value)) return prev;
-      const percent = String(value / 100);
-      return `${prefix}${percent}`;
+      const source = (lastWasEquals && (result || lastEqualsResultRef.current)) ? (result || lastEqualsResultRef.current) : prev;
+      const trimmed = String(source || '').trim();
+      if (!trimmed || /[+\-*\/%.]$/.test(trimmed)) return prev;
+      if (trimmed.endsWith('%')) return prev;
+      return trimmed + '%';
     });
     setLastWasEquals(false);
     setResult(null);
@@ -248,7 +230,7 @@ export function CalculatorScreenPro({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: compact ? 8 : 16 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: compact ? 8 : SIDE_PAD }]}>
       {isModal && onClose && (
         <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={styles.closeBtn} hitSlop={18}>
           <Ionicons name="close" size={24} color={colors.text} />
@@ -314,7 +296,7 @@ export function CalculatorScreenPro({
         )}
       </View>
 
-      <View style={styles.pad}>
+      <View style={[styles.pad, !compact && { paddingBottom: BOTTOM_PAD }]}>
         <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP }]}>
           <Btn label="AC" onPress={handleClear} type="func" />
           <Btn label="%" onPress={handlePercent} type="func" />

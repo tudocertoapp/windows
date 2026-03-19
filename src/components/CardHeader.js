@@ -17,7 +17,7 @@ export function CardHeader({ icon, title, subtitle, colors, iconColor, light }) 
   const c = iconColor || colors?.primary;
   const textColor = light ? '#fff' : (colors?.text);
   const subColor = light ? 'rgba(255,255,255,0.8)' : (colors?.textSecondary);
-  const iconBg = light ? 'rgba(255,255,255,0.2)' : ((colors?.primaryRgba && colors.primaryRgba(0.2)) || c + '25');
+  const iconBg = light ? 'rgba(255,255,255,0.2)' : 'transparent';
   return (
     <View style={s.row}>
       <View style={[s.iconWrap, { backgroundColor: iconBg }]}>

@@ -28,6 +28,7 @@ import { getCategoryColor } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
+import { CardExpandedModal } from '../components/CardExpandedModal';
 import { DEFAULT_DINHEIRO_SECTIONS, DINHEIRO_CARD_TYPES } from '../constants/dashboardCards';
 
 const DINHEIRO_SECTIONS_KEY = '@tudocerto_dinheiro_sections';
@@ -119,10 +120,12 @@ export function DinheiroScreen({ route }) {
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, getBankName, getCardsByBankId } = useBanks();
   const { profile } = useProfile();
-  const { openBancos, openCalculadoraFull, openMeusGastos } = useMenu();
+  const { openBancos, openCalculadoraFull, openMeusGastos, openMensagensWhatsApp } = useMenu();
   const { showValues, toggleValues } = useValuesVisibility();
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_DINHEIRO_SECTIONS);
   const [showCardPicker, setShowCardPicker] = useState(false);
+  const [dinheiroTab, setDinheiroTab] = useState('fluxo');
+  const [expandedCard, setExpandedCard] = useState(null);
   const [balanceFilter, setBalanceFilter] = useState('mes');
   const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => {
@@ -407,13 +410,14 @@ export function DinheiroScreen({ route }) {
       </View>
     ),
     transacoes: (
-      <View key="transacoes" style={dns.section}>
+      <View key="transacoes" style={{ marginHorizontal: 16, marginTop: 16 }}>
         <TransacoesCard
           transactions={[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date))}
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
-          title="Últimas transações"
+          title={showEmpresaFeatures && viewMode === 'empresa' ? 'Fluxo de caixa' : 'Últimas transações'}
+          onVerMais={() => { playTapSound(); setExpandedCard('transacoes'); }}
         />
       </View>
     ),
@@ -452,58 +456,15 @@ export function DinheiroScreen({ route }) {
             <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
               <LineChartSaldo monthlyData={monthlyData} colors={colors} />
             </GlassCard>
-            <GlassCard colors={colors} style={[dns.card, dns.chartCard, { alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16, alignSelf: 'center' }]}>Distribuição por categoria</Text>
-              {catExpenses.length === 0 ? (
-                <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>Nenhuma despesa no mês</Text>
-              ) : (
-                <>
-                  <View style={{ alignSelf: 'center' }}>
-                    <PieChart data={catExpenses} size={PIE_SIZE} colors={colors} />
-                  </View>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16, gap: 8 }}>
-                    {catExpenses.map(([cat]) => (
-                      <View key={cat} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-                        <View style={[dns.catDot, { backgroundColor: getCategoryColor(cat) }]} />
-                        <Text style={{ fontSize: 12, color: colors.text }}>{cat}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
-            </GlassCard>
-            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
-              <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Gastos por categoria</Text>
-              {catExpenses.length === 0 ? (
-                <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16 }}>Nenhuma despesa no mês</Text>
-              ) : (
-                <>
-                  {catExpenses.map(([cat, amount]) => {
-                    const pct = total > 0 ? (amount / total) * 100 : 0;
-                    const barW = total > 0 ? (amount / maxVal) * 100 : 0;
-                    return (
-                      <View key={cat} style={{ marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <View style={[dns.catDot, { backgroundColor: getCategoryColor(cat) }]} />
-                            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>{cat}</Text>
-                          </View>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>
-                            {mask(fmt(amount))} ({pct.toFixed(0)}%)
-                          </Text>
-                        </View>
-                        <View style={[dns.progressBarChart, { backgroundColor: colors.border }]}>
-                          <View style={[dns.progressFill, { width: `${barW}%`, backgroundColor: getCategoryColor(cat) }]} />
-                        </View>
-                      </View>
-                    );
-                  })}
-                  <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>Total de despesas: {mask(fmt(total))}</Text>
-                  </View>
-                </>
-              )}
-            </GlassCard>
+            <GastosPorCategoriaCard
+              catBreakdown={catExpenses}
+              totalExpense={expense}
+              formatCurrency={fmt}
+              mask={mask}
+              colors={colors}
+              title="Gastos por categoria"
+              subtitle="Distribuição das despesas por categoria"
+            />
           </View>
     ),
   };
@@ -518,6 +479,7 @@ export function DinheiroScreen({ route }) {
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={openCalculadoraFull}
         onChat={openMeusGastos}
+        onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
       />
       {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -526,11 +488,30 @@ export function DinheiroScreen({ route }) {
             {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
           </Text>
         </View>
-        {sectionOrder.map((sid) => {
-          const content = sectionContent[sid];
-          if (!content) return null;
-          return <React.Fragment key={sid}>{content}</React.Fragment>;
-        })}
+        {sectionContent.balance}
+        {sectionContent.contas}
+        <View style={[dns.tabBar, { backgroundColor: colors.border + '40', marginTop: 16, marginHorizontal: 16 }]}>
+          {[
+            { id: 'fluxo', label: 'Fluxo de caixa' },
+            { id: 'graficos', label: 'Gráficos' },
+            { id: 'bancos', label: 'Bancos e cartões' },
+          ].map((t) => (
+            <TouchableOpacity
+              key={t.id}
+              onPress={() => { playTapSound(); setDinheiroTab(t.id); }}
+              style={[
+                dns.tab,
+                dinheiroTab === t.id && { backgroundColor: colors.primary },
+                dinheiroTab === t.id && dns.tabActive,
+              ]}
+            >
+              <Text style={[dns.tabText, { color: dinheiroTab === t.id ? '#fff' : colors.textSecondary }]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {dinheiroTab === 'fluxo' && sectionContent.transacoes}
+        {dinheiroTab === 'graficos' && sectionContent.graficos}
+        {dinheiroTab === 'bancos' && sectionContent.bancos}
         <View style={{ height: 100 }} />
       </ScrollView>
       <CardPickerModal
@@ -540,6 +521,26 @@ export function DinheiroScreen({ route }) {
         onReorder={(order) => setSectionOrder(order)}
         cardTypes={DINHEIRO_CARD_TYPES}
       />
+      <CardExpandedModal
+        visible={expandedCard === 'transacoes'}
+        onClose={() => { playTapSound(); setExpandedCard(null); }}
+        title={showEmpresaFeatures && viewMode === 'empresa' ? 'Fluxo de caixa' : 'Últimas transações'}
+      >
+        {[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date)).map((tx) => (
+          <View key={tx.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? colors.primary : '#ef4444'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text }}>{tx.description}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}>{tx.category}</Text>
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: tx.type === 'income' ? colors.primary : '#ef4444' }}>
+              {tx.type === 'income' ? '+' : '-'}{mask(fmt(tx.amount))}
+            </Text>
+          </View>
+        ))}
+      </CardExpandedModal>
     </SafeAreaView>
   );
 }

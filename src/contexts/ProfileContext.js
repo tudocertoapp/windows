@@ -16,25 +16,31 @@ function getLastFotoKey(userId) {
 
 export function ProfileProvider({ children }) {
   const { user } = useAuth();
-  const [profile, setProfile] = useState({ nome: '', foto: null, fotoLocal: null, profissao: '', empresa: '', primary_color: null, theme_mode: null, custom_bg: null });
+  const [profile, setProfile] = useState({ nome: '', foto: null, fotoLocal: null, profissao: '', empresa: '', cnpj: '', endereco: '', telefone: '', email: '', primary_color: null, theme_mode: null, custom_bg: null });
   const [loaded, setLoaded] = useState(false);
 
   const profileStorageKey = `${PROFILE_BASE}_${user?.id || 'guest'}`;
 
   useEffect(() => {
-    setProfile({ nome: '', foto: null, fotoLocal: null, profissao: '', empresa: '', primary_color: null, theme_mode: null, custom_bg: null });
+    setProfile({ nome: '', foto: null, fotoLocal: null, profissao: '', empresa: '', cnpj: '', endereco: '', telefone: '', email: '', primary_color: null, theme_mode: null, custom_bg: null });
     setLoaded(false);
     (async () => {
       try {
         if (user) {
           const cachedUri = await getCachedPhotoUri(user.id);
           let data = null;
-          const { data: fullData, error } = await supabase.from('profiles').select('nome, foto, profissao, empresa, primary_color, theme_mode, custom_bg').eq('id', user.id).single();
-          if (!error && fullData) {
-            data = fullData;
+          const { data: basicData, error: basicError } = await supabase.from('profiles').select('nome, foto, profissao, empresa, primary_color, theme_mode, custom_bg').eq('id', user.id).single();
+          if (!basicError && basicData) {
+            data = { ...basicData, cnpj: '', endereco: '', telefone: '', email: basicData.email || '' };
+            const { data: extraData } = await supabase.from('profiles').select('cnpj, endereco, telefone, email').eq('id', user.id).single();
+            if (extraData) {
+              data.cnpj = extraData.cnpj || '';
+              data.endereco = extraData.endereco || '';
+              data.telefone = extraData.telefone || '';
+              data.email = extraData.email || '';
+            }
           } else {
-            const { data: basicData } = await supabase.from('profiles').select('nome, foto, primary_color, theme_mode, custom_bg').eq('id', user.id).single();
-            data = basicData ? { ...basicData, profissao: basicData.profissao || '', empresa: basicData.empresa || '', primary_color: basicData.primary_color, theme_mode: basicData.theme_mode, custom_bg: basicData.custom_bg } : null;
+            data = null;
           }
           if (data) {
             let fotoLocal = cachedUri;
@@ -48,6 +54,10 @@ export function ProfileProvider({ children }) {
               fotoLocal: fotoLocal || null,
               profissao: data.profissao || '',
               empresa: data.empresa || '',
+              cnpj: data.cnpj || '',
+              endereco: data.endereco || '',
+              telefone: data.telefone || '',
+              email: data.email || '',
               primary_color: data.primary_color || null,
               theme_mode: data.theme_mode || null,
               custom_bg: data.custom_bg || null,
@@ -59,6 +69,10 @@ export function ProfileProvider({ children }) {
               fotoLocal: cachedUri,
               profissao: '',
               empresa: '',
+              cnpj: '',
+              endereco: '',
+              telefone: '',
+              email: user?.email || '',
               primary_color: '#10b981',
               theme_mode: 'light',
               custom_bg: '#f9fafb',
@@ -85,6 +99,10 @@ export function ProfileProvider({ children }) {
                 fotoLocal: cachedUri,
                 profissao: data.profissao || '',
                 empresa: data.empresa || '',
+                cnpj: data.cnpj || '',
+                endereco: data.endereco || '',
+                telefone: data.telefone || '',
+                email: data.email || '',
               });
             } catch (_) {}
           }
@@ -129,12 +147,24 @@ export function ProfileProvider({ children }) {
         empresa: data.empresa !== undefined ? data.empresa : profile.empresa,
         updated_at: new Date().toISOString(),
       };
+      if (data.cnpj !== undefined) payload.cnpj = data.cnpj;
+      if (data.endereco !== undefined) payload.endereco = data.endereco;
+      if (data.telefone !== undefined) payload.telefone = data.telefone;
+      if (data.email !== undefined) payload.email = data.email;
       if (data.primary_color !== undefined) payload.primary_color = data.primary_color;
       if (data.theme_mode !== undefined) payload.theme_mode = data.theme_mode;
       if (data.custom_bg !== undefined) payload.custom_bg = data.custom_bg;
-      const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
+      let { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
+      if (error && (error.message?.includes('cnpj') || error.message?.includes('endereco') || error.message?.includes('telefone') || error.message?.includes('column'))) {
+        const payloadBase = { id: user.id, nome: payload.nome, foto: payload.foto, profissao: payload.profissao, empresa: payload.empresa, updated_at: payload.updated_at };
+        if (payload.primary_color !== undefined) payloadBase.primary_color = payload.primary_color;
+        if (payload.theme_mode !== undefined) payloadBase.theme_mode = payload.theme_mode;
+        if (payload.custom_bg !== undefined) payloadBase.custom_bg = payload.custom_bg;
+        const res = await supabase.from('profiles').upsert(payloadBase, { onConflict: 'id' });
+        error = res.error;
+      }
       if (error) {
-        setProfile((p) => ({ ...p, nome: profile.nome, foto: profile.foto, fotoLocal: profile.fotoLocal, profissao: profile.profissao ?? '', empresa: profile.empresa ?? '' })); // reverte
+        setProfile((p) => ({ ...p, nome: profile.nome, foto: profile.foto, fotoLocal: profile.fotoLocal, profissao: profile.profissao ?? '', empresa: profile.empresa ?? '' }));
         throw new Error(error.message);
       }
     }
@@ -149,5 +179,5 @@ export function ProfileProvider({ children }) {
 
 export function useProfile() {
   const ctx = useContext(ProfileContext);
-  return ctx || { profile: { nome: '', foto: null, profissao: '', empresa: '' }, updateProfile: () => {}, getLastFoto: async () => null };
+  return ctx || { profile: { nome: '', foto: null, profissao: '', empresa: '', cnpj: '', endereco: '', telefone: '', email: '' }, updateProfile: () => {}, getLastFoto: async () => null };
 }

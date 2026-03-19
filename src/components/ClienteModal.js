@@ -1,23 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Image, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { usePlan } from '../contexts/PlanContext';
+import { uploadClientPhoto } from '../utils/uploadClientPhoto';
 
-const ETIQUETAS_GERAL = [
-  { id: 'favoritos', label: 'Favoritos', icon: 'heart-outline', color: null },
-  { id: 'importante', label: 'Importante', icon: null, color: '#ef4444' },
-  { id: 'acompanhar', label: 'Acompanhar', icon: null, color: '#06b6d4' },
-  { id: 'cadastro', label: 'Cadastro', icon: null, color: '#14b8a6' },
-  { id: 'fornecedor', label: 'Fornecedor', icon: null, color: '#eab308' },
-];
-const ETIQUETAS_SUGESTOES = [
-  { id: 'novo_cliente', label: 'Novo cliente', icon: null, color: '#84cc16' },
-  { id: 'novo_pedido', label: 'Novo pedido', icon: null, color: '#f97316' },
-  { id: 'pagamento_pendente', label: 'Pagamento pendente', icon: null, color: '#d946ef' },
-  { id: 'pago', label: 'Pago', icon: null, color: '#991b1b' },
-  { id: 'pedido_finalizado', label: 'Pedido finalizado', icon: null, color: '#ca8a04' },
-  { id: 'lead', label: 'Lead', icon: null, color: '#0d9488' },
+const NIVEL_OPTIONS = [
+  { id: 'novo_cliente', label: 'Novo cliente', color: '#84cc16' },
+  { id: 'orcamento', label: 'Orçamento', color: '#6b7280' },
+  { id: 'proposta', label: 'Proposta', color: '#8b5cf6' },
+  { id: 'agendado', label: 'Agendado', color: '#0ea5e9' },
+  { id: 'fixo', label: 'Fixo', color: '#10b981' },
+  { id: 'lead', label: 'Lead', color: '#f59e0b' },
+  { id: 'fechou', label: 'Fechou', color: '#10b981' },
 ];
 
 const FIELD_GAP = 16;
@@ -33,22 +31,24 @@ const styles = StyleSheet.create({
   closeBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
 });
 
-export function ClienteModal({ visible, cliente, onSave, onClose }) {
+export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo }) {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { showEmpresaFeatures, viewMode } = usePlan();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [linkInstagram, setLinkInstagram] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [foto, setFoto] = useState(null);
-  const [tags, setTags] = useState([]);
-  const [showEtiquetasPicker, setShowEtiquetasPicker] = useState(false);
+  const [showNivelPicker, setShowNivelPicker] = useState(false);
+  const [nivel, setNivel] = useState('novo_cliente');
+  const [tipo, setTipo] = useState('empresa');
+  const [saving, setSaving] = useState(false);
 
   const isEdit = !!cliente?.id;
-
-  const toggleTag = (id) => {
-    setTags((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
-  };
 
   useEffect(() => {
     if (visible) {
@@ -57,17 +57,27 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
         setEmail(cliente.email || '');
         setPhone(cliente.phone || '');
         setAddress(cliente.address || '');
+        setCpf(cliente.cpf || '');
+        setLinkInstagram(cliente.linkInstagram || cliente.link_instagram || '');
         setBirthDate(cliente.birthDate || cliente.dataNascimento || '');
         setFoto(cliente.foto || null);
-        setTags(Array.isArray(cliente.tags) ? cliente.tags : []);
+        const tagsArr = Array.isArray(cliente.tags) ? cliente.tags : [];
+        if (cliente.nivel) setNivel(cliente.nivel);
+        else if (tagsArr.includes('lead')) setNivel('lead');
+        else if (tagsArr.some((t) => ['pago', 'pedido_finalizado'].includes(t))) setNivel('fechou');
+        else setNivel('orcamento');
+        setTipo(cliente.tipo || 'empresa');
       } else {
         setName('');
         setEmail('');
         setPhone('');
         setAddress('');
+        setCpf('');
+        setLinkInstagram('');
         setBirthDate('');
         setFoto(null);
-        setTags([]);
+        setNivel('novo_cliente');
+        setTipo(defaultTipo || viewMode || 'empresa');
       }
     }
   }, [visible, cliente]);
@@ -75,19 +85,57 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
   const pickFoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permissão', 'Precisamos de acesso à galeria.');
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled) setFoto(result.assets[0].uri);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: !!user,
+    });
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      if (user && asset.base64) {
+        try {
+          const url = await uploadClientPhoto(asset.base64, user.id, cliente?.id);
+          setFoto(url);
+        } catch (e) {
+          console.warn('Erro ao fazer upload da foto:', e);
+          Alert.alert('Erro', 'Não foi possível salvar a foto. Tente novamente.');
+        }
+      } else {
+        setFoto(asset.uri);
+      }
+    }
   };
 
-  const nivelFromTags = () => {
-    if (tags.includes('lead')) return 'lead';
-    if (tags.some((t) => ['pago', 'pedido_finalizado'].includes(t))) return 'fechou';
-    return 'orcamento';
-  };
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
-    onSave({ name: name.trim(), email: email.trim(), phone: phone.trim(), address: address.trim(), birthDate: birthDate.trim() || null, foto: foto || null, nivel: nivelFromTags(), tags });
+    let fotoUrl = foto;
+    if (foto && foto.startsWith('file://') && user) {
+      setSaving(true);
+      try {
+        const base64 = await FileSystem.readAsStringAsync(foto, { encoding: FileSystem.EncodingType.Base64 });
+        fotoUrl = await uploadClientPhoto(base64, user.id, cliente?.id);
+      } catch (e) {
+        console.warn('Erro ao fazer upload da foto:', e);
+        Alert.alert('Erro', 'Não foi possível salvar a foto. Tente novamente.');
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
+    onSave({
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      cpf: cpf.trim() || null,
+      linkInstagram: linkInstagram.trim() || null,
+      birthDate: birthDate.trim() || null,
+      foto: fotoUrl || null,
+      nivel,
+      tipo: showEmpresaFeatures ? tipo : 'pessoal',
+    });
     onClose();
   };
 
@@ -123,7 +171,50 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
                 <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{foto ? 'Trocar foto' : 'Carregar foto'}</Text>
               </TouchableOpacity>
               <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>Nível / Status (etiquetas)</Text>
+              {showEmpresaFeatures && (
+                <>
+                  <Text style={[styles.label, { color: colors.text }]}>Documento principal</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: FIELD_GAP }}>
+                    <TouchableOpacity
+                      onPress={() => setTipo('pessoal')}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: tipo === 'pessoal' ? colors.primary : colors.border, backgroundColor: tipo === 'pessoal' ? (colors.primaryRgba?.(0.15) ?? colors.primary + '25') : colors.bg }}
+                    >
+                      <Ionicons name="person-outline" size={20} color={tipo === 'pessoal' ? colors.primary : colors.textSecondary} />
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: tipo === 'pessoal' ? colors.primary : colors.textSecondary }}>CPF</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setTipo('empresa')}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: tipo === 'empresa' ? colors.primary : colors.border, backgroundColor: tipo === 'empresa' ? (colors.primaryRgba?.(0.15) ?? colors.primary + '25') : colors.bg }}
+                    >
+                      <Ionicons name="business-outline" size={20} color={tipo === 'empresa' ? colors.primary : colors.textSecondary} />
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: tipo === 'empresa' ? colors.primary : colors.textSecondary }}>CNPJ</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+              <Text style={[styles.label, { color: colors.text }]}>Identificação</Text>
+              <TouchableOpacity onPress={() => setShowNivelPicker(!showNivelPicker)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.bg }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: (NIVEL_OPTIONS.find((o) => o.id === nivel))?.color || colors.border, marginRight: 10 }} />
+                  <Text style={{ fontSize: 15, color: colors.text }}>{(NIVEL_OPTIONS.find((o) => o.id === nivel))?.label || nivel || 'Selecionar'}</Text>
+                </View>
+                <Ionicons name={showNivelPicker ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {showNivelPicker && (
+                <View style={{ backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 8, maxHeight: 280 }}>
+                  <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator>
+                    {NIVEL_OPTIONS.map((o) => (
+                      <TouchableOpacity key={o.id} onPress={() => { setNivel(o.id); setShowNivelPicker(false); }} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: o.color }} />
+                        <Text style={{ flex: 1, fontSize: 15, color: colors.text }}>{o.label}</Text>
+                        {nivel === o.id && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Etiquetas (opcional)</Text>
               <TouchableOpacity onPress={() => setShowEtiquetasPicker(!showEtiquetasPicker)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.bg }}>
                 <Text style={{ fontSize: 15, color: tags.length ? colors.text : colors.textSecondary }}>{tags.length ? `${tags.length} etiqueta(s) selecionada(s)` : 'Selecionar etiquetas'}</Text>
                 <Ionicons name={showEtiquetasPicker ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
@@ -163,8 +254,14 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
                 </View>
               )}
               <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>Nome</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+              <Text style={[styles.label, { color: colors.text }]}>{tipo === 'empresa' ? 'Razão social' : 'Nome'}</Text>
+              <TextInput
+                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                placeholder={tipo === 'empresa' ? 'Razão social da empresa' : 'Nome'}
+                value={name}
+                onChangeText={setName}
+                placeholderTextColor={colors.textSecondary}
+              />
               <View style={{ height: FIELD_GAP }} />
               <Text style={[styles.label, { color: colors.text }]}>E-mail</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
@@ -172,14 +269,27 @@ export function ClienteModal({ visible, cliente, onSave, onClose }) {
               <Text style={[styles.label, { color: colors.text }]}>Telefone</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
               <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>{tipo === 'empresa' ? 'CNPJ' : 'CPF'}</Text>
+              <TextInput
+                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                placeholder={tipo === 'empresa' ? '00.000.000/0000-00' : '000.000.000-00'}
+                value={cpf}
+                onChangeText={setCpf}
+                keyboardType="numeric"
+                placeholderTextColor={colors.textSecondary}
+              />
+              <View style={{ height: FIELD_GAP }} />
+              <Text style={[styles.label, { color: colors.text }]}>Link Instagram</Text>
+              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="https://instagram.com/seu-perfil" value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" autoCapitalize="none" placeholderTextColor={colors.textSecondary} />
+              <View style={{ height: FIELD_GAP }} />
               <Text style={[styles.label, { color: colors.text }]}>Data de nascimento</Text>
               <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="DD/MM/AAAA (para lembrete de aniversário)" value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" placeholderTextColor={colors.textSecondary} />
               <View style={{ height: FIELD_GAP }} />
               <Text style={[styles.label, { color: colors.text }]}>Endereço</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Endereço" value={address} onChangeText={setAddress} placeholderTextColor={colors.textSecondary} />
+              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Rua, número, bairro, cidade" value={address} onChangeText={setAddress} placeholderTextColor={colors.textSecondary} />
             </ScrollView>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Cadastrar</Text>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={saving}>
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>{cliente ? 'Salvar' : 'Cadastrar'}</Text>}
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>

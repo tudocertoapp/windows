@@ -16,6 +16,8 @@ import { ShoppingListProvider } from './src/contexts/ShoppingListContext';
 import { GoalsProvider } from './src/contexts/GoalsContext';
 import { ReminderProvider } from './src/contexts/ReminderContext';
 import { ValuesVisibilityProvider } from './src/contexts/ValuesVisibilityContext';
+import { EmpresaProvider } from './src/contexts/EmpresaContext';
+import { ColaboradoresOrdemProvider } from './src/contexts/ColaboradoresOrdemContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -72,19 +74,23 @@ function AppContent() {
     <FinanceProvider>
       <BudgetProvider>
         <NotesProvider>
+        <ColaboradoresOrdemProvider>
         <ShoppingListProvider>
         <GoalsProvider>
         <BanksProvider>
           <PlanProvider>
             <ProfileProvider>
+              <EmpresaProvider>
               <ValuesVisibilityProvider>
                 <AppWithReminders />
               </ValuesVisibilityProvider>
+              </EmpresaProvider>
             </ProfileProvider>
           </PlanProvider>
         </BanksProvider>
         </GoalsProvider>
         </ShoppingListProvider>
+        </ColaboradoresOrdemProvider>
         </NotesProvider>
       </BudgetProvider>
     </FinanceProvider>

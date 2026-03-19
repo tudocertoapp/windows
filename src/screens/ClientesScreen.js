@@ -7,7 +7,9 @@ import { openWhatsApp } from '../utils/whatsapp';
 import { useTheme } from '../contexts/ThemeContext';
 import { TopBar } from '../components/TopBar';
 import { ClienteModal } from '../components/ClienteModal';
+import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
 import { formatCurrency } from '../utils/format';
+import { playTapSound } from '../utils/sounds';
 
 const cls = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
@@ -18,7 +20,7 @@ const cls = StyleSheet.create({
   cardName: { fontSize: 16, fontWeight: '700' },
   cardInfo: { fontSize: 13, marginTop: 2, color: '#6b7280' },
   crmRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  crmBox: { flex: 1, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  crmBox: { flex: 1, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8, alignItems: 'center', justifyContent: 'center', minHeight: 44, backgroundColor: 'transparent' },
   crmNum: { fontSize: 14, fontWeight: '800' },
   crmLabel: { fontSize: 9, marginTop: 1 },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
@@ -26,15 +28,23 @@ const cls = StyleSheet.create({
   actionBtn: { padding: 8, borderRadius: 8 },
 });
 
-const NIVEL_LABELS = { orcamento: 'Orçamento', lead: 'Lead', fechou: 'Fechou' };
-const NIVEL_COLORS = { orcamento: '#6b7280', lead: '#f59e0b', fechou: '#10b981' };
+const NIVEL_OPTIONS = [
+  { id: 'novo_cliente', label: 'Novo cliente', color: '#84cc16' },
+  { id: 'orcamento', label: 'Orçamento', color: '#6b7280' },
+  { id: 'proposta', label: 'Proposta', color: '#8b5cf6' },
+  { id: 'agendado', label: 'Agendado', color: '#0ea5e9' },
+  { id: 'fixo', label: 'Fixo', color: '#10b981' },
+  { id: 'lead', label: 'Lead', color: '#f59e0b' },
+  { id: 'fechou', label: 'Fechou', color: '#10b981' },
+];
 
 export function ClientesScreen({ onClose, isModal }) {
-  const { clients, agendaEvents, addClient, updateClient, deleteClient } = useFinance();
+  const { clients, agendaEvents, services, addClient, updateClient, deleteClient } = useFinance();
   const { colors } = useTheme();
   const { openMensagensWhatsApp } = useMenu();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [verClienteDetalhe, setVerClienteDetalhe] = useState(null);
 
   const handleSave = (data) => {
     if (editingClient) {
@@ -57,7 +67,7 @@ export function ClientesScreen({ onClose, isModal }) {
   };
 
   const clientesComAgendamentos = useMemo(() => {
-    return clients.map((c) => ({
+    return clients.filter((c) => (c.tipo || 'empresa') === 'empresa').map((c) => ({
       ...c,
       agendamentos: agendaEvents.filter((e) => e.clientId === c.id).length,
       concluidos: agendaEvents.filter((e) => e.clientId === c.id && e.status === 'concluido').length,
@@ -79,12 +89,12 @@ export function ClientesScreen({ onClose, isModal }) {
       )}
       <View style={[cls.header, { backgroundColor: colors.bg, borderBottomColor: colors.border, flexDirection: 'column', alignItems: 'stretch' }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>CRM — {clients.length} clientes</Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>CRM — {clientesComAgendamentos.length} clientes</Text>
           <TouchableOpacity style={[cls.addBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
-        {clients.some((c) => c.phone?.trim()) && (
+        {clientesComAgendamentos.some((c) => c.phone?.trim()) && (
           <TouchableOpacity
             onPress={() => openMensagensWhatsApp?.()}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#25D36620', borderWidth: 1, borderColor: '#25D36660', minHeight: 44 }}
@@ -94,7 +104,7 @@ export function ClientesScreen({ onClose, isModal }) {
           </TouchableOpacity>
         )}
       </View>
-      {clients.length === 0 ? (
+      {clientesComAgendamentos.length === 0 ? (
         <View style={cls.empty}>
           <Ionicons name="people-outline" size={48} color={colors.textSecondary} />
           <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum cliente cadastrado</Text>
@@ -114,31 +124,25 @@ export function ClientesScreen({ onClose, isModal }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <Text style={[cls.cardName, { color: colors.text }]}>{c.name}</Text>
                   {c.nivel && (
-                    <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: (NIVEL_COLORS[c.nivel] || colors.border) + '30' }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: NIVEL_COLORS[c.nivel] || colors.text }}>{NIVEL_LABELS[c.nivel] || c.nivel}</Text>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: ((NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.color || colors.border) + '30' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: (NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.color || colors.text }}>{(NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.label || c.nivel}</Text>
                     </View>
                   )}
                 </View>
                 {c.email ? <Text style={[cls.cardInfo, { color: colors.textSecondary }]}>{c.email}</Text> : null}
                 {c.phone ? <Text style={[cls.cardInfo, { color: colors.textSecondary }]}>{c.phone}</Text> : null}
-                <View style={cls.crmRow}>
-                  <View style={[cls.crmBox, { backgroundColor: colors.primaryRgba(0.15) }]}>
-                    <Text style={[cls.crmNum, { color: colors.primary }]}>{c.agendamentos || 0}</Text>
-                    <Text style={[cls.crmLabel, { color: colors.textSecondary }]}>Agendados</Text>
-                  </View>
-                  <View style={[cls.crmBox, { backgroundColor: colors.primaryRgba(0.15) }]}>
-                    <Text style={[cls.crmNum, { color: colors.primary }]}>{c.concluidos || 0}</Text>
-                    <Text style={[cls.crmLabel, { color: colors.textSecondary }]}>Concluídos</Text>
-                  </View>
-                  <View style={[cls.crmBox, { backgroundColor: colors.primaryRgba(0.15) }]}>
-                    <Text style={[cls.crmNum, { color: colors.primary, fontSize: 14 }]} numberOfLines={1}>{formatCurrency(c.totalRecebido || 0)}</Text>
-                    <Text style={[cls.crmLabel, { color: colors.textSecondary }]}>Recebido</Text>
-                  </View>
-                </View>
                 <View style={cls.actionRow}>
+                  <TouchableOpacity onPress={() => { playTapSound(); setVerClienteDetalhe(c); }} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>
+                    <Ionicons name="eye-outline" size={18} color={colors.primary} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => openEdit(c)} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>
                     <Ionicons name="pencil" size={18} color={colors.primary} />
                   </TouchableOpacity>
+                  {c.phone?.trim() ? (
+                    <TouchableOpacity onPress={() => openWhatsApp(c.phone)} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>
+                      <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     onPress={() =>
                       Alert.alert('Excluir', 'Remover este cliente?', [
@@ -152,22 +156,22 @@ export function ClientesScreen({ onClose, isModal }) {
                   </TouchableOpacity>
                 </View>
               </View>
-              {c.phone?.trim() ? (
-                <TouchableOpacity
-                  onPress={() => openWhatsApp(c.phone)}
-                  style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#25D366', justifyContent: 'center', alignItems: 'center' }}
-                >
-                  <Ionicons name="logo-whatsapp" size={22} color="#fff" />
-                </TouchableOpacity>
-              ) : (
-                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-              )}
             </View>
           ))}
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
-      <ClienteModal visible={modalVisible} cliente={editingClient} onSave={handleSave} onClose={() => { setModalVisible(false); setEditingClient(null); }} />
+      <ClienteDetalheModal
+        visible={!!verClienteDetalhe}
+        cliente={verClienteDetalhe}
+        agendaEvents={agendaEvents}
+        services={services}
+        colors={colors}
+        onClose={() => setVerClienteDetalhe(null)}
+        onEdit={() => { setVerClienteDetalhe(null); setEditingClient(verClienteDetalhe); setModalVisible(true); }}
+        onConversar={() => { if (verClienteDetalhe?.phone) openWhatsApp(verClienteDetalhe.phone); setVerClienteDetalhe(null); }}
+      />
+      <ClienteModal visible={modalVisible} cliente={editingClient} defaultTipo="empresa" onSave={handleSave} onClose={() => { setModalVisible(false); setEditingClient(null); }} />
     </SafeAreaView>
   );
 }

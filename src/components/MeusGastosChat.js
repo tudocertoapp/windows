@@ -23,6 +23,8 @@ import { parseVoiceIntent } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 import { playTapSound } from '../utils/sounds';
 import VoiceRecorder from './VoiceRecorder';
+import { googleVisionOcrText } from '../services/googleVisionOCR';
+import { parseReceipt } from '../utils/parseReceipt';
 
 function nowIso() {
   return new Date().toISOString();
@@ -85,6 +87,10 @@ function parseMoneyTokenToNumber(token) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// Símbolos e palavras de moedas que consideramos válidos na leitura do comprovante
+const CURRENCY_REGEX =
+  /r\s*\$|\$\s*|€|£|¥|US\$|USD\b|EUR\b|BRL\b|real\b|reais\b|d[oó]lar(?:es)?\b|euro?s?\b|peso?s?\b|CHF\b|CAD\b|AUD\b|NZD\b|JPY\b|CNY\b|RUB\b|₱|₹|₽|₺|₩|₪|₫|₴/i;
+
 function extractReceiptItemsFromOcr(ocrText) {
   const lines = String(ocrText || '')
     .split(/\r?\n/)
@@ -96,12 +102,16 @@ function extractReceiptItemsFromOcr(ocrText) {
 
   lines.forEach((line) => {
     if (skipRx.test(line)) return;
+    // Preferimos linhas com símbolo/palavra de moeda, mas não obrigamos (algumas notas não trazem "R$")
+    const hasCurrency = CURRENCY_REGEX.test(line);
     const moneyTokens = line.match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g) || [];
     if (!moneyTokens.length) return;
     const lastToken = moneyTokens[moneyTokens.length - 1];
     if (looksLikeDate(lastToken)) return;
     const value = parseMoneyTokenToNumber(lastToken);
     if (!value) return;
+    // evita pegar valores muito pequenos que normalmente não são itens
+    if (!hasCurrency && value < 5) return;
 
     let desc = line
       .replace(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g, ' ')
@@ -162,9 +172,9 @@ function extractReceiptDataFromOcr(ocrText) {
   const collectCandidatesFromLine = (line, lineIndex, baseScore) => {
     if (taxRegex.test(line)) return [];
     if (looksLikeProductLine(line)) return [];
+    const hasCurrency = CURRENCY_REGEX.test(line);
     const tokens = String(line).match(moneyTokenRegex) || [];
     if (!tokens.length) return [];
-    const hasCurrency = /r\s*\$|reais?/i.test(line);
     const noisyLine = noisyCountRegex.test(line);
     const res = [];
     for (const token of tokens) {
@@ -172,6 +182,7 @@ function extractReceiptDataFromOcr(ocrText) {
       const value = parseMoneyTokenToNumber(token);
       const hasCents = /[.,]\d{2}$/.test(token);
       if (!value || value <= 0) continue;
+      // Se a linha é muito "numérica" (contagem de itens), exigimos moeda ou centavos
       if (noisyLine && !hasCurrency && !hasCents) continue;
       if (value > 99999) continue;
       const score = baseScore + (hasCurrency ? 4 : 0) + (hasCents ? 3 : 0) + (lineIndex / 1000);
@@ -220,7 +231,12 @@ function extractReceiptDataFromOcr(ocrText) {
       itemsMismatch: items.length > 0 ? Math.abs(itemsSum - total) > 0.05 : false,
     };
   }
-  const allMoneyMatches = String(ocrText).match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g) || [];
+  // Fallback final: procura o maior valor apenas entre linhas que têm símbolo/palavra de moeda
+  const allMoneyMatches =
+    lines
+      .filter((l) => CURRENCY_REGEX.test(l))
+      .join('\n')
+      .match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g) || [];
   const allValues = allMoneyMatches
     .map((t) => ({ v: parseMoneyTokenToNumber(t), t }))
     .filter(({ v, t }) => v && v > 0 && v < 99999 && !looksLikeDate(t))
@@ -260,48 +276,17 @@ function buildAssistantExpense(textSource) {
   };
 }
 
-async function runOcrFromImage(imageUri) {
-  if (!imageUri || typeof imageUri !== 'string') return '';
-  const uri = String(imageUri).trim();
-  const form = new FormData();
-  form.append('apikey', 'helloworld');
-  form.append('language', 'por');
-  form.append('isOverlayRequired', 'false');
-  form.append('scale', 'true');
-  form.append('OCREngine', '2');
-  form.append('file', {
-    uri,
-    name: 'gasto.jpg',
-    type: 'image/jpeg',
-  });
-  const res = await fetch('https://api.ocr.space/parse/image', {
-    method: 'POST',
-    body: form,
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    try {
-      const errJson = JSON.parse(errText);
-      if (errJson?.ErrorMessage) throw new Error(errJson.ErrorMessage);
-    } catch (_) {}
-    throw new Error(`OCR API erro ${res.status}`);
-  }
-  let data;
-  try {
-    data = await res.json();
-  } catch (_) {
-    throw new Error('Resposta inválida do OCR');
-  }
-  const text = (data?.ParsedResults?.[0]?.ParsedText || '').trim();
-  if (!text && (data?.IsErroredOnProcessing || data?.OCRExitCode !== 1)) {
-    throw new Error('OCR não conseguiu processar a imagem');
-  }
-  return text;
+function brDateToIso(dateStr) {
+  if (!dateStr) return null;
+  const parts = String(dateStr).trim().split('/');
+  if (parts.length !== 3) return null;
+  const [dd, mm, yyyy] = parts;
+  return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
 export function MeusGastosChat({ embedded = false }) {
   const { colors } = useTheme();
-  const { addTransaction } = useFinance();
+  const { transactions, addTransaction } = useFinance();
   const { openAddModal } = useMenu();
   const EXAMPLE_PHRASES = [
     'Fui no mercado e gastei 89,90. Gasto pessoal.',
@@ -335,6 +320,65 @@ export function MeusGastosChat({ embedded = false }) {
   const handleUserContentRef = useRef(null);
   const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
   const listRef = useRef(null);
+  const lastTxIdRef = useRef(null);
+  const receiptAddCandidateRef = useRef(null);
+  // Para evitar duplicar mensagens quando a despesa já foi adicionada pelo próprio chat (ex.: voz)
+  const suppressAssistantMessageRef = useRef(null);
+
+  const stripAccents = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const inferReceiptCategory = (text) => {
+    const t = stripAccents(text).toLowerCase();
+    let best = null;
+    let bestScore = 0;
+
+    for (const cat of CATEGORIAS_DESPESA) {
+      const catLabel = stripAccents(cat.label).toLowerCase();
+      for (const sub of cat.sub || []) {
+        const subNorm = stripAccents(sub).toLowerCase();
+        if (!subNorm) continue;
+        if (t.includes(subNorm)) {
+          const words = subNorm.split(/\s+/).filter(Boolean);
+          const wordHits = words.reduce((s, w) => s + (w.length > 2 && t.includes(w) ? 1 : 0), 0);
+          const score = 2 + words.length + wordHits;
+          if (score > bestScore) {
+            bestScore = score;
+            best = { categoryDesp: cat.id, subcategoryDesp: sub, kindLabel: cat.label };
+          }
+        }
+      }
+      // fallback por label da categoria (menos forte)
+      if (t.includes(catLabel) && bestScore < 2) {
+        bestScore = 2;
+        best = { categoryDesp: cat.id, subcategoryDesp: cat.sub?.[0] || cat.label, kindLabel: cat.label };
+      }
+    }
+
+    // fallback por palavras-chave (Alimento, Conta, Produto)
+    if (!best) {
+      const hasFood = /(supermercad|mercad|padari|restaur|delivery|cafe|acoug|a(c|ç)ougue|hortifr|mercear|lancho|bebi|feira)/i.test(stripAccents(text));
+      if (hasFood) {
+        const sub = (CATEGORIAS_DESPESA.find((c) => c.id === 'alimentacao')?.sub || [])[0] || 'Supermercado';
+        return { categoryDesp: 'alimentacao', subcategoryDesp: sub, kindLabel: 'Alimentação' };
+      }
+      const hasBills = /(energia|agua|água|luz|iptu|condominio|condomínio|boleto|impost|taxa|tribut|saneamento|internet)/i.test(stripAccents(text));
+      if (hasBills) {
+        const cat = CATEGORIAS_DESPESA.find((c) => c.id === 'moradia');
+        const sub = cat?.sub?.find((s) => /energia/i.test(stripAccents(s))) || cat?.sub?.[0] || 'Energia';
+        return { categoryDesp: 'moradia', subcategoryDesp: sub, kindLabel: 'Conta' };
+      }
+      const hasProduct = /(loja|shopping|eletron|celular|roupa|sapato|camisa|cosmet|mercador|produto)/i.test(stripAccents(text));
+      if (hasProduct) {
+        const cat = CATEGORIAS_DESPESA.find((c) => c.id === 'compras');
+        const sub = cat?.sub?.[0] || 'Roupas';
+        return { categoryDesp: 'compras', subcategoryDesp: sub, kindLabel: 'Produto' };
+      }
+      const outros = CATEGORIAS_DESPESA.find((c) => c.id === 'outros_desp');
+      const outrosSub = outros?.sub?.find((s) => stripAccents(s).toLowerCase() === 'outros') || outros?.sub?.[0] || 'Outros';
+      return { categoryDesp: 'outros_desp', subcategoryDesp: outrosSub, kindLabel: 'Outros' };
+    }
+
+    return best;
+  };
 
   const orderedMessages = useMemo(() => messages, [messages]);
 
@@ -349,6 +393,15 @@ export function MeusGastosChat({ embedded = false }) {
   const openSuggestedForm = (action) => {
     if (!action?.type) return;
     playTapSound();
+    if (action.type === 'despesa' && action.params?.__fromReceiptOCR) {
+      const p = action.params || {};
+      receiptAddCandidateRef.current = {
+        expiresAt: Date.now() + 15000,
+        amountNumber: Number(p.__amountNumber || 0),
+        dateIso: p.__dateIso || null,
+        categoryKey: p.__categoryKey || null,
+      };
+    }
     openAddModal?.(action.type, action.params || null);
   };
 
@@ -401,6 +454,13 @@ export function MeusGastosChat({ embedded = false }) {
       formaPagamento: 'pix',
       tipoVenda: expense.tipoVenda,
     };
+    suppressAssistantMessageRef.current = {
+      description: payload.description,
+      amount: payload.amount,
+      date: payload.date,
+      category: payload.category,
+      expiresAt: Date.now() + 5000,
+    };
     try {
       await addTransaction(payload);
     } catch (err) {
@@ -445,46 +505,53 @@ export function MeusGastosChat({ embedded = false }) {
       return;
     }
 
-    const receiptData = extractReceiptDataFromOcr(normalized);
-    if (!receiptData?.total) {
+    const parsed = parseReceipt(normalized);
+    if (!parsed?.value) {
       appendMessage({
-        id: `assistant-ocr-no-total-${Date.now()}`,
+        id: `assistant-ocr-no-value-${Date.now()}`,
         from: 'assistant',
         kind: 'text',
-        text: 'Não encontrei um "TOTAL" legível na notinha. Não registrei gasto para evitar erro.',
+        text: 'Não encontrei um valor (R$ 00,00) confiável na notinha. Não registrei gasto para evitar erro.',
         createdAt: nowIso(),
       });
       return;
     }
 
-    const totalBr = receiptData.total.toFixed(2).replace('.', ',');
-    const topItems = receiptData.items.slice(0, 4);
-    const itemsSummary = topItems.length
-      ? topItems.map((it) => `${it.description} (R$ ${it.amount.toFixed(2).replace('.', ',')})`).join(', ')
-      : '';
+    const store = parsed.store || 'Comprovante';
+    const totalBr = parsed.value.toFixed(2).replace('.', ',');
+    const dateIso = brDateToIso(parsed.date) || new Date().toISOString().slice(0, 10);
 
-    await registerExpenseAndReply(`total ${totalBr}`, 'comprovante');
+    const inferred = inferReceiptCategory(parsed.rawText || normalized);
+    const inferredCategoryDesp = inferred?.categoryDesp || 'outros_desp';
+    const inferredSubcategoryDesp = inferred?.subcategoryDesp || 'Outros';
 
     appendMessage({
-      id: `assistant-ocr-total-highlight-${Date.now()}`,
+      id: `assistant-ocr-preview-${Date.now()}`,
       from: 'assistant',
       kind: 'text',
-      text: `Total identificado com prioridade: R$ ${totalBr}.${itemsSummary ? ` Itens detectados: ${itemsSummary}.` : ''} Quer que eu registre os produtos comprados também? (opcional)`,
+      text: `Pronto! Eu reconheci o comprovante.\nValor: R$ ${totalBr}${parsed.date ? `\nData: ${parsed.date}` : ''}`,
+      action: {
+        iconName: 'add-circle-outline',
+        label: `Cadastrar Despesa\nR$ ${totalBr}${parsed.date ? ` ${parsed.date}` : ''}`,
+        type: 'despesa',
+        params: {
+          amount: parsed.value.toFixed(2).replace('.', ','),
+          description: store,
+          categoryDesp: inferredCategoryDesp,
+          subcategoryDesp: inferredSubcategoryDesp,
+          date: parsed.date || null,
+          __fromReceiptOCR: true,
+          __autoCategorizeFromDescription: true,
+          __amountNumber: parsed.value,
+          __dateIso: dateIso,
+          __categoryKey: inferredSubcategoryDesp || inferredCategoryDesp,
+        },
+      },
       createdAt: nowIso(),
     });
-
-    if (receiptData.items.length > 0 && receiptData.itemsMismatch) {
-      appendMessage({
-        id: `assistant-ocr-mismatch-${Date.now()}`,
-        from: 'assistant',
-        kind: 'text',
-        text: `A soma dos itens (${receiptData.itemsSum.toFixed(2).replace('.', ',')}) não fechou com o total (${totalBr}). Se puder, envie mais fotos da nota para eu fechar o pedido corretamente.`,
-        createdAt: nowIso(),
-      });
-    }
   };
 
-  const handleUserContent = async ({ kind, text, imageUri, skipUserBubble = false, hideTranscriptInChat = false }) => {
+  const handleUserContent = async ({ kind, text, imageUri, imageBase64, skipUserBubble = false, hideTranscriptInChat = false }) => {
     const baseId = Date.now();
     const normalizedText = typeof text === 'string' ? text.trim() : '';
     const filteredText = kind === 'voice' ? cleanTranscriptText(normalizedText) : normalizedText;
@@ -505,11 +572,11 @@ export function MeusGastosChat({ embedded = false }) {
         id: loadingId,
         from: 'assistant',
         kind: 'text',
-        text: 'Lendo notinha...',
+        text: 'Lendo imagem...',
         createdAt: nowIso(),
       });
       try {
-        const ocrText = await runOcrFromImage(imageUri);
+        const ocrText = await googleVisionOcrText({ uri: imageUri, base64: imageBase64 }, { languageHints: ['pt'] });
         setMessages((prev) => prev.filter((m) => m.id !== loadingId));
         await registerExpenseFromImageAndReply(ocrText);
       } catch (err) {
@@ -518,7 +585,7 @@ export function MeusGastosChat({ embedded = false }) {
           id: `assistant-ocr-error-${Date.now()}`,
           from: 'assistant',
           kind: 'text',
-          text: 'Não consegui ler essa imagem. Envie outra foto mais nítida ou digite o valor (ex: gastei 50 no mercado).',
+          text: `Não consegui ler essa imagem. ${err?.message ? `Erro: ${err.message}` : 'Tente outra foto mais nítida.'}`,
           createdAt: nowIso(),
         });
       } finally {
@@ -554,6 +621,51 @@ export function MeusGastosChat({ embedded = false }) {
     handleUserContentRef.current = handleUserContent;
   }, [handleUserContent]);
 
+  // Quando a despesa for criada fora do chat (ex.: pelo Scanner de comprovante),
+  // adiciona uma mensagem no histórico do "Meus gastos".
+  useEffect(() => {
+    if (!transactions?.length) return;
+    const first = transactions[0];
+    if (!first?.id) return;
+
+    if (lastTxIdRef.current == null) {
+      lastTxIdRef.current = first.id;
+      return;
+    }
+    if (lastTxIdRef.current === first.id) return;
+    lastTxIdRef.current = first.id;
+
+    const s = suppressAssistantMessageRef.current;
+    if (
+      s &&
+      Date.now() < s.expiresAt &&
+      first.type === 'expense' &&
+      first.description === s.description &&
+      first.date === s.date &&
+      Math.abs(Number(first.amount || 0) - Number(s.amount || 0)) < 0.01
+    ) return;
+
+    const pr = receiptAddCandidateRef.current;
+    if (
+      pr &&
+      Date.now() < pr.expiresAt &&
+      first.type === 'expense' &&
+      Math.abs(Number(first.amount || 0) - Number(pr.amountNumber || 0)) < 0.01 &&
+      (!pr.dateIso || first.date === pr.dateIso) &&
+      true
+    ) {
+      const amountStr = Number(first.amount || 0).toFixed(2).replace('.', ',');
+      appendMessage({
+        id: `assistant-tx-ocr-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: `Despesa adicionada via comprovante: ${first.description || 'Gasto'} · R$ ${amountStr}.`,
+        createdAt: nowIso(),
+      });
+      receiptAddCandidateRef.current = null;
+    }
+  }, [transactions]);
+
   const handleSendText = async () => {
     const txt = inputText.trim();
     if (!txt) return;
@@ -571,12 +683,15 @@ export function MeusGastosChat({ embedded = false }) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.8,
+      // qualidade maior para melhorar o OCR (as imagens ainda são comprimidas no upload)
+      quality: 1,
+      allowsEditing: true,
       allowsMultipleSelection: true,
+      base64: true,
     });
     if (result.canceled || !result.assets?.length) return;
     for (const asset of result.assets) {
-      if (asset?.uri) await handleUserContent({ kind: 'image', imageUri: asset.uri });
+      if (asset?.uri) await handleUserContent({ kind: 'image', imageUri: asset.uri, imageBase64: asset.base64 });
     }
   };
 
@@ -588,10 +703,12 @@ export function MeusGastosChat({ embedded = false }) {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      quality: 0.8,
+      quality: 1,
+      allowsEditing: true,
+      base64: true,
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
-    await handleUserContent({ kind: 'image', imageUri: result.assets[0].uri });
+    await handleUserContent({ kind: 'image', imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
   };
 
   const handleMicPress = async () => {
@@ -663,7 +780,12 @@ export function MeusGastosChat({ embedded = false }) {
               onPress={() => openSuggestedForm(item.action)}
               activeOpacity={0.85}
             >
-              <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '800' }}>{item.action.label}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {item.action?.iconName ? (
+                  <Ionicons name={item.action.iconName} size={16} color={colors.primary} />
+                ) : null}
+                <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '800' }}>{item.action.label}</Text>
+              </View>
             </TouchableOpacity>
           ) : null}
           <Text style={{ color: isUser ? 'rgba(255,255,255,0.85)' : colors.textSecondary, fontSize: 10, marginTop: 6, textAlign: 'right' }}>

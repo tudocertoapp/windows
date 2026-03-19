@@ -12,8 +12,8 @@ Notifications.setNotificationHandler({
 
 const CHANNEL_ID = 'lembretes-tudocerto';
 
-/** Minutos antes do evento: 1h, 30min, 1min */
-const REMINDER_MINUTES_BEFORE = [60, 30, 1];
+/** Apenas 30 minutos antes do evento (para tarefa ou agenda com hora cadastrada) */
+const REMINDER_MINUTES_BEFORE = [30];
 
 export async function setupNotificationChannel() {
   if (Platform.OS === 'android') {
@@ -72,9 +72,9 @@ function getEventMoment(dateStr, timeStr = '') {
   return d;
 }
 
-/** Agenda lembretes 1h, 30min e 1min antes do evento/agendamento/tarefa. Retorna array de IDs. */
+/** Agenda lembrete 30 min antes (apenas para tarefa ou agenda com hora cadastrada). Retorna array de IDs. */
 export async function scheduleEventReminders(eventId, title, dateStr, timeStr = '', type = 'agenda') {
-  if (!dateStr) return [];
+  if (!dateStr || !timeStr || !timeStr.trim()) return [];
   const eventMoment = getEventMoment(dateStr, timeStr);
   if (!eventMoment || eventMoment <= new Date()) return [];
 

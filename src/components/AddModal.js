@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Dimensions, Animated } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,14 +75,63 @@ const FORMAS_PAGAMENTO_DESPESA = [
 const TODAS_FORMAS_PAGAMENTO_RECEITA = [...METODOS_PAGAMENTO_RECEITA, { id: 'transferencia', label: 'Transferência', icon: 'swap-horizontal-outline' }];
 const TODAS_FORMAS_PAGAMENTO_DESPESA = [...FORMAS_PAGAMENTO_DESPESA, { id: 'transferencia', label: 'Transferência', icon: 'swap-horizontal-outline' }, { id: 'boleto', label: 'Boleto', icon: 'document-text-outline' }, { id: 'prazo', label: 'A prazo', icon: 'calendar-outline' }];
 
+function stripAccents(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function inferDespCategoryAndSubcategory(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+  const t = stripAccents(raw).toLowerCase();
+
+  let best = null;
+  let bestScore = 0;
+
+  for (const cat of CATEGORIAS_DESPESA) {
+    const catLabel = stripAccents(cat.label).toLowerCase();
+    for (const sub of cat.sub || []) {
+      const subNorm = stripAccents(sub).toLowerCase();
+      if (!subNorm) continue;
+      if (!t.includes(subNorm)) continue;
+      const words = subNorm.split(/\s+/).filter(Boolean);
+      const wordHits = words.reduce((acc, w) => acc + (w.length > 2 && t.includes(w) ? 1 : 0), 0);
+      const score = 2 + words.length + wordHits;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { categoryDesp: cat.id, subcategoryDesp: sub };
+      }
+    }
+    if (t.includes(catLabel) && bestScore < 2) {
+      bestScore = 2;
+      best = { categoryDesp: cat.id, subcategoryDesp: cat.sub?.[0] || cat.label };
+    }
+  }
+
+  if (best) return best;
+
+  // fallback por heurísticas simples
+  const hasFood = /(supermercad|mercad|padari|restaur|delivery|cafe|acoug|a(c|ç)ougue|hortifr|mercear|lancho|bebi|feira)/i.test(stripAccents(raw));
+  if (hasFood) return { categoryDesp: 'alimentacao', subcategoryDesp: CATEGORIAS_DESPESA.find((c) => c.id === 'alimentacao')?.sub?.[0] || 'Supermercado' };
+
+  const hasBills = /(energia|agua|água|luz|iptu|condominio|condomínio|boleto|impost|taxa|tribut|saneamento|internet)/i.test(stripAccents(raw));
+  if (hasBills) return { categoryDesp: 'moradia', subcategoryDesp: CATEGORIAS_DESPESA.find((c) => c.id === 'moradia')?.sub?.[0] || 'Energia' };
+
+  const hasProduct = /(loja|shopping|eletron|celular|roupa|sapato|camisa|cosmet|mercador|produto)/i.test(stripAccents(raw));
+  if (hasProduct) return { categoryDesp: 'compras', subcategoryDesp: CATEGORIAS_DESPESA.find((c) => c.id === 'compras')?.sub?.[0] || 'Roupas' };
+
+  return { categoryDesp: 'outros_desp', subcategoryDesp: 'Outros' };
+}
+
 export function AddModal({ type, params, onClose }) {
   const { colors } = useTheme();
-  const { addTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, clients, products, services } = useFinance();
+  const { addTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, updateOrcamento, clients, products, services } = useFinance();
   const { banks, cards, getBankById, getBankName, deductFromBank, addToBank, addToCardBalance } = useBanks();
   const { showEmpresaFeatures } = usePlan();
   const { openBancos } = useMenu();
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [autoCategorizeFromDescription, setAutoCategorizeFromDescription] = useState(false);
+  const userEditedCategoryRef = useRef(false);
   useEffect(() => {
     if (params?.amount != null) setAmount(String(params.amount));
     if (params?.description != null) setDescription(params.description);
@@ -92,9 +141,34 @@ export function AddModal({ type, params, onClose }) {
       setCategory(params.subcategoryDesp);
     }
     if (params?.tipoVenda) setTipoVenda(params.tipoVenda);
+
+    userEditedCategoryRef.current = false;
+    if (params?.__autoCategorizeFromDescription != null) setAutoCategorizeFromDescription(Boolean(params.__autoCategorizeFromDescription));
   }, [type, params]);
   useEffect(() => {
     if (type === 'receita') {
+      const fromOrc = params?.fromOrcamento;
+      if (fromOrc && Array.isArray(fromOrc.preOrderItems) && fromOrc.preOrderItems.length > 0) {
+        setTipoVenda('empresa');
+        setClientId(fromOrc.clientId || null);
+        setDescription(fromOrc.description || '');
+        setUseNow(true);
+        setFormaPagamento('pix');
+        const items = fromOrc.preOrderItems.map((i) => ({
+          id: i.id,
+          name: i.name,
+          price: i.price || 0,
+          discount: i.discount || 0,
+          qty: i.qty || 1,
+          isProduct: i.isProduct === true,
+          allowDiscount: i.isProduct === true,
+        }));
+        setSaleItems(items);
+        setAmount((fromOrc.amount || 0).toFixed(2).replace('.', ','));
+        setSearchPdv('');
+        setServicePriceModal(null);
+        return;
+      }
       const fromEvent = params?.fromAgendaEvent;
       const hasEmpresaPayload = fromEvent && ((fromEvent.tipo === 'empresa') || fromEvent.clientId || fromEvent.serviceId || (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0));
       if (hasEmpresaPayload) {
@@ -149,7 +223,7 @@ export function AddModal({ type, params, onClose }) {
         setPaymentSplits([]);
       }
     }
-  }, [type, params?.fromAgendaEvent, services]);
+  }, [type, params?.fromAgendaEvent, params?.fromOrcamento, services]);
   useEffect(() => {
     if (type === 'cliente') {
       setPhotoUri(null);
@@ -173,7 +247,8 @@ export function AddModal({ type, params, onClose }) {
   useEffect(() => {
     if (type === 'despesa') {
       setFormaPagamentoDespesa('dinheiro');
-      setDate([new Date().getDate(), new Date().getMonth() + 1, new Date().getFullYear()].map((x) => String(x).padStart(2, '0')).join('/'));
+      const fallbackDate = [new Date().getDate(), new Date().getMonth() + 1, new Date().getFullYear()].map((x) => String(x).padStart(2, '0')).join('/');
+      setDate(params?.date || fallbackDate);
       const contextoDespesa = showEmpresaFeatures ? tipoVenda : 'pessoal';
       const comDebito = (banks || []).filter(
         (b) => ((b.tipoConta || 'ambos') === 'debito' || (b.tipoConta || 'ambos') === 'ambos') && ((b.tipo || 'pessoal') === contextoDespesa)
@@ -182,7 +257,7 @@ export function AddModal({ type, params, onClose }) {
       setDespesaBankId(comDebito[0]?.id || '');
       setDespesaCardId(carts[0]?.id || '');
     }
-  }, [type, banks, cards, tipoVenda, showEmpresaFeatures]);
+  }, [type, banks, cards, tipoVenda, showEmpresaFeatures, params?.date]);
   const [category, setCategory] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -224,6 +299,20 @@ export function AddModal({ type, params, onClose }) {
   const [subcategoryRec, setSubcategoryRec] = useState('');
   const [categoryDesp, setCategoryDesp] = useState('');
   const [subcategoryDesp, setSubcategoryDesp] = useState('');
+  useEffect(() => {
+    if (type !== 'despesa') return;
+    if (!autoCategorizeFromDescription) return;
+    if (!description || description.trim().length < 3) return;
+    if (userEditedCategoryRef.current) return;
+
+    const inferred = inferDespCategoryAndSubcategory(description);
+    if (!inferred) return;
+    if (inferred.categoryDesp === categoryDesp && inferred.subcategoryDesp === subcategoryDesp) return;
+
+    setCategoryDesp(inferred.categoryDesp);
+    setSubcategoryDesp(inferred.subcategoryDesp);
+    setCategory(inferred.subcategoryDesp);
+  }, [type, description, autoCategorizeFromDescription, categoryDesp, subcategoryDesp]);
   const [showAddFormaModalRec, setShowAddFormaModalRec] = useState(false);
   const [showAddFormaModalDesp, setShowAddFormaModalDesp] = useState(false);
   const [newFormaNome, setNewFormaNome] = useState('');
@@ -333,6 +422,8 @@ export function AddModal({ type, params, onClose }) {
           }
         }
         if (params?.fromAgendaEvent?.id) updateAgendaEvent(params.fromAgendaEvent.id, { status: 'concluido' });
+        if (params?.fromOrcamento?.orcamentoId && updateOrcamento) updateOrcamento(params.fromOrcamento.orcamentoId, { status: 'faturado' });
+        if (params?.onFaturamentoSuccess) params.onFaturamentoSuccess({ amount: valorFinal, description: descFinal, clientId, saleItems, formaPagamento: 'misturado' });
       } else if (type === 'receita') {
         if ((formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && !receitaBankId) return Alert.alert('Erro', 'Selecione para onde está indo o valor da receita.');
         const dateVal = useNow ? new Date().toISOString().slice(0, 10) : toYMD(date);
@@ -351,6 +442,8 @@ export function AddModal({ type, params, onClose }) {
           }
         }
         if (params?.fromAgendaEvent?.id) updateAgendaEvent(params.fromAgendaEvent.id, { status: 'concluido' });
+        if (params?.fromOrcamento?.orcamentoId && updateOrcamento) updateOrcamento(params.fromOrcamento.orcamentoId, { status: 'faturado' });
+        if (params?.onFaturamentoSuccess) params.onFaturamentoSuccess({ amount: valorFinal, description: descFinal, clientId, saleItems, formaPagamento, date: useNow ? new Date().toISOString().slice(0, 10) : toYMD(date) });
       } else if (type === 'despesa') {
         if ((formaPagamentoDespesa === 'debito' || formaPagamentoDespesa === 'transferencia') && !despesaBankId) return Alert.alert('Erro', 'Selecione o banco.');
         if (formaPagamentoDespesa === 'credito' && !despesaCardId) return Alert.alert('Erro', 'Selecione o cartão de crédito.');
@@ -676,8 +769,8 @@ export function AddModal({ type, params, onClose }) {
                               <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, paddingHorizontal: 12, paddingTop: 8, letterSpacing: 0.5 }}>PRODUTOS</Text>
                               {filteredProducts.slice(0, 6).map((p) => (
                                 <TouchableOpacity key={'p-' + p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: colors.bg, marginHorizontal: 8, marginBottom: 4, borderRadius: 8 }} onPress={() => { playTapSound(); addSaleItem(p, true); setShowPdvDropdown(false); setSearchPdv(''); }}>
-                                  {p.photoUri ? (
-                                    <Image source={{ uri: p.photoUri }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
+                                  {(p.photoUri || p.photoUris?.[0]) ? (
+                                    <Image source={{ uri: p.photoUri || p.photoUris[0] }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
                                   ) : (
                                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
                                       <Ionicons name="cube-outline" size={20} color={colors.primary} />
@@ -1030,7 +1123,19 @@ export function AddModal({ type, params, onClose }) {
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: GAP }}>
                   <View style={{ flex: 1 }}>
-                    <CategoryPicker categories={CATEGORIAS_DESPESA} value={categoryDesp} onChange={(id) => { setCategoryDesp(id); setSubcategoryDesp(''); setCategory(''); }} placeholder="Selecionar categoria" colors={colors} label="CATEGORIA" />
+                    <CategoryPicker
+                      categories={CATEGORIAS_DESPESA}
+                      value={categoryDesp}
+                      onChange={(id) => {
+                        userEditedCategoryRef.current = true;
+                        setCategoryDesp(id);
+                        setSubcategoryDesp('');
+                        setCategory('');
+                      }}
+                      placeholder="Selecionar categoria"
+                      colors={colors}
+                      label="CATEGORIA"
+                    />
                   </View>
                   {isSpeechAvailable && (
                     <TouchableOpacity
@@ -1052,9 +1157,29 @@ export function AddModal({ type, params, onClose }) {
                     </TouchableOpacity>
                   )}
                 </View>
-                <SubcategoryPicker subcategories={CATEGORIAS_DESPESA.find((c) => c.id === categoryDesp)?.sub} value={subcategoryDesp} onChange={(sub) => { setSubcategoryDesp(sub); setCategory(sub); }} placeholder="Selecionar subcategoria" colors={colors} label="SUBCATEGORIA" />
+                <SubcategoryPicker
+                  subcategories={CATEGORIAS_DESPESA.find((c) => c.id === categoryDesp)?.sub}
+                  value={subcategoryDesp}
+                  onChange={(sub) => {
+                    userEditedCategoryRef.current = true;
+                    setSubcategoryDesp(sub);
+                    setCategory(sub);
+                  }}
+                  placeholder="Selecionar subcategoria"
+                  colors={colors}
+                  label="SUBCATEGORIA"
+                />
                 {!categoryDesp && (
-                  <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text, marginBottom: GAP }]} placeholder="Ou digite a categoria" value={category} onChangeText={setCategory} placeholderTextColor={colors.textSecondary} />
+                  <TextInput
+                    style={[styles.input, { borderColor: colors.border, color: colors.text, marginBottom: GAP }]}
+                    placeholder="Ou digite a categoria"
+                    value={category}
+                    onChangeText={(t) => {
+                      userEditedCategoryRef.current = true;
+                      setCategory(t);
+                    }}
+                    placeholderTextColor={colors.textSecondary}
+                  />
                 )}
                 <Text style={[styles.label, { color: colors.textSecondary }]}>DESCRIÇÃO (OPCIONAL)</Text>
                 <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text, marginBottom: GAP }]} placeholder="Ex: Supermercado do bairro. Ou use o microfone: 'gastei 50 na padaria com pão gasto empresa'" value={description} onChangeText={setDescription} placeholderTextColor={colors.textSecondary} />

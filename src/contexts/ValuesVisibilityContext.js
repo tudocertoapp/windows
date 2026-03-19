@@ -5,7 +5,7 @@ import { authenticateToRevealValues } from '../utils/biometricAuth';
 const ValuesVisibilityContext = createContext(undefined);
 
 export function ValuesVisibilityProvider({ children }) {
-  const [showValues, setShowValues] = useState(false);
+  const [showValues, setShowValues] = useState(true);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState) => {

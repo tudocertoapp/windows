@@ -23,7 +23,7 @@ export function GastosPorCategoriaCard({ catBreakdown, totalExpense, formatCurre
   const items = catBreakdown || [];
   return (
     <GlassCard colors={colors} style={s.card}>
-      <CardHeader icon="pie-chart-outline" title={title} subtitle={subtitle} colors={colors} />
+      <CardHeader icon="pie-chart-outline" title={title} subtitle={subtitle} colors={colors} iconColor="#8b5cf6" />
       {items.map(([cat, amount]) => {
         const pct = expense > 0 ? (amount / expense) * 100 : 0;
         return (
@@ -33,7 +33,10 @@ export function GastosPorCategoriaCard({ catBreakdown, totalExpense, formatCurre
                 <View style={[s.catDot, { backgroundColor: getCategoryColor(cat) }]} />
                 <Text style={[s.catName, { color: colors.text }]}>{cat}</Text>
               </View>
-              <Text style={[s.catAmount, { color: colors.text }]}>{m(fmt(amount))}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[s.catAmount, { color: colors.text }]}>{m(fmt(amount))}</Text>
+                <Text style={{ fontSize: 11, color: colors.textSecondary }}>{pct.toFixed(1).replace('.', ',')}%</Text>
+              </View>
             </View>
             <View style={[s.progressBar, { backgroundColor: colors.border }]}>
               <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: getCategoryColor(cat) }]} />

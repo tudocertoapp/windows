@@ -50,8 +50,8 @@ export function ResumoDoMesCard({
   return (
     <GlassCard colors={colors} style={[s.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '26', justifyContent: 'center', alignItems: 'center' }}>
-          <AppIcon name="stats-chart-outline" size={26} color={colors.primary} />
+        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+          <AppIcon name="stats-chart-outline" size={26} color="#a855f7" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[s.title, { color: colors.text }]}>Resumo do mês</Text>

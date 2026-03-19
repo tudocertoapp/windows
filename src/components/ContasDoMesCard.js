@@ -15,7 +15,7 @@ const ds = StyleSheet.create({
   boxValue: { fontSize: 14, fontWeight: '700', marginTop: 4 },
 });
 
-export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, formatCurrency, mask, colors, lightBackground }) {
+export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, formatCurrency, mask, colors, lightBackground, headerActions }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
   const pagas = contasPagas || { qty: 0, valor: 0 };
@@ -39,7 +39,12 @@ export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, fo
       ]}
       contentStyle={{ padding: 20 }}
     >
-      <CardHeader icon="document-text-outline" title="Faturas" subtitle="Contas a pagar e vencidas" colors={colors} />
+      <CardHeader icon="document-text-outline" title="Faturas" subtitle="Contas a pagar e vencidas" colors={colors} iconColor="#2563eb" />
+      {headerActions ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {headerActions}
+        </View>
+      ) : null}
       <View style={[ds.row, { marginTop: 12 }]}>
         <View style={[ds.box, { minWidth: '100%', marginBottom: 4, backgroundColor: colors.primaryRgba?.(0.12) }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>TOTAL</Text>

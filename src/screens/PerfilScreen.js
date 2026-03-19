@@ -26,7 +26,10 @@ export function PerfilScreen({ onClose, isModal }) {
   const [nome, setNome] = useState(profile.nome || '');
   const [profissao, setProfissao] = useState(profile.profissao || '');
   const [empresa, setEmpresa] = useState(profile.empresa || '');
-  const [email, setEmail] = useState('usuario@email.com');
+  const [cnpj, setCnpj] = useState(profile.cnpj || '');
+  const [endereco, setEndereco] = useState(profile.endereco || '');
+  const [telefone, setTelefone] = useState(profile.telefone || '');
+  const [email, setEmail] = useState(profile.email || user?.email || '');
   const [foto, setFoto] = useState(profile.foto || null);
   const [lastFoto, setLastFoto] = useState(null);
 
@@ -34,8 +37,12 @@ export function PerfilScreen({ onClose, isModal }) {
     setNome(profile.nome || '');
     setProfissao(profile.profissao || '');
     setEmpresa(profile.empresa || '');
+    setCnpj(profile.cnpj || '');
+    setEndereco(profile.endereco || '');
+    setTelefone(profile.telefone || '');
+    setEmail(profile.email || user?.email || '');
     setFoto(profile.foto || null);
-  }, [profile.nome, profile.foto, profile.profissao, profile.empresa]);
+  }, [profile.nome, profile.foto, profile.profissao, profile.empresa, profile.cnpj, profile.endereco, profile.telefone, profile.email, user?.email]);
 
   useEffect(() => {
     getLastFoto().then((v) => setLastFoto(v || null));
@@ -43,12 +50,21 @@ export function PerfilScreen({ onClose, isModal }) {
 
   const handleSalvar = async () => {
     try {
-      await updateProfile({ nome: nome.trim(), profissao: profissao.trim(), empresa: empresa.trim(), foto });
+      await updateProfile({
+        nome: nome.trim(),
+        profissao: profissao.trim(),
+        empresa: empresa.trim(),
+        cnpj: cnpj.trim(),
+        endereco: endereco.trim(),
+        telefone: telefone.trim(),
+        email: email.trim(),
+        foto,
+      });
       Alert.alert('Salvo', 'Perfil atualizado com sucesso!');
     } catch (e) {
       const msg = e?.message || '';
-      const hint = msg.includes('profissao') || msg.includes('empresa') || msg.includes('column')
-        ? '\n\nExecute no SQL do Supabase o arquivo supabase-profiles-profissao-empresa.sql'
+      const hint = msg.includes('profissao') || msg.includes('empresa') || msg.includes('cnpj') || msg.includes('column')
+        ? '\n\nExecute no Supabase o arquivo supabase-profiles-empresa-dados.sql para habilitar CNPJ, endereço e telefone.'
         : '';
       Alert.alert('Erro ao salvar', msg + hint);
     }
@@ -133,11 +149,23 @@ export function PerfilScreen({ onClose, isModal }) {
           </View>
           <View>
             <Text style={[ps.label, { color: colors.textSecondary }]}>Empresa</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Sua empresa" value={empresa} onChangeText={setEmpresa} placeholderTextColor={colors.textSecondary} />
+            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome da empresa" value={empresa} onChangeText={setEmpresa} placeholderTextColor={colors.textSecondary} />
           </View>
           <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>E-mail</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={user?.email || email} editable={false} placeholderTextColor={colors.textSecondary} />
+            <Text style={[ps.label, { color: colors.textSecondary }]}>CNPJ / CPF</Text>
+            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="00.000.000/0000-00 ou CPF" value={cnpj} onChangeText={setCnpj} placeholderTextColor={colors.textSecondary} keyboardType="numeric" />
+          </View>
+          <View>
+            <Text style={[ps.label, { color: colors.textSecondary }]}>Endereço</Text>
+            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Endereço completo" value={endereco} onChangeText={setEndereco} placeholderTextColor={colors.textSecondary} />
+          </View>
+          <View>
+            <Text style={[ps.label, { color: colors.textSecondary }]}>Telefone</Text>
+            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="(00) 00000-0000" value={telefone} onChangeText={setTelefone} placeholderTextColor={colors.textSecondary} keyboardType="phone-pad" />
+          </View>
+          <View>
+            <Text style={[ps.label, { color: colors.textSecondary }]}>E-mail (contato / relatórios)</Text>
+            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail para contato" value={email} onChangeText={setEmail} placeholderTextColor={colors.textSecondary} keyboardType="email-address" autoCapitalize="none" />
           </View>
           <TouchableOpacity style={[ps.btn, { backgroundColor: colors.primary }]} onPress={handleSalvar}>
             <Text style={ps.btnText}>Salvar</Text>

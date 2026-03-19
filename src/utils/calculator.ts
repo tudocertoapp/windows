@@ -1,6 +1,7 @@
 /**
  * Calculadora profissional - Parser seguro de expressões matemáticas
- * Suporta: +, -, *, /, %, parênteses, decimais
+ * Suporta: +, -, *, /, % (percentual), parênteses, decimais
+ * % como em calculadora normal: 100+10%=110, 10%=0.1
  * NUNCA usa eval - 100% seguro contra código malicioso
  */
 
@@ -9,10 +10,49 @@ export const CALC_ERROR = 'Erro';
 /** Regex para validar expressão: apenas números, operadores e parênteses */
 const SAFE_EXPRESSION_REGEX = /^[\d\s.,+\-*\/%()]+$/;
 
+/**
+ * Expande % (percentual) antes do parser.
+ * - 100+10% → 100+10 (10% de 100)
+ * - 100-10% → 100-10
+ * - 10% → 0.1
+ * - 100*10% → 100*0.1
+ */
+function expandPercentages(expr: string): string {
+  let e = expr.trim().replace(/,/g, '.');
+  if (!e.includes('%')) return e;
+
+  // Padrão: algo + N% ou algo - N% (percentual do valor anterior)
+  const plusMinusPct = e.match(/^(.+?)([+\-])(\d*\.?\d+)\s*%\s*$/);
+  if (plusMinusPct) {
+    const prefix = plusMinusPct[1].trim();
+    const op = plusMinusPct[2];
+    const pctVal = parseFloat(plusMinusPct[3]);
+    if (Number.isFinite(pctVal) && prefix) {
+      const baseResult = calculateExpressionInternal(prefix);
+      if (baseResult !== CALC_ERROR) {
+        const base = parseFloat(String(baseResult).replace(/,/g, '.'));
+        if (Number.isFinite(base)) {
+          const pctOfBase = (base * pctVal) / 100;
+          const expanded = `${prefix}${op}${pctOfBase}`;
+          return expandPercentages(expanded);
+        }
+      }
+    }
+  }
+
+  // Padrão: N% (standalone ou antes de operador) → N/100
+  e = e.replace(/(\d*\.?\d+)\s*%/g, (_, num) => {
+    const n = parseFloat(num);
+    return Number.isFinite(n) ? String(n / 100) : num + '%';
+  });
+
+  return e;
+}
+
 /** Precisão máxima de casas decimais no resultado */
 const MAX_DECIMAL_PLACES = 12;
 
-type TokenType = 'NUMBER' | 'ADD' | 'SUB' | 'MUL' | 'DIV' | 'MOD' | 'LPAREN' | 'RPAREN';
+type TokenType = 'NUMBER' | 'ADD' | 'SUB' | 'MUL' | 'DIV' | 'LPAREN' | 'RPAREN';
 
 interface Token {
   type: TokenType;
@@ -61,16 +101,21 @@ function tokenize(expr: string): Token[] {
       continue;
     }
 
-    if (/[+\/*%]/.test(char)) {
-      const type = char === '+' ? 'ADD' : char === '-' ? 'SUB' : char === '*' ? 'MUL' : char === '/' ? 'DIV' : 'MOD';
+    if (/[+\/*]/.test(char)) {
+      const type = char === '+' ? 'ADD' : char === '-' ? 'SUB' : char === '*' ? 'MUL' : 'DIV';
       tokens.push({ type, value: char });
+      i++;
+      continue;
+    }
+
+    if (char === '%') {
       i++;
       continue;
     }
 
     if (char === '-') {
       const prev = tokens[tokens.length - 1];
-      const isUnary = !prev || prev.type === 'LPAREN' || prev.type === 'ADD' || prev.type === 'SUB' || prev.type === 'MUL' || prev.type === 'DIV' || prev.type === 'MOD';
+      const isUnary = !prev || prev.type === 'LPAREN' || prev.type === 'ADD' || prev.type === 'SUB' || prev.type === 'MUL' || prev.type === 'DIV';
       if (isUnary) {
         tokens.push({ type: 'NUMBER', value: 0 });
         tokens.push({ type: 'SUB', value: '-' });
@@ -108,7 +153,6 @@ function precedence(op: TokenType): number {
       return 1;
     case 'MUL':
     case 'DIV':
-    case 'MOD':
       return 2;
     default:
       return 0;
@@ -130,7 +174,7 @@ function toRPN(tokens: Token[]): Token[] {
         output.push(ops.pop()!);
       }
       if (ops.length > 0) ops.pop();
-    } else if (t.type === 'ADD' || t.type === 'SUB' || t.type === 'MUL' || t.type === 'DIV' || t.type === 'MOD') {
+    } else if (t.type === 'ADD' || t.type === 'SUB' || t.type === 'MUL' || t.type === 'DIV') {
       const prec = precedence(t.type);
       while (ops.length > 0 && ops[ops.length - 1].type !== 'LPAREN' && precedence(ops[ops.length - 1].type as TokenType) >= prec) {
         output.push(ops.pop()!);
@@ -178,10 +222,6 @@ function evaluateRPN(rpn: Token[]): number {
         if (b === 0) return Infinity;
         result = a / b;
         break;
-      case 'MOD':
-        if (b === 0) return NaN;
-        result = a % b;
-        break;
       default:
         return NaN;
     }
@@ -207,11 +247,13 @@ function formatResult(value: number): string {
  * @param expression - String com a expressão (ex: "10 + 5 * 3 - 2 / 4")
  * @returns Resultado como string ou "Erro" se inválida
  */
-export function calculateExpression(expression: string): string {
+function calculateExpressionInternal(expression: string): string {
   if (!expression || typeof expression !== 'string') return CALC_ERROR;
-  if (!isValidExpression(expression)) return CALC_ERROR;
+  const normalized = expression.trim().replace(/,/g, '.');
+  if (!SAFE_EXPRESSION_REGEX.test(normalized) || normalized.length > 200) return CALC_ERROR;
 
-  const tokens = tokenize(expression);
+  const expanded = expandPercentages(expression);
+  const tokens = tokenize(expanded);
   if (tokens.length === 0) return CALC_ERROR;
 
   const rpn = toRPN(tokens);
@@ -224,4 +266,8 @@ export function calculateExpression(expression: string): string {
   }
 
   return formatResult(result);
+}
+
+export function calculateExpression(expression: string): string {
+  return calculateExpressionInternal(expression);
 }

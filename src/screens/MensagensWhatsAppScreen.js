@@ -11,6 +11,9 @@ import {
   ActivityIndicator,
   InteractionManager,
   Image,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
@@ -19,8 +22,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useAuth } from '../contexts/AuthContext';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { openWhatsApp as openWhatsAppUtil, formatPhoneForWhatsApp } from '../utils/whatsapp';
 import { ClienteModal } from '../components/ClienteModal';
+import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
+import { CatalogoScreen } from './CatalogoScreen';
 import { playTapSound } from '../utils/sounds';
 import { formatCurrency } from '../utils/format';
 
@@ -35,12 +42,19 @@ const SUGGESTED_TEMPLATES = [
 
 const openWhatsApp = openWhatsAppUtil;
 
-const NIVEL_LABELS = { orcamento: 'Orçamento', lead: 'Lead', fechou: 'Fechou' };
-const NIVEL_COLORS = { orcamento: '#6b7280', lead: '#f59e0b', fechou: '#10b981' };
+const NIVEL_OPTIONS = [
+  { id: 'novo_cliente', label: 'Novo cliente', color: '#84cc16' },
+  { id: 'orcamento', label: 'Orçamento', color: '#6b7280' },
+  { id: 'proposta', label: 'Proposta', color: '#8b5cf6' },
+  { id: 'agendado', label: 'Agendado', color: '#0ea5e9' },
+  { id: 'fixo', label: 'Fixo', color: '#10b981' },
+  { id: 'lead', label: 'Lead', color: '#f59e0b' },
+  { id: 'fechou', label: 'Fechou', color: '#10b981' },
+];
 
 export function MensagensWhatsAppScreen({ onClose, isModal }) {
   const { colors } = useTheme();
-  const { clients, addClient, updateClient, deleteClient, agendaEvents } = useFinance();
+  const { clients, addClient, updateClient, deleteClient, agendaEvents, services, products } = useFinance();
   const { showEmpresaFeatures, viewMode } = usePlan();
   const { user } = useAuth();
   const [tab, setTab] = useState('crm');
@@ -50,18 +64,31 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
   const [templates, setTemplates] = useState([]);
   const [newTemplate, setNewTemplate] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [editingTemplateIndex, setEditingTemplateIndex] = useState(null);
+  const [editingTemplateText, setEditingTemplateText] = useState('');
+  const [whatsappModalPhrase, setWhatsappModalPhrase] = useState(null);
+  const [selectedClientIds, setSelectedClientIds] = useState([]);
   const [search, setSearch] = useState('');
+  const [searchFrases, setSearchFrases] = useState('');
+  const [frasesDropdownOpen, setFrasesDropdownOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [newClientFromContact, setNewClientFromContact] = useState(null);
   const [cadastroLinkUrl, setCadastroLinkUrl] = useState('');
+  const [conversarClientModal, setConversarClientModal] = useState(null);
+  const [conversarFraseFilter, setConversarFraseFilter] = useState('');
+  const [nivelFilterDropdownOpen, setNivelFilterDropdownOpen] = useState(false);
+  const [nivelPickerClient, setNivelPickerClient] = useState(null);
+  const [verClienteDetalhe, setVerClienteDetalhe] = useState(null);
 
+  const normalizeTemplate = (t) => (typeof t === 'string' ? { text: t, photos: [] } : { text: t?.text || '', photos: Array.isArray(t?.photos) ? t.photos.slice(0, 2) : [] });
   const loadTemplates = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(TEMPLATES_KEY);
       const arr = raw ? JSON.parse(raw) : [];
-      setTemplates(arr.length ? arr : SUGGESTED_TEMPLATES);
+      const list = arr.length ? arr : SUGGESTED_TEMPLATES;
+      setTemplates(list.map((t) => normalizeTemplate(t)));
     } catch {
-      setTemplates(SUGGESTED_TEMPLATES);
+      setTemplates(SUGGESTED_TEMPLATES.map((t) => ({ text: t, photos: [] })));
     }
   }, []);
 
@@ -124,16 +151,106 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
     const t = newTemplate.trim();
     if (!t) return;
     playTapSound();
-    const next = templates.includes(t) ? templates : [t, ...templates];
+    const obj = { text: t, photos: [] };
+    const norm = templates.map(normalizeTemplate);
+    const exists = norm.some((x) => x.text === t);
+    const next = exists ? norm : [obj, ...norm];
     saveTemplates(next);
     setNewTemplate('');
   };
 
-  const clientsWithPhone = clients.filter((c) => c.phone?.trim());
+  const deleteTemplate = (index) => {
+    playTapSound();
+    const txt = typeof templates[index] === 'string' ? templates[index] : templates[index]?.text;
+    Alert.alert('Excluir', 'Remover esta frase?', [
+      { text: 'Cancelar' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          const next = templates.filter((_, i) => i !== index);
+          saveTemplates(next);
+          if (selectedTemplate === txt) setSelectedTemplate('');
+        },
+      },
+    ]);
+  };
+
+  const [editingTemplatePhotos, setEditingTemplatePhotos] = useState([]);
+
+  const startEditTemplate = (index) => {
+    playTapSound();
+    const item = templates[index];
+    const obj = normalizeTemplate(item);
+    setEditingTemplateIndex(index);
+    setEditingTemplateText(obj.text);
+    setEditingTemplatePhotos(obj.photos || []);
+  };
+
+  const pickTemplatePhoto = async () => {
+    if (editingTemplatePhotos.length >= 2) return Alert.alert('Limite', 'Máximo 2 fotos por mensagem.');
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return Alert.alert('Permissão', 'Precisamos de acesso à galeria.');
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.8 });
+    if (!result.canceled && result.assets[0]) {
+      setEditingTemplatePhotos((prev) => [...prev.slice(0, 1), result.assets[0].uri].slice(0, 2));
+    }
+  };
+
+  const removeTemplatePhoto = (idx) => {
+    setEditingTemplatePhotos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const saveEditTemplate = () => {
+    const t = editingTemplateText.trim();
+    if (!t || editingTemplateIndex == null) return;
+    playTapSound();
+    const oldTxt = typeof templates[editingTemplateIndex] === 'string' ? templates[editingTemplateIndex] : templates[editingTemplateIndex]?.text;
+    const next = templates.map((x, i) =>
+      i === editingTemplateIndex ? { text: t, photos: editingTemplatePhotos.slice(0, 2) } : normalizeTemplate(x)
+    );
+    saveTemplates(next);
+    if (selectedTemplate === oldTxt) setSelectedTemplate(t);
+    setEditingTemplateIndex(null);
+    setEditingTemplateText('');
+    setEditingTemplatePhotos([]);
+  };
+
+  const openWhatsappModal = (template) => {
+    playTapSound();
+    const txt = typeof template === 'string' ? template : template?.text || '';
+    setWhatsappModalPhrase(txt);
+    setSelectedClientIds([]);
+  };
+
+  const toggleClientSelection = (id) => {
+    setSelectedClientIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const enviarParaClientes = () => {
+    if (!whatsappModalPhrase) return;
+    const clientsToSend = clientsWithPhone.filter((c) => selectedClientIds.includes(c.id));
+    clientsToSend.forEach((c, i) => {
+      setTimeout(() => openWhatsApp(c.phone, whatsappModalPhrase), i * 300);
+    });
+    setWhatsappModalPhrase(null);
+  };
+
+  const copiarFrase = async () => {
+    if (!whatsappModalPhrase) return;
+    try {
+      await Clipboard.setStringAsync(whatsappModalPhrase);
+      Alert.alert('Copiado!', 'A frase foi copiada para a área de transferência.');
+      setWhatsappModalPhrase(null);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível copiar.');
+    }
+  };
+
+  const clientsWithPhone = clients.filter((c) => c.phone?.trim() && (c.tipo || 'empresa') === (viewMode === 'empresa' ? 'empresa' : 'pessoal'));
   const searchLower = search.toLowerCase().trim();
-  const filteredClients = searchLower
-    ? clientsWithPhone.filter((c) => (c.name || '').toLowerCase().includes(searchLower) || (c.phone || '').includes(search))
-    : clientsWithPhone;
   const getContactPhone = (c) => (c.phoneNumbers && c.phoneNumbers[0] ? c.phoneNumbers[0].number : '');
   const formatPhoneDisplay = (phoneStr) => {
     const p = String(phoneStr || '').replace(/\D/g, '');
@@ -168,6 +285,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
     const year = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
     return new Date(year, month, day);
   };
+  const tipoFiltro = showEmpresaFeatures ? 'empresa' : (viewMode === 'empresa' ? 'empresa' : 'pessoal');
   const aniversariantes = clients.filter((c) => {
     const bd = c.birthDate || c.dataNascimento;
     if (!bd) return false;
@@ -187,6 +305,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
     return { start: mon, end: sun };
   };
   const aniversariantesSemana = clients.filter((c) => {
+    if ((c.tipo || 'empresa') !== tipoFiltro) return false;
     const bd = c.birthDate || c.dataNascimento;
     if (!bd) return false;
     const d = parseBirthDate(bd) || new Date(bd);
@@ -206,10 +325,10 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
   }, [clients, agendaEvents]);
 
   const clientesCrm = useMemo(() => {
-    let list = clientesComAgenda;
+    let list = clientesComAgenda.filter((c) => (c.tipo || 'empresa') === tipoFiltro);
     if (nivelFilter) list = list.filter((c) => (c.nivel || '') === nivelFilter);
     return list;
-  }, [clientesComAgenda, nivelFilter]);
+  }, [clientesComAgenda, nivelFilter, tipoFiltro]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -235,7 +354,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
           onPress={() => { playTapSound(); setTab('conversar'); }}
         >
           <Ionicons name="logo-whatsapp" size={20} color={tab === 'conversar' ? '#fff' : colors.primary} />
-          <Text style={[s.tabText, { color: tab === 'conversar' ? '#fff' : colors.text }]} numberOfLines={1}>Conversar</Text>
+          <Text style={[s.tabText, { color: tab === 'conversar' ? '#fff' : colors.text }]} numberOfLines={1}>Mensagens</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tabEqual, tab === 'contatos' && { backgroundColor: colors.primary }]}
@@ -248,10 +367,21 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
           )}
           <Text style={[s.tabText, { color: tab === 'contatos' ? '#fff' : colors.text }]} numberOfLines={1}>Contatos</Text>
         </TouchableOpacity>
+        {showEmpresaFeatures && (
+        <TouchableOpacity
+          style={[s.tabEqual, tab === 'catalogo' && { backgroundColor: colors.primary }]}
+          onPress={() => { playTapSound(); setTab('catalogo'); }}
+        >
+          <Ionicons name="grid-outline" size={18} color={tab === 'catalogo' ? '#fff' : colors.primary} />
+          <Text style={[s.tabText, { color: tab === 'catalogo' ? '#fff' : colors.text }]} numberOfLines={1}>Catálogo</Text>
+        </TouchableOpacity>
+        )}
         </View>
       </View>
 
-      {tab === 'contatos' ? (
+      {tab === 'catalogo' ? (
+        <CatalogoScreen isModal={false} />
+      ) : tab === 'contatos' ? (
         <FlatList
           style={{ flex: 1 }}
           data={filteredContacts}
@@ -272,7 +402,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
                 <Text style={[s.importBtnText, { color: colors.primary }]}>{contacts.length ? 'Atualizar lista' : 'Carregar contatos'}</Text>
               </TouchableOpacity>
               <TextInput
-                style={[s.search, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, marginTop: 12 }]}
+                style={[s.search, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, marginTop: 12, marginBottom: 12 }]}
                 placeholder="Buscar contato..."
                 placeholderTextColor={colors.textSecondary}
                 value={search}
@@ -336,87 +466,97 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
         {tab === 'crm' && (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>Clientes (CRM) · {clients.length}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary }}>{tipoFiltro === 'empresa' ? 'Clientes (CRM)' : 'Família e amigos'} · {clientesCrm.length}</Text>
               <TouchableOpacity style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={() => { playTapSound(); setEditingClient(null); setNewClientFromContact({}); }}>
                 <Ionicons name="add" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4, marginBottom: 12 }}>
+            <View style={[s.filterDropdownWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <TouchableOpacity
-                style={[s.nivelChip, { borderColor: colors.border }, !nivelFilter && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-                onPress={() => { playTapSound(); setNivelFilter(null); }}
+                style={[s.filterDropdownBtn, { borderColor: colors.border }]}
+                onPress={() => { playTapSound(); setNivelFilterDropdownOpen(!nivelFilterDropdownOpen); }}
               >
-                <Text style={{ fontSize: 12, fontWeight: '600', color: !nivelFilter ? '#fff' : colors.text }}>Todos</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
+                  {!nivelFilter ? 'Filtrar: Todos' : `Filtrar: ${NIVEL_OPTIONS.find((o) => o.id === nivelFilter)?.label || nivelFilter}`}
+                </Text>
+                <Ionicons name={nivelFilterDropdownOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
               </TouchableOpacity>
-              {(['lead', 'orcamento', 'fechou']).map((n) => (
-                <TouchableOpacity
-                  key={n}
-                  style={[s.nivelChip, nivelFilter === n && { backgroundColor: NIVEL_COLORS[n] }, { borderColor: NIVEL_COLORS[n] }]}
-                  onPress={() => { playTapSound(); setNivelFilter(n); }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: nivelFilter === n ? '#fff' : NIVEL_COLORS[n] }}>{NIVEL_LABELS[n]}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+              {nivelFilterDropdownOpen && (
+                <View style={[s.filterDropdownList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[s.filterDropdownItem, { borderBottomColor: colors.border }]}
+                    onPress={() => { playTapSound(); setNivelFilter(null); setNivelFilterDropdownOpen(false); }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>Todos</Text>
+                  </TouchableOpacity>
+                  {NIVEL_OPTIONS.map((o) => (
+                    <TouchableOpacity
+                      key={o.id}
+                      style={[s.filterDropdownItem, { borderBottomColor: colors.border }]}
+                      onPress={() => { playTapSound(); setNivelFilter(o.id); setNivelFilterDropdownOpen(false); }}
+                    >
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: o.color, marginRight: 8 }} />
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>{o.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
             {clientesCrm.length === 0 ? (
               <View style={[s.empty, { paddingVertical: 48, alignItems: 'center', gap: 12 }]}>
                 <Ionicons name="people-outline" size={48} color={colors.textSecondary} />
-                <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum cliente{nivelFilter ? ` como ${NIVEL_LABELS[nivelFilter]}` : ''}</Text>
+                <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum cliente{nivelFilter ? ` como ${NIVEL_OPTIONS.find((o) => o.id === nivelFilter)?.label || nivelFilter}` : ''}</Text>
               </View>
             ) : (
               clientesCrm.map((c) => (
                 <View key={c.id} style={[s.crmCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  {c.foto ? (
-                    <Image source={{ uri: c.foto }} style={[s.crmAvatar, { backgroundColor: colors.primaryRgba?.(0.2) }]} resizeMode="cover" />
-                  ) : (
-                    <View style={[s.crmAvatar, { backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }]}>
-                      <Ionicons name="person" size={24} color={colors.primary} />
-                    </View>
-                  )}
+                  <View style={s.crmLeftCol}>
+                    {c.foto ? (
+                      <Image source={{ uri: c.foto }} style={[s.crmAvatar, { backgroundColor: colors.primaryRgba?.(0.2) }]} resizeMode="cover" />
+                    ) : (
+                      <View style={[s.crmAvatar, { backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }]}>
+                        <Ionicons name="person" size={24} color={colors.primary} />
+                      </View>
+                    )}
+                  </View>
                   <View style={s.crmCardBody}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <Text style={[s.crmCardName, { color: colors.text }]}>{c.name}</Text>
-                      {c.nivel && (
-                        <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: (NIVEL_COLORS[c.nivel] || colors.border) + '30' }}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: NIVEL_COLORS[c.nivel] || colors.text }}>{NIVEL_LABELS[c.nivel] || c.nivel}</Text>
-                        </View>
-                      )}
+                    <View style={s.crmNameRow}>
+                      <Text style={[s.crmCardName, s.crmCardNameFlex, { color: colors.text }]} numberOfLines={1}>{c.name}</Text>
+                      <View style={s.crmNameRight}>
+                        <TouchableOpacity onPress={() => { playTapSound(); setVerClienteDetalhe(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
+                          <Ionicons name="eye-outline" size={18} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => { playTapSound(); setNewClientFromContact(null); setEditingClient(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
+                          <Ionicons name="pencil" size={18} color={colors.primary} />
+                        </TouchableOpacity>
+                        {c.phone?.trim() ? (
+                          <TouchableOpacity onPress={() => { playTapSound(); setConversarClientModal(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
+                            <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+                          </TouchableOpacity>
+                        ) : null}
+                        <TouchableOpacity
+                          onPress={() => Alert.alert('Excluir', 'Remover este cliente?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteClient(c.id) }])}
+                          style={[s.actionBtn, { backgroundColor: 'transparent' }]}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     {c.email ? <Text style={[s.crmCardInfo, { color: colors.textSecondary }]}>{c.email}</Text> : null}
                     {c.phone ? <Text style={[s.crmCardInfo, { color: colors.textSecondary }]}>{c.phone}</Text> : null}
-                    <View style={s.crmRow}>
-                      <View style={[s.crmBox, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-                        <Text style={[s.crmNum, { color: colors.primary }]}>{c.agendamentos || 0}</Text>
-                        <Text style={[s.crmLabel, { color: colors.textSecondary }]}>Agendados</Text>
-                      </View>
-                      <View style={[s.crmBox, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-                        <Text style={[s.crmNum, { color: colors.primary }]}>{c.concluidos || 0}</Text>
-                        <Text style={[s.crmLabel, { color: colors.textSecondary }]}>Concluídos</Text>
-                      </View>
-                      <View style={[s.crmBox, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-                        <Text style={[s.crmNum, { color: colors.primary, fontSize: 14 }]} numberOfLines={1}>{formatCurrency(c.totalRecebido || 0)}</Text>
-                        <Text style={[s.crmLabel, { color: colors.textSecondary }]}>Recebido</Text>
-                      </View>
-                    </View>
-                    <View style={s.actionRow}>
-                      <TouchableOpacity onPress={() => { playTapSound(); setNewClientFromContact(null); setEditingClient(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
-                        <Ionicons name="pencil" size={18} color={colors.primary} />
-                      </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 }}>
                       <TouchableOpacity
-                        onPress={() => Alert.alert('Excluir', 'Remover este cliente?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteClient(c.id) }])}
-                        style={[s.actionBtn, { backgroundColor: 'transparent' }]}
+                        style={[s.crmNivelChip, { backgroundColor: ((NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.color || colors.border) + '30', flexDirection: 'row', alignItems: 'center', flexShrink: 0 }]}
+                        onPress={() => { playTapSound(); setNivelPickerClient(c); }}
                       >
-                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: (NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.color || colors.border, marginRight: 6 }} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: (NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.color || colors.text }}>
+                          {(NIVEL_OPTIONS.find((o) => o.id === c.nivel))?.label || c.nivel || 'Definir'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={12} color={colors.textSecondary} style={{ marginLeft: 4 }} />
                       </TouchableOpacity>
                     </View>
                   </View>
-                  {c.phone?.trim() ? (
-                    <TouchableOpacity onPress={() => { playTapSound(); openWhatsApp(c.phone); }} style={[s.whatsappIconBtn, { backgroundColor: 'transparent' }]}>
-                      <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                  ) : (
-                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                  )}
                 </View>
               ))
             )}
@@ -426,19 +566,67 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
           <>
             <View style={[s.modelosCard, { backgroundColor: colors.primaryRgba?.(0.12), borderColor: colors.primary + '60', borderWidth: 2 }]}>
               <Text style={[s.modelosTitle, { color: colors.text }]}>Mensagens automáticas</Text>
-              <Text style={[s.sectionTitle, { color: colors.textSecondary }]}>Modelo selecionado (usa ao enviar)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4, marginBottom: 12 }}>
-                {templates.map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[s.templateChip, selectedTemplate === t ? { backgroundColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => { playTapSound(); setSelectedTemplate(selectedTemplate === t ? '' : t); }}
-                  >
-                    <Text style={[s.templateChipText, { color: selectedTemplate === t ? '#fff' : colors.text }]} numberOfLines={2}>{t}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={[s.sectionTitle, { color: colors.textSecondary }]}>Nova mensagem padrão</Text>
+              <Text style={[s.sectionTitle, { color: colors.textSecondary }]}>Busque ou selecione uma frase para enviar</Text>
+              <View style={[s.frasesSearchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TextInput
+                  style={[s.frasesSearchInput, { color: colors.text }]}
+                  placeholder="Buscar frase..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={searchFrases}
+                  onChangeText={(v) => { setSearchFrases(v); setFrasesDropdownOpen(true); }}
+                  onFocus={() => setFrasesDropdownOpen(true)}
+                />
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); setFrasesDropdownOpen(!frasesDropdownOpen); }}
+                  style={[s.frasesChevronBtn, { borderLeftColor: colors.border }]}
+                >
+                  <Ionicons name={frasesDropdownOpen ? 'chevron-up' : 'chevron-down'} size={22} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              {frasesDropdownOpen && (
+              <View style={[s.frasesListbox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <ScrollView style={s.frasesListboxScroll} showsVerticalScrollIndicator>
+                {templates.length === 0 ? (
+                  <Text style={[s.emptyFrase, { color: colors.textSecondary }]}>Nenhuma frase salva. Crie uma abaixo.</Text>
+                ) : (() => {
+                  const filtered = templates.filter((t) => !searchFrases.trim() || (typeof t === 'string' ? t : t?.text || '').toLowerCase().includes(searchFrases.trim().toLowerCase()));
+                  return filtered.length === 0 ? (
+                    <Text style={[s.emptyFrase, { color: colors.textSecondary }]}>Nenhuma frase encontrada{searchFrases.trim() ? ' com esse termo' : ''}.</Text>
+                  ) : (
+                  filtered.map((t, fi) => {
+                      const txt = typeof t === 'string' ? t : t?.text || '';
+                      const idx = templates.findIndex((x) => (typeof x === 'string' ? x : x?.text) === txt);
+                      return (
+                    <View key={`${idx}-${txt}`} style={[s.fraseRow, { borderBottomColor: colors.border }]}>
+                      <TouchableOpacity
+                        style={s.fraseTextWrap}
+                        onPress={() => { playTapSound(); setSelectedTemplate(selectedTemplate === txt ? '' : txt); setFrasesDropdownOpen(false); }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.fraseText, { color: colors.text }]} numberOfLines={2}>
+                          {selectedTemplate === txt ? '✓ ' : ''}{txt}{(typeof t === 'object' && t?.photos?.length) ? ` 📷${t.photos.length}` : ''}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={s.fraseActions}>
+                        <TouchableOpacity onPress={() => startEditTemplate(idx)} style={s.fraseActionBtn}>
+                          <Ionicons name="pencil-outline" size={18} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => openWhatsappModal(t)} style={s.fraseActionBtn}>
+                          <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => deleteTemplate(idx)} style={s.fraseActionBtn}>
+                          <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                    })
+                  );
+                })()}
+                </ScrollView>
+              </View>
+              )}
+              <Text style={[s.sectionTitle, { color: colors.textSecondary, marginTop: 12 }]}>Nova mensagem padrão</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
                 placeholder="Ex: Como está a cicatrização?"
@@ -449,83 +637,9 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
               />
               <TouchableOpacity style={[s.addTemplateBtn, { backgroundColor: colors.primary }]} onPress={addTemplate}>
                 <Ionicons name="add" size={22} color="#fff" />
-                <Text style={s.addTemplateBtnText}>Criar mensagem automatica</Text>
+                <Text style={s.addTemplateBtnText}>Criar mensagem automática</Text>
               </TouchableOpacity>
-              <Text style={[s.hint, { color: colors.textSecondary, marginTop: 12 }]}>Os modelos aparecem ao escolher um acima antes de enviar.</Text>
             </View>
-            {showEmpresaFeatures && (
-              <View style={[s.modelosCard, { backgroundColor: colors.primaryRgba?.(0.08), borderColor: colors.border, borderWidth: 1 }]}>
-                <Text style={[s.modelosTitle, { color: colors.text }]}>Link de cadastro para o cliente</Text>
-                <Text style={[s.hint, { color: colors.textSecondary, marginBottom: 12 }]}>Envie o link por WhatsApp para o cliente preencher. Dados vão ao Supabase.</Text>
-                <TextInput
-                  style={[s.input, { minHeight: 44, backgroundColor: colors.card }]}
-                  placeholder="https://seu-formulario.com/cadastro"
-                  placeholderTextColor={colors.textSecondary}
-                  value={cadastroLinkUrl}
-                  onChangeText={setCadastroLinkUrl}
-                />
-                <TouchableOpacity
-                  style={[s.addTemplateBtn, { backgroundColor: colors.primary, marginTop: 8 }]}
-                  onPress={async () => {
-                    playTapSound();
-                    await AsyncStorage.setItem(CADASTRO_LINK_KEY, cadastroLinkUrl);
-                    Alert.alert('Salvo', 'Link configurado.');
-                  }}
-                >
-                  <Text style={s.addTemplateBtnText}>Salvar link</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            <Text style={[s.sectionTitle, { color: colors.textSecondary, marginTop: 20, marginBottom: 4 }]}>Clientes com WhatsApp</Text>
-            <TextInput
-              style={[s.search, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, marginTop: 12, marginBottom: 12 }]}
-              placeholder="Buscar cliente..."
-              placeholderTextColor={colors.textSecondary}
-              value={search}
-              onChangeText={setSearch}
-            />
-            {filteredClients.length === 0 ? (
-              <Text style={[s.empty, { color: colors.textSecondary }]}>
-                {clientsWithPhone.length === 0 ? 'Nenhum cliente com WhatsApp. Cadastre clientes com número.' : 'Nenhum cliente encontrado.'}
-              </Text>
-            ) : (
-              filteredClients.map((c) => (
-                <View key={c.id} style={[s.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[s.rowTitle, { color: colors.text }]}>{c.name}</Text>
-                    <Text style={[s.rowSub, { color: colors.textSecondary }]}>{c.phone}</Text>
-                  </View>
-                      {showEmpresaFeatures && (
-                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                          <TouchableOpacity
-                            style={[s.editRoundBtn, { backgroundColor: 'transparent' }]}
-                            onPress={() => { playTapSound(); setEditingClient(c); }}
-                          >
-                            <Ionicons name="pencil" size={20} color={colors.primary} />
-                          </TouchableOpacity>
-                          {user && cadastroLinkUrl && (
-                            <TouchableOpacity
-                              style={[s.linkBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}
-                              onPress={() => {
-                                playTapSound();
-                                const sep = cadastroLinkUrl.includes('?') ? '&' : '?';
-                                openWhatsApp(c.phone, `Olá! Por favor preencha seu cadastro: ${cadastroLinkUrl}${sep}ref=${encodeURIComponent(user.id)}`);
-                              }}
-                            >
-                              <Ionicons name="link" size={20} color={colors.primary} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-                      <TouchableOpacity
-                        style={[s.whatsappRoundBtn, { backgroundColor: 'transparent', flexShrink: 0 }]}
-                        onPress={() => { playTapSound(); openWhatsApp(c.phone, selectedTemplate || ''); }}
-                      >
-                        <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
-                      </TouchableOpacity>
-                </View>
-              ))
-            )}
             <View style={[s.birthdayBanner, { backgroundColor: aniversariantesSemana.length > 0 ? colors.primaryRgba?.(0.2) : colors.primaryRgba?.(0.08), borderColor: colors.primary, marginTop: 20 }]}>
               <Text style={[s.birthdayBannerText, { color: colors.text }]}>
                 {aniversariantesSemana.length > 0
@@ -539,10 +653,8 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
             </View>
             {aniversariantesSemana.length > 0 && (
               <View style={[s.section, { backgroundColor: colors.primaryRgba?.(0.1), borderColor: colors.primary + '40', marginTop: 12 }]}>
-                <Text style={[s.sectionTitle, { color: colors.primary }]}>🎂 Aniversariantes da semana</Text>
-                {aniversariantesSemana.map((c) => {
-                  const msg = selectedTemplate || `Feliz aniversário, ${(c.name || '').split(' ')[0]}! Desejo um dia especial! 🎉`;
-                  return (
+                <Text style={[s.sectionTitle, { color: colors.primary }]}>🎂 Aniversariantes da semana{tipoFiltro === 'empresa' ? '' : ' (família/amigos)'}</Text>
+                {aniversariantesSemana.map((c) => (
                     <View key={c.id} style={[s.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={[s.rowTitle, { color: colors.text }]}>{c.name}</Text>
@@ -558,22 +670,199 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
                       )}
                       <TouchableOpacity
                         style={[s.whatsappRoundBtn, { backgroundColor: 'transparent' }]}
-                        onPress={() => { playTapSound(); openWhatsApp(c.phone, msg); }}
+                        onPress={() => { playTapSound(); setConversarClientModal(c); }}
                       >
                         <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
                       </TouchableOpacity>
                     </View>
-                  );
-                })}
+                  ))}
               </View>
             )}
           </>
         )}
       </ScrollView>
       )}
+      <Modal visible={editingTemplateIndex != null} transparent animationType="fade">
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setEditingTemplateIndex(null)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalCenter}>
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.modalTitle, { color: colors.text }]}>Editar frase</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]}
+                placeholder="Frase"
+                placeholderTextColor={colors.textSecondary}
+                value={editingTemplateText}
+                onChangeText={setEditingTemplateText}
+                multiline
+              />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: 12, marginBottom: 6 }}>Fotos (máx. 2)</Text>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                {editingTemplatePhotos.map((uri, i) => (
+                  <View key={i} style={{ position: 'relative' }}>
+                    <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8 }} resizeMode="cover" />
+                    <TouchableOpacity onPress={() => removeTemplatePhoto(i)} style={{ position: 'absolute', top: -4, right: -4, width: 22, height: 22, borderRadius: 11, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="close" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {editingTemplatePhotos.length < 2 && (
+                  <TouchableOpacity onPress={pickTemplatePhoto} style={{ width: 56, height: 56, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="add" size={24} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                <TouchableOpacity style={[s.modalBtn, { backgroundColor: colors.border }]} onPress={() => { setEditingTemplateIndex(null); setEditingTemplatePhotos([]); }}>
+                  <Text style={[s.modalBtnText, { color: colors.text }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.modalBtn, { backgroundColor: colors.primary }]} onPress={saveEditTemplate}>
+                  <Text style={[s.modalBtnText, { color: '#fff' }]}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
+      <Modal visible={!!whatsappModalPhrase} transparent animationType="slide">
+        <View style={[s.modalOverlay, { justifyContent: 'flex-end' }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setWhatsappModalPhrase(null)} />
+          <View style={[s.whatsappModalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.modalTitle, { color: colors.text, marginBottom: 8 }]}>Enviar ou copiar frase</Text>
+            <Text style={[s.whatsappModalPhrasePreview, { color: colors.textSecondary }]} numberOfLines={3}>{whatsappModalPhrase}</Text>
+            <Text style={[s.sectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>Escolha o(s) cliente(s) para enviar</Text>
+            <ScrollView style={s.clientesScroll} showsVerticalScrollIndicator={false}>
+              {clientsWithPhone.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[s.clienteCheckRow, { borderColor: colors.border }]}
+                  onPress={() => { playTapSound(); toggleClientSelection(c.id); }}
+                >
+                  <Ionicons name={selectedClientIds.includes(c.id) ? 'checkbox' : 'square-outline'} size={22} color={selectedClientIds.includes(c.id) ? colors.primary : colors.textSecondary} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[s.rowTitle, { color: colors.text }]}>{c.name}</Text>
+                    <Text style={[s.rowSub, { color: colors.textSecondary }]}>{c.phone}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {clientsWithPhone.length === 0 && <Text style={[s.emptyFrase, { color: colors.textSecondary }]}>Nenhum cliente com WhatsApp cadastrado.</Text>}
+            </ScrollView>
+            <View style={s.whatsappModalButtons}>
+              <TouchableOpacity style={[s.addTemplateBtn, { backgroundColor: '#25D366', flex: 1 }]} onPress={enviarParaClientes} disabled={selectedClientIds.length === 0}>
+                <Ionicons name="logo-whatsapp" size={22} color="#fff" />
+                <Text style={s.addTemplateBtnText}>Enviar para {selectedClientIds.length} cliente(s)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.addTemplateBtn, { backgroundColor: colors.primary, flex: 1 }]} onPress={copiarFrase}>
+                <Ionicons name="copy-outline" size={22} color="#fff" />
+                <Text style={s.addTemplateBtnText}>Copiar frase</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={[s.modalBtn, { backgroundColor: colors.border, marginTop: 8 }]} onPress={() => setWhatsappModalPhrase(null)}>
+              <Text style={[s.modalBtnText, { color: colors.text }]}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={!!conversarClientModal} transparent animationType="slide">
+        <View style={[s.modalOverlay, { justifyContent: 'flex-end' }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { setConversarClientModal(null); setConversarFraseFilter(''); }} />
+          <View style={[s.whatsappModalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.modalTitle, { color: colors.text }]}>
+              {conversarClientModal ? `Conversar com ${conversarClientModal.name}` : ''}
+            </Text>
+            <TouchableOpacity
+              style={[s.conversarChamarBtn, { borderColor: colors.border }]}
+              onPress={() => {
+                playTapSound();
+                if (conversarClientModal?.phone) openWhatsApp(conversarClientModal.phone);
+                setConversarClientModal(null);
+                setConversarFraseFilter('');
+              }}
+            >
+              <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+              <Text style={[s.conversarChamarText, { color: colors.text }]}>Apenas conversar</Text>
+            </TouchableOpacity>
+            <Text style={[s.sectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>Ou escolha uma frase</Text>
+            <TextInput
+              style={[s.frasesSearchInput, { color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: 12, marginTop: 8, paddingHorizontal: 12 }]}
+              placeholder="Digite para filtrar as mensagens..."
+              placeholderTextColor={colors.textSecondary}
+              value={conversarFraseFilter}
+              onChangeText={setConversarFraseFilter}
+            />
+            <ScrollView style={s.conversarFrasesScroll} showsVerticalScrollIndicator>
+              {(conversarFraseFilter.trim() ? templates.filter((t) => {
+                const txt = typeof t === 'string' ? t : t?.text || '';
+                return txt.toLowerCase().includes(conversarFraseFilter.trim().toLowerCase());
+              }) : templates).map((t, idx) => {
+                const txt = typeof t === 'string' ? t : t?.text || '';
+                return (
+                <TouchableOpacity
+                  key={`${idx}-${txt}`}
+                  style={[s.clienteCheckRow, { borderColor: colors.border }]}
+                  onPress={() => {
+                    playTapSound();
+                    if (conversarClientModal?.phone) openWhatsApp(conversarClientModal.phone, txt);
+                    setConversarClientModal(null);
+                    setConversarFraseFilter('');
+                  }}
+                >
+                  <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
+                  <Text style={[s.fraseText, { flex: 1, color: colors.text }]} numberOfLines={2}>{txt}{(typeof t === 'object' && t?.photos?.length) ? ` 📷` : ''}</Text>
+                  <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                </TouchableOpacity>
+              );
+              })}
+              {(conversarFraseFilter.trim() ? templates.filter((t) => (typeof t === 'string' ? t : t?.text || '').toLowerCase().includes(conversarFraseFilter.trim().toLowerCase())) : templates).length === 0 && (
+                <Text style={[s.emptyFrase, { color: colors.textSecondary }]}>
+                  {templates.length === 0 ? 'Nenhuma frase salva. Crie nas mensagens automáticas.' : 'Nenhuma mensagem encontrada com esse filtro.'}
+                </Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={[s.modalBtn, { backgroundColor: colors.border, marginTop: 12 }]} onPress={() => { setConversarClientModal(null); setConversarFraseFilter(''); }}>
+              <Text style={[s.modalBtnText, { color: colors.text }]}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <ClienteDetalheModal
+        visible={!!verClienteDetalhe}
+        cliente={clients?.find((x) => x.id === verClienteDetalhe?.id) || verClienteDetalhe}
+        agendaEvents={agendaEvents}
+        services={services}
+        colors={colors}
+        onClose={() => setVerClienteDetalhe(null)}
+        onEdit={() => { setVerClienteDetalhe(null); setEditingClient(verClienteDetalhe); }}
+        onConversar={() => { setVerClienteDetalhe(null); setConversarClientModal(verClienteDetalhe); }}
+        onIdentificar={(c) => { playTapSound(); setNivelPickerClient(c); }}
+      />
+      <Modal visible={!!nivelPickerClient} transparent animationType="fade">
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setNivelPickerClient(null)}>
+          <View style={[s.nivelPickerBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.modalTitle, { color: colors.text, marginBottom: 12 }]}>Identificação de {nivelPickerClient?.name}</Text>
+            {NIVEL_OPTIONS.map((o) => (
+              <TouchableOpacity
+                key={o.id}
+                style={[s.nivelPickerItem, { borderBottomColor: colors.border }]}
+                onPress={() => {
+                  playTapSound();
+                  if (nivelPickerClient?.id) updateClient(nivelPickerClient.id, { ...nivelPickerClient, nivel: o.id });
+                  setNivelPickerClient(null);
+                }}
+              >
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: o.color, marginRight: 12 }} />
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>{o.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[s.modalBtn, { backgroundColor: colors.border, marginTop: 12 }]} onPress={() => setNivelPickerClient(null)}>
+              <Text style={[s.modalBtnText, { color: colors.text }]}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       <ClienteModal
         visible={!!editingClient}
         cliente={editingClient}
+        defaultTipo={viewMode}
         onSave={(data) => {
           if (editingClient?.id) {
             updateClient(editingClient.id, data);
@@ -585,6 +874,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
       <ClienteModal
         visible={!!newClientFromContact}
         cliente={newClientFromContact}
+        defaultTipo={viewMode}
         onSave={(data) => {
           addClient(data);
           setNewClientFromContact(null);
@@ -600,11 +890,25 @@ const s = StyleSheet.create({
   tab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
   tabEqual: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 8 },
   tabText: { fontSize: 12, fontWeight: '600' },
-  nivelChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, marginRight: 8 },
-  crmCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8, overflow: 'visible' },
-  crmAvatar: { width: 44, height: 44, borderRadius: 22 },
+  nivelChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
+  filterDropdownWrap: { borderWidth: 1, borderRadius: 12, marginBottom: 12, overflow: 'hidden' },
+  filterDropdownBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 0 },
+  filterDropdownList: { borderTopWidth: 1, paddingVertical: 4 },
+  filterDropdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1 },
+  nivelPickerBox: { marginHorizontal: 24, padding: 20, borderRadius: 16, borderWidth: 1 },
+  nivelPickerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
+  crmCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8, overflow: 'visible' },
+  crmLeftCol: { flexDirection: 'column', alignItems: 'center', gap: 8 },
+  crmAvatar: { width: 52, height: 52, borderRadius: 26 },
   crmCardBody: { flex: 1, minWidth: 0 },
   crmCardName: { fontSize: 15, fontWeight: '700' },
+  crmCardNameFlex: { flex: 1, minWidth: 0 },
+  crmNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  crmNameRight: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  crmNivelChip: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' },
+  crmActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  verClienteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
+  verClienteBtnText: { fontSize: 13, fontWeight: '600' },
   crmCardInfo: { fontSize: 12, marginTop: 1 },
   crmRow: { flexDirection: 'row', gap: 6, marginTop: 4, alignSelf: 'stretch' },
   crmBox: { flex: 1, paddingVertical: 4, paddingHorizontal: 4, borderRadius: 6, alignItems: 'center', justifyContent: 'center', minHeight: 36 },
@@ -640,4 +944,29 @@ const s = StyleSheet.create({
   addTemplateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, minHeight: 44 },
   addTemplateBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   hint: { fontSize: 12, marginTop: 12 },
+  frasesSearchWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, marginBottom: 8 },
+  frasesSearchInput: { flex: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, minHeight: 44 },
+  frasesChevronBtn: { paddingHorizontal: 12, paddingVertical: 10, borderLeftWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  frasesListbox: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', height: 200, marginTop: 4 },
+  frasesListboxScroll: { flex: 1 },
+  fraseRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1 },
+  fraseTextWrap: { flex: 1, minWidth: 0 },
+  fraseText: { fontSize: 14, fontWeight: '500' },
+  fraseActions: { flexDirection: 'row', gap: 6, flexShrink: 0 },
+  fraseActionBtn: { width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
+  emptyFrase: { fontSize: 13, paddingVertical: 20, paddingHorizontal: 12, textAlign: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalCenter: { width: '100%' },
+  modalBox: { padding: 20, borderRadius: 16, borderWidth: 1 },
+  modalTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  modalBtn: { paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  modalBtnText: { fontSize: 14, fontWeight: '600' },
+  whatsappModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20, paddingBottom: 32 },
+  whatsappModalPhrasePreview: { fontSize: 13 },
+  conversarChamarBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
+  conversarChamarText: { fontSize: 15, fontWeight: '600' },
+  conversarFrasesScroll: { maxHeight: 240, marginTop: 8 },
+  clientesScroll: { maxHeight: 200, marginVertical: 8 },
+  clienteCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, marginBottom: 6 },
+  whatsappModalButtons: { flexDirection: 'row', gap: 12, marginTop: 12 },
 });

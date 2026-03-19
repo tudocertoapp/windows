@@ -34,7 +34,7 @@ const lcs = StyleSheet.create({
   headerTabs: { flexDirection: 'row', gap: 8, marginTop: 12 },
   headerTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   headerTabText: { fontSize: 14, fontWeight: '600' },
-  itemCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12 },
+  itemCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkbox: { width: 28, height: 28, borderRadius: 8, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
   itemContent: { flex: 1, minWidth: 0 },

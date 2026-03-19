@@ -116,12 +116,12 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({});
-  const [boletosTipo, setBoletosTipo] = useState('pessoal');
+  const [boletosTipo, setBoletosTipo] = useState('todos');
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
   const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
   const filteredItems = section === 'boletos' && showEmpresaFeatures
-    ? (items || []).filter((i) => (i.tipo || 'pessoal') === boletosTipo)
+    ? (items || []).filter((i) => boletosTipo === 'todos' ? true : (i.tipo || 'pessoal') === boletosTipo)
     : (items || []);
   const { addProduct, updateProduct } = useFinance();
 
@@ -296,6 +296,13 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       </View>
       {section === 'boletos' && showEmpresaFeatures && (
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+          <TouchableOpacity
+            style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'todos' ? colors.primary : colors.primaryRgba(0.15) }]}
+            onPress={() => { playTapSound(); setBoletosTipo('todos'); }}
+          >
+            <Ionicons name="list" size={18} color={boletosTipo === 'todos' ? '#fff' : colors.text} />
+            <Text style={[cs.segmentText, { color: boletosTipo === 'todos' ? '#fff' : colors.text }]}>Todos</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.15) }]}
             onPress={() => { playTapSound(); setBoletosTipo('pessoal'); }}
@@ -588,8 +595,8 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         <View style={{ paddingVertical: 8, paddingBottom: 100 }}>
           {filteredItems.map((item) => (
             <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }]}>
-              {(section === 'clientes' && item.foto) || (section === 'produtos' && item.photoUri) ? (
-                <Image source={{ uri: (section === 'clientes' ? item.foto : item.photoUri) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
+              {(section === 'clientes' && item.foto) || (section === 'produtos' && (item.photoUri || item.photoUris?.[0])) ? (
+                <Image source={{ uri: (section === 'clientes' ? item.foto : (item.photoUri || item.photoUris?.[0])) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
               ) : (
                 <View style={[cs.listIcon, { backgroundColor: 'transparent' }]}>
                   <Ionicons name={sectionInfo.icon} size={20} color={colors.primary} />

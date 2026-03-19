@@ -1,8 +1,9 @@
 import React from 'react';
 import { CardHeader } from './CardHeader';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { GlassCard } from './GlassCard';
 import { AppIcon } from './AppIcon';
+import { ScrollableCardList } from './ScrollableCardList';
 
 const s = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1, padding: 16 },
@@ -14,15 +15,23 @@ const s = StyleSheet.create({
   txAmount: { fontSize: 14, fontWeight: '600' },
 });
 
-export function TransacoesCard({ transactions, formatCurrency, mask, colors, title = 'Últimas transações', subtitle = 'Receitas e despesas recentes' }) {
+export function TransacoesCard({ transactions, formatCurrency, mask, colors, title = 'Últimas transações', subtitle = 'Receitas e despesas recentes', onVerMais }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
-  const list = (transactions || []).slice(-5).reverse();
+  // transactions já vêm do contexto em ordem (mais recente primeiro).
+  // Não inverter para manter o mais recente no topo.
+  const list = (transactions || []).slice();
   return (
     <GlassCard colors={colors} style={s.card}>
-      <CardHeader icon="swap-horizontal-outline" title={title} subtitle={subtitle} colors={colors} />
-      {list.map((tx) => (
-        <View key={tx.id} style={[s.txItem, { borderBottomColor: colors.border }]}>
+      <CardHeader icon="swap-horizontal-outline" title={title} subtitle={subtitle} colors={colors} iconColor="#14b8a6" />
+      <ScrollableCardList
+        items={list}
+        colors={colors}
+        emptyText="Nenhuma transação"
+        onVerMais={onVerMais}
+        itemMarginBottom={0}
+        renderItem={(tx) => (
+        <View style={[s.txItem, { borderBottomColor: colors.border }]}>
           <View style={[s.txIcon]}>
             <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? colors.primary : '#ef4444'} />
           </View>
@@ -35,7 +44,8 @@ export function TransacoesCard({ transactions, formatCurrency, mask, colors, tit
             {m(fmt(tx.amount))}
           </Text>
         </View>
-      ))}
+      )}
+      />
     </GlassCard>
   );
 }

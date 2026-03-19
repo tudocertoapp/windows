@@ -26,9 +26,14 @@ import { BancosECartoesScreen } from '../screens/BancosECartoesScreen';
 import { OrcamentoScreen } from '../screens/OrcamentoScreen';
 import { AnotacoesScreen } from '../screens/AnotacoesScreen';
 import { MeusGastosScreen } from '../screens/MeusGastosScreen';
+import { ReceiptScannerScreen } from '../screens/ReceiptScannerScreen';
 import { ListaComprasScreen } from '../screens/ListaComprasScreen';
 import { MetasESonhosScreen } from '../screens/MetasESonhosScreen';
 import { MensagensWhatsAppScreen } from '../screens/MensagensWhatsAppScreen';
+import { AniversariantesScreen } from '../screens/AniversariantesScreen';
+import { EmpresaRelatorioScreen } from '../screens/empresa/EmpresaRelatorioScreen';
+import { OrdemServicoScreen } from '../screens/OrdemServicoScreen';
+import { OrcamentosMainScreen } from '../screens/orcamentos/OrcamentosMainScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
@@ -38,6 +43,7 @@ import { ProductFormModal } from '../components/ProductFormModal';
 import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverlay';
+import { GlassTabBar } from '../components/navigation/GlassTabBar';
 
 const Tab = createBottomTabNavigator();
 
@@ -65,9 +71,14 @@ export function AppNavigator() {
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [anotacoesModal, setAnotacoesModal] = useState(false);
   const [meusGastosModal, setMeusGastosModal] = useState(false);
+  const [receiptScannerModal, setReceiptScannerModal] = useState(false);
   const [listaComprasModal, setListaComprasModal] = useState(false);
   const [metasSonhosModal, setMetasSonhosModal] = useState(false);
   const [mensagensWhatsAppModal, setMensagensWhatsAppModal] = useState(false);
+  const [aniversariantesModal, setAniversariantesModal] = useState(false);
+  const [empresaModal, setEmpresaModal] = useState(false);
+  const [ordemServicoModal, setOrdemServicoModal] = useState(false);
+  const [orcamentosModal, setOrcamentosModal] = useState(false);
   const [calculadoraModal, setCalculadoraModal] = useState(false);
   const [calculadoraFloating, setCalculadoraFloating] = useState(false);
   const [calculatorExpression, setCalculatorExpression] = useState('');
@@ -109,9 +120,14 @@ export function AppNavigator() {
       openOrcamento: () => { setMenuModalOpen(false); setOrcamentoModal(true); },
       openAnotacoes: (params) => { setMenuModalOpen(false); setAnotacoesModal(params || true); },
       openMeusGastos: () => { setMenuModalOpen(false); setMeusGastosModal(true); },
+      openReceiptScanner: () => { setMenuModalOpen(false); setReceiptScannerModal(true); },
       openListaCompras: () => { setMenuModalOpen(false); setListaComprasModal(true); },
       openMetasSonhos: () => { setMenuModalOpen(false); setMetasSonhosModal(true); },
       openMensagensWhatsApp: () => { setMenuModalOpen(false); setMensagensWhatsAppModal(true); },
+      openAniversariantes: () => { setMenuModalOpen(false); setAniversariantesModal(true); },
+      openEmpresa: () => { setMenuModalOpen(false); setEmpresaModal(true); },
+      openOrdemServico: () => { setMenuModalOpen(false); setOrdemServicoModal(true); },
+      openOrcamentos: () => { setMenuModalOpen(false); setOrcamentosModal(true); },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
       openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
@@ -134,34 +150,28 @@ export function AppNavigator() {
       <NavigationContainer ref={navigationRef}>
         <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
         <Tab.Navigator
+          tabBar={(tabProps) => (
+            <GlassTabBar
+              {...tabProps}
+              customHandlers={{
+                Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
+                Menu: () => { playTapSound(); setMenuModalOpen(true); },
+              }}
+            />
+          )}
           screenOptions={{
             headerShown: false,
             tabBarShowLabel: true,
             tabBarStyle: {
               position: 'absolute',
-              bottom: 44,
-              left: 24,
-              right: 24,
-              height: 44 + insets.bottom,
-              borderRadius: 24,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 0,
+              elevation: 0,
               backgroundColor: 'transparent',
               borderTopWidth: 0,
-              overflow: 'visible',
-              paddingBottom: insets.bottom,
-              paddingTop: 6,
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.12,
-              shadowRadius: 10,
-              elevation: 14,
             },
-            tabBarBackground: tabBarGlassBg,
-            tabBarActiveTintColor: primaryColor,
-            tabBarInactiveTintColor: colors.textSecondary,
-            tabBarLabelStyle: { fontSize: 9, fontWeight: '500', marginTop: 1 },
-            tabBarItemStyle: { justifyContent: 'center', alignItems: 'center', height: '100%', marginTop: 10 },
           }}
         >
           <Tab.Screen name="Início" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="home-outline" size={24} color={color} /> }} />
@@ -283,6 +293,10 @@ export function AppNavigator() {
             onOpenListaCompras={menuActions.openListaCompras}
             onOpenMetasSonhos={menuActions.openMetasSonhos}
             onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+            onOpenAniversariantes={menuActions.openAniversariantes}
+            onOpenEmpresa={menuActions.openEmpresa}
+            onOpenOrdemServico={menuActions.openOrdemServico}
+            onOpenOrcamentos={menuActions.openOrcamentos}
             onOpenImageGenerator={menuActions.openImageGenerator}
             onOpenCalculadoraFull={menuActions.openCalculadoraFull}
           />
@@ -353,6 +367,26 @@ export function AppNavigator() {
           <MensagensWhatsAppScreen onClose={() => setMensagensWhatsAppModal(false)} isModal />
         </SafeAreaView>
       </Modal>
+      <Modal visible={aniversariantesModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <AniversariantesScreen onClose={() => setAniversariantesModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={empresaModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <EmpresaRelatorioScreen onClose={() => setEmpresaModal(false)} />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={ordemServicoModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <OrdemServicoScreen onClose={() => setOrdemServicoModal(false)} />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={orcamentosModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <OrcamentosMainScreen onClose={() => setOrcamentosModal(false)} />
+        </SafeAreaView>
+      </Modal>
       <Modal visible={listaComprasModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <ListaComprasScreen onClose={() => setListaComprasModal(false)} isModal />
@@ -361,6 +395,11 @@ export function AppNavigator() {
       <Modal visible={meusGastosModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <MeusGastosScreen onClose={() => setMeusGastosModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={receiptScannerModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <ReceiptScannerScreen onClose={() => setReceiptScannerModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={imageModal} animationType="slide">

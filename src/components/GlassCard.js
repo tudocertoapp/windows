@@ -4,16 +4,16 @@ import { BlurView } from 'expo-blur';
 
 export function GlassCard({ children, style, contentStyle, colors }) {
   const darkBg = colors?.isDarkBg ?? (colors?.text === '#f9fafb');
-  const borderColor = colors?.border || 'rgba(229,231,235,0.6)';
+  const borderColor = darkBg ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.5)';
   const tint = darkBg ? 'dark' : 'light';
-  const intensity = Platform.OS === 'ios' ? 80 : 60;
+  const intensity = Platform.OS === 'ios' ? 90 : 75;
   const flattened = StyleSheet.flatten(style) || {};
   const { padding, paddingVertical, paddingHorizontal, paddingTop, paddingBottom, paddingLeft, paddingRight, backgroundColor, ...wrapperStyle } = flattened;
   const contentPadding = { padding: padding ?? 16, paddingVertical, paddingHorizontal, paddingTop, paddingBottom, paddingLeft, paddingRight };
 
   const overlayColor = darkBg
-    ? 'rgba(255, 255, 255, 0.18)'
-    : 'rgba(0, 0, 0, 0.08)';
+    ? 'rgba(17, 24, 39, 0.35)'
+    : 'rgba(255, 255, 255, 0.25)';
 
   return (
     <View style={[styles.wrapper, wrapperStyle, { borderColor }]}>
@@ -26,9 +26,14 @@ export function GlassCard({ children, style, contentStyle, colors }) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: 16,
+    borderRadius: 26,
     borderWidth: 1,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
   },
   content: {
     zIndex: 1,

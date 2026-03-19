@@ -91,7 +91,7 @@ export function BalanceCard({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, flexShrink: 1, minWidth: 0 }}>
-          <CardHeader icon="wallet-outline" title="Saldo disponível" colors={colors} />
+          <CardHeader icon="wallet-outline" title="Saldo disponível" colors={colors} iconColor="#22c55e" />
         </View>
         {onToggleValues && (
           <TouchableOpacity onPress={() => { playTapSound(); onToggleValues(); }} style={{ flexShrink: 0, padding: 4, marginLeft: 8 }}>

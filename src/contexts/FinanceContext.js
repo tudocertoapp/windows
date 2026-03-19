@@ -65,7 +65,7 @@ function toClient(r) {
   if (r.tags) {
     tags = Array.isArray(r.tags) ? r.tags : (typeof r.tags === 'string' ? (() => { try { return JSON.parse(r.tags) || []; } catch { return []; } })() : []);
   }
-  return { id: r.id, name: r.name, email: r.email, phone: r.phone, foto: r.foto, nivel: r.nivel, birthDate: r.birth_date || r.birthDate, tags, createdAt: r.created_at };
+  return { id: r.id, name: r.name, email: r.email, phone: r.phone, address: r.address, cpf: r.cpf, linkInstagram: r.link_instagram || r.linkInstagram, foto: r.foto, nivel: r.nivel, birthDate: r.birth_date || r.birthDate, tipo: r.tipo || 'empresa', tags, createdAt: r.created_at };
 }
 function toProduct(r) {
   if (!r) return null;
@@ -99,6 +99,30 @@ function toAReceber(r) {
   if (!r) return null;
   return { id: r.id, description: r.description, amount: Number(r.amount), dueDate: r.due_date, parcel: r.parcel, total: r.total, status: r.status };
 }
+function toOrcamento(r) {
+  if (!r) return null;
+  let items = [];
+  if (r.items && Array.isArray(r.items)) items = r.items;
+  else if (typeof r.items === 'string') try { items = JSON.parse(r.items) || []; } catch {}
+  return {
+    id: r.id,
+    numero: r.numero || '',
+    clientId: r.client_id,
+    items,
+    subtotal: Number(r.subtotal || 0),
+    desconto: Number(r.desconto || 0),
+    total: Number(r.total || 0),
+    observacoes: r.observacoes || '',
+    validade: r.validade || '',
+    termos: r.termos || '',
+    agendaData: r.agenda_data || '',
+    agendaHora: r.agenda_hora || '',
+    agendaObs: r.agenda_obs || '',
+    status: r.status || 'rascunho',
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
 
 const INITIAL_TRANSACTIONS = [
   { id: '1', type: 'income', amount: 5200, description: 'Salário', category: 'Salário', date: '2026-02-01' },
@@ -115,6 +139,7 @@ export function FinanceProvider({ children }) {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
   const [budgets, setBudgets] = useState([]);
+  const [orcamentos, setOrcamentos] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [compositeProducts, setCompositeProducts] = useState([]);
@@ -129,6 +154,7 @@ export function FinanceProvider({ children }) {
   const loadAll = useCallback(async () => {
     if (!user) {
       setTransactions(INITIAL_TRANSACTIONS);
+      setOrcamentos([]);
       setClients([]);
       setProducts([]);
       setCompositeProducts([]);
@@ -156,7 +182,7 @@ export function FinanceProvider({ children }) {
     } catch (_) {}
     setLoading(true);
     try {
-      const [tx, ag, ch, cl, pr, comp, sv, su, ar] = await Promise.all([
+      const [tx, ag, ch, cl, pr, comp, sv, su, ar, orc] = await Promise.all([
         supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
         supabase.from('agenda_events').select('*').eq('user_id', user.id).order('date'),
         supabase.from('check_list_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
@@ -166,6 +192,7 @@ export function FinanceProvider({ children }) {
         supabase.from('services').select('*').eq('user_id', user.id),
         supabase.from('suppliers').select('*').eq('user_id', user.id),
         supabase.from('a_receber').select('*').eq('user_id', user.id),
+        supabase.from('orcamentos').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
       if (tx.data) setTransactions((tx.data || []).map(toTransaction));
       if (ag.data) {
@@ -180,6 +207,7 @@ export function FinanceProvider({ children }) {
       if (sv.data) setServices((sv.data || []).map(toService));
       if (su.data) setSuppliers((su.data || []).map(toSupplier));
       if (ar.data) setAReceber((ar.data || []).map(toAReceber));
+      if (orc?.data) setOrcamentos((orc.data || []).map(toOrcamento));
       const bl = await supabase.from('boletos').select('*').eq('user_id', user.id);
       if (bl.data) setBoletos((bl.data || []).map((r) => ({ id: r.id, ...r.data })));
     } catch (e) {
@@ -372,7 +400,7 @@ export function FinanceProvider({ children }) {
     const tagsArr = Array.isArray(c.tags) ? c.tags : [];
     if (!user) {
       const id = Date.now().toString();
-      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, birthDate: c.birthDate || null, nivel: c.nivel || 'orcamento', tags: tagsArr }]);
+      setClients((prev) => [...prev, { ...c, id, name: c.name, foto: c.foto || null, birthDate: c.birthDate || null, nivel: c.nivel || 'orcamento', tipo: c.tipo || 'empresa', cpf: c.cpf || null, address: c.address || null, tags: tagsArr }]);
       return id;
     }
     const { data, error } = await supabase.from('clients').insert({
@@ -380,9 +408,13 @@ export function FinanceProvider({ children }) {
       name: c.name,
       email: c.email,
       phone: c.phone,
+      address: c.address || null,
+      cpf: c.cpf || null,
+      link_instagram: c.linkInstagram || null,
       foto: c.foto || null,
       birth_date: c.birthDate || null,
       nivel: c.nivel || 'orcamento',
+      tipo: c.tipo || 'empresa',
       tags: tagsArr,
     }).select('*').single();
     if (error) { showDbError(error, 'cadastrar cliente'); return null; }
@@ -393,6 +425,7 @@ export function FinanceProvider({ children }) {
     if (!user) return setClients((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
     const up = { ...data };
     if (data.birthDate !== undefined) { up.birth_date = data.birthDate; delete up.birthDate; }
+    if (data.linkInstagram !== undefined) { up.link_instagram = data.linkInstagram; delete up.linkInstagram; }
     await supabase.from('clients').update(up).eq('id', id);
     setClients((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
@@ -404,7 +437,9 @@ export function FinanceProvider({ children }) {
 
   const addProduct = async (p) => {
     if (!user) {
-      setProducts((prev) => [...prev, { ...p, id: Date.now().toString() }]);
+      const prod = { ...p, id: Date.now().toString() };
+      if (p.photoUris?.length > 0 && !prod.photoUri) prod.photoUri = p.photoUris[0];
+      setProducts((prev) => [...prev, prod]);
       return;
     }
     const photoUris = (p.photoUris && p.photoUris.length > 0) ? p.photoUris : (p.photoUri ? [p.photoUri] : []);
@@ -453,7 +488,9 @@ export function FinanceProvider({ children }) {
     }
     if (data.photoUris !== undefined) up.photo_uri = data.photoUris?.length > 0 ? data.photoUris[0] : null;
     await supabase.from('products').update(up).eq('id', id);
-    setProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
+    const merged = { ...data };
+    if (data.photoUris?.length > 0 && !merged.photoUri) merged.photoUri = data.photoUris[0];
+    setProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...merged } : x)));
   };
   const deleteProduct = async (id) => {
     if (!user) return setProducts((prev) => prev.filter((x) => x.id !== id));
@@ -616,11 +653,81 @@ export function FinanceProvider({ children }) {
     setAReceber((prev) => prev.filter((x) => x.id !== id));
   };
 
+  const getNextOrcamentoNumero = useCallback(async () => {
+    if (!user?.id) return `ORC-${String(Date.now() % 100000).padStart(5, '0')}`;
+    const list = orcamentos.length ? orcamentos.map((o) => o.numero) : (await supabase.from('orcamentos').select('numero').eq('user_id', user.id).order('created_at', { ascending: false })).data?.map((r) => r.numero) || [];
+    const nums = list.map((n) => parseInt((n || '').replace(/^ORC-?/i, ''), 10)).filter((x) => !isNaN(x) && x > 0);
+    const next = nums.length ? Math.max(...nums) + 1 : 1;
+    return `ORC-${String(next).padStart(5, '0')}`;
+  }, [user?.id, orcamentos]);
+
+  const addOrcamento = async (o) => {
+    if (!user) {
+      const num = `ORC-${String(Math.floor(Math.random() * 99999) + 1).padStart(5, '0')}`;
+      const n = { ...o, id: Date.now().toString(), numero: o.numero || num };
+      setOrcamentos((prev) => [n, ...prev]);
+      return n;
+    }
+    const numero = o.numero || (await getNextOrcamentoNumero());
+    const { data, error } = await supabase.from('orcamentos').insert({
+      user_id: user.id,
+      numero,
+      client_id: o.clientId || null,
+      items: o.items || [],
+      subtotal: Number(o.subtotal || 0),
+      desconto: Number(o.desconto || 0),
+      total: Number(o.total || 0),
+      observacoes: o.observacoes || null,
+      validade: o.validade || null,
+      termos: o.termos || null,
+      agenda_data: o.agendaData || null,
+      agenda_hora: o.agendaHora || null,
+      agenda_obs: o.agendaObs || null,
+      status: o.status || 'rascunho',
+    }).select('*').single();
+    if (error) return showDbError(error, 'criar orçamento');
+    if (data) setOrcamentos((prev) => [toOrcamento(data), ...prev]);
+    return toOrcamento(data);
+  };
+  const updateOrcamento = async (id, data) => {
+    if (!user) {
+      setOrcamentos((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
+      return;
+    }
+    const up = {};
+    if (data.numero != null) up.numero = data.numero;
+    if (data.clientId !== undefined) up.client_id = data.clientId;
+    if (data.items !== undefined) up.items = data.items;
+    if (data.subtotal != null) up.subtotal = data.subtotal;
+    if (data.desconto != null) up.desconto = data.desconto;
+    if (data.total != null) up.total = data.total;
+    if (data.observacoes !== undefined) up.observacoes = data.observacoes;
+    if (data.validade !== undefined) up.validade = data.validade;
+    if (data.termos !== undefined) up.termos = data.termos;
+    if (data.agendaData !== undefined) up.agenda_data = data.agendaData;
+    if (data.agendaHora !== undefined) up.agenda_hora = data.agendaHora;
+    if (data.agendaObs !== undefined) up.agenda_obs = data.agendaObs;
+    if (data.status != null) up.status = data.status;
+    up.updated_at = new Date().toISOString();
+    await supabase.from('orcamentos').update(up).eq('id', id);
+    setOrcamentos((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
+  };
+  const deleteOrcamento = async (id) => {
+    if (!user) return setOrcamentos((prev) => prev.filter((x) => x.id !== id));
+    await supabase.from('orcamentos').delete().eq('id', id);
+    setOrcamentos((prev) => prev.filter((x) => x.id !== id));
+  };
+
   return (
     <FinanceContext.Provider
       value={{
         transactions,
         budgets,
+        orcamentos,
+        addOrcamento,
+        updateOrcamento,
+        deleteOrcamento,
+        getNextOrcamentoNumero,
         clients,
         products,
         compositeProducts,

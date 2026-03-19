@@ -144,7 +144,7 @@ export function TarefaFormModal({ visible, tarefa, onSave, onClose }) {
               <View style={[s.rowSwitch, { borderColor: colors.border, backgroundColor: colors.bg }, sectionGap]}>
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>Horário da tarefa</Text>
-                  <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>Lembretes 1h, 30min e 1min antes</Text>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>Lembrete 30 min antes (só com hora)</Text>
                 </View>
                 <Switch value={showTime} onValueChange={setShowTime} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
               </View>
