@@ -159,6 +159,8 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
   const text = darkBg ? '#ffffff' : '#000000';
   const textSecondary = darkBg ? '#f3f4f6' : '#4b5563';
   const border = darkBg ? blendWithWhite(bg, 0.18) : blendWithBlack(bg, 0.12);
+  /** Cor do ícone do título dos cards: claro em fundo escuro, escuro em fundo claro (branco/preto com opacidade) */
+  const cardIconColor = darkBg ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)';
   return {
     bg,
     bgSecondary,
@@ -172,6 +174,7 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
     expense: '#fca5a5',
     income: '#6ee7b7',
     isDarkBg: darkBg,
+    cardIconColor,
   };
 }
 

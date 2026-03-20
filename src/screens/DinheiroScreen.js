@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ import { ResumoDoMesCard } from '../components/ResumoDoMesCard';
 import { TransacoesCard } from '../components/TransacoesCard';
 import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
 import { GlassCard } from '../components/GlassCard';
+import { CardHeader } from '../components/CardHeader';
 import { PieChart } from '../components/charts/PieChart';
 import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasDespesas';
 import { LineChartSaldo } from '../components/charts/LineChartSaldo';
@@ -29,7 +30,7 @@ import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CardExpandedModal } from '../components/CardExpandedModal';
-import { DEFAULT_DINHEIRO_SECTIONS, DINHEIRO_CARD_TYPES } from '../constants/dashboardCards';
+import { DEFAULT_DINHEIRO_SECTIONS, DINHEIRO_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
 
 const DINHEIRO_SECTIONS_KEY = '@tudocerto_dinheiro_sections';
 
@@ -115,17 +116,18 @@ function getBankGrad(bank) {
 
 
 export function DinheiroScreen({ route }) {
-  const { transactions, boletos, checkListItems, agendaEvents, clients } = useFinance();
+  const { transactions, boletos, checkListItems, agendaEvents, clients, deleteTransaction } = useFinance();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
-  const { banks, getBankName, getCardsByBankId } = useBanks();
+  const { banks, cards, addToBank, deductFromBank, deductFromCardBalance, getBankName, getCardsByBankId } = useBanks();
   const { profile } = useProfile();
-  const { openBancos, openCalculadoraFull, openMeusGastos, openMensagensWhatsApp } = useMenu();
+  const { openBancos, openCalculadoraFull, openMeusGastos, openMensagensWhatsApp, openAddModal, openCadastro } = useMenu();
   const { showValues, toggleValues } = useValuesVisibility();
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_DINHEIRO_SECTIONS);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [dinheiroTab, setDinheiroTab] = useState('fluxo');
   const [expandedCard, setExpandedCard] = useState(null);
+  const [faturasFiltroTipo, setFaturasFiltroTipo] = useState('todos');
   const [balanceFilter, setBalanceFilter] = useState('mes');
   const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => {
@@ -198,6 +200,21 @@ export function DinheiroScreen({ route }) {
 
   const monthTx = periodTx;
 
+  const handleDeleteTransaction = useCallback((tx) => {
+    const amt = Number(tx?.amount) || 0;
+    const tipo = tx?.tipoVenda || 'pessoal';
+    const firstBank = (banks || []).find((b) => (b.tipo || 'pessoal') === tipo);
+    const firstCard = firstBank ? (cards || []).find((c) => c.bankId === firstBank.id) : null;
+    if (tx.type === 'expense' && amt > 0) {
+      const fp = tx.formaPagamento || 'dinheiro';
+      if ((fp === 'debito' || fp === 'pix' || fp === 'transferencia') && firstBank) addToBank(firstBank.id, amt);
+      else if (fp === 'credito' && firstCard) deductFromCardBalance(firstCard.id, amt);
+    } else if (tx.type === 'income' && amt > 0 && firstBank) {
+      deductFromBank(firstBank.id, amt);
+    }
+    deleteTransaction(tx.id);
+  }, [banks, cards, addToBank, deductFromBank, deductFromCardBalance, deleteTransaction]);
+
   const prevMonthTx = useMemo(() => {
     const prev = new Date(now.getFullYear(), now.getMonth() - 1);
     return filteredTx.filter((t) => {
@@ -240,7 +257,11 @@ export function DinheiroScreen({ route }) {
     let pagas = { qty: 0, valor: 0 };
     let aVencer = { qty: 0, valor: 0 };
     let vencidas = { qty: 0, valor: 0 };
-    let list = showEmpresaFeatures ? (boletos || []).filter((b) => (b.tipo || 'pessoal') === viewMode) : (boletos || []);
+    let list = showEmpresaFeatures ? (boletos || []).filter((b) => {
+      const tipo = b.tipo || 'pessoal';
+      if (faturasFiltroTipo === 'todos') return true;
+      return tipo === faturasFiltroTipo;
+    }) : (boletos || []);
     list = list.filter((b) => {
       const d = parseBoletoDate(b.dueDate);
       if (!d) return false;
@@ -278,7 +299,7 @@ export function DinheiroScreen({ route }) {
       }
     });
     return { pagas, aVencer, vencidas };
-  }, [boletos, viewMode, showEmpresaFeatures, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
+  }, [boletos, faturasFiltroTipo, showEmpresaFeatures, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
 
   const resumoStats = useMemo(() => {
     const ref = balanceFilterDate;
@@ -335,6 +356,7 @@ export function DinheiroScreen({ route }) {
     balance: (
       <View key="balance">
         <BalanceCard
+          iconColor={CARD_ICON_COLORS.balance}
           balance={balance}
           income={income}
           expense={expense}
@@ -358,6 +380,7 @@ export function DinheiroScreen({ route }) {
     contas: (
       <View key="contas">
         <ContasDoMesCard
+          iconColor={CARD_ICON_COLORS.contas}
           contasPagas={contasStatus.pagas}
           contasAVencer={contasStatus.aVencer}
           contasVencidas={contasStatus.vencidas}
@@ -365,12 +388,48 @@ export function DinheiroScreen({ route }) {
           mask={mask}
           colors={colors}
           lightBackground={themeMode === 'light'}
+          onOpenFaturas={() => openCadastro?.('boletos')}
+          onAddFatura={() => openCadastro?.('boletos')}
+          playTapSound={playTapSound}
+          filter={balanceFilter}
+          filterLabel={balanceFilterLabel}
+          filterStartDate={periodStart}
+          filterEndDate={periodEnd}
+          onFilterChange={(f) => { playTapSound(); setBalanceFilter(f); setBalanceFilterDate(new Date()); }}
+          onFilterDatePrev={() => adjustBalanceFilterDate(-1)}
+          onFilterDateNext={() => adjustBalanceFilterDate(1)}
+          onFilterPeriodChange={(start, end) => { setPeriodStart(start); setPeriodEnd(end); }}
+          headerActions={showEmpresaFeatures ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setFaturasFiltroTipo('todos'); }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'todos' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'todos' ? colors.primary : colors.border }}
+              >
+                <Ionicons name="list" size={14} color={faturasFiltroTipo === 'todos' ? colors.primary : colors.textSecondary} />
+                <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'todos' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Todos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setFaturasFiltroTipo('pessoal'); }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'pessoal' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'pessoal' ? colors.primary : colors.border }}
+              >
+                <Ionicons name="person-outline" size={14} color={faturasFiltroTipo === 'pessoal' ? colors.primary : colors.textSecondary} />
+                <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'pessoal' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Pessoal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setFaturasFiltroTipo('empresa'); }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'empresa' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'empresa' ? colors.primary : colors.border }}
+              >
+                <Ionicons name="business-outline" size={14} color={faturasFiltroTipo === 'empresa' ? colors.primary : colors.textSecondary} />
+                <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'empresa' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Empresa</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         />
       </View>
     ),
     bancos: (
-      <View key="bancos" style={{ marginTop: 16 }}>
-        <Text style={[dns.sectionTitle, { color: colors.textSecondary, paddingHorizontal: 16 }]}>BANCOS E CARTÕES</Text>
+      <View key="bancos" style={{ marginTop: 16, paddingHorizontal: 16 }}>
+        <Text style={[dns.sectionTitle, { color: colors.textSecondary }]}>BANCOS E CARTÕES</Text>
         <BanksCarousel
           banks={carouselBanks}
           getBankName={getBankName}
@@ -382,7 +441,7 @@ export function DinheiroScreen({ route }) {
           onCardPress={openBancos}
           onEmptyPress={openBancos}
           emptyContent={
-            <GlassCard colors={colors} style={[dns.card, { alignItems: 'center', marginHorizontal: 16 }]} contentStyle={{ paddingVertical: 20 }}>
+            <GlassCard colors={colors} solid style={[dns.card, { alignItems: 'center' }]} contentStyle={{ paddingVertical: 20 }}>
               <Ionicons name="wallet-outline" size={32} color={colors.textSecondary} />
               <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8 }}>Nenhum banco cadastrado</Text>
             </GlassCard>
@@ -400,6 +459,7 @@ export function DinheiroScreen({ route }) {
     gastos: (
       <View key="gastos" style={[dns.section, { marginTop: 16 }]}>
         <GastosPorCategoriaCard
+          iconColor={CARD_ICON_COLORS.gastos}
           catBreakdown={catExpenses}
           totalExpense={expense}
           formatCurrency={fmt}
@@ -412,19 +472,26 @@ export function DinheiroScreen({ route }) {
     transacoes: (
       <View key="transacoes" style={{ marginHorizontal: 16, marginTop: 16 }}>
         <TransacoesCard
+          iconColor={CARD_ICON_COLORS.transacoes}
           transactions={[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date))}
           formatCurrency={fmt}
           mask={mask}
           colors={colors}
           title={showEmpresaFeatures && viewMode === 'empresa' ? 'Fluxo de caixa' : 'Últimas transações'}
           onVerMais={() => { playTapSound(); setExpandedCard('transacoes'); }}
+          onEdit={(tx) => { openAddModal?.(tx.type === 'income' ? 'receita' : 'despesa', { editTransaction: tx }); }}
+          onDelete={handleDeleteTransaction}
+          playTapSound={playTapSound}
+          deleteLabel={showEmpresaFeatures && viewMode === 'empresa' ? 'Cancelar' : 'Excluir'}
+          deleteMessage={showEmpresaFeatures && viewMode === 'empresa' ? 'Cancelar esta transação? O valor será devolvido.' : 'Excluir esta transação? O valor será devolvido ao saldo.'}
         />
       </View>
     ),
     graficos: (
-          <View key="graficos" style={{ marginTop: 16, padding: 16, gap: 0 }}>
+          <View key="graficos" style={{ marginTop: 16, paddingHorizontal: 16, gap: 0 }}>
             <View style={{ marginBottom: 16 }}>
               <ResumoDoMesCard
+                iconColor={CARD_ICON_COLORS.graficos}
                 income={income}
                 expense={expense}
                 balance={balance}
@@ -433,38 +500,47 @@ export function DinheiroScreen({ route }) {
                 colors={colors}
                 vendas={resumoStats.vendas}
                 agendas={resumoStats.agendas}
-                tarefasConcluidas={resumoStats.tarefasConcluidas}
                 novosClientes={resumoStats.novosClientes}
                 faturasPagas={resumoStats.faturasPagas}
                 prevIncome={prevIncome}
                 prevExpense={prevExpense}
               />
             </View>
-            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[dns.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Receitas vs Despesas</Text>
-                <View style={{ flexDirection: 'row', gap: 4 }}>
-                  {[3, 6, 12].map((n) => (
-                    <TouchableOpacity key={n} onPress={() => setRangeMonths(n)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: rangeMonths === n ? colors.primary : colors.border + '40' }}>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: rangeMonths === n ? '#fff' : colors.textSecondary }}>{n}m</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <BarChartReceitasDespesas monthlyData={monthlyData} colors={colors} />
+            <View style={{ marginBottom: 16 }}>
+              <GastosPorCategoriaCard
+                iconColor={CARD_ICON_COLORS.gastos}
+                catBreakdown={catExpenses}
+                totalExpense={expense}
+                formatCurrency={fmt}
+                mask={mask}
+                colors={colors}
+                title="Gastos por categoria"
+                subtitle="Distribuição das despesas por categoria"
+              />
+            </View>
+            <GlassCard colors={colors} solid style={[dns.card, dns.chartCard]}>
+              <CardHeader
+                icon="bar-chart-outline"
+                title="Receitas vs Despesas"
+                subtitle="Últimos meses"
+                colors={colors}
+                iconColor={CARD_ICON_COLORS.graficos}
+                rightActions={(
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {[3, 6, 12].map((n) => (
+                      <TouchableOpacity key={n} onPress={() => setRangeMonths(n)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: rangeMonths === n ? colors.primary : colors.border + '40' }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: rangeMonths === n ? '#fff' : colors.textSecondary }}>{n}m</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              />
+              <BarChartReceitasDespesas monthlyData={monthlyData} colors={colors} showTitle={false} />
             </GlassCard>
-            <GlassCard colors={colors} style={[dns.card, dns.chartCard]}>
-              <LineChartSaldo monthlyData={monthlyData} colors={colors} />
+            <GlassCard colors={colors} solid style={[dns.card, dns.chartCard]}>
+              <CardHeader icon="trending-up-outline" title="Evolução do Saldo Mensal" colors={colors} iconColor={CARD_ICON_COLORS.graficos} />
+              <LineChartSaldo monthlyData={monthlyData} colors={colors} showTitle={false} />
             </GlassCard>
-            <GastosPorCategoriaCard
-              catBreakdown={catExpenses}
-              totalExpense={expense}
-              formatCurrency={fmt}
-              mask={mask}
-              colors={colors}
-              title="Gastos por categoria"
-              subtitle="Distribuição das despesas por categoria"
-            />
           </View>
     ),
   };
@@ -527,17 +603,36 @@ export function DinheiroScreen({ route }) {
         title={showEmpresaFeatures && viewMode === 'empresa' ? 'Fluxo de caixa' : 'Últimas transações'}
       >
         {[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date)).map((tx) => (
-          <View key={tx.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primaryRgba(0.15), justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? colors.primary : '#ef4444'} />
+          <View key={tx.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: CARD_ICON_COLORS.transacoes + '26', justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? CARD_ICON_COLORS.transacoes : '#ef4444'} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text }}>{tx.description}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text }} numberOfLines={1}>{tx.description}</Text>
               <Text style={{ fontSize: 11, color: colors.textSecondary }}>{tx.category}</Text>
             </View>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: tx.type === 'income' ? colors.primary : '#ef4444' }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: tx.type === 'income' ? CARD_ICON_COLORS.transacoes : '#ef4444' }}>
               {tx.type === 'income' ? '+' : '-'}{mask(fmt(tx.amount))}
             </Text>
+            <TouchableOpacity
+              onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.(tx.type === 'income' ? 'receita' : 'despesa', { editTransaction: tx }); }}
+              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50', flexShrink: 0 }}
+            >
+              <Ionicons name="pencil" size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                playTapSound();
+                const labelExcluir = showEmpresaFeatures && viewMode === 'empresa' ? 'Cancelar' : 'Excluir';
+                Alert.alert(labelExcluir, `${labelExcluir === 'Cancelar' ? 'Cancelar esta transação? O valor será devolvido.' : 'Excluir esta transação? O valor será devolvido ao saldo.'}`, [
+                  { text: 'Não' },
+                  { text: labelExcluir, style: 'destructive', onPress: () => handleDeleteTransaction(tx) },
+                ]);
+              }}
+              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primaryRgba(0.08), borderWidth: 1, borderColor: colors.border, flexShrink: 0 }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            </TouchableOpacity>
           </View>
         ))}
       </CardExpandedModal>

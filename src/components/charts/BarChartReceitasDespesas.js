@@ -6,7 +6,7 @@ const CHART_WIDTH = 280;
 const CHART_HEIGHT = 160;
 const PADDING = { left: 40, right: 16, top: 24, bottom: 28 };
 
-export function BarChartReceitasDespesas({ monthlyData, colors }) {
+export function BarChartReceitasDespesas({ monthlyData, colors, showTitle = true }) {
   const n = Math.max(1, monthlyData.length);
   const barGroupTotal = (CHART_WIDTH - PADDING.left - PADDING.right) / n;
   const BAR_GAP = 4;
@@ -29,9 +29,11 @@ export function BarChartReceitasDespesas({ monthlyData, colors }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Receitas vs Despesas - Últimos meses</Text>
-      </View>
+      {showTitle && (
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Receitas vs Despesas - Últimos meses</Text>
+        </View>
+      )}
       <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
         {bars}
       </Svg>

@@ -35,7 +35,8 @@ const { width: SW, height: SH } = Dimensions.get('window');
 const GAP = 24;
 const SECTION_GAP = 20;
 const BOX_MAX = Math.min(SW - 8, 520);
-const FORM_MAX_HEIGHT = Math.round(SH * 0.94);
+// Mantém o modal dentro da altura útil em telas menores.
+const FORM_MAX_HEIGHT = Math.round(SH * 0.9);
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 4 },
@@ -124,7 +125,7 @@ function inferDespCategoryAndSubcategory(text) {
 
 export function AddModal({ type, params, onClose }) {
   const { colors } = useTheme();
-  const { addTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, updateOrcamento, clients, products, services } = useFinance();
+  const { addTransaction, updateTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, updateOrcamento, clients, products, services } = useFinance();
   const { banks, cards, getBankById, getBankName, deductFromBank, addToBank, addToCardBalance } = useBanks();
   const { showEmpresaFeatures } = usePlan();
   const { openBancos } = useMenu();
@@ -145,6 +146,36 @@ export function AddModal({ type, params, onClose }) {
     userEditedCategoryRef.current = false;
     if (params?.__autoCategorizeFromDescription != null) setAutoCategorizeFromDescription(Boolean(params.__autoCategorizeFromDescription));
   }, [type, params]);
+
+  useEffect(() => {
+    const tx = params?.editTransaction;
+    if (!tx || (type !== 'receita' && type !== 'despesa')) return;
+    setAmount(String(tx.amount ?? ''));
+    setDescription(tx.description || '');
+    setTipoVenda(tx.tipoVenda || 'pessoal');
+    if (type === 'despesa') {
+      const catDesp = CATEGORIAS_DESPESA.find((c) => c.sub?.includes(tx.category));
+      setCategoryDesp(catDesp?.id || 'outros_desp');
+      setSubcategoryDesp(tx.category || 'Outros');
+      setCategory(tx.category || '');
+      setFormaPagamentoDespesa(tx.formaPagamento || 'dinheiro');
+      if (tx.date) {
+        const p = String(tx.date).split(/[-/]/);
+        if (p.length >= 3) setDate(p[0].length === 4 ? `${p[2]}/${p[1]}/${p[0]}` : `${p[0]}/${p[1]}/${p[2]}`);
+      }
+    } else {
+      const catRec = CATEGORIAS_RECEITA.find((c) => c.sub?.includes(tx.category));
+      setCategoryRec(catRec?.id || 'outros_rec');
+      setSubcategoryRec(tx.category || '');
+      setCategory(tx.category || '');
+      setFormaPagamento(tx.formaPagamento || 'pix');
+      if (tx.date) {
+        const p = String(tx.date).split(/[-/]/);
+        if (p.length >= 3) setDate(p[0].length === 4 ? `${p[2]}/${p[1]}/${p[0]}` : `${p[0]}/${p[1]}/${p[2]}`);
+      }
+    }
+    userEditedCategoryRef.current = true;
+  }, [params?.editTransaction, type]);
   useEffect(() => {
     if (type === 'receita') {
       const fromOrc = params?.fromOrcamento;
@@ -364,6 +395,7 @@ export function AddModal({ type, params, onClose }) {
   };
 
   const getTitle = () => {
+    if (params?.editTransaction && (type === 'receita' || type === 'despesa')) return type === 'receita' ? 'Editar Receita' : 'Editar Despesa';
     const t = { receita: 'Nova Receita', despesa: 'Nova Despesa', cliente: 'Novo Cliente', agenda: 'Novo Evento', produto: 'Novo Produto', servico: 'Novo Serviço', tarefa: 'Nova Tarefa', fornecedor: 'Novo Fornecedor' };
     return t[type] || 'Adicionar';
   };
@@ -425,33 +457,43 @@ export function AddModal({ type, params, onClose }) {
         if (params?.fromOrcamento?.orcamentoId && updateOrcamento) updateOrcamento(params.fromOrcamento.orcamentoId, { status: 'faturado' });
         if (params?.onFaturamentoSuccess) params.onFaturamentoSuccess({ amount: valorFinal, description: descFinal, clientId, saleItems, formaPagamento: 'misturado' });
       } else if (type === 'receita') {
-        if ((formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && !receitaBankId) return Alert.alert('Erro', 'Selecione para onde está indo o valor da receita.');
         const dateVal = useNow ? new Date().toISOString().slice(0, 10) : toYMD(date);
         const formaPag = formaPagamento;
-        addTransaction({ type: 'income', amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: formaPag, tipoVenda, desconto: descVal });
-        if (valorFinal > 0 && (formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && receitaBankId) addToBank(receitaBankId, valorFinal);
-        if (formaPagamento === 'prazo' && valorFinal > 0) {
-          const n = parseInt(parcelas, 10) || 1;
-          const dia = Math.min(28, Math.max(1, parseInt(diaVencimento, 10) || new Date().getDate()));
-          const parcVal = valorFinal / n;
-          for (let i = 0; i < n; i++) {
-            const venc = new Date();
-            venc.setMonth(venc.getMonth() + i);
-            venc.setDate(dia);
-            addAReceber({ description: descComCliente, amount: parcVal, dueDate: `${String(venc.getDate()).padStart(2, '0')}/${String(venc.getMonth() + 1).padStart(2, '0')}/${venc.getFullYear()}`, parcel: i + 1, total: n, status: 'pendente' });
-          }
+        if (params?.editTransaction) {
+          updateTransaction(params.editTransaction.id, { amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: formaPag, tipoVenda, desconto: descVal });
+        } else {
+          if ((formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && !receitaBankId) return Alert.alert('Erro', 'Selecione para onde está indo o valor da receita.');
+          addTransaction({ type: 'income', amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: formaPag, tipoVenda, desconto: descVal });
+          if (valorFinal > 0 && (formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && receitaBankId) addToBank(receitaBankId, valorFinal);
         }
-        if (params?.fromAgendaEvent?.id) updateAgendaEvent(params.fromAgendaEvent.id, { status: 'concluido' });
-        if (params?.fromOrcamento?.orcamentoId && updateOrcamento) updateOrcamento(params.fromOrcamento.orcamentoId, { status: 'faturado' });
-        if (params?.onFaturamentoSuccess) params.onFaturamentoSuccess({ amount: valorFinal, description: descFinal, clientId, saleItems, formaPagamento, date: useNow ? new Date().toISOString().slice(0, 10) : toYMD(date) });
+        if (!params?.editTransaction) {
+          if (formaPagamento === 'prazo' && valorFinal > 0) {
+            const n = parseInt(parcelas, 10) || 1;
+            const dia = Math.min(28, Math.max(1, parseInt(diaVencimento, 10) || new Date().getDate()));
+            const parcVal = valorFinal / n;
+            for (let i = 0; i < n; i++) {
+              const venc = new Date();
+              venc.setMonth(venc.getMonth() + i);
+              venc.setDate(dia);
+              addAReceber({ description: descComCliente, amount: parcVal, dueDate: `${String(venc.getDate()).padStart(2, '0')}/${String(venc.getMonth() + 1).padStart(2, '0')}/${venc.getFullYear()}`, parcel: i + 1, total: n, status: 'pendente' });
+            }
+          }
+          if (params?.fromAgendaEvent?.id) updateAgendaEvent(params.fromAgendaEvent.id, { status: 'concluido' });
+          if (params?.fromOrcamento?.orcamentoId && updateOrcamento) updateOrcamento(params.fromOrcamento.orcamentoId, { status: 'faturado' });
+          if (params?.onFaturamentoSuccess) params.onFaturamentoSuccess({ amount: valorFinal, description: descFinal, clientId, saleItems, formaPagamento, date: useNow ? new Date().toISOString().slice(0, 10) : toYMD(date) });
+        }
       } else if (type === 'despesa') {
-        if ((formaPagamentoDespesa === 'debito' || formaPagamentoDespesa === 'transferencia') && !despesaBankId) return Alert.alert('Erro', 'Selecione o banco.');
-        if (formaPagamentoDespesa === 'credito' && !despesaCardId) return Alert.alert('Erro', 'Selecione o cartão de crédito.');
         const dateVal = toYMD(date);
-        addTransaction({ type: 'expense', amount: valorFinal, description: descFinal, category: subcategoryDesp || category || 'Outros', date: dateVal, formaPagamento: formaPagamentoDespesa, tipoVenda, desconto: descVal });
-        if (valorFinal > 0) {
-          if ((formaPagamentoDespesa === 'debito' || formaPagamentoDespesa === 'transferencia') && despesaBankId) deductFromBank(despesaBankId, valorFinal);
-          if (formaPagamentoDespesa === 'credito' && despesaCardId) addToCardBalance(despesaCardId, valorFinal);
+        if (params?.editTransaction) {
+          updateTransaction(params.editTransaction.id, { amount: valorFinal, description: descFinal, category: subcategoryDesp || category || 'Outros', date: dateVal, formaPagamento: formaPagamentoDespesa, tipoVenda, desconto: descVal });
+        } else {
+          if ((formaPagamentoDespesa === 'debito' || formaPagamentoDespesa === 'transferencia') && !despesaBankId) return Alert.alert('Erro', 'Selecione o banco.');
+          if (formaPagamentoDespesa === 'credito' && !despesaCardId) return Alert.alert('Erro', 'Selecione o cartão de crédito.');
+          addTransaction({ type: 'expense', amount: valorFinal, description: descFinal, category: subcategoryDesp || category || 'Outros', date: dateVal, formaPagamento: formaPagamentoDespesa, tipoVenda, desconto: descVal });
+          if (valorFinal > 0) {
+            if ((formaPagamentoDespesa === 'debito' || formaPagamentoDespesa === 'transferencia') && despesaBankId) deductFromBank(despesaBankId, valorFinal);
+            if (formaPagamentoDespesa === 'credito' && despesaCardId) addToCardBalance(despesaCardId, valorFinal);
+          }
         }
       }
     } else if (type === 'agenda') {
@@ -597,7 +639,7 @@ export function AddModal({ type, params, onClose }) {
             </Modal>
           )}
           <View style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8, zIndex: 2 }}>
-            {type !== 'tarefa' && type !== 'receita' && (
+            {type !== 'tarefa' && type !== 'receita' && type !== 'despesa' && (
               <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
                 <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
@@ -606,8 +648,15 @@ export function AddModal({ type, params, onClose }) {
               <Ionicons name="close" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
-          <Text style={[styles.title, { color: colors.primary }]}>{type === 'receita' ? 'ADICIONAR RECEITA' : getTitle()}</Text>
-          <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={{ maxHeight: FORM_MAX_HEIGHT - 140, flexGrow: 0 }} contentContainerStyle={{ paddingRight: 4, paddingBottom: GAP }}>
+          <Text style={[styles.title, { color: colors.primary }]}>{type === 'receita' ? (params?.editTransaction ? 'EDITAR RECEITA' : 'ADICIONAR RECEITA') : (type === 'despesa' && params?.editTransaction ? 'EDITAR DESPESA' : getTitle())}</Text>
+          <ScrollView
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            nestedScrollEnabled
+            style={{ maxHeight: Math.max(0, FORM_MAX_HEIGHT - 140), flexGrow: 1 }}
+            contentContainerStyle={{ paddingRight: 4, paddingBottom: GAP }}
+          >
             {type === 'receita' && (
               <>
                 {showEmpresaFeatures && (

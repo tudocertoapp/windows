@@ -5,11 +5,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { GlassCard } from '../components/GlassCard';
+import { CardHeader } from '../components/CardHeader';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { PieChart } from '../components/charts/PieChart';
 import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasDespesas';
 import { LineChartSaldo } from '../components/charts/LineChartSaldo';
 import { getCategoryColor } from '../constants/colors';
+import { CARD_ICON_COLORS } from '../constants/dashboardCards';
 import { formatCurrency } from '../utils/format';
 
 const ds = StyleSheet.create({
@@ -99,7 +101,7 @@ export function GraficosScreen() {
         </View>
         <View style={{ padding: 16, gap: 16 }}>
           {/* Resumo do mês */}
-          <GlassCard colors={colors} style={ds.card}>
+          <GlassCard colors={colors} solid style={ds.card}>
             <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 12 }]}>Resumo do mês</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary + '40' }}>
@@ -121,36 +123,43 @@ export function GraficosScreen() {
           </GlassCard>
 
           {/* Receitas vs Despesas - barras + filtro 3m/6m/12m */}
-          <GlassCard colors={colors} style={ds.card}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Receitas vs Despesas</Text>
-              <View style={{ flexDirection: 'row', gap: 4 }}>
-                {[3, 6, 12].map((n) => (
-                  <TouchableOpacity
-                    key={n}
-                    onPress={() => setRangeMonths(n)}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 8,
-                      backgroundColor: rangeMonths === n ? colors.primary : colors.border + '40',
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: rangeMonths === n ? '#fff' : colors.textSecondary }}>{n}m</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            <BarChartReceitasDespesas monthlyData={monthlyData} colors={colors} />
+          <GlassCard colors={colors} solid style={ds.card}>
+            <CardHeader
+              icon="bar-chart-outline"
+              title="Receitas vs Despesas"
+              subtitle="Últimos meses"
+              colors={colors}
+              iconColor={CARD_ICON_COLORS.graficos}
+              rightActions={(
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {[3, 6, 12].map((n) => (
+                    <TouchableOpacity
+                      key={n}
+                      onPress={() => setRangeMonths(n)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        backgroundColor: rangeMonths === n ? colors.primary : colors.border + '40',
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: rangeMonths === n ? '#fff' : colors.textSecondary }}>{n}m</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            />
+            <BarChartReceitasDespesas monthlyData={monthlyData} colors={colors} showTitle={false} />
           </GlassCard>
 
           {/* Evolução do Saldo Mensal */}
-          <GlassCard colors={colors} style={ds.card}>
-            <LineChartSaldo monthlyData={monthlyData} colors={colors} />
+          <GlassCard colors={colors} solid style={ds.card}>
+            <CardHeader icon="trending-up-outline" title="Evolução do Saldo Mensal" colors={colors} iconColor={CARD_ICON_COLORS.graficos} />
+            <LineChartSaldo monthlyData={monthlyData} colors={colors} showTitle={false} />
           </GlassCard>
 
           {/* Gráfico de pizza */}
-          <GlassCard colors={colors} style={[ds.card, { alignItems: 'center', justifyContent: 'center' }]}>
+          <GlassCard colors={colors} solid style={[ds.card, { alignItems: 'center', justifyContent: 'center' }]}>
             <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16, alignSelf: 'center' }]}>Distribuição por categoria</Text>
             {catBreakdown.length === 0 ? (
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 24 }}>Nenhuma despesa no mês</Text>
@@ -172,7 +181,7 @@ export function GraficosScreen() {
           </GlassCard>
 
           {/* Barras horizontais por categoria */}
-          <GlassCard colors={colors} style={ds.card}>
+          <GlassCard colors={colors} solid style={ds.card}>
             <Text style={[ds.sectionTitle, { color: colors.text, marginBottom: 16 }]}>Gastos por categoria</Text>
             {catBreakdown.length === 0 ? (
               <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16 }}>Nenhuma despesa no mês</Text>

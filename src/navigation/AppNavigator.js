@@ -392,8 +392,8 @@ export function AppNavigator() {
           <ListaComprasScreen onClose={() => setListaComprasModal(false)} isModal />
         </SafeAreaView>
       </Modal>
-      <Modal visible={meusGastosModal} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Modal visible={meusGastosModal} animationType="slide" transparent>
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
           <MeusGastosScreen onClose={() => setMeusGastosModal(false)} isModal />
         </SafeAreaView>
       </Modal>

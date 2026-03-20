@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,10 @@ import { useProfile } from '../contexts/ProfileContext';
 import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
+
+// Cache da frase: muda só 1x por dia ou quando o usuário sai e volta ao app
+let headerPromptCache = { prompt: null, dateKey: null };
+let cameFromBackground = false;
 
 const logoImage = require('../../assets/logo.png');
 
@@ -35,11 +39,39 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const isHome = title === 'Início' || useLogoImage;
-  const [homePrompt, setHomePrompt] = useState(() => getFinancePromptByTime());
+  const appStateRef = useRef(AppState.currentState);
+  const [homePrompt, setHomePrompt] = useState(() => {
+    const today = new Date().toDateString();
+    if (headerPromptCache.dateKey === today && headerPromptCache.prompt) {
+      return headerPromptCache.prompt;
+    }
+    const p = getFinancePromptByTime();
+    headerPromptCache = { prompt: p, dateKey: today };
+    return p;
+  });
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
+        cameFromBackground = true;
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub?.remove?.();
+  }, []);
 
   useEffect(() => {
     if (isHome && isFocused) {
-      setHomePrompt(getFinancePromptByTime());
+      const today = new Date().toDateString();
+      const shouldRefresh = headerPromptCache.dateKey !== today || cameFromBackground;
+      if (shouldRefresh) {
+        cameFromBackground = false;
+        const p = getFinancePromptByTime();
+        headerPromptCache = { prompt: p, dateKey: today };
+        setHomePrompt(p);
+      } else if (headerPromptCache.prompt) {
+        setHomePrompt(headerPromptCache.prompt);
+      }
     }
   }, [isHome, isFocused]);
 

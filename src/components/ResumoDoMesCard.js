@@ -6,7 +6,7 @@ import { playTapSound } from '../utils/sounds';
 
 const s = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1, padding: 16 },
-  title: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  title: { fontSize: 16, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   box: { flex: 1, padding: 12, borderRadius: 12 },
   boxLabel: { fontSize: 10, fontWeight: '600' },
@@ -25,9 +25,9 @@ export function ResumoDoMesCard({
   formatCurrency,
   mask,
   colors,
+  iconColor,
   vendas = 0,
   agendas = 0,
-  tarefasConcluidas = 0,
   novosClientes = 0,
   faturasPagas = 0,
   prevIncome,
@@ -38,9 +38,8 @@ export function ResumoDoMesCard({
   const m = mask || ((v) => v);
 
   const stats = [
-    { id: 'vendas', label: 'Vendas', value: vendas, icon: 'cart-outline', color: colors.primary },
+    { id: 'vendas', label: 'Vendas', value: vendas, icon: 'cart-outline', color: iconColor || colors.primary },
     { id: 'agendas', label: 'Agendas', value: agendas, icon: 'calendar-outline', color: '#f59e0b' },
-    { id: 'tarefas', label: 'Tarefas', value: tarefasConcluidas, icon: 'checkmark-done-outline', color: '#10b981' },
     { id: 'clientes', label: 'Clientes', value: novosClientes, icon: 'people-outline', color: '#3b82f6' },
     { id: 'faturas', label: 'Faturas', value: faturasPagas, icon: 'document-text-outline', color: '#8b5cf6' },
   ];
@@ -48,10 +47,10 @@ export function ResumoDoMesCard({
   const selectedStat = stats.find((st) => st.id === selectedDetail);
 
   return (
-    <GlassCard colors={colors} style={[s.card, { borderColor: colors.primary + '50', borderWidth: 2, padding: 20, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 }]} contentStyle={{ padding: 20 }}>
+    <GlassCard colors={colors} solid style={[s.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-          <AppIcon name="stats-chart-outline" size={26} color="#a855f7" />
+          <AppIcon name="stats-chart-outline" size={26} color={colors?.cardIconColor || colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[s.title, { color: colors.text }]}>Resumo do mês</Text>
@@ -72,12 +71,24 @@ export function ResumoDoMesCard({
           <Text style={[s.boxValue, { color: balance >= 0 ? colors.primary : '#ef4444' }]}>{m(fmt(balance))}</Text>
         </View>
       </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-        {stats.map((stat) => (
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, width: '100%' }}>
+        {stats.slice(0, 2).map((stat) => (
           <TouchableOpacity
             key={stat.id}
             onPress={() => { playTapSound(); setSelectedDetail(selectedDetail === stat.id ? null : stat.id); }}
-            style={[s.detailBtn, { backgroundColor: selectedDetail === stat.id ? (stat.color || colors.primary) + '30' : colors.primaryRgba?.(0.12) || colors.primary + '20', borderWidth: 1, borderColor: selectedDetail === stat.id ? stat.color : colors.border }]}
+            style={[s.detailBtn, { flex: 1, backgroundColor: selectedDetail === stat.id ? (stat.color || colors.primary) + '30' : colors.primaryRgba?.(0.12) || colors.primary + '20', borderWidth: 1, borderColor: selectedDetail === stat.id ? stat.color : colors.border, marginRight: 0 }]}
+          >
+            <AppIcon name={stat.icon} size={16} color={stat.color} />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>{stat.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, width: '100%' }}>
+        {stats.slice(2, 4).map((stat) => (
+          <TouchableOpacity
+            key={stat.id}
+            onPress={() => { playTapSound(); setSelectedDetail(selectedDetail === stat.id ? null : stat.id); }}
+            style={[s.detailBtn, { flex: 1, backgroundColor: selectedDetail === stat.id ? (stat.color || colors.primary) + '30' : colors.primaryRgba?.(0.12) || colors.primary + '20', borderWidth: 1, borderColor: selectedDetail === stat.id ? stat.color : colors.border, marginRight: 0 }]}
           >
             <AppIcon name={stat.icon} size={16} color={stat.color} />
             <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>{stat.label}</Text>

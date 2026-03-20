@@ -23,8 +23,7 @@ import { parseVoiceIntent } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 import { playTapSound } from '../utils/sounds';
 import VoiceRecorder from './VoiceRecorder';
-import { googleVisionOcrText } from '../services/googleVisionOCR';
-import { parseReceipt } from '../utils/parseReceipt';
+import { processReceipt } from '../services/receiptOcr/processReceipt';
 
 function nowIso() {
   return new Date().toISOString();
@@ -284,7 +283,7 @@ function brDateToIso(dateStr) {
   return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
-export function MeusGastosChat({ embedded = false }) {
+export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const { colors } = useTheme();
   const { transactions, addTransaction } = useFinance();
   const { openAddModal } = useMenu();
@@ -405,6 +404,53 @@ export function MeusGastosChat({ embedded = false }) {
     openAddModal?.(action.type, action.params || null);
   };
 
+  const handleOcrRetryAction = async (msg, actionType) => {
+    if (actionType !== 'retryOcr') return;
+    playTapSound();
+    const meta = msg.ocrFailMeta || {};
+    const { imageUri: uri, imageBase64: base64 } = meta;
+    if (!uri) return;
+    setProcessingImage(true);
+    const loadingId = `assistant-loading-retry-${Date.now()}`;
+    appendMessage({
+      id: loadingId,
+      from: 'assistant',
+      kind: 'text',
+      text: 'Lendo imagem...',
+      createdAt: nowIso(),
+    });
+    try {
+      const receipt = await processReceipt({ imageUri: uri, imageBase64: base64 });
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      if (receipt.success) {
+        await registerExpenseFromImageAndReply(receipt);
+      } else {
+        appendMessage({
+          id: `assistant-ocr-failed-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: 'Não consegui extrair valor e data desta nota. Verifique se a chave API está configurada e se a imagem está legível.',
+          actions: [{ label: 'Tentar novamente', actionType: 'retryOcr' }],
+          ocrFailMeta: { imageUri: uri, imageBase64: base64 },
+          createdAt: nowIso(),
+        });
+      }
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      appendMessage({
+        id: `assistant-ocr-error-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: `Erro ao ler imagem: ${err?.message || 'Tente novamente.'}`,
+        actions: [{ label: 'Tentar novamente', actionType: 'retryOcr' }],
+        ocrFailMeta: { imageUri: uri, imageBase64: base64 },
+        createdAt: nowIso(),
+      });
+    } finally {
+      setProcessingImage(false);
+    }
+  };
+
   const buildIntentSummary = (intent) => {
     const typeLabelMap = {
       receita: 'entrada',
@@ -492,36 +538,28 @@ export function MeusGastosChat({ embedded = false }) {
     }
   };
 
-  const registerExpenseFromImageAndReply = async (ocrText) => {
-    const normalized = String(ocrText || '').trim();
-    if (!normalized || normalized.length < 8) {
+  const registerExpenseFromImageAndReply = async (receiptData) => {
+    const d = receiptData || null;
+    const totalNumber = d?.total;
+    const dateBr = d?.date;
+    const rawText = d?.rawText || '';
+
+    if (!rawText || !dateBr || typeof totalNumber !== 'number' || !(totalNumber > 0)) {
       appendMessage({
-        id: `assistant-ocr-unreadable-${Date.now()}`,
+        id: `assistant-ocr-no-data-${Date.now()}`,
         from: 'assistant',
         kind: 'text',
-        text: 'Não consegui ler essa foto com segurança. Não registrei gasto. Tente tirar outra imagem mais nítida.',
+        text: 'Não consegui extrair valor total e data dessa notinha com segurança. Não registrei gasto. Tente outra foto mais nítida.',
         createdAt: nowIso(),
       });
       return;
     }
 
-    const parsed = parseReceipt(normalized);
-    if (!parsed?.value) {
-      appendMessage({
-        id: `assistant-ocr-no-value-${Date.now()}`,
-        from: 'assistant',
-        kind: 'text',
-        text: 'Não encontrei um valor (R$ 00,00) confiável na notinha. Não registrei gasto para evitar erro.',
-        createdAt: nowIso(),
-      });
-      return;
-    }
+    const store = d?.store || 'Comprovante';
+    const totalBr = totalNumber.toFixed(2).replace('.', ',');
+    const dateIso = brDateToIso(dateBr) || new Date().toISOString().slice(0, 10);
 
-    const store = parsed.store || 'Comprovante';
-    const totalBr = parsed.value.toFixed(2).replace('.', ',');
-    const dateIso = brDateToIso(parsed.date) || new Date().toISOString().slice(0, 10);
-
-    const inferred = inferReceiptCategory(parsed.rawText || normalized);
+    const inferred = inferReceiptCategory(rawText);
     const inferredCategoryDesp = inferred?.categoryDesp || 'outros_desp';
     const inferredSubcategoryDesp = inferred?.subcategoryDesp || 'Outros';
 
@@ -529,20 +567,20 @@ export function MeusGastosChat({ embedded = false }) {
       id: `assistant-ocr-preview-${Date.now()}`,
       from: 'assistant',
       kind: 'text',
-      text: `Pronto! Eu reconheci o comprovante.\nValor: R$ ${totalBr}${parsed.date ? `\nData: ${parsed.date}` : ''}`,
+      text: `Pronto! Eu reconheci o comprovante.\nValor: R$ ${totalBr}${dateBr ? `\nData: ${dateBr}` : ''}`,
       action: {
         iconName: 'add-circle-outline',
-        label: `Cadastrar Despesa\nR$ ${totalBr}${parsed.date ? ` ${parsed.date}` : ''}`,
+        label: `Cadastrar Despesa\nR$ ${totalBr}${dateBr ? ` ${dateBr}` : ''}`,
         type: 'despesa',
         params: {
-          amount: parsed.value.toFixed(2).replace('.', ','),
+          amount: totalNumber.toFixed(2).replace('.', ','),
           description: store,
           categoryDesp: inferredCategoryDesp,
           subcategoryDesp: inferredSubcategoryDesp,
-          date: parsed.date || null,
+          date: dateBr || null,
           __fromReceiptOCR: true,
           __autoCategorizeFromDescription: true,
-          __amountNumber: parsed.value,
+          __amountNumber: totalNumber,
           __dateIso: dateIso,
           __categoryKey: inferredSubcategoryDesp || inferredCategoryDesp,
         },
@@ -576,9 +614,30 @@ export function MeusGastosChat({ embedded = false }) {
         createdAt: nowIso(),
       });
       try {
-        const ocrText = await googleVisionOcrText({ uri: imageUri, base64: imageBase64 }, { languageHints: ['pt'] });
+        const receipt = await processReceipt({
+          imageUri,
+          imageBase64,
+          onStage: (stage) => {
+            setMessages((prev) => prev.map((m) => (m.id === loadingId ? { ...m, text: 'Lendo imagem...' } : m)));
+          },
+        });
         setMessages((prev) => prev.filter((m) => m.id !== loadingId));
-        await registerExpenseFromImageAndReply(ocrText);
+        if (receipt.success) {
+          await registerExpenseFromImageAndReply(receipt);
+        } else {
+          appendMessage({
+            id: `assistant-ocr-failed-${Date.now()}`,
+            from: 'assistant',
+            kind: 'text',
+            text: 'Não consegui extrair valor e data desta nota. Verifique se a chave API está configurada e se a imagem está legível.',
+            actions: [{ label: 'Tentar novamente', actionType: 'retryOcr' }],
+            ocrFailMeta: {
+              imageUri,
+              imageBase64,
+            },
+            createdAt: nowIso(),
+          });
+        }
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== loadingId));
         appendMessage({
@@ -684,7 +743,8 @@ export function MeusGastosChat({ embedded = false }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       // qualidade maior para melhorar o OCR (as imagens ainda são comprimidas no upload)
-      quality: 1,
+      // reduz o tamanho do base64 e melhora tempo de OCR
+      quality: 0.85,
       allowsEditing: true,
       allowsMultipleSelection: true,
       base64: true,
@@ -703,7 +763,8 @@ export function MeusGastosChat({ embedded = false }) {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      quality: 1,
+      // reduz o tamanho do base64 e melhora tempo de OCR
+      quality: 0.85,
       allowsEditing: true,
       base64: true,
     });
@@ -774,7 +835,20 @@ export function MeusGastosChat({ embedded = false }) {
           {item.text ? (
             <Text style={{ color: isUser ? '#fff' : colors.text, fontSize: 14 }}>{item.text}</Text>
           ) : null}
-          {!isUser && item.action?.label ? (
+          {!isUser && item.actions?.length ? (
+            <View style={{ marginTop: 8, gap: 8 }}>
+              {item.actions.map((a, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[s.actionBtn, { backgroundColor: colors.primaryRgba(0.18), borderColor: colors.primary + '66' }]}
+                  onPress={() => handleOcrRetryAction(item, a.actionType)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '800' }}>{a.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : !isUser && item.action?.label ? (
             <TouchableOpacity
               style={[s.actionBtn, { backgroundColor: colors.primaryRgba(0.18), borderColor: colors.primary + '66' }]}
               onPress={() => openSuggestedForm(item.action)}
@@ -833,8 +907,9 @@ export function MeusGastosChat({ embedded = false }) {
             s.inputRow,
             {
               borderTopColor: colors.border,
-              backgroundColor: embedded ? 'transparent' : colors.bg,
+              backgroundColor: (embedded || transparentBg) ? 'transparent' : colors.bg,
               borderTopWidth: embedded ? 0 : 1,
+              paddingHorizontal: (embedded || transparentBg) ? 20 : 12,
             },
           ]}
         >
@@ -884,13 +959,13 @@ export function MeusGastosChat({ embedded = false }) {
           </VoiceRecorder>
           <TouchableOpacity
             onPress={handlePickImage}
-            style={[s.iconBtn, embedded ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <Ionicons name="image-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleTakePhoto}
-            style={[s.iconBtn, embedded ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <Ionicons name="camera-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
@@ -898,7 +973,7 @@ export function MeusGastosChat({ embedded = false }) {
             onPress={handleMicPress}
             style={[
               s.iconBtn,
-              embedded
+              (embedded || transparentBg)
                 ? { backgroundColor: isListening ? colors.primary : 'transparent', borderWidth: 0 }
                 : { backgroundColor: isListening ? colors.primary : colors.card, borderColor: colors.border },
             ]}
@@ -908,7 +983,7 @@ export function MeusGastosChat({ embedded = false }) {
           <TextInput
             style={[
               s.input,
-              embedded
+              (embedded || transparentBg)
                 ? { backgroundColor: 'transparent', borderWidth: 0, color: colors.text, borderRadius: 0 }
                 : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
             ]}

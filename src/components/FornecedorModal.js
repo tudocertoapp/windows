@@ -85,14 +85,9 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR FORNECEDOR' : 'NOVO FORNECEDOR'}</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
-                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                  <Ionicons name="close" size={22} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
+                <Ionicons name="close" size={22} color={colors.primary} />
+              </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
               <Text style={[s.label, { color: colors.textSecondary }]}>NOME</Text>

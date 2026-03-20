@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { AppIcon } from './AppIcon';
 
 const ITEM_HEIGHT_EST = 52;
 const MAX_VISIBLE = 5;
@@ -14,6 +15,7 @@ export function ScrollableCardList({
   items,
   renderItem,
   colors,
+  accentColor,
   onVerMais,
   emptyText,
   itemMarginBottom = 4,
@@ -77,7 +79,7 @@ export function ScrollableCardList({
                 {
                   top: thumbPos,
                   height: thumbHeight,
-                  backgroundColor: colors.primary + '80',
+                  backgroundColor: (accentColor || colors.primary) + '80',
                 },
               ]}
             />
@@ -87,10 +89,10 @@ export function ScrollableCardList({
       {items.length > MAX_VISIBLE && onVerMais && (
         <TouchableOpacity
           onPress={onVerMais}
-          style={[s.verMaisBtn, { backgroundColor: colors.primaryRgba?.(0.15), borderColor: colors.primary + '50' }]}
+          style={[s.verMaisBtn, { backgroundColor: (accentColor || colors.primary) + '26', borderColor: (accentColor || colors.primary) + '50' }]}
         >
-          <Text style={[s.verMaisText, { color: colors.primary }]}>Ver mais ({items.length} itens)</Text>
-          <Text style={{ fontSize: 16, color: colors.primary, fontWeight: '700' }}>›</Text>
+          <Text style={[s.verMaisText, { color: accentColor || colors.primary }]}>Ver mais ({items.length} itens)</Text>
+          <AppIcon name="expand-outline" size={20} color={accentColor || colors.primary} />
         </TouchableOpacity>
       )}
     </View>

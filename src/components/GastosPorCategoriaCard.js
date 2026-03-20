@@ -16,14 +16,14 @@ const s = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3 },
 });
 
-export function GastosPorCategoriaCard({ catBreakdown, totalExpense, formatCurrency, mask, colors, title = 'Gastos por categoria', subtitle = 'Distribuição das despesas por categoria' }) {
+export function GastosPorCategoriaCard({ catBreakdown, totalExpense, formatCurrency, mask, colors, iconColor, title = 'Gastos por categoria', subtitle = 'Distribuição das despesas por categoria' }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
   const expense = totalExpense || 0;
   const items = catBreakdown || [];
   return (
-    <GlassCard colors={colors} style={s.card}>
-      <CardHeader icon="pie-chart-outline" title={title} subtitle={subtitle} colors={colors} iconColor="#8b5cf6" />
+    <GlassCard colors={colors} solid style={s.card}>
+      <CardHeader icon="pie-chart-outline" title={title} subtitle={subtitle} colors={colors} iconColor={iconColor || colors.primary} />
       {items.map(([cat, amount]) => {
         const pct = expense > 0 ? (amount / expense) * 100 : 0;
         return (

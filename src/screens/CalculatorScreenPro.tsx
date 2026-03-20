@@ -11,7 +11,9 @@ import { calculateExpression, CALC_ERROR } from '../utils/calculator';
 import { formatCurrency } from '../utils/formatter';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width: SW } = Dimensions.get('window');
+const win = Dimensions.get('window');
+const SW = win.width;
+const SH = win.height;
 const logoImage = require('../../assets/logo.png');
 
 /** Cores padrão quando fundo é escuro */
@@ -79,9 +81,11 @@ export function CalculatorScreenPro({
   }, [onHistoryChange]);
 
   const scale = compact ? 0.65 : 1;
-  const SIDE_PAD = 15;
-  const BOTTOM_PAD = 15;
-  const BTN_GAP = compact ? 6 : 10;
+  const SIDE_PAD = Math.max(16, Math.min(24, SW * 0.04));
+  const BOTTOM_PAD = Math.max(20, Math.min(32, SH * 0.03));
+  const DISPLAY_PAD_BOTTOM = compact ? 12 : Math.max(24, SH * 0.025);
+  const PAD_TOP_MARGIN = compact ? 14 : Math.max(24, SH * 0.025);
+  const BTN_GAP = compact ? 6 : Math.max(10, Math.min(14, SW * 0.035));
   const BTN_SIZE = compact
     ? Math.round(52 * scale)
     : Math.round((SW - SIDE_PAD * 2 - BTN_GAP * 3) / 4);
@@ -104,7 +108,7 @@ export function CalculatorScreenPro({
         const safePrev = prev.trim();
         const base = lastWasEquals ? (result || lastEqualsResultRef.current || safePrev) : safePrev;
         if (!base) return '';
-        if (/[+\-*/.]$/.test(base)) return base.replace(/[+\-*/.]$/, char);
+        if (/[+\-*/.,]$/.test(base)) return base.replace(/[+\-*/.,]$/, char);
         return base + char;
       });
       setLastWasEquals(false);
@@ -112,11 +116,13 @@ export function CalculatorScreenPro({
       return;
     }
     setExpression((prev) => {
+      const decimalChar = char === '.' || char === ',';
       if (lastWasEquals) {
-        const first = char === '.' ? '0.' : char;
+        const first = decimalChar ? '0,' : char;
         return first;
       }
-      const next = prev + char;
+      const toAppend = decimalChar ? ',' : char;
+      const next = prev + toAppend;
       return next.length <= 100 ? next : prev;
     });
     setLastWasEquals(false);
@@ -177,13 +183,49 @@ export function CalculatorScreenPro({
     setExpression((prev) => {
       const source = (lastWasEquals && (result || lastEqualsResultRef.current)) ? (result || lastEqualsResultRef.current) : prev;
       const trimmed = String(source || '').trim();
-      if (!trimmed || /[+\-*\/%.]$/.test(trimmed)) return prev;
+      if (!trimmed || /[+\-*\/%.,]$/.test(trimmed)) return prev;
       if (trimmed.endsWith('%')) return prev;
       return trimmed + '%';
     });
     setLastWasEquals(false);
     setResult(null);
   }, [lastWasEquals, result]);
+
+  const handlePlusMinus = useCallback(() => {
+    playTapSound();
+    if (lastWasEquals && (result || lastEqualsResultRef.current)) {
+      const val = result || lastEqualsResultRef.current || '0';
+      if (val === CALC_ERROR) return;
+      const n = parseFloat(String(val).replace(',', '.'));
+      if (!Number.isFinite(n)) return;
+      const next = n === 0 ? '0' : String(-n).replace('.', ',');
+      setExpression(next);
+      setResult(next);
+      lastEqualsResultRef.current = next;
+      return;
+    }
+    setExpression((prev) => {
+      const trimmed = String(prev || '').trim();
+      if (!trimmed) return '-';
+      if (/^\-$/.test(trimmed)) return '';
+      const lastNumMatch = trimmed.match(/([+\-*\/]\s*)?([\-]?\d+[.,]?\d*)$/);
+      if (lastNumMatch) {
+        const numStr = lastNumMatch[2]!.replace(',', '.');
+        const n = parseFloat(numStr);
+        if (!Number.isFinite(n)) return prev;
+        const negated = String(-n).replace('.', ',');
+        const prefix = trimmed.slice(0, trimmed.length - (lastNumMatch[2]?.length || 0));
+        return prefix + (negated.startsWith('-') ? negated : '+' + negated);
+      }
+      const n = parseFloat(trimmed.replace(',', '.'));
+      if (Number.isFinite(n) && !trimmed.match(/[+\-*\/]/)) {
+        return String(-n).replace('.', ',');
+      }
+      return prev;
+    });
+    setLastWasEquals(false);
+    setResult(null);
+  }, [lastWasEquals, result, setExpression, setResult]);
 
   const displayExpr = expression || '0';
   const displayResult = result ?? '';
@@ -272,11 +314,23 @@ export function CalculatorScreenPro({
         </View>
       ) : (
         <View style={styles.logoWrap}>
-          <Image source={logoImage} style={styles.logo} resizeMode="contain" />
+          <Image
+            source={logoImage}
+            style={[styles.logo, { width: Math.min(170, SW * 0.42), height: Math.min(170, SW * 0.42) }]}
+            resizeMode="contain"
+          />
         </View>
       )}
 
-      <View style={[styles.displayWrap, { paddingTop: compact ? 12 : 20 }]}>
+      <View style={[
+        styles.displayWrap,
+        {
+          paddingTop: compact ? 12 : 20,
+          paddingBottom: DISPLAY_PAD_BOTTOM,
+          marginBottom: PAD_TOP_MARGIN,
+          minHeight: compact ? 60 : Math.max(90, SH * 0.12),
+        },
+      ]}>
         <Text style={[styles.expression, { fontSize: compact ? 18 : 24, color: colors.textSecondary }]} numberOfLines={2}>
           {displayExpr.replace(/\*/g, '×').replace(/\//g, '÷')}
         </Text>
@@ -284,7 +338,7 @@ export function CalculatorScreenPro({
           <Text
             style={[
               styles.result,
-              { fontSize: compact ? 28 : 42, color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
+              { fontSize: compact ? 28 : Math.min(42, Math.max(32, SW * 0.09)), color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
             ]}
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -336,23 +390,10 @@ export function CalculatorScreenPro({
           <Btn label="+" onPress={() => handlePress('+')} type="op" />
         </View>
         <View style={[styles.row, { gap: BTN_GAP }]}>
+          <Btn label="+/-" onPress={handlePlusMinus} type="func" />
           <Btn label="0" onPress={() => handlePress('0')} />
-          <Btn label="," onPress={() => handlePress('.')} />
-          <TouchableOpacity
-            onPress={handleEquals}
-            activeOpacity={0.6}
-            style={[
-              styles.btn,
-              {
-                width: BTN_SIZE * 2 + BTN_GAP,
-                height: BTN_SIZE,
-                borderRadius: BTN_SIZE / 2,
-                backgroundColor: opBtn,
-              },
-            ]}
-          >
-            <Text style={[styles.btnText, { color: '#fff', fontSize: compact ? 22 : 30 }]}>=</Text>
-          </TouchableOpacity>
+          <Btn label="," onPress={() => handlePress(',')} />
+          <Btn label="=" onPress={handleEquals} type="op" />
         </View>
       </View>
 
@@ -404,15 +445,15 @@ const styles = StyleSheet.create({
   closeBtn: { position: 'absolute', top: 10, right: 16, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   modeBtn: { position: 'absolute', top: 10, right: 68, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   historyBtn: { position: 'absolute', top: 10, right: 120, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 44, marginBottom: 8 },
+  logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 44, marginBottom: 16 },
   logo: { width: 170, height: 170 },
   logoCompact: { width: 96, height: 96 },
-  compactResultWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 46, marginBottom: 4 },
+  compactResultWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 46, marginBottom: 12 },
   compactResultValue: { fontSize: 28, fontWeight: '700', maxWidth: 180 },
-  displayWrap: { paddingHorizontal: 12, paddingBottom: 16, minHeight: 70 },
+  displayWrap: { paddingHorizontal: 16 },
   expression: { color: 'rgba(255,255,255,0.7)', textAlign: 'right' },
-  result: { marginTop: 8, fontWeight: '300', textAlign: 'right' },
-  pad: { flex: 1, paddingBottom: 20, justifyContent: 'flex-end' },
+  result: { marginTop: 10, fontWeight: '300', textAlign: 'right' },
+  pad: { flex: 1, paddingTop: 8, paddingBottom: 20, justifyContent: 'flex-end' },
   row: { flexDirection: 'row', justifyContent: 'center' },
   btn: { justifyContent: 'center', alignItems: 'center' },
   btnText: { fontWeight: '400' },

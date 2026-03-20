@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Dimensions, PanResponder, Easing } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Dimensions, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,21 +7,18 @@ import { playTapSound } from '../utils/sounds';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
-const ROTATION_BASE_DURATION = 22000;
+const ROTATION_DURATION = 28000;
 const RADIUS = 140;
 
 export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant }) {
   const { primaryColor, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  const gestureDx = useRef(new Animated.Value(0)).current;
-  const gestureRotate = useRef(new Animated.Value(0)).current;
-  const gestureValueRef = useRef(0);
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const btnRotateAnim = useRef(new Animated.Value(0)).current;
-  const [rotationDirection, setRotationDirection] = useState(1);
-  const [rotationSpeed, setRotationSpeed] = useState(1);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
 
   const items = [
     { id: 'receita', label: 'Receita', icon: 'trending-up-outline', color: primaryColor },
@@ -49,68 +46,33 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
         Animated.timing(btnRotateAnim, { toValue: 0, duration: 300, useNativeDriver: true, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
       ]).start();
       rotateAnim.setValue(0);
-      gestureRotate.setValue(0);
-      gestureDx.setValue(0);
-      gestureValueRef.current = 0;
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const dir = rotationDirection;
-    const speed = Math.max(0.3, Math.min(3, rotationSpeed));
-    const dur = ROTATION_BASE_DURATION / speed;
     const loop = () => {
       Animated.timing(rotateAnim, {
-        toValue: dir > 0 ? 360 : -360,
-        duration: dur,
+        toValue: 360,
+        duration: ROTATION_DURATION,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (finished && isOpen) {
+        if (finished && isOpenRef.current) {
           rotateAnim.setValue(0);
           loop();
         }
       });
     };
     loop();
-  }, [isOpen, rotationDirection, rotationSpeed]);
+  }, [isOpen]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8,
-      onPanResponderGrant: () => {
-        gestureDx.setValue(0);
-        gestureValueRef.current = 0;
-      },
-      onPanResponderMove: Animated.event([null, { dx: gestureDx }], { useNativeDriver: true }),
-      onPanResponderRelease: (_, ev) => {
-        const { dx, vx } = ev.nativeEvent;
-        gestureValueRef.current = dx * 0.8 + (vx || 0) * 100;
-        gestureDx.setValue(0);
-        setRotationDirection((vx || dx) > 0 ? -1 : 1);
-        setRotationSpeed(Math.min(3, Math.max(0.5, 0.7 + Math.abs(vx || dx / 100) * 1.5)));
-        Animated.timing(gestureRotate, {
-          toValue: gestureValueRef.current,
-          duration: 350,
-          useNativeDriver: true,
-        }).start(() => {
-          gestureRotate.setValue(0);
-          gestureValueRef.current = 0;
-        });
-      },
-    })
-  ).current;
-
-  const gestureRotation = Animated.multiply(gestureDx, 0.85);
-  const totalDeg = Animated.add(rotateAnim, Animated.add(gestureRotate, gestureRotation));
-  const totalSpin = totalDeg.interpolate({
-    inputRange: [-3600, 3600],
-    outputRange: ['-3600deg', '3600deg'],
+  const totalSpin = rotateAnim.interpolate({
+    inputRange: [0, 360],
+    outputRange: ['0deg', '360deg'],
   });
-  const counterSpin = totalDeg.interpolate({
-    inputRange: [-3600, 3600],
-    outputRange: ['3600deg', '-3600deg'],
+  const counterSpin = rotateAnim.interpolate({
+    inputRange: [0, 360],
+    outputRange: ['0deg', '-360deg'],
   });
 
   const angleStep = 360 / items.length;
@@ -137,12 +99,12 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
 
   return (
     <Modal transparent visible={isOpen} animationType="none">
-      <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
+      <View style={StyleSheet.absoluteFill}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg, opacity: opacityAnim }]} />
       </View>
       <View style={[styles.hintTop, { paddingTop: insets.top + 16 }]}>
         <Text style={[styles.hintText, { color: colors.text }]}>
-          Arraste o que você quer cadastrar para o microfone
+          Toque no que você quer cadastrar
         </Text>
       </View>
       <TouchableOpacity
@@ -165,7 +127,6 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
           alignItems: 'center',
           transform: [{ scale: scaleAnim }],
         }}
-        {...panResponder.panHandlers}
         collapsable={false}
       >
         <Animated.View

@@ -144,28 +144,6 @@ export function ListaComprasScreen({ onClose, isModal }) {
     ]);
   };
 
-  const checkedCount = useMemo(() => filteredItems.filter((i) => i.checked).length, [filteredItems]);
-  const handleFinalizarChecklist = () => {
-    playTapSound();
-    const checked = filteredItems.filter((i) => i.checked);
-    if (checked.length === 0) {
-      Alert.alert('Atenção', 'Nenhum item marcado como concluído para finalizar.');
-      return;
-    }
-    Alert.alert('Finalizar checklist', `${checked.length} item(ns) marcado(s) serão convertidos em tarefas. Deseja continuar?`, [
-      { text: 'Cancelar' },
-      {
-        text: 'Finalizar',
-        onPress: () => {
-          checked.forEach((i) => {
-            addCheckListItem({ title: i.title, date: i.date || undefined, checked: false, important: false, priority: 'media' });
-            deleteItem(i.id);
-          });
-          Alert.alert('Pronto!', `${checked.length} item(ns) convertido(s) em tarefas.`);
-        },
-      },
-    ]);
-  };
   const handleConvertToTask = (item) => {
     playTapSound();
     addCheckListItem({
@@ -250,15 +228,6 @@ export function ListaComprasScreen({ onClose, isModal }) {
               <AppIcon name="add-circle-outline" size={24} color={colors.primary} />
               <Text style={[lcs.addBtnText, { color: colors.primary }]}>Adicionar item</Text>
             </TouchableOpacity>
-            {checkedCount > 0 && (
-              <TouchableOpacity
-                onPress={handleFinalizarChecklist}
-                style={[lcs.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.15) || colors.primary + '25', flex: 1, minWidth: 140 }]}
-              >
-                <Ionicons name="checkmark-done" size={24} color={colors.primary} />
-                <Text style={[lcs.addBtnText, { color: colors.primary }]}>Finalizar ({checkedCount})</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {filteredItems.length === 0 ? (

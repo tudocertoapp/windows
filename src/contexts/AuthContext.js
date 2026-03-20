@@ -88,7 +88,11 @@ export function AuthProvider({ children }) {
     const redirectTo = makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback' }) || Linking.createURL('auth/callback') || makeRedirectUri({ path: 'auth/callback' });
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo, skipBrowserRedirect: true },
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+        queryParams: { prompt: 'select_account' },
+      },
     });
     if (error) throw error;
     if (!data?.url) throw new Error('Não foi possível iniciar o login com Google.');

@@ -18,6 +18,22 @@ const NIVEL_OPTIONS = [
   { id: 'fechou', label: 'Fechou', color: '#10b981' },
 ];
 
+const ETIQUETAS_GERAL = [
+  { id: 'lead', label: 'Lead', color: '#f59e0b', icon: 'person-add-outline' },
+  { id: 'orcamento', label: 'Orçamento', color: '#6b7280', icon: 'document-text-outline' },
+  { id: 'proposta', label: 'Proposta', color: '#8b5cf6', icon: 'briefcase-outline' },
+  { id: 'agendado', label: 'Agendado', color: '#0ea5e9', icon: 'calendar-outline' },
+  { id: 'fixo', label: 'Fixo', color: '#10b981', icon: 'star-outline' },
+  { id: 'pago', label: 'Pago', color: '#22c55e', icon: 'cash-outline' },
+  { id: 'pedido_finalizado', label: 'Pedido finalizado', color: '#10b981', icon: 'checkmark-done-outline' },
+];
+
+const ETIQUETAS_SUGESTOES = [
+  { id: 'prioritario', label: 'Prioritário', color: '#ef4444' },
+  { id: 'retorno', label: 'Retorno', color: '#f97316' },
+  { id: 'vip', label: 'VIP', color: '#a855f7' },
+];
+
 const FIELD_GAP = 16;
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 12 },
@@ -44,6 +60,8 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
   const [birthDate, setBirthDate] = useState('');
   const [foto, setFoto] = useState(null);
   const [showNivelPicker, setShowNivelPicker] = useState(false);
+  const [showEtiquetasPicker, setShowEtiquetasPicker] = useState(false);
+  const [tags, setTags] = useState([]);
   const [nivel, setNivel] = useState('novo_cliente');
   const [tipo, setTipo] = useState('empresa');
   const [saving, setSaving] = useState(false);
@@ -62,6 +80,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
         setBirthDate(cliente.birthDate || cliente.dataNascimento || '');
         setFoto(cliente.foto || null);
         const tagsArr = Array.isArray(cliente.tags) ? cliente.tags : [];
+        setTags(tagsArr);
         if (cliente.nivel) setNivel(cliente.nivel);
         else if (tagsArr.includes('lead')) setNivel('lead');
         else if (tagsArr.some((t) => ['pago', 'pedido_finalizado'].includes(t))) setNivel('fechou');
@@ -76,11 +95,16 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
         setLinkInstagram('');
         setBirthDate('');
         setFoto(null);
+        setTags([]);
         setNivel('novo_cliente');
         setTipo(defaultTipo || viewMode || 'empresa');
       }
     }
-  }, [visible, cliente]);
+  }, [visible, cliente, defaultTipo, viewMode]);
+
+  const toggleTag = (tagId) => {
+    setTags((prev) => (prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]));
+  };
 
   const pickFoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -134,6 +158,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
       birthDate: birthDate.trim() || null,
       foto: fotoUrl || null,
       nivel,
+      tags,
       tipo: showEmpresaFeatures ? tipo : 'pessoal',
     });
     onClose();

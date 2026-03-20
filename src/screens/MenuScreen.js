@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
+import { GlassCard } from '../components/GlassCard';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
@@ -19,7 +20,7 @@ const ms = StyleSheet.create({
   profileName: { fontSize: 18, fontWeight: '700' },
   profileSub: { fontSize: 13, marginTop: 2 },
   sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 },
-  sectionCard: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  sectionCard: { marginHorizontal: 16, marginTop: 4, borderRadius: 16, overflow: 'hidden' },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, gap: 12 },
   menuIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   menuLabel: { fontSize: 14, fontWeight: '500' },
@@ -122,32 +123,32 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
           </View>
         </TouchableOpacity>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>CONTA</Text>
-        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
           <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
           <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
-        </View>
+        </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>FINANCEIRO</Text>
-        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
           <MenuItem icon="cash-outline" label="Meu Orçamento" subtitle="Limite de gastos por categoria" onPress={onOpenOrcamento || comingSoon} />
           <MenuItem icon="chatbubbles-outline" label="Meus gastos" subtitle="Conversa por texto, voz e foto" onPress={onOpenMeusGastos || comingSoon} />
           <MenuItem icon="document-text-outline" label="Boletos" subtitle="Gerenciar boletos" badge={`${boletos.length}`} onPress={() => goToCadastro('boletos')} />
-        </View>
+        </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>PRODUTIVIDADE</Text>
-        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
           <MenuItem icon="cart-outline" label="Lista de compras" subtitle="Anote o que precisa comprar" onPress={onOpenListaCompras || comingSoon} />
           <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
           <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso" onPress={onOpenMetasSonhos || comingSoon} />
-        </View>
+        </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>VISUALIZAÇÃO</Text>
-        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="bar-chart-outline" label="Gráficos" subtitle="Ver gastos por categoria" onPress={() => goTo('Dinheiro', { tab: 'graficos' })} />
           <MenuItem icon="image-outline" label="Criar imagem Instagram" subtitle="Frase motivacional para compartilhar" onPress={() => onOpenImageGenerator?.()} />
-        </View>
+        </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>EMPRESA</Text>
-        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
           <TouchableOpacity
             style={[ms.dropdownHeader, { borderBottomColor: colors.border }]}
             onPress={() => { playTapSound(); setEmpresaDropdownOpen(!empresaDropdownOpen); }}
@@ -173,14 +174,14 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
               <MenuItem icon="stats-chart-outline" label="Relatórios" subtitle="Relatórios da empresa" onPress={() => { setEmpresaDropdownOpen(false); onOpenEmpresa?.(); }} />
             </>
           )}
-        </View>
+        </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>SUPORTE</Text>
-        <View style={[ms.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
           <MenuItem icon="document-text-outline" label="Termos de Uso" subtitle="Leia os termos do aplicativo" onPress={onOpenTermos || comingSoon} />
           <MenuItem icon="star-outline" label="Avaliar App" subtitle="Deixe sua avaliação" />
           <MenuItem icon="log-out-outline" label="Sair da conta" subtitle="Deslogar do aplicativo" onPress={() => Alert.alert('Sair', 'Deseja sair da sua conta?', [{ text: 'Cancelar' }, { text: 'Sair', style: 'destructive', onPress: () => { onClose?.(); signOut(); } }])} />
-        </View>
+        </GlassCard>
         <Text style={{ textAlign: 'center', fontSize: 11, color: colors.textSecondary, marginTop: 20, marginBottom: 100 }}>Tudo Certo v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>

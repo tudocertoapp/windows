@@ -180,6 +180,14 @@ export function BanksProvider({ children }) {
     );
   };
 
+  const deductFromCardBalance = (cardId, amount) => {
+    const amt = Math.max(0, Number(amount) || 0);
+    if (amt <= 0) return;
+    setCards((prev) =>
+      prev.map((c) => (c.id === cardId ? { ...c, saldo: Math.max(0, (c.saldo || 0) - amt) } : c))
+    );
+  };
+
   const removeCard = (id) => {
     setCards((prev) => prev.filter((c) => c.id !== id));
   };
@@ -209,6 +217,7 @@ export function BanksProvider({ children }) {
         deductFromBank,
         addToBank,
         addToCardBalance,
+        deductFromCardBalance,
       }}
     >
       {children}

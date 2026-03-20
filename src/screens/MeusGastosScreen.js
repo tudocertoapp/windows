@@ -14,12 +14,12 @@ export function MeusGastosScreen({ onClose, isModal }) {
   const { colors } = useTheme();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
       <View style={[s.header, { borderBottomColor: colors.border }]}>
         <Text style={[s.headerTitle, { color: colors.text }]}>Meus gastos</Text>
         {isModal && (
           <TouchableOpacity onPress={onClose} style={[s.headerBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
-            <Ionicons name="close" size={22} color={colors.primary} />
+            <Ionicons name="chevron-back" size={22} color={colors.primary} />
           </TouchableOpacity>
         )}
       </View>
@@ -29,14 +29,14 @@ export function MeusGastosScreen({ onClose, isModal }) {
           Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
         </Text>
       </View>
-      <MeusGastosChat />
+      <MeusGastosChat transparentBg={isModal} />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   header: {
-    height: 56,
+    minHeight: 56,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     flexDirection: 'row',
