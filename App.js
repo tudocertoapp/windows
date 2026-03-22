@@ -104,16 +104,23 @@ export default function App() {
     }
   }, []);
 
+  const isWeb = Platform.OS === 'web';
+  const rootStyle = isWeb ? { flex: 1, maxWidth: 520, width: '100%', alignSelf: 'center' } : { flex: 1 };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ThemeProvider>
-          <LanguageProvider>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+        <View style={[s.root, isWeb && s.rootWeb]}>
+          <View style={rootStyle}>
+            <ThemeProvider>
+              <LanguageProvider>
+              <AuthProvider>
+                <AppContent />
+              </AuthProvider>
+              </LanguageProvider>
+            </ThemeProvider>
+          </View>
+        </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -121,4 +128,6 @@ export default function App() {
 
 const s = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  root: { flex: 1 },
+  rootWeb: { flex: 1, alignItems: 'center', backgroundColor: '#111827' },
 });

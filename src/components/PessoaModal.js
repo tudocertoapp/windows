@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
+import { readImageAsBase64 } from '../utils/readImageAsBase64';
+import { hasContacts, requestContactsPermissions, getContactsAsync, Fields } from '../utils/contacts';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadClientPhoto } from '../utils/uploadClientPhoto';
@@ -56,18 +56,22 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
       setLoadingContacts(false);
       return;
     }
+    if (!hasContacts) {
+      setLoadingContacts(false);
+      return;
+    }
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(async () => {
       setLoadingContacts(true);
       try {
-        const { status } = await Contacts.requestPermissionsAsync();
+        const { status } = await requestContactsPermissions();
         if (status !== 'granted') {
           Alert.alert('Permissão', 'Permita acesso aos contatos para buscar.');
           setLoadingContacts(false);
           return;
         }
-        const { data } = await Contacts.getContactsAsync({
-          fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+        const { data } = await getContactsAsync({
+          fields: [Fields.PhoneNumbers, Fields.Name],
           name: q,
           pageSize: 30,
         });
@@ -138,10 +142,11 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
   const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
     let fotoUrl = foto;
-    if (foto && foto.startsWith('file://') && user) {
+    const needsUpload = foto && user && (foto.startsWith('file://') || foto.startsWith('blob:') || (foto.startsWith('http') && !foto.includes('supabase')));
+    if (needsUpload) {
       setSaving(true);
       try {
-        const base64 = await FileSystem.readAsStringAsync(foto, { encoding: FileSystem.EncodingType.Base64 });
+        const base64 = await readImageAsBase64(foto);
         fotoUrl = await uploadClientPhoto(base64, user.id, pessoa?.id);
       } catch (e) {
         console.warn('Erro ao fazer upload da foto:', e);
@@ -205,10 +210,12 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
               <Text style={[styles.label, { color: colors.text }]}>Telefone</Text>
               <View style={styles.phoneRow}>
                 <TextInput style={[styles.input, styles.phoneInput, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone (para enviar parabéns)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
-                <TouchableOpacity onPress={openContactPicker} style={[styles.contactBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba?.(0.15) ?? colors.primary + '25' }]}>
-                  <Ionicons name="people-outline" size={20} color={colors.primary} />
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Contatos</Text>
-                </TouchableOpacity>
+                {hasContacts ? (
+                  <TouchableOpacity onPress={openContactPicker} style={[styles.contactBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba?.(0.15) ?? colors.primary + '25' }]}>
+                    <Ionicons name="people-outline" size={20} color={colors.primary} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Contatos</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
               <View style={{ height: FIELD_GAP }} />
               <Text style={[styles.label, { color: colors.text }]}>Data de nascimento</Text>

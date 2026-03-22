@@ -181,10 +181,12 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
             <Ionicons name="share-social-outline" size={22} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Compartilhar frase</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[mis.shareBtn, { flex: 1, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary }]} onPress={saveToGallery}>
-            <Ionicons name="download-outline" size={22} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Salvar na galeria</Text>
-          </TouchableOpacity>
+          {Platform.OS !== 'web' ? (
+            <TouchableOpacity style={[mis.shareBtn, { flex: 1, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary }]} onPress={saveToGallery}>
+              <Ionicons name="download-outline" size={22} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Salvar na galeria</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
+import { readImageAsBase64 } from '../utils/readImageAsBase64';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlan } from '../contexts/PlanContext';
@@ -135,10 +135,11 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
   const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Erro', 'Preencha o nome.');
     let fotoUrl = foto;
-    if (foto && foto.startsWith('file://') && user) {
+    const needsUpload = foto && user && (foto.startsWith('file://') || foto.startsWith('blob:') || (foto.startsWith('http') && !foto.includes('supabase')));
+    if (needsUpload) {
       setSaving(true);
       try {
-        const base64 = await FileSystem.readAsStringAsync(foto, { encoding: FileSystem.EncodingType.Base64 });
+        const base64 = await readImageAsBase64(foto);
         fotoUrl = await uploadClientPhoto(base64, user.id, cliente?.id);
       } catch (e) {
         console.warn('Erro ao fazer upload da foto:', e);

@@ -76,7 +76,9 @@ const config = {
       ],
       package: 'com.tudocertoapp.snack833373eb44e84aff9e0e96392f657b4c',
     },
-    web: { favicon: './assets/favicon.png' },
+    web: {
+      favicon: './assets/favicon.png',
+    },
     extra: {
       'expo-navigation-bar': { backgroundColor: '#00000000', position: 'relative', visibility: 'visible', barStyle: 'auto' },
       eas: { projectId: 'a78ed1ea-e90c-4080-b124-2536a33f7b5b' },

@@ -24,6 +24,15 @@ config.resolver.resolveRequest = (context, moduleName, platform, realModuleName)
   if (norm === 'react-native-reanimated') {
     return { type: 'sourceFile', filePath: reanimatedLib };
   }
+  if (platform === 'web') {
+    const webStubs = {
+      '@react-native-voice/voice': path.join(__dirname, 'src', 'utils', 'voiceStub.web.js'),
+      'expo-speech-recognition': path.join(__dirname, 'src', 'utils', 'voiceStub.web.js'),
+    };
+    if (webStubs[norm]) {
+      return { type: 'sourceFile', filePath: webStubs[norm] };
+    }
+  }
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform, realModuleName);
   }
