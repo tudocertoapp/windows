@@ -25,9 +25,14 @@ export function GlassCard({ children, style, contentStyle, colors, solid }) {
   const finalShadowColor = styleShadowColor ?? '#000';
   const overlayColor = darkBg ? 'rgba(17, 24, 39, 0.35)' : 'rgba(255, 255, 255, 0.25)';
 
+  const useFallback = Platform.OS === 'web' || Platform.OS === 'android';
   return (
     <View style={[styles.wrapper, restWrapper, { borderColor: finalBorderColor, shadowColor: finalShadowColor }]}>
-      <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
+      {useFallback ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: darkBg ? 'rgba(30,41,59,0.92)' : 'rgba(255,255,255,0.9)' }]} />
+      ) : (
+        <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
+      )}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor }]} />
       <View style={[styles.content, contentPadding, contentStyle]}>{children}</View>
     </View>

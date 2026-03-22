@@ -1017,22 +1017,38 @@ export function AgendaScreen() {
                       },
                     ]}
                   >
-                    <BlurView
-                      intensity={Platform.OS === 'ios' ? 60 : 50}
-                      tint={isDarkBg ? 'dark' : 'light'}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    <View
-                      style={[
-                        StyleSheet.absoluteFill,
-                        {
-                          backgroundColor: isLongEvent
-                            ? (isConcluido ? colors.primaryRgba(0.45) : colors.primaryRgba(0.55))
-                            : (isConcluido ? colors.primaryRgba(0.40) : colors.primaryRgba(0.50)),
-                          opacity: 0.92,
-                        },
-                      ]}
-                    />
+                    {Platform.OS === 'android' ? (
+                      <View
+                        style={[
+                          StyleSheet.absoluteFill,
+                          {
+                            backgroundColor: isLongEvent
+                              ? (isConcluido ? colors.primaryRgba(0.45) : colors.primaryRgba(0.55))
+                              : (isConcluido ? colors.primaryRgba(0.40) : colors.primaryRgba(0.50)),
+                            opacity: 0.92,
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <>
+                        <BlurView
+                          intensity={Platform.OS === 'ios' ? 60 : 50}
+                          tint={isDarkBg ? 'dark' : 'light'}
+                          style={StyleSheet.absoluteFill}
+                        />
+                        <View
+                          style={[
+                            StyleSheet.absoluteFill,
+                            {
+                              backgroundColor: isLongEvent
+                                ? (isConcluido ? colors.primaryRgba(0.45) : colors.primaryRgba(0.55))
+                                : (isConcluido ? colors.primaryRgba(0.40) : colors.primaryRgba(0.50)),
+                              opacity: 0.92,
+                            },
+                          ]}
+                        />
+                      </>
+                    )}
                     <View style={[as.eventBlockContent, { flex: 1, zIndex: 1 }]}>
                       <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]}>
                         {((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento'}

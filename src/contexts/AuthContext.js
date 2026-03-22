@@ -24,7 +24,11 @@ export function AuthProvider({ children }) {
           setUser(session?.user ?? null);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        const msg = String(err?.message || '').toLowerCase();
+        if (msg.includes('invalid') && msg.includes('refresh')) {
+          supabase.auth.signOut().catch(() => {});
+        }
         if (!cancelled) {
           setSession(null);
           setUser(null);
@@ -84,8 +88,11 @@ export function AuthProvider({ children }) {
   const enterAsGuest = () => setIsGuest(true);
 
   const signInWithGoogle = async () => {
-    // No APK, makeRedirectUri sem scheme retorna URL do Supabase. Forçar scheme do app para voltar ao app.
-    const redirectTo = makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback' }) || Linking.createURL('auth/callback') || makeRedirectUri({ path: 'auth/callback' });
+    // APK/standalone: scheme do app para o redirect voltar ao app (ex: tudocerto://auth/callback)
+    const redirectTo =
+      Linking.createURL('auth/callback') ||
+      makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback', useProxy: false }) ||
+      'tudocerto://auth/callback';
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -97,21 +104,33 @@ export function AuthProvider({ children }) {
     if (error) throw error;
     if (!data?.url) throw new Error('Não foi possível iniciar o login com Google.');
 
+    // Android: createTask: true (padrão) permite o redirect tudocerto:// voltar ao app
     const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
-      createTask: false,
+      createTask: true,
       showInRecents: false,
     });
     if (res.type === 'success' && res.url) {
       const { params, errorCode } = QueryParams.getQueryParams(res.url);
-      if (errorCode) throw new Error(errorCode);
-      const { access_token, refresh_token } = params;
-      if (!access_token) throw new Error('Sessão não recebida.');
-      const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
-      if (sessionError) throw sessionError;
+      if (errorCode) throw new Error(params?.error_description || errorCode);
+      const { access_token, refresh_token, code } = params;
+
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) throw exchangeError;
+      } else if (access_token && refresh_token) {
+        const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (sessionError) throw sessionError;
+      } else {
+        throw new Error(
+          'Sessão não recebida. Verifique no Supabase (Auth > URL Config) se está permitido: tudocerto://auth/callback'
+        );
+      }
     } else if (res.type === 'cancel') {
       throw new Error('Login cancelado.');
     } else if (res.type === 'dismiss') {
-      throw new Error('O login com Google não retorna ao app no Expo Go com tunnel. Adicione no Supabase (Auth > URL Config): https://*.exp.direct/** e exp://** — ou use um Development Build: npx expo prebuild && npx expo run:android');
+      throw new Error(
+        'O login não retornou ao app. No Supabase (Auth > URL Config) adicione: tudocerto://auth/callback e tudocerto://**'
+      );
     }
   };
 

@@ -103,7 +103,7 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
     <View style={[styles.container, { paddingBottom }]} pointerEvents="box-none">
       <View style={[styles.glass, isDark ? styles.glassDark : styles.glassLight]}>
         <View style={[styles.glassInner, { borderRadius: 26 }]}>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === 'web' || Platform.OS === 'android' ? (
             <View style={[StyleSheet.absoluteFill, styles.webFallback, isDark && styles.webFallbackDark]} />
           ) : (
             <BlurView
@@ -200,12 +200,13 @@ const styles = StyleSheet.create({
   glass: {
     width: '100%',
     borderRadius: 26,
-    overflow: 'visible',
+    overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 12,
+    backgroundColor: 'transparent',
   },
   glassLight: {
     borderWidth: 1,
@@ -221,10 +222,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
   },
   webFallback: {
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.85)',
   },
   webFallbackDark: {
-    backgroundColor: 'rgba(30,41,59,0.4)',
+    backgroundColor: 'rgba(30,41,59,0.9)',
   },
   overlay: {
     zIndex: 1,
@@ -253,6 +254,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     minHeight: 64,
+    backgroundColor: 'transparent',
   },
   tabItem: {
     flex: 1,

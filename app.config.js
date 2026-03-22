@@ -54,6 +54,17 @@ const config = {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#111827',
       },
+      intentFilters: [
+        {
+          action: 'VIEW',
+          autoVerify: false,
+          data: [
+            { scheme: 'tudocerto', host: 'auth', pathPrefix: '/callback' },
+            { scheme: 'tudocerto', pathPrefix: '/' },
+          ],
+          category: ['BROWSABLE', 'DEFAULT'],
+        },
+      ],
       permissions: [
         'android.permission.RECORD_AUDIO',
         'android.permission.READ_EXTERNAL_STORAGE',
