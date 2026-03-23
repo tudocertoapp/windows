@@ -33,7 +33,7 @@ const ms = StyleSheet.create({
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenEmpresa }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa }) {
   const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures, planLabel, planId } = usePlan();
@@ -42,6 +42,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   const [photoError, setPhotoError] = useState(false);
   const [empresaDropdownOpen, setEmpresaDropdownOpen] = useState(false);
   const isModal = Boolean(onClose);
+  const isWeb = typeof window !== 'undefined';
 
   useEffect(() => {
     setPhotoError(false);
@@ -49,10 +50,12 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   const comingSoon = () => Alert.alert('Em breve!', 'Funcionalidade em desenvolvimento.');
 
   const goTo = (tabName, params) => {
-    if (isModal && onNavigateToTab) {
-      onClose();
+    if (onNavigateToTab) {
+      if (isModal) onClose?.();
       onNavigateToTab(tabName, params);
-    } else if (navigation) navigation.navigate(tabName, params);
+    } else if (navigation) {
+      navigation.navigate(tabName, params);
+    }
   };
 
   const goToCadastro = (section) => {
@@ -63,13 +66,13 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   };
 
   const MenuItem = ({ icon, label, subtitle, onPress, badge, rightEl }) => (
-    <TouchableOpacity style={[ms.menuItem, { borderBottomColor: colors.border }]} onPress={onPress || comingSoon} activeOpacity={0.6}>
-      <View style={[ms.menuIconBox, { backgroundColor: 'transparent' }]}>
-        <AppIcon name={icon} size={22} color={colors.primary} />
+    <TouchableOpacity style={[ms.menuItem, { borderBottomColor: colors.border, paddingHorizontal: isWeb ? 12 : 16, paddingVertical: isWeb ? 10 : 14, gap: isWeb ? 10 : 12 }]} onPress={onPress || comingSoon} activeOpacity={0.6}>
+      <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: isWeb ? 30 : 36, height: isWeb ? 30 : 36, borderRadius: isWeb ? 8 : 10 }]}>
+        <AppIcon name={icon} size={isWeb ? 18 : 22} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[ms.menuLabel, { color: colors.text }]}>{label}</Text>
-        {subtitle && <Text style={[ms.menuSub, { color: colors.textSecondary }]}>{subtitle}</Text>}
+        <Text style={[ms.menuLabel, { color: colors.text, fontSize: isWeb ? 13 : 14 }]}>{label}</Text>
+        {subtitle && <Text style={[ms.menuSub, { color: colors.textSecondary, fontSize: isWeb ? 10 : 11, marginTop: isWeb ? 1 : 2 }]}>{subtitle}</Text>}
       </View>
       {badge && (
         <View style={[ms.badge, { backgroundColor: colors.primaryRgba(0.2) }]}>
@@ -91,74 +94,63 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         </View>
       )}
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[ms.logoHeader, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
-          <Image source={logoImage} style={ms.logoLarge} resizeMode="contain" />
-          <Text style={[ms.appTitle, { color: '#22c55e' }]}>Tudo Certo</Text>
+        <View style={[ms.logoHeader, { backgroundColor: colors.bg, borderBottomColor: colors.border, paddingVertical: isWeb ? 14 : 24, paddingTop: isWeb ? 20 : 36 }]}>
+          <Image source={logoImage} style={[ms.logoLarge, { width: isWeb ? 64 : 96, height: isWeb ? 64 : 96 }]} resizeMode="contain" />
+          {!isWeb && (
+            <Text style={[ms.appTitle, { color: '#22c55e', fontSize: isWeb ? 20 : 26, marginTop: isWeb ? 2 : 6 }]}>Tudo Certo</Text>
+          )}
         </View>
-        <TouchableOpacity style={[ms.profileSection, { backgroundColor: colors.card, borderBottomColor: colors.border }]} onPress={onOpenPerfil || comingSoon} activeOpacity={0.7}>
-          <View style={[ms.avatar, { backgroundColor: colors.primary, overflow: 'hidden' }]}>
+        <TouchableOpacity style={[ms.profileSection, { backgroundColor: colors.card, borderBottomColor: colors.border, padding: isWeb ? 12 : 20, gap: isWeb ? 10 : 16 }]} onPress={onOpenPerfil || comingSoon} activeOpacity={0.7}>
+          <View style={[ms.avatar, { backgroundColor: colors.primary, overflow: 'hidden', width: isWeb ? 42 : 56, height: isWeb ? 42 : 56, borderRadius: isWeb ? 21 : 28 }]}>
             {profile?.foto && !photoError ? (
               <Image
                 source={{ uri: profile.foto }}
-                style={{ width: 56, height: 56, borderRadius: 28 }}
+                style={{ width: isWeb ? 42 : 56, height: isWeb ? 42 : 56, borderRadius: isWeb ? 21 : 28 }}
                 resizeMode="cover"
                 onError={() => setPhotoError(true)}
               />
             ) : (
-              <Ionicons name="person-outline" size={32} color="#fff" />
+              <Ionicons name="person-outline" size={isWeb ? 24 : 32} color="#fff" />
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[ms.profileName, { color: colors.text }]}>{profile?.nome || 'Meu Perfil'}</Text>
-            <Text style={[ms.profileSub, { color: colors.textSecondary }]}>Gerencie sua conta</Text>
+            <Text style={[ms.profileName, { color: colors.text, fontSize: isWeb ? 15 : 18 }]}>{profile?.nome || 'Meu Perfil'}</Text>
+            <Text style={[ms.profileSub, { color: colors.textSecondary, fontSize: isWeb ? 11 : 13, marginTop: isWeb ? 1 : 2 }]}>Gerencie sua conta</Text>
             <TouchableOpacity
               onPress={(e) => { e?.stopPropagation?.(); playTapSound(); onOpenAssinatura?.(); }}
-              style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}
+              style={{ flexDirection: 'row', alignItems: 'center', marginTop: isWeb ? 4 : 8, gap: 4 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="rocket-outline" size={14} color={colors.primary} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>{planLabel || 'Plano Básico'}</Text>
+              <Ionicons name="rocket-outline" size={isWeb ? 12 : 14} color={colors.primary} />
+              <Text style={{ fontSize: isWeb ? 11 : 12, fontWeight: '600', color: colors.primary }}>{planLabel || 'Plano Básico'}</Text>
               <Ionicons name="chevron-forward" size={12} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>CONTA</Text>
-        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>NAVEGAÇÃO</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+          <MenuItem icon="home-outline" label="Início" subtitle="Painel principal" onPress={() => goTo('Início')} />
+          <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />
+          <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />
+        </GlassCard>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>CONTA</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
           <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
           <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
         </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>FINANCEIRO</Text>
-        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
-          <MenuItem icon="cash-outline" label="Meu Orçamento" subtitle="Limite de gastos por categoria" onPress={onOpenOrcamento || comingSoon} />
-          <MenuItem icon="chatbubbles-outline" label="Meus gastos" subtitle="Conversa por texto, voz e foto" onPress={onOpenMeusGastos || comingSoon} />
-          <MenuItem icon="document-text-outline" label="Boletos" subtitle="Gerenciar boletos" badge={`${boletos.length}`} onPress={() => goToCadastro('boletos')} />
-        </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>PRODUTIVIDADE</Text>
-        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
-          <MenuItem icon="cart-outline" label="Lista de compras" subtitle="Anote o que precisa comprar" onPress={onOpenListaCompras || comingSoon} />
-          <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
-          <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso" onPress={onOpenMetasSonhos || comingSoon} />
-        </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>VISUALIZAÇÃO</Text>
-        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="bar-chart-outline" label="Gráficos" subtitle="Ver gastos por categoria" onPress={() => goTo('Dinheiro', { tab: 'graficos' })} />
-          <MenuItem icon="image-outline" label="Criar imagem Instagram" subtitle="Frase motivacional para compartilhar" onPress={() => onOpenImageGenerator?.()} />
-        </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>EMPRESA</Text>
-        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>EMPRESA</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
           <TouchableOpacity
-            style={[ms.dropdownHeader, { borderBottomColor: colors.border }]}
+            style={[ms.dropdownHeader, { borderBottomColor: colors.border, paddingHorizontal: isWeb ? 12 : 16, paddingVertical: isWeb ? 10 : 14, gap: isWeb ? 10 : 12 }]}
             onPress={() => { playTapSound(); setEmpresaDropdownOpen(!empresaDropdownOpen); }}
             activeOpacity={0.7}
           >
-            <View style={[ms.menuIconBox, { backgroundColor: 'transparent' }]}>
-              <AppIcon name="business-outline" size={22} color={colors.primary} />
+            <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: isWeb ? 30 : 36, height: isWeb ? 30 : 36, borderRadius: isWeb ? 8 : 10 }]}>
+              <AppIcon name="business-outline" size={isWeb ? 18 : 22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[ms.menuLabel, { color: colors.text }]}>Empresa</Text>
+              <Text style={[ms.menuLabel, { color: colors.text, fontSize: isWeb ? 13 : 14 }]}>Empresa</Text>
             </View>
             <AppIcon name={empresaDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -166,6 +158,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             <>
               <MenuItem icon="document-text-outline" label="Ordem de serviço" subtitle="Cadastro e gestão de OS" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrdemServico?.(); }} />
               <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />
+              {isWeb && <MenuItem icon="cart-outline" label="PDV" subtitle="Ponto de venda" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
               <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('produtos'); }} />
               <MenuItem icon="construct-outline" label="Serviços" subtitle="Gerenciar serviços" badge={`${services.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('servicos'); }} />
               <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads e mensagens" badge={`${clients.length}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenMensagensWhatsApp?.(); }} />
@@ -175,14 +168,48 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             </>
           )}
         </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary }]}>SUPORTE</Text>
-        <GlassCard colors={colors} style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1 }]} contentStyle={{ padding: 0 }}>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>FINANCEIRO</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+          <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
+          <MenuItem icon="cash-outline" label="Meu Orçamento" subtitle="Limite de gastos por categoria" onPress={onOpenOrcamento || comingSoon} />
+          <MenuItem icon="chatbubbles-outline" label="Meus gastos" subtitle="Conversa por texto, voz e foto" onPress={onOpenMeusGastos || comingSoon} />
+          <MenuItem icon="document-text-outline" label="Boletos" subtitle="Gerenciar boletos" badge={`${boletos.length}`} onPress={() => goToCadastro('boletos')} />
+        </GlassCard>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>PRODUTIVIDADE</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+          <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
+          <MenuItem icon="cart-outline" label="Lista de compras" subtitle="Anote o que precisa comprar" onPress={onOpenListaCompras || comingSoon} />
+          <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
+          <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso" onPress={onOpenMetasSonhos || comingSoon} />
+        </GlassCard>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>VISUALIZAÇÃO</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+          <MenuItem icon="bar-chart-outline" label="Gráficos" subtitle="Ver gastos por categoria" onPress={() => goTo('Dinheiro', { tab: 'graficos' })} />
+          <MenuItem icon="image-outline" label="Criar imagem Instagram" subtitle="Frase motivacional para compartilhar" onPress={() => onOpenImageGenerator?.()} />
+        </GlassCard>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isWeb ? 14 : 20, paddingTop: isWeb ? 12 : 20, paddingBottom: isWeb ? 6 : 8, fontSize: isWeb ? 10 : 11 } ]}>SUPORTE</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isWeb ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
           <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
           <MenuItem icon="document-text-outline" label="Termos de Uso" subtitle="Leia os termos do aplicativo" onPress={onOpenTermos || comingSoon} />
           <MenuItem icon="star-outline" label="Avaliar App" subtitle="Deixe sua avaliação" />
-          <MenuItem icon="log-out-outline" label="Sair da conta" subtitle="Deslogar do aplicativo" onPress={() => Alert.alert('Sair', 'Deseja sair da sua conta?', [{ text: 'Cancelar' }, { text: 'Sair', style: 'destructive', onPress: () => { onClose?.(); signOut(); } }])} />
+          <MenuItem
+            icon="log-out-outline"
+            label="Sair da conta"
+            subtitle="Deslogar do aplicativo"
+            onPress={() => {
+              if (typeof window !== 'undefined') {
+                const ok = window.confirm('Deseja sair da sua conta?');
+                if (ok) {
+                  onClose?.();
+                  signOut();
+                }
+                return;
+              }
+              Alert.alert('Sair', 'Deseja sair da sua conta?', [{ text: 'Cancelar' }, { text: 'Sair', style: 'destructive', onPress: () => { onClose?.(); signOut(); } }]);
+            }}
+          />
         </GlassCard>
-        <Text style={{ textAlign: 'center', fontSize: 11, color: colors.textSecondary, marginTop: 20, marginBottom: 100 }}>Tudo Certo v1.0.0</Text>
+        <Text style={{ textAlign: 'center', fontSize: isWeb ? 10 : 11, color: colors.textSecondary, marginTop: isWeb ? 14 : 20, marginBottom: isWeb ? 50 : 100 }}>Tudo Certo v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );

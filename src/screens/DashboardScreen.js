@@ -29,7 +29,8 @@ import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_SECTIONS, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS } from '../constants/dashboardCards';
+import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS } from '../constants/dashboardCards';
+import { getLayoutStorageKey, getDefaultForPlatform } from '../utils/platformLayout';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -123,6 +124,17 @@ function parseDateKey(str) {
 }
 
 export function DashboardScreen() {
+  const isWeb = Platform.OS === 'web';
+  const WEB_CARD_MARGIN_H = isWeb ? 6 : 16;
+  const WEB_CARD_MARGIN_TOP = isWeb ? 6 : 16;
+  const WEB_CARD_PADDING = isWeb ? 12 : 20;
+  const WEB_HEADER_GAP = isWeb ? 5 : 12;
+  const CARD_ACTION_SIZE = isWeb ? 32 : 40;
+  const CARD_ACTION_ICON_SIZE = isWeb ? 20 : 24;
+  const CARD_EXPAND_ICON_SIZE = isWeb ? 18 : 22;
+  const TRIO_CARD_HEIGHT = isWeb ? 280 : undefined;
+  const HEADER_ICON_BOX_SIZE = isWeb ? 40 : 48;
+  const HEADER_ICON_SIZE = isWeb ? 22 : 26;
   const route = useRoute();
   const navigation = useNavigation();
   const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction } = useFinance();
@@ -139,15 +151,18 @@ export function DashboardScreen() {
   const carouselRef = useRef(null);
   const [carouselIndex, setCarouselIndex] = useState(0); // display index 0..count-1
   const { width: winWidth } = useWindowDimensions();
+  const carouselViewportWidth = isWeb ? Math.min((winWidth || SW) * 0.62, 620) : (winWidth || SW);
   const { CARD_WIDTH, CARD_GAP, SNAP_INTERVAL, CAROUSEL_PADDING } = useMemo(() => {
-    const w = winWidth || SW;
+    const w = carouselViewportWidth;
     const cw = (w * 0.78) + 32;
     const gap = 12;
     const snap = cw + gap;
     const pad = (w - snap) / 2;
     return { CARD_WIDTH: cw, CARD_GAP: gap, SNAP_INTERVAL: snap, CAROUSEL_PADDING: pad };
-  }, [winWidth]);
-  const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
+  }, [carouselViewportWidth]);
+  const defaultSections = getDefaultForPlatform(DEFAULT_SECTIONS, { web: DEFAULT_SECTIONS_WEB });
+  const sectionsStorageKey = getLayoutStorageKey(SECTIONS_ORDER_KEY);
+  const [sectionOrder, setSectionOrder] = useState(defaultSections);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [balanceFilter, setBalanceFilter] = useState('mes');
   const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
@@ -174,7 +189,7 @@ export function DashboardScreen() {
 
 
   useEffect(() => {
-    AsyncStorage.getItem(SECTIONS_ORDER_KEY).then((raw) => {
+    AsyncStorage.getItem(sectionsStorageKey).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -183,17 +198,17 @@ export function DashboardScreen() {
             ? parsed
                 .filter((id) => id !== 'agenda' && allowedSections.has(id === 'tarefas' ? 'proximos' : id))
                 .map((id) => (id === 'tarefas' ? 'proximos' : id))
-            : DEFAULT_SECTIONS;
+            : defaultSections;
           filtered = [...new Set(filtered)];
-          const base = filtered.length > 0 ? filtered : DEFAULT_SECTIONS;
-          const missing = DEFAULT_SECTIONS.filter((id) => !base.includes(id));
+          const base = filtered.length > 0 ? filtered : defaultSections;
+          const missing = defaultSections.filter((id) => !base.includes(id));
           setSectionOrder([...base, ...missing]);
         } catch (_) {}
       } else {
-        setSectionOrder(DEFAULT_SECTIONS);
+        setSectionOrder(defaultSections);
       }
     });
-  }, []);
+  }, [sectionsStorageKey, defaultSections]);
   useEffect(() => {
     if (route.params?.openCardPicker) {
       setShowCardPicker(true);
@@ -202,8 +217,8 @@ export function DashboardScreen() {
   }, [route.params?.openCardPicker, navigation]);
   useEffect(() => {
     const toSave = sectionOrder.filter((id) => id !== 'agenda' && id !== 'tarefas');
-    AsyncStorage.setItem(SECTIONS_ORDER_KEY, JSON.stringify(toSave.length > 0 ? toSave : DEFAULT_SECTIONS));
-  }, [sectionOrder]);
+    AsyncStorage.setItem(sectionsStorageKey, JSON.stringify(toSave.length > 0 ? toSave : defaultSections));
+  }, [sectionOrder, sectionsStorageKey, defaultSections]);
 
   const filteredTx = useMemo(() => {
     if (!canToggleView) return transactions;
@@ -367,19 +382,53 @@ export function DashboardScreen() {
     }
   }, [navigation, openOrcamento, openAssinatura, openIndique, openMensagensWhatsApp]);
 
+  const useCarouselClones = !isWeb && carouselItems.length > 1;
+
+  const jumpToCarouselIndex = useCallback((nextIndex) => {
+    const count = carouselItems.length;
+    if (count <= 0) return;
+    const target = Math.max(0, Math.min(nextIndex, count - 1));
+    setCarouselIndex(target);
+    if (isWeb) return;
+    const targetIndex = useCarouselClones ? (target + 1) : target;
+    carouselRef.current?.scrollToOffset?.({ offset: targetIndex * SNAP_INTERVAL, animated: true });
+  }, [carouselItems.length, isWeb, useCarouselClones, SNAP_INTERVAL]);
+
   const carouselCount = carouselItems.length;
+  const webSectionOrder = useMemo(() => {
+    if (!isWeb) return sectionOrder;
+    const first = ['carousel', 'quote'];
+    const rest = sectionOrder.filter((id) => !first.includes(id));
+    return [...first.filter((id) => sectionOrder.includes(id)), ...rest];
+  }, [isWeb, sectionOrder]);
+  const [webProductivityTab, setWebProductivityTab] = useState('anotacoes');
+  const webSectionTail = useMemo(() => {
+    if (!isWeb) return [];
+    const tail = webSectionOrder.slice(2);
+    const hasAnotacoes = tail.includes('anotacoes');
+    const hasCompras = tail.includes('listacompras');
+    if (!hasAnotacoes || !hasCompras) return tail;
+    const firstIdx = Math.min(tail.indexOf('anotacoes'), tail.indexOf('listacompras'));
+    const filtered = tail.filter((id) => id !== 'anotacoes' && id !== 'listacompras');
+    filtered.splice(firstIdx, 0, 'produtividade');
+    return filtered;
+  }, [isWeb, webSectionOrder]);
 
   useEffect(() => {
     const count = carouselItems.length;
     if (count <= 1) return;
     const interval = setInterval(() => {
+      if (isWeb) {
+        setCarouselIndex((prev) => (prev + 1) % count);
+        return;
+      }
       const nextDisplay = (carouselIndex + 1) % count;
       setCarouselIndex(nextDisplay);
-      const extendedIndex = nextDisplay + 1;
-      carouselRef.current?.scrollToOffset({ offset: extendedIndex * SNAP_INTERVAL, animated: true });
+      const targetIndex = useCarouselClones ? (nextDisplay + 1) : nextDisplay;
+      carouselRef.current?.scrollToOffset({ offset: targetIndex * SNAP_INTERVAL, animated: true });
     }, 4000);
     return () => clearInterval(interval);
-  }, [carouselIndex, SNAP_INTERVAL, carouselItems.length]);
+  }, [carouselIndex, SNAP_INTERVAL, carouselItems.length, useCarouselClones, isWeb]);
 
   const handleLayoutMeasured = (id, y, height) => {
     layoutsRef.current[id] = { y, height };
@@ -479,23 +528,35 @@ export function DashboardScreen() {
   }, [aReceber]);
 
   const cardIconColor = colors.cardIconColor;
-  const taskCardBase = (icon, _iconColor, title, subtitle, items, renderItem, emptyText, extraHeaderContent, onVerMais, headerRightActions) => (
+  const cardActionButtonStyle = {
+    width: CARD_ACTION_SIZE,
+    height: CARD_ACTION_SIZE,
+    borderRadius: CARD_ACTION_SIZE / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '26',
+    borderWidth: 1,
+    borderColor: colors.primary + '50',
+  };
+  const cardHeaderActionsStyle = { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: isWeb ? 2 : 0 };
+
+  const taskCardBase = (icon, _iconColor, title, subtitle, items, renderItem, emptyText, extraHeaderContent, onVerMais, headerRightActions, extraFooterContent) => (
     <TouchableOpacity
       key={title}
       onPress={() => navigation?.navigate?.('Agenda')}
       activeOpacity={0.9}
-      style={{ marginHorizontal: 16, marginTop: 16 }}
+      style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
     >
-      <GlassCard colors={colors} solid style={[ds.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-            <AppIcon name={icon} size={26} color={cardIconColor} />
+      <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 16 }}>
+          <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{title}</Text>
-            <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
+              <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>{title}</Text>
+            <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
           </View>
-          {headerRightActions ?? <AppIcon name="expand-outline" size={22} color={colors.primary} />}
+          {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
         </View>
         {extraHeaderContent}
         <ScrollableCardList
@@ -503,8 +564,10 @@ export function DashboardScreen() {
           colors={colors}
           emptyText={emptyText}
           onVerMais={onVerMais}
+          fixedVisibleHeight={isWeb}
           renderItem={(item) => renderItem(item)}
         />
+        {extraFooterContent}
       </GlassCard>
     </TouchableOpacity>
   );
@@ -515,37 +578,31 @@ export function DashboardScreen() {
         key="proximos"
         onPress={() => navigation?.navigate?.('Agenda')}
         activeOpacity={0.9}
-        style={{ marginHorizontal: 16, marginTop: 16 }}
+        style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
       >
-        <GlassCard colors={colors} solid style={[ds.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name="checkmark-done-outline" size={26} color={cardIconColor} />
+        <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 12 }}>
+            <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>
                 {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+              <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
                 {showConcluidasProximos
                   ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
                   : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                <Ionicons name="add" size={24} color={colors.primary} />
+            <View style={cardHeaderActionsStyle}>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
+                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                <AppIcon name="expand-outline" size={22} color={colors.primary} />
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
+                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
               </TouchableOpacity>
             </View>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-              <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
-              <Text style={{ fontSize: 12, color: colors.primary || colors.primary, fontWeight: '600' }}>{showConcluidasProximos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
-            </TouchableOpacity>
           </View>
           <ScrollableCardList
             items={showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas}
@@ -553,6 +610,7 @@ export function DashboardScreen() {
             accentColor={colors.primary}
             emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
             onVerMais={() => { playTapSound(); setExpandedCard('proximos'); }}
+            fixedVisibleHeight={isWeb}
             renderItem={(t) => (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 4 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -588,6 +646,12 @@ export function DashboardScreen() {
               </View>
             )}
           />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
+            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
+              <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.primary || colors.primary, fontWeight: '600' }}>{showConcluidasProximos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
+            </TouchableOpacity>
+          </View>
         </GlassCard>
       </TouchableOpacity>
     ),
@@ -649,141 +713,199 @@ export function DashboardScreen() {
         );
       },
       showConcluidasAgendamentos ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento concluído' : 'Nenhum evento concluído') : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento agendado' : 'Nenhum evento agendado'),
+      null,
+      () => { playTapSound(); setExpandedCard('agendamentos'); },
       (
-        <View key="agendamentos-actions" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-            <AppIcon name={showConcluidasAgendamentos ? 'calendar-outline' : 'checkmark-done-outline'} size={16} color={colors.primary || colors.primary} />
-            <Text style={{ fontSize: 12, color: colors.primary || colors.primary, fontWeight: '600' }}>{showConcluidasAgendamentos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
+        <View style={cardHeaderActionsStyle}>
+          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={cardActionButtonStyle}>
+            <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('agendamentos'); }} style={cardActionButtonStyle}>
+            <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
           </TouchableOpacity>
         </View>
       ),
-      () => { playTapSound(); setExpandedCard('agendamentos'); },
       (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-            <Ionicons name="add" size={24} color={colors.primary || colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('agendamentos'); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-            <AppIcon name="expand-outline" size={22} color={colors.primary || colors.primary} />
+        <View key="agendamentos-actions" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
+          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
+            <AppIcon name={showConcluidasAgendamentos ? 'calendar-outline' : 'checkmark-done-outline'} size={16} color={colors.primary || colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.primary || colors.primary, fontWeight: '600' }}>{showConcluidasAgendamentos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
           </TouchableOpacity>
         </View>
       )
     ),
     carousel: (
       <View key="carousel" style={ds.carousel}>
-        <FlatList
-          ref={carouselRef}
-          data={carouselItemsExtended}
-          horizontal
-          pagingEnabled={false}
-          style={{ overflow: 'visible' }}
-          snapToInterval={SNAP_INTERVAL}
-          snapToAlignment="center"
-          decelerationRate="fast"
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: CAROUSEL_PADDING }}
-          key={`carousel-${Math.round(winWidth)}`}
-          initialScrollIndex={carouselCount > 1 ? 1 : 0}
-          snapToOffsets={carouselItemsExtended.map((_, i) => i * SNAP_INTERVAL)}
-          onMomentumScrollEnd={(e) => {
-            const offsetX = e.nativeEvent.contentOffset.x;
-            const rawIndex = Math.round(offsetX / Math.max(1, SNAP_INTERVAL));
-            if (carouselCount <= 1) {
-              setCarouselIndex(0);
-              return;
-            }
-            if (rawIndex <= 0) {
-              setCarouselIndex(carouselCount - 1);
-              carouselRef.current?.scrollToOffset({ offset: carouselCount * SNAP_INTERVAL, animated: false });
-            } else if (rawIndex >= carouselCount + 1) {
-              setCarouselIndex(0);
-              carouselRef.current?.scrollToOffset({ offset: SNAP_INTERVAL, animated: false });
-            } else {
-              setCarouselIndex(rawIndex - 1);
-            }
-          }}
-          getItemLayout={(_, index) => ({ length: SNAP_INTERVAL, offset: CAROUSEL_PADDING + index * SNAP_INTERVAL, index })}
-          renderItem={({ item }) => {
-            const cardContent = (
-              <ImageBackground
-                source={item.image}
-                style={[
-                  ds.carouselItem,
-                  {
-                    width: CARD_WIDTH,
-                    height: 165,
-                    padding: 0,
-                    borderColor: (item.color || colors.primary) + '80',
-                    overflow: 'hidden',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 6 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 12,
-                    elevation: 8,
-                  },
-                ]}
-                imageStyle={{ borderRadius: 20, opacity: 0.8 }}
-                resizeMode="cover"
-              >
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
-                <View style={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                  <AppIcon name={item.icon} size={24} color="#fff" />
-                </View>
-                <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
-                  <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
-                  <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
-                </LinearGradient>
-                <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-                <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-              </ImageBackground>
-            );
-            return item.onPress ? (
-              <TouchableOpacity key={item.id} onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ width: SNAP_INTERVAL, alignItems: 'center', justifyContent: 'center' }}>
-                {cardContent}
+        {isWeb ? (
+          (() => {
+            const item = carouselItems[Math.max(0, Math.min(carouselIndex, Math.max(0, carouselItems.length - 1)))] || carouselItems[0];
+            if (!item) return null;
+            return (
+              <TouchableOpacity onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ alignSelf: 'center' }}>
+                <ImageBackground
+                  source={item.image}
+                  style={[
+                    ds.carouselItem,
+                    {
+                      width: CARD_WIDTH,
+                      height: 165,
+                      padding: 0,
+                      borderColor: (item.color || colors.primary) + '80',
+                      overflow: 'hidden',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 12,
+                      elevation: 8,
+                    },
+                  ]}
+                  imageStyle={{ borderRadius: 20, opacity: 0.8 }}
+                  resizeMode="cover"
+                >
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
+                  <View style={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                    <AppIcon name={item.icon} size={24} color="#fff" />
+                  </View>
+                  <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
+                    <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
+                    <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
+                  </LinearGradient>
+                  <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                </ImageBackground>
               </TouchableOpacity>
-            ) : (
-              <View key={item.id} style={{ width: SNAP_INTERVAL, alignItems: 'center', justifyContent: 'center' }}>{cardContent}</View>
             );
-          }}
-        />
+          })()
+        ) : (
+          <FlatList
+            ref={carouselRef}
+            data={useCarouselClones ? carouselItemsExtended : carouselItems}
+            horizontal
+            pagingEnabled={false}
+            style={{ overflow: 'visible', width: carouselViewportWidth, alignSelf: 'center' }}
+            snapToInterval={SNAP_INTERVAL}
+            snapToAlignment="center"
+            decelerationRate="fast"
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: CAROUSEL_PADDING }}
+            key={`carousel-${Math.round(carouselViewportWidth)}-${useCarouselClones ? 'clones' : 'plain'}`}
+            initialScrollIndex={useCarouselClones ? 1 : 0}
+            snapToOffsets={(useCarouselClones ? carouselItemsExtended : carouselItems).map((_, i) => i * SNAP_INTERVAL)}
+            onMomentumScrollEnd={(e) => {
+              const offsetX = e.nativeEvent.contentOffset.x;
+              const rawIndex = Math.round(offsetX / Math.max(1, SNAP_INTERVAL));
+              if (carouselCount <= 1) {
+                setCarouselIndex(0);
+                return;
+              }
+              if (!useCarouselClones) {
+                const clamped = Math.max(0, Math.min(rawIndex, carouselCount - 1));
+                setCarouselIndex(clamped);
+              } else if (rawIndex <= 0) {
+                setCarouselIndex(carouselCount - 1);
+                carouselRef.current?.scrollToOffset({ offset: carouselCount * SNAP_INTERVAL, animated: false });
+              } else if (rawIndex >= carouselCount + 1) {
+                setCarouselIndex(0);
+                carouselRef.current?.scrollToOffset({ offset: SNAP_INTERVAL, animated: false });
+              } else {
+                setCarouselIndex(rawIndex - 1);
+              }
+            }}
+            getItemLayout={(_, index) => ({ length: SNAP_INTERVAL, offset: index * SNAP_INTERVAL, index })}
+            renderItem={({ item }) => {
+              const cardContent = (
+                <ImageBackground
+                  source={item.image}
+                  style={[
+                    ds.carouselItem,
+                    {
+                      width: CARD_WIDTH,
+                      height: 165,
+                      padding: 0,
+                      borderColor: (item.color || colors.primary) + '80',
+                      overflow: 'hidden',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 12,
+                      elevation: 8,
+                    },
+                  ]}
+                  imageStyle={{ borderRadius: 20, opacity: 0.8 }}
+                  resizeMode="cover"
+                >
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
+                  <View style={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                    <AppIcon name={item.icon} size={24} color="#fff" />
+                  </View>
+                  <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
+                    <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
+                    <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
+                  </LinearGradient>
+                  <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                </ImageBackground>
+              );
+              return item.onPress ? (
+                <TouchableOpacity key={item.id} onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ width: SNAP_INTERVAL, alignItems: 'center', justifyContent: 'center' }}>
+                  {cardContent}
+                </TouchableOpacity>
+              ) : (
+                <View key={item.id} style={{ width: SNAP_INTERVAL, alignItems: 'center', justifyContent: 'center' }}>{cardContent}</View>
+              );
+            }}
+          />
+        )}
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 }}>
           {carouselItems.map((_, i) => (
-            <View key={i} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '60' }} />
+            <TouchableOpacity
+              key={i}
+              onPress={() => { playTapSound(); jumpToCarouselIndex(i); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ paddingVertical: 4, paddingHorizontal: 2 }}
+            >
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '60' }} />
+            </TouchableOpacity>
           ))}
         </View>
       </View>
     ),
     quote: (
-      <TouchableOpacity key="quote" onPress={() => openImageGenerator?.({ quote, quoteType })} activeOpacity={0.8} style={{ marginHorizontal: 16, marginTop: 16 }}>
-        <GlassCard colors={colors} solid style={[ds.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={26} color={cardIconColor} />
+      <TouchableOpacity key="quote" onPress={() => openImageGenerator?.({ quote, quoteType })} activeOpacity={0.8} style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
+        <GlassCard
+          colors={colors}
+          solid
+          style={[ds.card, { padding: isWeb ? 10 : WEB_CARD_PADDING, minHeight: isWeb ? 130 : undefined }]}
+          contentStyle={{ padding: isWeb ? 10 : WEB_CARD_PADDING }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 12 }}>
+            <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>
                 {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+              <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
                 {quoteType === 'motivacional' ? 'Citação motivacional' : 'Palavra de sabedoria'}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={cardHeaderActionsStyle}>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
+                style={[cardActionButtonStyle, { width: isWeb ? 40 : CARD_ACTION_SIZE, borderRadius: isWeb ? 20 : CARD_ACTION_SIZE / 2 }]}
+              >
+                <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={(e) => { e.stopPropagation(); playTapSound(); openImageGenerator?.({ quote, quoteType }); }}
-                style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}
+                style={cardActionButtonStyle}
               >
-                <Ionicons name="share-outline" size={22} color={colors.primary || colors.primary} />
+                <Ionicons name="share-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
-          <Text style={[ds.quoteText, { color: colors.text }]} numberOfLines={3}>"{quote}"</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 14 }}>
-            <TouchableOpacity onPress={(e) => { e.stopPropagation(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '60' }}>
-              <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={18} color={colors.primary || colors.primary} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary || colors.primary }}>{quoteType === 'motivacional' ? 'Ver versículo' : 'Ver citação'}</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={[ds.quoteText, { color: colors.text, fontSize: isWeb ? 14 : ds.quoteText.fontSize }]} numberOfLines={isWeb ? 2 : 3}>"{quote}"</Text>
         </GlassCard>
       </TouchableOpacity>
     ),
@@ -842,63 +964,67 @@ export function DashboardScreen() {
       };
       const isEmpresa = showEmpresaFeatures && viewMode === 'empresa';
       return (
-        <View key="aniversariantes" style={{ marginHorizontal: 16, marginTop: 16 }}>
-          <GlassCard colors={colors} solid style={[ds.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="gift-outline" size={26} color={cardIconColor} />
+        <View key="aniversariantes" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
+          <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 12 }}>
+              <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: isWeb ? 8 : 12 }}>
+                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
-                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                  <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
+                  <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
                     {aniversariantesSemana.length > 0
                       ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''} (empresa)` : `${aniversariantesSemana.length} família e amigos (pessoal)`)
                       : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
                   </Text>
                 </View>
               </TouchableOpacity>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                  <Ionicons name="add" size={24} color={colors.primary} />
+              <View style={cardHeaderActionsStyle}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={cardActionButtonStyle}>
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                  <AppIcon name="expand-outline" size={22} color={colors.primary} />
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={cardActionButtonStyle}>
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
-            {aniversariantesSemana.length > 0 ? (
-              aniversariantesSemana.slice(0, 4).map((c) => {
+            <ScrollableCardList
+              items={aniversariantesSemana}
+              colors={colors}
+              accentColor={colors.primary}
+              emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
+              onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
+              fixedVisibleHeight={isWeb}
+              renderItem={(c) => {
                 const bd = c.birthDate || c.dataNascimento;
                 const diaLabel = getDiaLabel(bd);
                 const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
                 return (
-                <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4, marginBottom: 4 }}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
-                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                  <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                      <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                    </View>
+                    {c.phone?.trim() ? (
+                      <TouchableOpacity
+                        onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                        style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
-                  {c.phone?.trim() ? (
-                    <TouchableOpacity
-                      onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
-                      style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              );
-              })
-            ) : (
-              <Text style={{ fontSize: 14, color: colors.textSecondary }}>Mande uma mensagem de parabéns pelo WhatsApp</Text>
-            )}
+                );
+              }}
+            />
           </GlassCard>
         </View>
       );
     })(),
     meusgastos: (
-      <View key="meusgastos" style={{ marginHorizontal: 16, marginTop: 16 }}>
+      <View key="meusgastos" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
         <GlassCard colors={colors} solid style={[ds.card, { overflow: 'hidden' }]} contentStyle={{ padding: 0 }}>
           <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -909,13 +1035,13 @@ export function DashboardScreen() {
                 <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Meus gastos</Text>
                 <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>Conversa por texto, voz e foto da notinha</Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={cardHeaderActionsStyle}>
                 <TouchableOpacity
                   onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openMeusGastos?.(); }}
-                  style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}
+                  style={cardActionButtonStyle}
                   activeOpacity={0.9}
                 >
-                  <AppIcon name="expand-outline" size={22} color={colors.primary || colors.primary} />
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -931,9 +1057,9 @@ export function DashboardScreen() {
         key="anotacoes"
         onPress={() => { playTapSound(); openAnotacoes?.(); }}
         activeOpacity={0.9}
-        style={{ marginHorizontal: 16, marginTop: 16 }}
+        style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
       >
-        <GlassCard colors={colors} solid style={[ds.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
+        <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
             <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name="document-text-outline" size={26} color={cardIconColor} />
@@ -944,12 +1070,12 @@ export function DashboardScreen() {
                 {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                <Ionicons name="add" size={24} color={colors.primary || colors.primary} />
+            <View style={cardHeaderActionsStyle}>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
+                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                <AppIcon name="expand-outline" size={22} color={colors.primary || colors.primary} />
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={cardActionButtonStyle}>
+                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -999,9 +1125,9 @@ export function DashboardScreen() {
           key="listacompras"
           onPress={() => { playTapSound(); openListaCompras?.(); }}
           activeOpacity={0.9}
-          style={{ marginHorizontal: 16, marginTop: 16 }}
+          style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
         >
-          <GlassCard colors={colors} solid style={[ds.card, { padding: 20 }]} contentStyle={{ padding: 20 }}>
+          <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                 <AppIcon name="cart-outline" size={26} color={cardIconColor} />
@@ -1016,12 +1142,12 @@ export function DashboardScreen() {
                     : (filteredPendentes.length === 0 ? 'Anote o que precisa comprar' : `${filteredPendentes.length} pendente${filteredPendentes.length !== 1 ? 's' : ''}`)}
                 </Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                  <Ionicons name="add" size={24} color={colors.primary || colors.primary} />
+              <View style={cardHeaderActionsStyle}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                  <AppIcon name="expand-outline" size={22} color={colors.primary || colors.primary} />
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1069,6 +1195,70 @@ export function DashboardScreen() {
         </TouchableOpacity>
       );
     })(),
+    produtividade: (
+      <View key="produtividade" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
+        <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <TouchableOpacity
+              onPress={() => { playTapSound(); setWebProductivityTab('anotacoes'); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: webProductivityTab === 'anotacoes' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: webProductivityTab === 'anotacoes' ? colors.primary : colors.border }}
+            >
+              <Ionicons name="document-text-outline" size={14} color={webProductivityTab === 'anotacoes' ? colors.primary : colors.textSecondary} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: webProductivityTab === 'anotacoes' ? colors.primary : colors.textSecondary }}>Minhas anotações</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { playTapSound(); setWebProductivityTab('compras'); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: webProductivityTab === 'compras' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: webProductivityTab === 'compras' ? colors.primary : colors.border }}
+            >
+              <Ionicons name="cart-outline" size={14} color={webProductivityTab === 'compras' ? colors.primary : colors.textSecondary} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: webProductivityTab === 'compras' ? colors.primary : colors.textSecondary }}>Minhas compras</Text>
+            </TouchableOpacity>
+            <View style={{ marginLeft: 'auto', ...cardHeaderActionsStyle }}>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); webProductivityTab === 'anotacoes' ? openAnotacoes?.() : openListaCompras?.(); }}
+                style={cardActionButtonStyle}
+              >
+                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); webProductivityTab === 'anotacoes' ? openAnotacoes?.() : openListaCompras?.(); }}
+                style={cardActionButtonStyle}
+              >
+                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {webProductivityTab === 'anotacoes' ? (
+            <ScrollableCardList
+              items={notes}
+              colors={colors}
+              accentColor={colors.primary}
+              emptyText="Nenhuma anotação ainda"
+              onVerMais={() => { playTapSound(); openAnotacoes?.(); }}
+              renderItem={(n) => (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.anotacoes + '40', marginLeft: 4 }}>
+                  <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{n.title || 'Sem título'}</Text>
+                </View>
+              )}
+            />
+          ) : (
+            <ScrollableCardList
+              items={(shoppingItems || []).filter((i) => !i.checked)}
+              colors={colors}
+              accentColor={colors.primary}
+              emptyText="Nenhum item na lista"
+              onVerMais={() => { playTapSound(); openListaCompras?.(); }}
+              renderItem={(i) => (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+                  <View style={{ width: 18, height: 18, borderRadius: 5, borderWidth: 2, borderColor: colors.border, backgroundColor: 'transparent' }} />
+                  <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{i.title}</Text>
+                </View>
+              )}
+            />
+          )}
+        </GlassCard>
+      </View>
+    ),
     contas: (
       <View key="contas">
         <ContasDoMesCard
@@ -1122,16 +1312,22 @@ export function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
+      {(() => {
+        const showInlineToggle = isWeb && canToggleView;
+        return (
       <TopBar
         title="Início"
         colors={colors}
         useLogoImage
         hideOrganize
+        inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={openCalculadoraFull}
         onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
       />
-      {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
+        );
+      })()}
+      {!(isWeb && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       {isGuest && (
         <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center' }}>
           <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>Modo visitante: os dados não são salvos. Faça login para persistir.</Text>
@@ -1142,23 +1338,85 @@ export function DashboardScreen() {
           <Text style={[ds.monthText, { color: colors.textSecondary }]}>{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</Text>
         </View>
 
-        {sectionOrder.map((sid) => {
-          const content = sectionMap[sid];
-          if (!content) return null;
-          return (
-            <DraggableCard
-              key={sid}
-              id={sid}
-              editMode={editMode}
-              onLayoutMeasured={handleLayoutMeasured}
-              onFloatStart={setFloatingId}
-              onCardPress={handleCardPress}
-              isFloating={floatingId === sid}
-            >
-              {content}
-            </DraggableCard>
-          );
-        })}
+        {isWeb ? (
+          <View style={{ paddingHorizontal: 10 }}>
+            {(() => {
+              const carouselContent = sectionMap.carousel;
+              const quoteContent = sectionMap.quote;
+              return (
+                <>
+                  {carouselContent ? (
+                    <View style={{ width: '100%', paddingHorizontal: 4 }}>
+                      {carouselContent}
+                    </View>
+                  ) : null}
+                  {quoteContent ? (
+                    <View style={{ width: '100%', paddingHorizontal: 4 }}>
+                      {quoteContent}
+                    </View>
+                  ) : null}
+                </>
+              );
+            })()}
+            {(() => {
+              const trioIds = ['proximos', 'agendamentos', 'aniversariantes'];
+              const trio = trioIds.filter((id) => webSectionTail.includes(id));
+              if (trio.length !== 3) return null;
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'stretch', marginTop: 4 }}>
+                  {trio.map((sid, idx) => {
+                    const content = sectionMap[sid];
+                    if (!content) return null;
+                    return (
+                      <View
+                        key={sid}
+                        style={{
+                          width: '33.3333%',
+                          paddingLeft: idx === 0 ? 0 : 4,
+                          paddingRight: idx === 2 ? 0 : 4,
+                        }}
+                      >
+                        {content}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {webSectionTail.filter((sid) => !['proximos', 'agendamentos', 'aniversariantes', 'meusgastos'].includes(sid)).map((sid) => {
+                const content = sectionMap[sid];
+                if (!content) return null;
+                const isMeusGastos = sid === 'meusgastos';
+                const isProdutividade = sid === 'produtividade';
+                const isMinhasFaturas = sid === 'contas';
+                return (
+                  <View key={sid} style={{ width: (isMeusGastos || isProdutividade || isMinhasFaturas) ? '100%' : '50%', paddingHorizontal: 4 }}>
+                    {content}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : (
+          sectionOrder.map((sid) => {
+            const content = sectionMap[sid];
+            if (!content) return null;
+            return (
+              <DraggableCard
+                key={sid}
+                id={sid}
+                editMode={editMode}
+                onLayoutMeasured={handleLayoutMeasured}
+                onFloatStart={setFloatingId}
+                onCardPress={handleCardPress}
+                isFloating={floatingId === sid}
+              >
+                {content}
+              </DraggableCard>
+            );
+          })
+        )}
         {editMode && (
           <View style={{ marginHorizontal: 16, marginTop: 16 }}>
             <TouchableOpacity
@@ -1184,6 +1442,33 @@ export function DashboardScreen() {
         onAddCard={(id) => { playTapSound(); setSectionOrder((prev) => [...prev, id]); }}
         onRemoveCard={(id) => { playTapSound(); setSectionOrder((prev) => prev.filter((x) => x !== id)); }}
       />
+      {isWeb && (
+        <TouchableOpacity
+          onPress={() => { playTapSound(); openMeusGastos?.(); }}
+          activeOpacity={0.9}
+          style={{
+            position: 'absolute',
+            right: 20,
+            bottom: 24,
+            width: 58,
+            height: 58,
+            borderRadius: 29,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: colors.primary,
+            borderWidth: 1,
+            borderColor: colors.primary + '99',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 10,
+            zIndex: 999,
+          }}
+        >
+          <Ionicons name="chatbubbles-outline" size={26} color="#fff" />
+        </TouchableOpacity>
+      )}
       <Modal visible={!!parabensModalClient} transparent animationType="fade">
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setParabensModalClient(null)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -1234,6 +1519,29 @@ export function DashboardScreen() {
       <CardExpandedModal
         visible={!!expandedCard}
         onClose={() => { playTapSound(); setExpandedCard(null); }}
+        headerRight={
+          (expandedCard === 'proximos' || expandedCard === 'agendamentos') ? (
+            <TouchableOpacity
+              onPress={() => {
+                playTapSound();
+                if (expandedCard === 'proximos') openAddModal?.('tarefa', null);
+                if (expandedCard === 'agendamentos') openAddModal?.('agenda', null);
+              }}
+              style={{
+                width: Platform.OS === 'web' ? 32 : 40,
+                height: Platform.OS === 'web' ? 32 : 40,
+                borderRadius: Platform.OS === 'web' ? 16 : 20,
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: colors.primary + '26',
+                borderWidth: 1,
+                borderColor: colors.primary + '50',
+              }}
+            >
+              <Ionicons name="add" size={Platform.OS === 'web' ? 18 : 22} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null
+        }
         title={
           expandedCard === 'proximos' ? (showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas') :
           expandedCard === 'agendamentos' ? (showConcluidasAgendamentos ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos') : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')) :
@@ -1242,19 +1550,21 @@ export function DashboardScreen() {
         }
       >
         {expandedCard === 'proximos' && (showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas).map((t) => (
-          <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.card, marginBottom: 8 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }}>{t.title}</Text>
-              {(t.date || t.timeStart) && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>{[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}</Text>}
+          <GlassCard key={t.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }}>{t.title}</Text>
+                {(t.date || t.timeStart) && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>{[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}</Text>}
+              </View>
+              <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('tarefas', { editItemId: t.id }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+              {showConcluidasProximos ? (
+                <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: false }); }}><Ionicons name="arrow-undo" size={20} color={colors.textSecondary} /></TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: true }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Excluir esta tarefa?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('tarefas', { editItemId: t.id }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
-            {showConcluidasProximos ? (
-              <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: false }); }}><Ionicons name="arrow-undo" size={20} color={colors.textSecondary} /></TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: true }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Excluir esta tarefa?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
-          </View>
+          </GlassCard>
         ))}
         {expandedCard === 'agendamentos' && (showConcluidasAgendamentos ? proximasTarefas.agendasConcluidas : proximasTarefas.agendas).map((e) => {
           const displayTitle = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
@@ -1265,16 +1575,18 @@ export function DashboardScreen() {
           else if (e.type === 'manutencao') detailParts.push('Garantia');
           const detailStr = detailParts.length ? detailParts.join(' · ') : null;
           return (
-            <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.card, marginBottom: 8 }}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
-                {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
+            <GlassCard key={e.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40' }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
+                  {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
+                </View>
+                <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
+                <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); const isEmp = showEmpresaFeatures && (e.tipo === 'empresa'); if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e }); else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Quer realmente excluir este evento?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
-              <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => { playTapSound(); const isEmp = showEmpresaFeatures && (e.tipo === 'empresa'); if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e }); else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Quer realmente excluir este evento?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
-            </View>
+            </GlassCard>
           );
         })}
         {expandedCard === 'anotacoes' && notes.map((n) => (

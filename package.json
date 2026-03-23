@@ -4,8 +4,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
-    "web:build": "expo export --platform web",
+    "web": "expo start --web --port 8081",
+    "web:build": "expo export --platform web && node scripts/patch-web-index.js",
     "postinstall": "patch-package"
   },
   "dependencies": {

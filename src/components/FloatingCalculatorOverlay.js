@@ -1,14 +1,18 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, PanResponder, Dimensions, StyleSheet, Animated } from 'react-native';
+import { View, PanResponder, Dimensions, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { playTapSound } from '../utils/sounds';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
 
 const STORAGE_KEY = '@tudocerto_calc_overlay_pos';
-const OVERLAY_WIDTH = 236;
-const OVERLAY_HEIGHT = 350;
+const OVERLAY_WIDTH = 212;
+const OVERLAY_HEIGHT = 316;
 const DRAG_THRESHOLD = 6;
+const DRAG_HANDLE_HEIGHT = 48;
+const DRAG_HANDLE_WIDTH_RATIO = 0.5;
 
 export function FloatingCalculatorOverlay({
   visible,
@@ -22,31 +26,24 @@ export function FloatingCalculatorOverlay({
   onHistoryChange,
 }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [position, setPosition] = useState(null);
   const animPos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const posAtGrant = useRef({ x: 0, y: 0 });
   const lastPos = useRef({ x: 0, y: 0 });
-  const hasMoved = useRef(false);
+  const dragEnabledRef = useRef(false);
 
   const { width: W, height: H } = Dimensions.get('window');
   const safeTop = insets.top || 44;
-  const tabBarH = 44 + (insets.bottom || 20) + 24;
-  const minX = 8;
-  const maxX = W - OVERLAY_WIDTH - 8;
-  const minY = safeTop + 8;
-  const maxY = H - tabBarH - OVERLAY_HEIGHT - 8;
-
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   useEffect(() => {
     if (!visible) return;
-    const def = { x: W - OVERLAY_WIDTH - 16, y: minY + 40 };
+    const def = { x: W - OVERLAY_WIDTH - 16, y: safeTop + 40 };
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       let pos;
       if (raw) {
         try {
           const { x, y } = JSON.parse(raw);
-          pos = { x: clamp(x, minX, maxX), y: clamp(y, minY, maxY) };
+          pos = { x: Number.isFinite(x) ? x : def.x, y: Number.isFinite(y) ? y : def.y };
         } catch (_) {
           pos = def;
         }
@@ -67,25 +64,35 @@ export function FloatingCalculatorOverlay({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: (evt) => {
+        const x = evt?.nativeEvent?.locationX ?? 0;
+        const y = evt?.nativeEvent?.locationY ?? 0;
+        const maxX = OVERLAY_WIDTH * DRAG_HANDLE_WIDTH_RATIO;
+        const enabled = y <= DRAG_HANDLE_HEIGHT && x <= maxX;
+        dragEnabledRef.current = enabled;
+        return enabled;
+      },
+      onMoveShouldSetPanResponder: (_evt, g) => {
+        if (!dragEnabledRef.current) return false;
+        return Math.abs(g.dx) > DRAG_THRESHOLD || Math.abs(g.dy) > DRAG_THRESHOLD;
+      },
       onPanResponderGrant: () => {
-        animPos.flattenOffset();
-        posAtGrant.current = { ...lastPos.current };
-        hasMoved.current = false;
+        animPos.extractOffset();
       },
-      onPanResponderMove: (_, g) => {
-        if (Math.abs(g.dx) > DRAG_THRESHOLD || Math.abs(g.dy) > DRAG_THRESHOLD) hasMoved.current = true;
-        const nx = clamp(posAtGrant.current.x + g.dx, minX, maxX);
-        const ny = clamp(posAtGrant.current.y + g.dy, minY, maxY);
-        lastPos.current = { x: nx, y: ny };
-        animPos.setValue({ x: nx, y: ny });
-      },
+      onPanResponderMove: Animated.event([null, { dx: animPos.x, dy: animPos.y }], { useNativeDriver: false }),
       onPanResponderRelease: () => {
-        const x = clamp(lastPos.current.x, minX, maxX);
-        const y = clamp(lastPos.current.y, minY, maxY);
+        animPos.flattenOffset();
+        const x = animPos.x.__getValue();
+        const y = animPos.y.__getValue();
+        lastPos.current = { x, y };
         setPosition({ x, y });
-        animPos.setValue({ x, y });
+      },
+      onPanResponderTerminate: () => {
+        animPos.flattenOffset();
+        const x = animPos.x.__getValue();
+        const y = animPos.y.__getValue();
+        lastPos.current = { x, y };
+        setPosition({ x, y });
       },
     })
   ).current;
@@ -94,7 +101,6 @@ export function FloatingCalculatorOverlay({
 
   return (
     <Animated.View
-      {...panResponder.panHandlers}
       style={[
         styles.overlay,
         {
@@ -109,6 +115,14 @@ export function FloatingCalculatorOverlay({
         },
       ]}
     >
+      <TouchableOpacity
+        onPress={() => { playTapSound(); onClose?.(); }}
+        style={[styles.overlayCloseBtn, { backgroundColor: colors.bg + 'CC', borderColor: colors.border }]}
+        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+      >
+        <Ionicons name="close" size={16} color={colors.text} />
+      </TouchableOpacity>
+      <View {...panResponder.panHandlers} style={styles.dragHandle} />
       <View style={styles.content}>
         <CalculatorScreenPro
           compact
@@ -143,5 +157,26 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
+  },
+  dragHandle: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '50%',
+    height: DRAG_HANDLE_HEIGHT,
+    zIndex: 1,
+    backgroundColor: 'transparent',
+  },
+  overlayCloseBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 50,
+    borderWidth: 1,
   },
 });

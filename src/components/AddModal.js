@@ -132,6 +132,7 @@ export function AddModal({ type, params, onClose }) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [autoCategorizeFromDescription, setAutoCategorizeFromDescription] = useState(false);
+  const [tipoVenda, setTipoVenda] = useState('pessoal');
   const userEditedCategoryRef = useRef(false);
   useEffect(() => {
     if (params?.amount != null) setAmount(String(params.amount));
@@ -302,7 +303,6 @@ export function AddModal({ type, params, onClose }) {
   const [unit, setUnit] = useState('un');
   const [formaPagamento, setFormaPagamento] = useState('pix');
   const [receitaBankId, setReceitaBankId] = useState(null);
-  const [tipoVenda, setTipoVenda] = useState('pessoal');
   const tipoReceita = tipoVenda === 'empresa' ? 'venda' : 'outra';
   const [servicePriceModal, setServicePriceModal] = useState(null);
   const [clientId, setClientId] = useState(null);

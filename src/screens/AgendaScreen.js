@@ -382,6 +382,13 @@ export function AgendaScreen() {
   const prevFocusedRef = useRef(false);
   const needsInitialWeekScroll = useRef(false);
 
+  const weekItemWidth = 7 * DAY_ITEM_WIDTH;
+  const scrollToWeek = useCallback((weekIndex, animated = false) => {
+    const clamped = Math.max(0, Math.min(weekIndex, ALL_WEEKS.length - 1));
+    const scrollX = clamped * weekItemWidth;
+    weekScrollRef.current?.scrollToOffset?.({ offset: scrollX, animated });
+  }, []);
+
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const timelineSlideX = useSharedValue(0);
@@ -540,13 +547,7 @@ export function AgendaScreen() {
   const currentMonthName = MONTHS[currentMonthIdx];
   const currentDay = now.getDate();
 
-  const weekItemWidth = 7 * DAY_ITEM_WIDTH;
   const weekPaddingH = (SW - weekItemWidth) / 2;
-  const scrollToWeek = useCallback((weekIndex, animated = false) => {
-    const clamped = Math.max(0, Math.min(weekIndex, ALL_WEEKS.length - 1));
-    const scrollX = clamped * weekItemWidth;
-    weekScrollRef.current?.scrollToOffset?.({ offset: scrollX, animated });
-  }, []);
 
   const scrollToToday = useCallback(() => {
     playTapSound();

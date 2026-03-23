@@ -3,10 +3,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { AppIcon } from './AppIcon';
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
   iconWrap: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 16, fontWeight: '700', flex: 1 },
   subtitle: { fontSize: 12, marginTop: 2 },
+  rightWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: 2 },
 });
 
 /**
@@ -28,7 +29,7 @@ export function CardHeader({ icon, title, subtitle, colors, iconColor, light, ri
         <Text style={[s.title, { color: textColor }]}>{title}</Text>
         {subtitle ? <Text style={[s.subtitle, { color: subColor }]}>{subtitle}</Text> : null}
       </View>
-      {rightActions ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{rightActions}</View> : null}
+      {rightActions ? <View style={s.rightWrap}>{rightActions}</View> : null}
     </View>
   );
 }

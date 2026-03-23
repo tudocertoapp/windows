@@ -35,6 +35,9 @@ export const AVAILABLE_CARD_TYPES = [
 /** Cards padrão do Início (saldo e gastos ficam só na página Dinheiro) */
 export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'contas'];
 
+/** Cards padrão para web – altere aqui para layout diferente da web sem afetar o mobile */
+export const DEFAULT_SECTIONS_WEB = DEFAULT_SECTIONS;
+
 /** Cards da página Dinheiro que podem ser adicionados ao Início via Organize (transações só na Dinheiro) */
 export const DINHEIRO_ADDABLE_CARDS = [];
 
@@ -52,3 +55,6 @@ export const DINHEIRO_CARD_TYPES = [
 ];
 
 export const DEFAULT_DINHEIRO_SECTIONS = ['balance', 'contas', 'bancos', 'gastos', 'transacoes', 'graficos'];
+
+/** Cards padrão Dinheiro para web – altere aqui para layout diferente sem afetar o mobile */
+export const DEFAULT_DINHEIRO_SECTIONS_WEB = DEFAULT_DINHEIRO_SECTIONS;

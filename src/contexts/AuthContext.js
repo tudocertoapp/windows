@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
-import { makeRedirectUri } from 'expo-auth-session';
-import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
-WebBrowser.maybeCompleteAuthSession();
+// WebBrowser.maybeCompleteAuthSession - necessário para completar OAuth callback (web e native)
+try {
+  const WebBrowser = require('expo-web-browser');
+  if (WebBrowser?.maybeCompleteAuthSession) WebBrowser.maybeCompleteAuthSession();
+} catch (_) {}
 
 const AuthContext = createContext(undefined);
 
@@ -17,6 +18,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+    const timeout = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, Platform.OS === 'web' ? 5000 : 8000);
+
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         if (!cancelled) {
@@ -35,6 +40,7 @@ export function AuthProvider({ children }) {
         }
       })
       .finally(() => {
+        clearTimeout(timeout);
         if (!cancelled) setLoading(false);
       });
 
@@ -45,6 +51,7 @@ export function AuthProvider({ children }) {
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -88,30 +95,78 @@ export function AuthProvider({ children }) {
   const enterAsGuest = () => setIsGuest(true);
 
   const signInWithGoogle = async () => {
-    // APK/standalone: scheme do app para o redirect voltar ao app (ex: tudocerto://auth/callback)
-    const redirectTo =
-      Linking.createURL('auth/callback') ||
-      makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback', useProxy: false }) ||
-      'tudocerto://auth/callback';
+    if (Platform.OS === 'web') {
+      // Usa a origem atual (ex: http://localhost:8081) - deve estar em Supabase > Auth > URL Configuration > Redirect URLs
+      const redirectTo = typeof window !== 'undefined' && window.location ? window.location.origin : undefined;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('Não foi possível iniciar o login com Google.');
+      }
+      return;
+    }
+
+    const Constants = require('expo-constants').default;
+    const Linking = require('expo-linking');
+    const { makeRedirectUri } = require('expo-auth-session');
+    const QueryParams = require('expo-auth-session/build/QueryParams');
+    const WebBrowser = require('expo-web-browser');
+    const isExpoGo = Constants.appOwnership === 'expo';
+    const redirectTo = !isExpoGo ? 'tudocerto://auth/callback' : (Linking.createURL('auth/callback') || makeRedirectUri({ scheme: 'tudocerto', path: 'auth/callback', useProxy: false }) || 'tudocerto://auth/callback');
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo,
         skipBrowserRedirect: true,
-        queryParams: { prompt: 'select_account' },
+        queryParams: { prompt: 'select_account', display: 'page' },
       },
     });
     if (error) throw error;
     if (!data?.url) throw new Error('Não foi possível iniciar o login com Google.');
 
-    // Android: createTask: true (padrão) permite o redirect tudocerto:// voltar ao app
     const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
-      createTask: true,
-      showInRecents: false,
+      createTask: false,
+      showInRecents: true,
     });
     if (res.type === 'success' && res.url) {
-      const { params, errorCode } = QueryParams.getQueryParams(res.url);
-      if (errorCode) throw new Error(params?.error_description || errorCode);
+      let params = {};
+      let oauthError = null;
+      try {
+        const parsed = QueryParams.getQueryParams(res.url);
+        params = parsed.params || {};
+        if (parsed.errorCode) oauthError = new Error(params?.error_description || parsed.errorCode);
+      } catch (_) {}
+      if (oauthError) throw oauthError;
+      if (Object.keys(params).length === 0 && res.url) {
+        const url = res.url;
+        const q = url.indexOf('?');
+        const h = url.indexOf('#');
+        const qs = q >= 0 ? (h >= 0 && h > q ? url.slice(q + 1, h) : url.slice(q + 1)) : '';
+        const hs = h >= 0 ? url.slice(h + 1) : '';
+        const parse = (s) => {
+          if (!s) return {};
+          const out = {};
+          s.split('&').forEach((p) => {
+            const eq = p.indexOf('=');
+            if (eq > 0) {
+              try {
+                out[decodeURIComponent(p.slice(0, eq))] = decodeURIComponent(p.slice(eq + 1));
+              } catch (_) {}
+            }
+          });
+          return out;
+        };
+        params = { ...parse(qs), ...parse(hs) };
+      }
       const { access_token, refresh_token, code } = params;
 
       if (code) {

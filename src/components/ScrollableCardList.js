@@ -19,6 +19,7 @@ export function ScrollableCardList({
   onVerMais,
   emptyText,
   itemMarginBottom = 4,
+  fixedVisibleHeight = false,
 }) {
   const scrollRef = useRef(null);
   const contentHeight = items.length * (ITEM_HEIGHT_EST + itemMarginBottom);
@@ -43,11 +44,11 @@ export function ScrollableCardList({
 
   return (
     <View>
-      <View style={[s.container, { flexDirection: 'row', height: showStrip ? VISIBLE_HEIGHT : undefined, maxHeight: showStrip ? VISIBLE_HEIGHT : undefined }]}>
+      <View style={[s.container, { flexDirection: 'row', height: (showStrip || fixedVisibleHeight) ? VISIBLE_HEIGHT : undefined, maxHeight: (showStrip || fixedVisibleHeight) ? VISIBLE_HEIGHT : undefined }]}>
         <ScrollView
           ref={scrollRef}
           scrollEnabled={showStrip}
-          style={showStrip ? { height: VISIBLE_HEIGHT, flex: 1 } : { flex: 1 }}
+          style={(showStrip || fixedVisibleHeight) ? { height: VISIBLE_HEIGHT, flex: 1 } : { flex: 1 }}
           showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}

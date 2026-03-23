@@ -32,6 +32,11 @@ config.resolver.resolveRequest = (context, moduleName, platform, realModuleName)
     if (webStubs[norm]) {
       return { type: 'sourceFile', filePath: webStubs[norm] };
     }
+    // Garante que o Supabase web (detectSessionInUrl) seja usado na plataforma web
+    const supabaseWeb = path.join(__dirname, 'src', 'lib', 'supabase.web.js');
+    if (/lib\/supabase$/.test(norm) && !norm.includes('node_modules')) {
+      return { type: 'sourceFile', filePath: supabaseWeb };
+    }
   }
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform, realModuleName);

@@ -319,6 +319,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const handleUserContentRef = useRef(null);
   const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
   const listRef = useRef(null);
+  const inputRef = useRef(null);
   const lastTxIdRef = useRef(null);
   const receiptAddCandidateRef = useRef(null);
   // Para evitar duplicar mensagens quando a despesa já foi adicionada pelo próprio chat (ex.: voz)
@@ -944,9 +945,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
                 id: `assistant-voice-error-${Date.now()}`,
                 from: 'assistant',
                 kind: 'text',
-                text: `${message} Tente novamente. Se não funcionar, use o microfone do teclado como alternativa.`,
+                text: `${message} Toque na caixa de texto abaixo e tente novamente.`,
                 createdAt: nowIso(),
               });
+              setTimeout(() => inputRef.current?.focus(), 300);
             }}
           >
             {(voice) => {
@@ -957,32 +959,11 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               return null;
             }}
           </VoiceRecorder>
-          <TouchableOpacity
-            onPress={handlePickImage}
-            style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <Ionicons name="image-outline" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleTakePhoto}
-            style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <Ionicons name="camera-outline" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleMicPress}
-            style={[
-              s.iconBtn,
-              (embedded || transparentBg)
-                ? { backgroundColor: isListening ? colors.primary : 'transparent', borderWidth: 0 }
-                : { backgroundColor: isListening ? colors.primary : colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Ionicons name={isListening ? 'stop' : 'mic-outline'} size={20} color={isListening ? '#fff' : colors.primary} />
-          </TouchableOpacity>
           <TextInput
+            ref={inputRef}
             style={[
               s.input,
+              s.inputFullWidth,
               (embedded || transparentBg)
                 ? { backgroundColor: 'transparent', borderWidth: 0, color: colors.text, borderRadius: 0 }
                 : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
@@ -996,7 +977,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
                     ? 'Ouvindo... fale agora'
                     : pendingVoiceText
                       ? 'Áudio pausado. Envie ou regrave.'
-                    : 'Ex: fui no mercado e gastei 89,90'
+                      : 'Digite aqui. Ex: fui no mercado e gastei 89,90'
             }
             placeholderTextColor={colors.textSecondary}
             value={inputText}
@@ -1005,20 +986,45 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             onSubmitEditing={handleSendText}
             returnKeyType="send"
           />
-          {pendingVoiceText ? (
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <TouchableOpacity onPress={handleReRecordVoice} style={[s.secondaryBtn, { borderColor: colors.primary, backgroundColor: 'transparent' }]}>
-                <Ionicons name="refresh" size={16} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleSendPendingVoice} style={[s.sendBtn, { backgroundColor: colors.primary }]} disabled={processingImage || processingVoice}>
-                <Ionicons name="checkmark" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={handleSendText} style={[s.sendBtn, { backgroundColor: colors.primary }]} disabled={processingImage || processingVoice}>
-              <Ionicons name="send" size={18} color="#fff" />
+          <View style={s.actionRow}>
+            <TouchableOpacity
+              onPress={handlePickImage}
+              style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Ionicons name="image-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
-          )}
+            <TouchableOpacity
+              onPress={handleTakePhoto}
+              style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Ionicons name="camera-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleMicPress}
+              style={[
+                s.iconBtn,
+                (embedded || transparentBg)
+                  ? { backgroundColor: isListening ? colors.primary : 'transparent', borderWidth: 0 }
+                  : { backgroundColor: isListening ? colors.primary : colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons name={isListening ? 'stop' : 'mic-outline'} size={20} color={isListening ? '#fff' : colors.primary} />
+            </TouchableOpacity>
+            {pendingVoiceText ? (
+              <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
+                <TouchableOpacity onPress={handleReRecordVoice} style={[s.secondaryBtn, { borderColor: colors.primary, backgroundColor: 'transparent' }]}>
+                  <Ionicons name="refresh" size={16} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSendPendingVoice} style={[s.sendBtn, { backgroundColor: colors.primary }]} disabled={processingImage || processingVoice}>
+                  <Ionicons name="checkmark" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={handleSendText} style={[s.sendBtn, { backgroundColor: colors.primary, marginLeft: 'auto' }]} disabled={processingImage || processingVoice}>
+                <Ionicons name="send" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -1106,6 +1112,8 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 14,
   },
+  inputFullWidth: { width: '100%', flexBasis: '100%' },
+  actionRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8 },
   sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   secondaryBtn: {
     width: 40,

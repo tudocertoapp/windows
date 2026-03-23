@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Image, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Image, Modal, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { playTapSound } from '../utils/sounds';
 import { calculateExpression, CALC_ERROR } from '../utils/calculator';
@@ -49,6 +49,7 @@ export function CalculatorScreenPro({
   onHistoryChange,
 }: Props) {
   const { colors } = useTheme();
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const [internalExpression, setInternalExpression] = useState('');
   const [internalResult, setInternalResult] = useState<string | null>(null);
   const [internalHistory, setInternalHistory] = useState<Array<{ expression: string; result: string; createdAt: number }>>([]);
@@ -80,15 +81,22 @@ export function CalculatorScreenPro({
     setInternalHistory(next);
   }, [onHistoryChange]);
 
+  const isWeb = Platform.OS === 'web';
+  const calcViewportW = isWeb ? Math.min(screenW, 460) : SW;
+  const calcViewportH = isWeb ? screenH : SH;
   const scale = compact ? 0.65 : 1;
-  const SIDE_PAD = Math.max(16, Math.min(24, SW * 0.04));
-  const BOTTOM_PAD = Math.max(20, Math.min(32, SH * 0.03));
-  const DISPLAY_PAD_BOTTOM = compact ? 12 : Math.max(24, SH * 0.025);
-  const PAD_TOP_MARGIN = compact ? 14 : Math.max(24, SH * 0.025);
-  const BTN_GAP = compact ? 6 : Math.max(10, Math.min(14, SW * 0.035));
+  const SIDE_PAD = compact ? 8 : (isWeb ? 16 : Math.max(16, Math.min(24, SW * 0.04)));
+  const BOTTOM_PAD = Math.max(20, Math.min(32, calcViewportH * 0.03));
+  const DISPLAY_PAD_BOTTOM = compact ? 12 : (isWeb ? 14 : Math.max(20, SH * 0.02));
+  const PAD_TOP_MARGIN = compact ? 14 : (isWeb ? 12 : Math.max(18, calcViewportH * 0.02));
+  const BTN_GAP = compact ? 6 : (isWeb ? 8 : Math.max(9, Math.min(12, SW * 0.03)));
   const BTN_SIZE = compact
     ? Math.round(52 * scale)
-    : Math.round((SW - SIDE_PAD * 2 - BTN_GAP * 3) / 4);
+    : Math.round(
+        isWeb
+          ? Math.min(72, (calcViewportW - SIDE_PAD * 2 - BTN_GAP * 3) / 4)
+          : (SW - SIDE_PAD * 2 - BTN_GAP * 3) / 4
+      );
 
   const isOperator = (char: string) => ['+', '-', '*', '/'].includes(char);
 
@@ -248,8 +256,8 @@ export function CalculatorScreenPro({
     const bg = type === 'op' ? opBtn : type === 'func' ? funcBtn : numBtn;
     const fontSize =
       type === 'op'
-        ? (compact ? 22 : 30)
-        : (type === 'func' ? (compact ? 18 : 24) : (compact ? 18 : 24));
+        ? (compact ? 22 : (isWeb ? 24 : 30))
+        : (type === 'func' ? (compact ? 18 : (isWeb ? 20 : 24)) : (compact ? 18 : (isWeb ? 20 : 24)));
     return (
       <TouchableOpacity
         onPress={onPress}
@@ -272,28 +280,32 @@ export function CalculatorScreenPro({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: compact ? 8 : SIDE_PAD }]}>
-      {isModal && onClose && (
-        <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={styles.closeBtn} hitSlop={18}>
-          <Ionicons name="close" size={24} color={colors.text} />
-        </TouchableOpacity>
-      )}
-      {(onExpand || onMinimize) && (
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: compact ? 8 : SIDE_PAD, maxWidth: isWeb ? 460 : undefined, alignSelf: isWeb ? 'center' : 'auto', width: '100%' }]}>
+      <View style={styles.headerBtnsWrap} pointerEvents="box-none">
+        {isModal && onClose && (
+          <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={styles.closeBtn} hitSlop={18} activeOpacity={0.7}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </TouchableOpacity>
+        )}
+        {(onExpand || onMinimize) && (
+          <TouchableOpacity
+            onPress={() => { playTapSound(); compact ? onExpand?.() : onMinimize?.(); }}
+            style={styles.modeBtn}
+            hitSlop={18}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={compact ? 'expand' : 'contract'} size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
-          onPress={() => { playTapSound(); compact ? onExpand?.() : onMinimize?.(); }}
-          style={styles.modeBtn}
+          onPress={() => { playTapSound(); setShowHistoryModal(true); }}
+          style={styles.historyBtn}
           hitSlop={18}
+          activeOpacity={0.7}
         >
-          <Ionicons name={compact ? 'expand' : 'contract'} size={24} color={colors.textSecondary} />
+          <Ionicons name="time-outline" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
-      )}
-      <TouchableOpacity
-        onPress={() => { playTapSound(); setShowHistoryModal(true); }}
-        style={styles.historyBtn}
-        hitSlop={18}
-      >
-        <Ionicons name="time-outline" size={22} color={colors.textSecondary} />
-      </TouchableOpacity>
+      </View>
 
       {compact ? (
         <View style={styles.compactResultWrap}>
@@ -316,7 +328,7 @@ export function CalculatorScreenPro({
         <View style={styles.logoWrap}>
           <Image
             source={logoImage}
-            style={[styles.logo, { width: Math.min(170, SW * 0.42), height: Math.min(170, SW * 0.42) }]}
+            style={[styles.logo, { width: Math.min(120, calcViewportW * 0.3), height: Math.min(120, calcViewportW * 0.3) }]}
             resizeMode="contain"
           />
         </View>
@@ -325,20 +337,20 @@ export function CalculatorScreenPro({
       <View style={[
         styles.displayWrap,
         {
-          paddingTop: compact ? 12 : 20,
+          paddingTop: compact ? 12 : (isWeb ? 10 : 20),
           paddingBottom: DISPLAY_PAD_BOTTOM,
           marginBottom: PAD_TOP_MARGIN,
-          minHeight: compact ? 60 : Math.max(90, SH * 0.12),
+          minHeight: compact ? 60 : (isWeb ? 70 : Math.max(90, SH * 0.12)),
         },
       ]}>
-        <Text style={[styles.expression, { fontSize: compact ? 18 : 24, color: colors.textSecondary }]} numberOfLines={2}>
+        <Text style={[styles.expression, { fontSize: compact ? 18 : (isWeb ? 18 : 24), color: colors.textSecondary }]} numberOfLines={2}>
           {displayExpr.replace(/\*/g, '×').replace(/\//g, '÷')}
         </Text>
         {displayResult && !compact && (
           <Text
             style={[
               styles.result,
-              { fontSize: compact ? 28 : Math.min(42, Math.max(32, SW * 0.09)), color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
+              { fontSize: compact ? 28 : (isWeb ? 28 : Math.min(42, Math.max(32, calcViewportW * 0.09))), color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
             ]}
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -441,19 +453,20 @@ export function CalculatorScreenPro({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  closeBtn: { position: 'absolute', top: 10, right: 16, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  modeBtn: { position: 'absolute', top: 10, right: 68, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  historyBtn: { position: 'absolute', top: 10, right: 120, zIndex: 10, width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 44, marginBottom: 16 },
+  container: { flex: 1, overflow: 'hidden' },
+  headerBtnsWrap: { position: 'absolute', top: 0, left: 0, right: 0, height: 52, zIndex: 1000, elevation: 1000, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, paddingRight: 12, paddingTop: 8 },
+  closeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  modeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  historyBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 56, marginBottom: 16 },
   logo: { width: 170, height: 170 },
   logoCompact: { width: 96, height: 96 },
-  compactResultWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 46, marginBottom: 12 },
+  compactResultWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 54, marginBottom: 12, minHeight: 40, flexShrink: 0, position: 'relative', zIndex: 10, elevation: 10 },
   compactResultValue: { fontSize: 28, fontWeight: '700', maxWidth: 180 },
-  displayWrap: { paddingHorizontal: 16 },
+  displayWrap: { paddingHorizontal: 16, flexShrink: 0, position: 'relative', zIndex: 10, elevation: 10 },
   expression: { color: 'rgba(255,255,255,0.7)', textAlign: 'right' },
   result: { marginTop: 10, fontWeight: '300', textAlign: 'right' },
-  pad: { flex: 1, paddingTop: 8, paddingBottom: 20, justifyContent: 'flex-end' },
+  pad: { flex: 1, paddingTop: 8, paddingBottom: 20, justifyContent: 'flex-end', zIndex: 0 },
   row: { flexDirection: 'row', justifyContent: 'center' },
   btn: { justifyContent: 'center', alignItems: 'center' },
   btnText: { fontWeight: '400' },

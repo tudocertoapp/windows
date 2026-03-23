@@ -25,7 +25,7 @@ const config = {
       ['expo-contacts', { contactsPermission: 'Permitir acessar contatos para importar e cadastrar clientes.' }],
       'expo-speech-recognition',
       ['expo-media-library', { photosPermission: 'Salvar imagens no álbum', savePhotosPermission: 'Salvar imagens geradas' }],
-      ['expo-web-browser'],
+      ['expo-web-browser', { experimentalLauncherActivity: true }],
       ['expo-navigation-bar', { backgroundColor: '#00000000', position: 'relative', visibility: 'visible', barStyle: 'auto' }],
       [
         '@react-native-community/datetimepicker',

@@ -30,7 +30,8 @@ import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CardExpandedModal } from '../components/CardExpandedModal';
-import { DEFAULT_DINHEIRO_SECTIONS, DINHEIRO_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
+import { DEFAULT_DINHEIRO_SECTIONS, DEFAULT_DINHEIRO_SECTIONS_WEB, DINHEIRO_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
+import { getLayoutStorageKey, getDefaultForPlatform } from '../utils/platformLayout';
 
 const DINHEIRO_SECTIONS_KEY = '@tudocerto_dinheiro_sections';
 
@@ -116,6 +117,7 @@ function getBankGrad(bank) {
 
 
 export function DinheiroScreen({ route }) {
+  const isWeb = Platform.OS === 'web';
   const { transactions, boletos, checkListItems, agendaEvents, clients, deleteTransaction } = useFinance();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
@@ -123,7 +125,9 @@ export function DinheiroScreen({ route }) {
   const { profile } = useProfile();
   const { openBancos, openCalculadoraFull, openMeusGastos, openMensagensWhatsApp, openAddModal, openCadastro } = useMenu();
   const { showValues, toggleValues } = useValuesVisibility();
-  const [sectionOrder, setSectionOrder] = useState(DEFAULT_DINHEIRO_SECTIONS);
+  const defaultDinheiroSections = getDefaultForPlatform(DEFAULT_DINHEIRO_SECTIONS, { web: DEFAULT_DINHEIRO_SECTIONS_WEB });
+  const dinheiroStorageKey = getLayoutStorageKey(DINHEIRO_SECTIONS_KEY);
+  const [sectionOrder, setSectionOrder] = useState(defaultDinheiroSections);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [dinheiroTab, setDinheiroTab] = useState('fluxo');
   const [expandedCard, setExpandedCard] = useState(null);
@@ -140,20 +144,20 @@ export function DinheiroScreen({ route }) {
   });
 
   useEffect(() => {
-    AsyncStorage.getItem(DINHEIRO_SECTIONS_KEY).then((raw) => {
+    AsyncStorage.getItem(dinheiroStorageKey).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-          const valid = DEFAULT_DINHEIRO_SECTIONS.filter((id) => (parsed || []).includes(id));
-          const missing = DEFAULT_DINHEIRO_SECTIONS.filter((id) => !valid.includes(id));
-          setSectionOrder(valid.length > 0 ? [...valid, ...missing] : DEFAULT_DINHEIRO_SECTIONS);
+          const valid = defaultDinheiroSections.filter((id) => (parsed || []).includes(id));
+          const missing = defaultDinheiroSections.filter((id) => !valid.includes(id));
+          setSectionOrder(valid.length > 0 ? [...valid, ...missing] : defaultDinheiroSections);
         } catch (_) {}
       }
     });
-  }, []);
+  }, [dinheiroStorageKey, defaultDinheiroSections]);
   useEffect(() => {
-    AsyncStorage.setItem(DINHEIRO_SECTIONS_KEY, JSON.stringify(sectionOrder));
-  }, [sectionOrder]);
+    AsyncStorage.setItem(dinheiroStorageKey, JSON.stringify(sectionOrder));
+  }, [sectionOrder, dinheiroStorageKey]);
   useEffect(() => {
     if (route?.params?.openCardPicker) setShowCardPicker(true);
   }, [route?.params?.openCardPicker]);
@@ -547,47 +551,84 @@ export function DinheiroScreen({ route }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
+      {(() => {
+        const showInlineToggle = isWeb && canToggleView;
+        return (
       <TopBar
         title="Dinheiro"
         colors={colors}
         useLogoImage
         hideOrganize
+        inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={openCalculadoraFull}
         onChat={openMeusGastos}
         onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
       />
-      {canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
+        );
+      })()}
+      {!(isWeb && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, backgroundColor: colors.bg }}>
           <Text style={{ fontSize: 11, fontWeight: '600', letterSpacing: 1, color: colors.textSecondary }}>
             {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
           </Text>
         </View>
-        {sectionContent.balance}
-        {sectionContent.contas}
-        <View style={[dns.tabBar, { backgroundColor: colors.border + '40', marginTop: 16, marginHorizontal: 16 }]}>
-          {[
-            { id: 'fluxo', label: 'Fluxo de caixa' },
-            { id: 'graficos', label: 'Gráficos' },
-            { id: 'bancos', label: 'Bancos e cartões' },
-          ].map((t) => (
-            <TouchableOpacity
-              key={t.id}
-              onPress={() => { playTapSound(); setDinheiroTab(t.id); }}
-              style={[
-                dns.tab,
-                dinheiroTab === t.id && { backgroundColor: colors.primary },
-                dinheiroTab === t.id && dns.tabActive,
-              ]}
-            >
-              <Text style={[dns.tabText, { color: dinheiroTab === t.id ? '#fff' : colors.textSecondary }]}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {dinheiroTab === 'fluxo' && sectionContent.transacoes}
-        {dinheiroTab === 'graficos' && sectionContent.graficos}
-        {dinheiroTab === 'bancos' && sectionContent.bancos}
+        {isWeb ? (
+          <>
+            {sectionContent.balance}
+            {sectionContent.contas}
+            <View style={[dns.tabBar, { backgroundColor: colors.border + '40', marginTop: 16, marginHorizontal: 16 }]}>
+              {[
+                { id: 'fluxo', label: 'Fluxo de caixa' },
+                { id: 'graficos', label: 'Gráficos' },
+                { id: 'bancos', label: 'Bancos e cartões' },
+              ].map((t) => (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => { playTapSound(); setDinheiroTab(t.id); }}
+                  style={[
+                    dns.tab,
+                    dinheiroTab === t.id && { backgroundColor: colors.primary },
+                    dinheiroTab === t.id && dns.tabActive,
+                  ]}
+                >
+                  <Text style={[dns.tabText, { color: dinheiroTab === t.id ? '#fff' : colors.textSecondary }]}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {dinheiroTab === 'fluxo' && sectionContent.transacoes}
+            {dinheiroTab === 'graficos' && sectionContent.graficos}
+            {dinheiroTab === 'bancos' && sectionContent.bancos}
+          </>
+        ) : (
+          <>
+            {sectionContent.balance}
+            {sectionContent.contas}
+            <View style={[dns.tabBar, { backgroundColor: colors.border + '40', marginTop: 16, marginHorizontal: 16 }]}>
+              {[
+                { id: 'fluxo', label: 'Fluxo de caixa' },
+                { id: 'graficos', label: 'Gráficos' },
+                { id: 'bancos', label: 'Bancos e cartões' },
+              ].map((t) => (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => { playTapSound(); setDinheiroTab(t.id); }}
+                  style={[
+                    dns.tab,
+                    dinheiroTab === t.id && { backgroundColor: colors.primary },
+                    dinheiroTab === t.id && dns.tabActive,
+                  ]}
+                >
+                  <Text style={[dns.tabText, { color: dinheiroTab === t.id ? '#fff' : colors.textSecondary }]}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {dinheiroTab === 'fluxo' && sectionContent.transacoes}
+            {dinheiroTab === 'graficos' && sectionContent.graficos}
+            {dinheiroTab === 'bancos' && sectionContent.bancos}
+          </>
+        )}
         <View style={{ height: 100 }} />
       </ScrollView>
       <CardPickerModal

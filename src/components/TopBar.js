@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, AppState } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, AppState, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,12 +33,13 @@ export const topBarStyles = StyleSheet.create({
 
 const styles = topBarStyles;
 
-export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, onChat, onWhatsApp, extendToTop = true, hideMenu, hideLogoIcon }) {
+export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, onChat, onWhatsApp, extendToTop = true, hideMenu, hideLogoIcon, inlineToggle }) {
   const { openMenu, openPerfil } = useMenu();
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const isHome = title === 'Início' || useLogoImage;
+  const isWeb = Platform.OS === 'web';
   const appStateRef = useRef(AppState.currentState);
   const [homePrompt, setHomePrompt] = useState(() => {
     const today = new Date().toDateString();
@@ -77,16 +78,27 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
 
   const Bar = (
     <View style={[topBarStyles.bar, { backgroundColor: colors.bg }]}>
+      {!hideMenu && Platform.OS !== 'web' && (
+        <TouchableOpacity
+          style={{ padding: 8, marginRight: 4 }}
+          onPress={() => { playTapSound(); openMenu?.(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="menu" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      )}
       <View style={[styles.logoRow, { flex: 1 }]}>
         {isHome ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-            <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
-              <Image
-                source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
-                style={{ width: 52, height: 52, borderRadius: 26 }}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
+            {!isWeb && (
+              <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
+                <Image
+                  source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
+                  style={{ width: 52, height: 52, borderRadius: 26 }}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            )}
             <View style={{ flex: 1, minWidth: 0, paddingRight: 6 }}>
               <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                 {getGreeting()}, {profile?.nome || 'você'}!
@@ -106,6 +118,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {inlineToggle}
         {onWhatsApp ? (
           <TouchableOpacity
             style={{ padding: 8, backgroundColor: 'transparent' }}
@@ -145,15 +158,6 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
             <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
-        {!onManageCards && !hideMenu && (
-          <TouchableOpacity
-            style={{ padding: 8 }}
-            onPress={() => { playTapSound(); openMenu?.(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="ellipsis-vertical" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );

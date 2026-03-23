@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { View, TouchableOpacity, Modal, SafeAreaView, StyleSheet, Platform, Alert } from 'react-native';
+import { View, TouchableOpacity, Modal, SafeAreaView, Platform, Alert, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
@@ -34,6 +35,7 @@ import { AniversariantesScreen } from '../screens/AniversariantesScreen';
 import { EmpresaRelatorioScreen } from '../screens/empresa/EmpresaRelatorioScreen';
 import { OrdemServicoScreen } from '../screens/OrdemServicoScreen';
 import { OrcamentosMainScreen } from '../screens/orcamentos/OrcamentosMainScreen';
+import { PDVScreen } from '../screens/PDVScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
@@ -52,6 +54,7 @@ function PlaceholderScreen() {
 }
 
 export function AppNavigator() {
+  const isWeb = Platform.OS === 'web';
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
   const [addModalState, setAddModalState] = useState({ type: null, params: null });
@@ -79,6 +82,7 @@ export function AppNavigator() {
   const [empresaModal, setEmpresaModal] = useState(false);
   const [ordemServicoModal, setOrdemServicoModal] = useState(false);
   const [orcamentosModal, setOrcamentosModal] = useState(false);
+  const [pdvModal, setPdvModal] = useState(false);
   const [calculadoraModal, setCalculadoraModal] = useState(false);
   const [calculadoraFloating, setCalculadoraFloating] = useState(false);
   const [calculatorExpression, setCalculatorExpression] = useState('');
@@ -100,7 +104,7 @@ export function AppNavigator() {
 
   const menuActions = useMemo(
     () => ({
-      openMenu: () => setMenuModalOpen(true),
+      openMenu: () => { if (!isWeb) setMenuModalOpen(true); },
       closeAndNavigate: (tabName, params) => {
         setMenuModalOpen(false);
         setTimeout(() => navigationRef.current?.navigate(tabName, params || {}), 200);
@@ -128,6 +132,7 @@ export function AppNavigator() {
       openEmpresa: () => { setMenuModalOpen(false); setEmpresaModal(true); },
       openOrdemServico: () => { setMenuModalOpen(false); setOrdemServicoModal(true); },
       openOrcamentos: () => { setMenuModalOpen(false); setOrcamentosModal(true); },
+      openPDV: () => { setMenuModalOpen(false); setPdvModal(true); },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
       openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
@@ -142,81 +147,117 @@ export function AppNavigator() {
       },
       openCalculadoraFull: () => { setCalculadoraFloating(false); setCalculadoraModal(true); },
     }),
-    []
+    [isWeb]
   );
 
   return (
     <MenuContext.Provider value={menuActions}>
-      <NavigationContainer ref={navigationRef}>
-        <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
-        <Tab.Navigator
-          tabBar={(tabProps) => (
-            <GlassTabBar
-              {...tabProps}
-              customHandlers={{
-                Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
-                Menu: () => { playTapSound(); setMenuModalOpen(true); },
-              }}
-            />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, flexDirection: isWeb ? 'row' : 'column' }}>
+          {isWeb && (
+            <View style={{ width: 240, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.bg }}>
+              <MenuScreen
+                onNavigateToTab={(tabName, params) => navigationRef.current?.navigate(tabName, params || {})}
+                onOpenCadastro={menuActions.openCadastro}
+                onOpenPerfil={menuActions.openPerfil}
+                onOpenTemas={menuActions.openTemas}
+                onOpenTermos={menuActions.openTermos}
+                onOpenAssinatura={menuActions.openAssinatura}
+                onOpenIndique={menuActions.openIndique}
+                onOpenAReceber={menuActions.openAReceber}
+                onOpenClientes={menuActions.openClientes}
+                onOpenBancos={menuActions.openBancos}
+                onOpenOrcamento={menuActions.openOrcamento}
+                onOpenAnotacoes={menuActions.openAnotacoes}
+                onOpenMeusGastos={menuActions.openMeusGastos}
+                onOpenListaCompras={menuActions.openListaCompras}
+                onOpenMetasSonhos={menuActions.openMetasSonhos}
+                onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+                onOpenAniversariantes={menuActions.openAniversariantes}
+                onOpenEmpresa={menuActions.openEmpresa}
+                onOpenOrdemServico={menuActions.openOrdemServico}
+                onOpenOrcamentos={menuActions.openOrcamentos}
+                onOpenPDV={menuActions.openPDV}
+                onOpenImageGenerator={menuActions.openImageGenerator}
+                onOpenCalculadoraFull={menuActions.openCalculadoraFull}
+              />
+            </View>
           )}
-          screenOptions={{
-            headerShown: false,
-            tabBarShowLabel: true,
-            tabBarStyle: {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 0,
-              elevation: 0,
-              backgroundColor: 'transparent',
-              borderTopWidth: 0,
-            },
-          }}
-        >
-          <Tab.Screen name="Início" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="home-outline" size={24} color={color} /> }} />
-          <Tab.Screen name="Dinheiro" component={DinheiroScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="wallet-outline" size={24} color={color} /> }} />
-          <Tab.Screen
-            name="Adicionar"
-            component={PlaceholderScreen}
-            options={{
-              tabBarButton: (props) => (
-                <TouchableOpacity
-                  {...props}
-                  style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -62 }, props.style]}
-                  onPress={() => { playTapSound(); setMenuOpen(!menuOpen); }}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={{
-                      width: 55,
-                      height: 55,
-                      borderRadius: 27.5,
-                      backgroundColor: primaryColor,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      elevation: 8,
+          <View style={{ flex: 1 }}>
+            <NavigationContainer ref={navigationRef}>
+              <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
+              <Tab.Navigator
+                tabBar={isWeb ? () => null : (tabProps) => (
+                  <GlassTabBar
+                    {...tabProps}
+                    customHandlers={{
+                      Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
+                      Menu: () => { playTapSound(); setMenuModalOpen(true); },
                     }}
-                  >
-                    <Ionicons name="add" size={28} color="#fff" />
-                  </View>
-                </TouchableOpacity>
-              ),
-            }}
-          />
-          <Tab.Screen name="Agenda" component={AgendaScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="calendar-outline" size={24} color={color} /> }} />
-          <Tab.Screen
-            name="Menu"
-            component={PlaceholderScreen}
-            options={{
-              tabBarIcon: ({ color }) => <AppIcon name="menu-outline" size={24} color={color} />,
-              tabBarButton: (props) => (
-                <TouchableOpacity {...props} onPress={() => { playTapSound(); setMenuModalOpen(true); }} activeOpacity={0.8} />
-              ),
-            }}
-          />
-        </Tab.Navigator>
-      </NavigationContainer>
+                  />
+                )}
+                screenOptions={{
+                  headerShown: false,
+                  tabBarShowLabel: true,
+                  tabBarStyle: isWeb
+                    ? { display: 'none' }
+                    : {
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 0,
+                        elevation: 0,
+                        backgroundColor: 'transparent',
+                        borderTopWidth: 0,
+                      },
+                }}
+              >
+                <Tab.Screen name="Início" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="home-outline" size={24} color={color} /> }} />
+                <Tab.Screen name="Dinheiro" component={DinheiroScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="wallet-outline" size={24} color={color} /> }} />
+                <Tab.Screen
+                  name="Adicionar"
+                  component={PlaceholderScreen}
+                  options={{
+                    tabBarButton: (props) => (
+                      <TouchableOpacity
+                        {...props}
+                        style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -62 }, props.style]}
+                        onPress={() => { playTapSound(); setMenuOpen(!menuOpen); }}
+                        activeOpacity={0.8}
+                      >
+                        <View
+                          style={{
+                            width: 55,
+                            height: 55,
+                            borderRadius: 27.5,
+                            backgroundColor: primaryColor,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            elevation: 8,
+                          }}
+                        >
+                          <Ionicons name="add" size={28} color="#fff" />
+                        </View>
+                      </TouchableOpacity>
+                    ),
+                  }}
+                />
+                <Tab.Screen name="Agenda" component={AgendaScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="calendar-outline" size={24} color={color} /> }} />
+                <Tab.Screen
+                  name="Menu"
+                  component={PlaceholderScreen}
+                  options={{
+                    tabBarIcon: ({ color }) => <AppIcon name="menu-outline" size={24} color={color} />,
+                    tabBarButton: (props) => (
+                      <TouchableOpacity {...props} onPress={() => { playTapSound(); setMenuModalOpen(true); }} activeOpacity={0.8} />
+                    ),
+                  }}
+                />
+              </Tab.Navigator>
+            </NavigationContainer>
+          </View>
+        </View>
       <CircularMenuComponent
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -387,6 +428,13 @@ export function AppNavigator() {
           <OrcamentosMainScreen onClose={() => setOrcamentosModal(false)} />
         </SafeAreaView>
       </Modal>
+      {isWeb && (
+        <Modal visible={pdvModal} animationType="slide">
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+            <PDVScreen onClose={() => setPdvModal(false)} />
+          </SafeAreaView>
+        </Modal>
+      )}
       <Modal visible={listaComprasModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <ListaComprasScreen onClose={() => setListaComprasModal(false)} isModal />
@@ -433,6 +481,8 @@ export function AppNavigator() {
         onResultChange={setCalculatorResult}
         onHistoryChange={setCalculatorHistory}
       />
+      </GestureHandlerRootView>
     </MenuContext.Provider>
   );
 }
+

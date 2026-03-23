@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as NavigationBar from 'expo-navigation-bar';
+
+const NavigationBar = Platform.OS !== 'web' ? require('expo-navigation-bar') : null;
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
@@ -22,6 +23,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SplashScreen } from './src/components/SplashScreen';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 function AppWithReminders() {
   const { agendaEvents, aReceber, checkListItems, updateCheckListItem } = useFinance();
@@ -51,12 +53,14 @@ function AppContent() {
     } else hadUserRef.current = false;
   }, [user, isGuest, showLogin]);
 
+  const isWeb = Platform.OS === 'web';
   const showSplash = loading || !splashDone || postLoginSplash;
+  const splashDuration = isWeb ? 1500 : 4000;
 
   if (showSplash) {
     return (
       <SplashScreen
-        duration={4000}
+        duration={splashDuration}
         onFinish={() => { setSplashDone(true); setPostLoginSplash(false); }}
         backgroundColor="#111827"
       />
@@ -98,36 +102,57 @@ function AppContent() {
 }
 
 export default function App() {
+  const isWeb = Platform.OS === 'web';
+  const rootStyle = isWeb
+    ? { flex: 1, width: '100%', minWidth: '100%', minHeight: '100vh', maxWidth: '100%', zoom: 1.12 }
+    : { flex: 1 };
+
   useEffect(() => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === 'android' && NavigationBar) {
       NavigationBar.setBackgroundColorAsync('#00000000').catch(() => {});
     }
   }, []);
 
-  const isWeb = Platform.OS === 'web';
-  const rootStyle = isWeb ? { flex: 1, maxWidth: 520, width: '100%', alignSelf: 'center' } : { flex: 1 };
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const h = (e) => {
+        console.error('[App] Uncaught error:', e?.error || e?.message || e);
+      };
+      window.addEventListener('error', h);
+      window.addEventListener('unhandledrejection', (e) => {
+        console.error('[App] Unhandled promise:', e?.reason);
+      });
+      return () => {
+        window.removeEventListener('error', h);
+      };
+    }
+  }, []);
+
+  const RootView = isWeb ? View : GestureHandlerRootView;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <View style={[s.root, isWeb && s.rootWeb]}>
-          <View style={rootStyle}>
-            <ThemeProvider>
-              <LanguageProvider>
-              <AuthProvider>
-                <AppContent />
-              </AuthProvider>
-              </LanguageProvider>
-            </ThemeProvider>
-          </View>
-        </View>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <AuthProvider>
+        <RootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <View style={[s.root, isWeb && s.rootWeb]}>
+              <View style={rootStyle}>
+                <ThemeProvider>
+                  <LanguageProvider>
+                    <AppContent />
+                  </LanguageProvider>
+                </ThemeProvider>
+              </View>
+            </View>
+          </SafeAreaProvider>
+        </RootView>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
 const s = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   root: { flex: 1 },
-  rootWeb: { flex: 1, alignItems: 'center', backgroundColor: '#111827' },
+  rootWeb: { flex: 1, width: '100%', backgroundColor: '#111827', minHeight: '100vh' },
 });
