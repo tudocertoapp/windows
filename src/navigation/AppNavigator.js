@@ -46,6 +46,7 @@ import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverlay';
 import { GlassTabBar } from '../components/navigation/GlassTabBar';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const Tab = createBottomTabNavigator();
 
@@ -55,6 +56,7 @@ function PlaceholderScreen() {
 
 export function AppNavigator() {
   const isWeb = Platform.OS === 'web';
+  const isDesktopLayout = useIsDesktopLayout();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
   const [addModalState, setAddModalState] = useState({ type: null, params: null });
@@ -104,7 +106,7 @@ export function AppNavigator() {
 
   const menuActions = useMemo(
     () => ({
-      openMenu: () => { if (!isWeb) setMenuModalOpen(true); },
+      openMenu: () => { if (!isDesktopLayout) setMenuModalOpen(true); },
       closeAndNavigate: (tabName, params) => {
         setMenuModalOpen(false);
         setTimeout(() => navigationRef.current?.navigate(tabName, params || {}), 200);
@@ -147,16 +149,17 @@ export function AppNavigator() {
       },
       openCalculadoraFull: () => { setCalculadoraFloating(false); setCalculadoraModal(true); },
     }),
-    [isWeb]
+    [isDesktopLayout]
   );
 
   return (
     <MenuContext.Provider value={menuActions}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, flexDirection: isWeb ? 'row' : 'column' }}>
-          {isWeb && (
+        <View style={{ flex: 1, flexDirection: isDesktopLayout ? 'row' : 'column' }}>
+          {isDesktopLayout && (
             <View style={{ width: 240, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.bg }}>
               <MenuScreen
+                compact
                 onNavigateToTab={(tabName, params) => navigationRef.current?.navigate(tabName, params || {})}
                 onOpenCadastro={menuActions.openCadastro}
                 onOpenPerfil={menuActions.openPerfil}
@@ -187,7 +190,7 @@ export function AppNavigator() {
             <NavigationContainer ref={navigationRef}>
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
               <Tab.Navigator
-                tabBar={isWeb ? () => null : (tabProps) => (
+                tabBar={isDesktopLayout ? () => null : (tabProps) => (
                   <GlassTabBar
                     {...tabProps}
                     customHandlers={{
@@ -199,7 +202,7 @@ export function AppNavigator() {
                 screenOptions={{
                   headerShown: false,
                   tabBarShowLabel: true,
-                  tabBarStyle: isWeb
+                  tabBarStyle: isDesktopLayout
                     ? { display: 'none' }
                     : {
                         position: 'absolute',
@@ -338,6 +341,7 @@ export function AppNavigator() {
             onOpenEmpresa={menuActions.openEmpresa}
             onOpenOrdemServico={menuActions.openOrdemServico}
             onOpenOrcamentos={menuActions.openOrcamentos}
+            onOpenPDV={menuActions.openPDV}
             onOpenImageGenerator={menuActions.openImageGenerator}
             onOpenCalculadoraFull={menuActions.openCalculadoraFull}
           />

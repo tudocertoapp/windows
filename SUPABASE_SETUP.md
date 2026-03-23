@@ -18,14 +18,16 @@ Já configurado no Supabase por padrão.
 2. Habilite o **Google**
 3. Configure o **Client ID** e **Client Secret** do [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 4. Em **Authentication > URL Configuration**:
-   - **Site URL:** use `http://localhost:8081` para dev web (Expo usa 8081 por padrão)
+   - **Site URL:** use `https://tudocerto-web.vercel.app` para produção (ou `http://localhost:8081` só para dev)
    - **Redirect URLs** – adicione **todos** os URLs que você usa:
-     - `http://localhost:8081` (Expo web – **obrigatório** para `npx expo start --web`)
-     - `http://localhost:5173` (se usar Vite ou outra porta)
+     - `https://tudocerto-web.vercel.app` (produção na Vercel – **obrigatório para login web**)
+     - `https://tudocerto-web.vercel.app/**`
+     - `https://*.vercel.app` (preview deployments)
+     - `http://localhost:8081` (Expo web – dev local)
+     - `http://localhost:5173` (Vite ou outra porta)
      - `tudocerto://**` (para Development Build Android/iOS)
      - `https://*.exp.direct/**` (para Expo tunnel)
      - `exp://**` (para Expo local)
-     - URL de produção quando fizer deploy (ex.: `https://seu-app.vercel.app`)
 5. No Google Cloud Console, adicione em **Authorized redirect URIs**:
    - `https://azvfiuvggppnulfepwbc.supabase.co/auth/v1/callback`
 
