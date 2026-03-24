@@ -12,6 +12,12 @@ function showDbError(error, context = 'salvar') {
   console.warn('Supabase error:', error);
 }
 
+function isMissingTableError(error) {
+  if (!error) return false;
+  const msg = String(error.message || '').toLowerCase();
+  return error.code === '42P01' || (msg.includes('relation') && msg.includes('does not exist'));
+}
+
 const FinanceContext = createContext(undefined);
 
 function toTransaction(r) {
@@ -182,34 +188,53 @@ export function FinanceProvider({ children }) {
     } catch (_) {}
     setLoading(true);
     try {
-      const [tx, ag, ch, cl, pr, comp, sv, su, ar, orc] = await Promise.all([
-        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
-        supabase.from('agenda_events').select('*').eq('user_id', user.id).order('date'),
-        supabase.from('check_list_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('clients').select('*').eq('user_id', user.id),
-        supabase.from('products').select('*').eq('user_id', user.id),
-        supabase.from('composite_products').select('*').eq('user_id', user.id),
-        supabase.from('services').select('*').eq('user_id', user.id),
-        supabase.from('suppliers').select('*').eq('user_id', user.id),
-        supabase.from('a_receber').select('*').eq('user_id', user.id),
-        supabase.from('orcamentos').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      const safeQuery = async (queryPromise, label) => {
+        try {
+          const { data, error } = await queryPromise;
+          if (error) {
+            if (isMissingTableError(error) || error.status === 404) {
+              console.warn(`[Supabase] ${label} indisponível (${error.code || error.status}). Usando fallback vazio.`);
+              return [];
+            }
+            console.warn(`[Supabase] erro em ${label}:`, error.message || error);
+            return [];
+          }
+          return data || [];
+        } catch (e) {
+          console.warn(`[Supabase] falha inesperada em ${label}:`, e?.message || e);
+          return [];
+        }
+      };
+
+      const [txData, agData, chData, clData, prData, compData, svData, suData, arData, orcData, blData] = await Promise.all([
+        safeQuery(supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }), 'transactions'),
+        safeQuery(supabase.from('agenda_events').select('*').eq('user_id', user.id).order('date'), 'agenda_events'),
+        safeQuery(supabase.from('check_list_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false }), 'check_list_items'),
+        safeQuery(supabase.from('clients').select('*').eq('user_id', user.id), 'clients'),
+        safeQuery(supabase.from('products').select('*').eq('user_id', user.id), 'products'),
+        safeQuery(supabase.from('composite_products').select('*').eq('user_id', user.id), 'composite_products'),
+        safeQuery(supabase.from('services').select('*').eq('user_id', user.id), 'services'),
+        safeQuery(supabase.from('suppliers').select('*').eq('user_id', user.id), 'suppliers'),
+        safeQuery(supabase.from('a_receber').select('*').eq('user_id', user.id), 'a_receber'),
+        safeQuery(supabase.from('orcamentos').select('*').eq('user_id', user.id).order('created_at', { ascending: false }), 'orcamentos'),
+        safeQuery(supabase.from('boletos').select('*').eq('user_id', user.id), 'boletos'),
       ]);
-      if (tx.data) setTransactions((tx.data || []).map(toTransaction));
-      if (ag.data) {
-        const events = (ag.data || []).map(toAgenda);
+
+      setTransactions((txData || []).map(toTransaction));
+      if (agData) {
+        const events = (agData || []).map(toAgenda);
         setAgendaEvents(events);
         AsyncStorage.setItem(cacheKey, JSON.stringify(events)).catch(() => {});
       }
-      if (ch.data) setCheckListItems((ch.data || []).map(toCheckList));
-      if (cl.data) setClients((cl.data || []).map(toClient));
-      if (pr.data) setProducts((pr.data || []).map(toProduct));
-      if (comp.data) setCompositeProducts((comp.data || []).map((r) => ({ id: r.id, ...r.data })));
-      if (sv.data) setServices((sv.data || []).map(toService));
-      if (su.data) setSuppliers((su.data || []).map(toSupplier));
-      if (ar.data) setAReceber((ar.data || []).map(toAReceber));
-      if (orc?.data) setOrcamentos((orc.data || []).map(toOrcamento));
-      const bl = await supabase.from('boletos').select('*').eq('user_id', user.id);
-      if (bl.data) setBoletos((bl.data || []).map((r) => ({ id: r.id, ...r.data })));
+      setCheckListItems((chData || []).map(toCheckList));
+      setClients((clData || []).map(toClient));
+      setProducts((prData || []).map(toProduct));
+      setCompositeProducts((compData || []).map((r) => ({ id: r.id, ...r.data })));
+      setServices((svData || []).map(toService));
+      setSuppliers((suData || []).map(toSupplier));
+      setAReceber((arData || []).map(toAReceber));
+      setOrcamentos((orcData || []).map(toOrcamento));
+      setBoletos((blData || []).map((r) => ({ id: r.id, ...r.data })));
     } catch (e) {
       console.warn('Erro ao carregar dados Supabase:', e);
     } finally {

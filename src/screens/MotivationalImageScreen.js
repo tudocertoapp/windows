@@ -110,7 +110,19 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
               <View style={{ position: 'absolute', top: '15%', left: '20%', width: 30, height: 60, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.03)', transform: [{ rotate: '-10deg' }] }} />
             </View>
             <View style={[mis.quoteArea, { flex: 1 }]}>
-              <Text style={[mis.quoteText, { color: '#fff', textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 6 }]}>"{quote}"</Text>
+              <Text
+                style={[
+                  mis.quoteText,
+                  {
+                    color: '#fff',
+                    ...(Platform.OS === 'web'
+                      ? {}
+                      : { textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 6 }),
+                  },
+                ]}
+              >
+                "{quote}"
+              </Text>
             </View>
             {showLogo && (
               <View style={[mis.logoArea, { backgroundColor: 'rgba(0,0,0,0.25)', width: '100%', paddingVertical: 18, alignItems: 'center', justifyContent: 'center' }]}>
@@ -132,11 +144,15 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
                   borderWidth: bg.id === b.id ? 3 : 0,
                   borderColor: colors.primary,
                   overflow: 'hidden',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: bg.id === b.id ? 0.3 : 0.1,
-                  shadowRadius: 4,
-                  elevation: bg.id === b.id ? 4 : 1,
+                  ...(Platform.OS === 'web'
+                    ? {}
+                    : {
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: bg.id === b.id ? 0.3 : 0.1,
+                        shadowRadius: 4,
+                        elevation: bg.id === b.id ? 4 : 1,
+                      }),
                 },
               ]}
               onPress={() => setBg(b)}
@@ -147,11 +163,11 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
         </View>
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Tipo de frase:</Text>
         <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 16, marginTop: 8 }}>
-          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: quoteType === 'motivacional' ? colors.primary : colors.primaryRgba(0.12), borderWidth: quoteType === 'motivacional' ? 0 : 1, borderColor: colors.primary + '80', elevation: quoteType === 'motivacional' ? 4 : 0, shadowColor: colors.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: quoteType === 'motivacional' ? 0.3 : 0, shadowRadius: 4 }} onPress={() => { setQuoteType('motivacional'); setCustomText(''); }}>
+          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: quoteType === 'motivacional' ? colors.primary : colors.primaryRgba(0.12), borderWidth: quoteType === 'motivacional' ? 0 : 1, borderColor: colors.primary + '80', ...(Platform.OS === 'web' ? {} : { elevation: quoteType === 'motivacional' ? 4 : 0, shadowColor: colors.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: quoteType === 'motivacional' ? 0.3 : 0, shadowRadius: 4 }) }} onPress={() => { setQuoteType('motivacional'); setCustomText(''); }}>
             <Ionicons name="chatbubble-outline" size={20} color={quoteType === 'motivacional' ? '#fff' : colors.primary} />
             <Text style={{ color: quoteType === 'motivacional' ? '#fff' : colors.primary, fontWeight: '700', fontSize: 14 }}>Citação</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: quoteType === 'verso' ? colors.primary : colors.primaryRgba(0.12), borderWidth: quoteType === 'verso' ? 0 : 1, borderColor: colors.primary + '80', elevation: quoteType === 'verso' ? 4 : 0, shadowColor: colors.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: quoteType === 'verso' ? 0.3 : 0, shadowRadius: 4 }} onPress={() => { setQuoteType('verso'); setCustomText(''); }}>
+          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: quoteType === 'verso' ? colors.primary : colors.primaryRgba(0.12), borderWidth: quoteType === 'verso' ? 0 : 1, borderColor: colors.primary + '80', ...(Platform.OS === 'web' ? {} : { elevation: quoteType === 'verso' ? 4 : 0, shadowColor: colors.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: quoteType === 'verso' ? 0.3 : 0, shadowRadius: 4 }) }} onPress={() => { setQuoteType('verso'); setCustomText(''); }}>
             <Ionicons name="book-outline" size={20} color={quoteType === 'verso' ? '#fff' : colors.primary} />
             <Text style={{ color: quoteType === 'verso' ? '#fff' : colors.primary, fontWeight: '700', fontSize: 14 }}>Versículo</Text>
           </TouchableOpacity>
@@ -177,7 +193,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 16 }}>
-            <TouchableOpacity style={[mis.shareBtn, { flex: 1, backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 6 }]} onPress={handleShare}>
+            <TouchableOpacity style={[mis.shareBtn, { flex: 1, backgroundColor: colors.primary, ...(Platform.OS === 'web' ? {} : { elevation: 4, shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 6 }) }]} onPress={handleShare}>
             <Ionicons name="share-social-outline" size={22} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Compartilhar frase</Text>
           </TouchableOpacity>

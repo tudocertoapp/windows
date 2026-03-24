@@ -17,6 +17,7 @@ const ICON_MAP = {
   Home: 'home-outline',
   Dinheiro: 'wallet-outline',
   Agenda: 'calendar-outline',
+  MeusGastos: 'chatbubbles-outline',
   Menu: 'menu-outline',
   Clientes: 'people-outline',
   Vendas: 'cart-outline',
@@ -27,10 +28,11 @@ const ICON_MAP = {
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiveColor, isDark, icon }) {
+function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiveColor, isDark, icon, label, showLabel }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(isFocused ? 1 : 0.85);
   const iconName = ICON_MAP[route.name] || 'ellipse-outline';
+  const displayLabel = label ?? route.name;
 
   const animatedItemStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -60,6 +62,7 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
     <AnimatedTouchable
       accessible
       accessibilityRole="button"
+      accessibilityLabel={displayLabel}
       accessibilityState={isFocused ? { selected: true } : {}}
       onPress={handlePress}
       onLongPress={onLongPress}
@@ -72,22 +75,24 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
         {isFocused && (
           <View style={[styles.activeIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)' }]} />
         )}
-        <View style={styles.iconWrap}>
+        <View style={[styles.iconWrap, !showLabel && styles.iconWrapOnly]}>
           {IconElement || <Ionicons name={iconName} size={24} color={color} />}
         </View>
-        <Text
-          style={[
-            styles.label,
-            {
-              color,
-              fontWeight: isFocused ? '600' : '500',
-              opacity: isFocused ? 1 : 0.8,
-            },
-          ]}
-          numberOfLines={1}
-        >
-          {route.name}
-        </Text>
+        {showLabel ? (
+          <Text
+            style={[
+              styles.label,
+              {
+                color,
+                fontWeight: isFocused ? '600' : '500',
+                opacity: isFocused ? 1 : 0.8,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {displayLabel}
+          </Text>
+        ) : null}
       </View>
     </AnimatedTouchable>
   );
@@ -95,7 +100,7 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
 
 const TabItemMemo = memo(TabItem);
 
-function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, inactiveColor, isDark, customHandlers = {} }) {
+function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, inactiveColor, isDark, customHandlers = {}, showLabel = false }) {
   const insets = useSafeAreaInsets();
   const paddingBottom = Math.max(insets.bottom, 8);
 
@@ -140,6 +145,7 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
             const customHandler = customHandlers[route.name];
             const color = isFocused ? primaryColor : inactiveColor;
             const icon = options.tabBarIcon ? options.tabBarIcon({ focused: isFocused, color, size: 24 }) : null;
+            const tabLabel = options.tabBarLabel ?? options.title;
 
             return (
               <TabItemMemo
@@ -147,6 +153,8 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
                 route={route}
                 isFocused={isFocused}
                 icon={icon}
+                label={tabLabel}
+                showLabel={showLabel}
                 onPress={() => {
                   if (customHandler) {
                     customHandler();
@@ -183,6 +191,7 @@ const GlassTabBar = memo(function GlassTabBar(props) {
       inactiveColor={inactiveColor}
       isDark={isDark}
       customHandlers={props.customHandlers}
+      showLabel={props.showLabel ?? false}
     />
   );
 });
@@ -190,7 +199,7 @@ const GlassTabBar = memo(function GlassTabBar(props) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
+    bottom: Platform.OS === 'web' ? 12 : 20,
     left: 16,
     right: 16,
     alignItems: 'center',
@@ -251,9 +260,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 8,
-    minHeight: 64,
+    minHeight: 52,
     backgroundColor: 'transparent',
   },
   tabItem: {
@@ -283,6 +292,9 @@ const styles = StyleSheet.create({
   },
   iconWrap: {
     marginBottom: 2,
+  },
+  iconWrapOnly: {
+    marginBottom: 0,
   },
   label: {
     fontSize: 10,

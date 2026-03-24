@@ -152,19 +152,41 @@ export function DashboardScreen() {
   const [quoteType, setQuoteType] = useState('motivacional');
   const carouselRef = useRef(null);
   const [carouselIndex, setCarouselIndex] = useState(0); // display index 0..count-1
-  const [carouselContainerWidth, setCarouselContainerWidth] = useState(null);
   const { width: winWidth } = useWindowDimensions();
-  const carouselViewportWidth = useWebLayout
-    ? Math.min((winWidth || SW) * 0.62, 620)
-    : (isWeb ? (carouselContainerWidth ?? winWidth ?? SW) : (winWidth || SW));
+  const isWebMobile = isWeb && !useWebLayout;
+  const cardShadowStyle = isWeb
+    ? {}
+    : {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 8,
+      };
+  const fabShadowStyle = isWeb
+    ? {}
+    : {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
+      };
+  const carouselViewportWidth = useMemo(() => {
+    if (useWebLayout) return Math.min(Math.max((winWidth || SW) * 0.58, 460), 820);
+    if (isWebMobile) return Math.max(260, (winWidth || SW) - (WEB_CARD_MARGIN_H * 2));
+    return winWidth || SW;
+  }, [useWebLayout, isWebMobile, winWidth, WEB_CARD_MARGIN_H]);
   const { CARD_WIDTH, CARD_GAP, SNAP_INTERVAL, CAROUSEL_PADDING } = useMemo(() => {
-    const w = Math.max(100, carouselViewportWidth || SW);
-    const cw = (w * 0.78) + 32;
+    const w = Math.max(280, carouselViewportWidth || SW);
+    const cw = useWebLayout
+      ? Math.min(Math.max(w * 0.82, 420), 720)
+      : (w * 0.78) + 32;
     const gap = 12;
     const snap = cw + gap;
     const pad = Math.max(0, (w - snap) / 2);
     return { CARD_WIDTH: cw, CARD_GAP: gap, SNAP_INTERVAL: snap, CAROUSEL_PADDING: pad };
-  }, [carouselViewportWidth]);
+  }, [carouselViewportWidth, useWebLayout]);
   const defaultSections = getDefaultForPlatform(DEFAULT_SECTIONS, { web: DEFAULT_SECTIONS_WEB });
   const sectionsStorageKey = getLayoutStorageKey(SECTIONS_ORDER_KEY);
   const [sectionOrder, setSectionOrder] = useState(defaultSections);
@@ -387,19 +409,67 @@ export function DashboardScreen() {
     }
   }, [navigation, openOrcamento, openAssinatura, openIndique, openMensagensWhatsApp]);
 
-  const useCarouselClones = !useWebLayout && carouselItems.length > 1;
+  // Web mobile: clones + initialScrollIndex quebram o FlatList no RN Web (área preta).
+  const useCarouselClones = !useWebLayout && !isWebMobile && carouselItems.length > 1;
+
+  const carouselSnapOffsets = useMemo(
+    () => (useCarouselClones ? carouselItemsExtended : carouselItems).map((_, i) => i * SNAP_INTERVAL),
+    [useCarouselClones, carouselItemsExtended, carouselItems, SNAP_INTERVAL],
+  );
+
+  /** Nativo: alinha scroll ao índice. Web mobile: um card por estado (scroll RN Web é instável). */
+  const applyCarouselScroll = useCallback(
+    (displayIndex, animated = true) => {
+      if (useWebLayout || isWebMobile) return;
+      const idx = useCarouselClones ? displayIndex + 1 : displayIndex;
+      const offset = idx * SNAP_INTERVAL;
+      const run = () => {
+        carouselRef.current?.scrollToOffset?.({ offset, animated });
+      };
+      if (isWeb) {
+        requestAnimationFrame(() => requestAnimationFrame(run));
+      } else {
+        run();
+      }
+    },
+    [useWebLayout, useCarouselClones, isWebMobile, isWeb, SNAP_INTERVAL],
+  );
 
   const jumpToCarouselIndex = useCallback((nextIndex) => {
     const count = carouselItems.length;
     if (count <= 0) return;
     const target = Math.max(0, Math.min(nextIndex, count - 1));
     setCarouselIndex(target);
-    if (useWebLayout) return;
-    const targetIndex = useCarouselClones ? (target + 1) : target;
-    carouselRef.current?.scrollToOffset?.({ offset: targetIndex * SNAP_INTERVAL, animated: true });
-  }, [carouselItems.length, useWebLayout, useCarouselClones, SNAP_INTERVAL]);
+    if (useWebLayout || isWebMobile) return;
+    applyCarouselScroll(target, true);
+  }, [carouselItems.length, useWebLayout, isWebMobile, applyCarouselScroll]);
 
   const carouselCount = carouselItems.length;
+
+  const onCarouselScrollSettled = useCallback(
+    (e) => {
+      const offsetX = e?.nativeEvent?.contentOffset?.x ?? 0;
+      const rawIndex = Math.round(offsetX / Math.max(1, SNAP_INTERVAL));
+      if (carouselCount <= 1) {
+        setCarouselIndex(0);
+        return;
+      }
+      if (!useCarouselClones) {
+        const clamped = Math.max(0, Math.min(rawIndex, carouselCount - 1));
+        setCarouselIndex(clamped);
+      } else if (rawIndex <= 0) {
+        setCarouselIndex(carouselCount - 1);
+        carouselRef.current?.scrollToOffset?.({ offset: carouselCount * SNAP_INTERVAL, animated: false });
+      } else if (rawIndex >= carouselCount + 1) {
+        setCarouselIndex(0);
+        carouselRef.current?.scrollToOffset?.({ offset: SNAP_INTERVAL, animated: false });
+      } else {
+        setCarouselIndex(rawIndex - 1);
+      }
+    },
+    [carouselCount, useCarouselClones, SNAP_INTERVAL],
+  );
+
   const webSectionOrder = useMemo(() => {
     if (!useWebLayout) return sectionOrder;
     const first = ['carousel', 'quote'];
@@ -423,17 +493,18 @@ export function DashboardScreen() {
     const count = carouselItems.length;
     if (count <= 1) return;
     const interval = setInterval(() => {
-      if (useWebLayout) {
+      if (useWebLayout || isWebMobile) {
         setCarouselIndex((prev) => (prev + 1) % count);
         return;
       }
-      const nextDisplay = (carouselIndex + 1) % count;
-      setCarouselIndex(nextDisplay);
-      const targetIndex = useCarouselClones ? (nextDisplay + 1) : nextDisplay;
-      carouselRef.current?.scrollToOffset({ offset: targetIndex * SNAP_INTERVAL, animated: true });
+      setCarouselIndex((prev) => {
+        const nextDisplay = (prev + 1) % count;
+        applyCarouselScroll(nextDisplay, true);
+        return nextDisplay;
+      });
     }, 4000);
     return () => clearInterval(interval);
-  }, [carouselIndex, SNAP_INTERVAL, carouselItems.length, useCarouselClones, useWebLayout]);
+  }, [SNAP_INTERVAL, carouselItems.length, useCarouselClones, useWebLayout, isWebMobile, isWeb, applyCarouselScroll]);
 
   const handleLayoutMeasured = (id, y, height) => {
     layoutsRef.current[id] = { y, height };
@@ -742,13 +813,12 @@ export function DashboardScreen() {
     carousel: (
       <View
         key="carousel"
-        style={[ds.carousel, !useWebLayout && { width: '100%' }]}
-        onLayout={!useWebLayout ? (e) => {
-          const w = e.nativeEvent.layout.width;
-          if (w > 0) setCarouselContainerWidth(w);
-        } : undefined}
+        style={[
+          ds.carousel,
+          (useWebLayout || isWebMobile) && { width: '100%', alignItems: 'center' },
+        ]}
       >
-        {useWebLayout ? (
+        {(useWebLayout || isWebMobile) ? (
           (() => {
             const item = carouselItems[Math.max(0, Math.min(carouselIndex, Math.max(0, carouselItems.length - 1)))] || carouselItems[0];
             if (!item) return null;
@@ -764,11 +834,7 @@ export function DashboardScreen() {
                       padding: 0,
                       borderColor: (item.color || colors.primary) + '80',
                       overflow: 'hidden',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 6 },
-                      shadowOpacity: 0.25,
-                      shadowRadius: 12,
-                      elevation: 8,
+                      ...cardShadowStyle,
                     },
                   ]}
                   imageStyle={{ borderRadius: 20, opacity: 0.8 }}
@@ -794,7 +860,7 @@ export function DashboardScreen() {
             data={useCarouselClones ? carouselItemsExtended : carouselItems}
             horizontal
             pagingEnabled={false}
-            style={{ overflow: 'visible', width: '100%', alignSelf: 'center', minHeight: isWeb ? 185 : undefined }}
+            style={{ overflow: 'visible', width: '100%', alignSelf: 'center' }}
             snapToInterval={SNAP_INTERVAL}
             snapToAlignment="center"
             decelerationRate="fast"
@@ -802,27 +868,8 @@ export function DashboardScreen() {
             contentContainerStyle={{ paddingHorizontal: CAROUSEL_PADDING }}
             key={`carousel-${Math.round(carouselViewportWidth)}-${useCarouselClones ? 'clones' : 'plain'}`}
             initialScrollIndex={useCarouselClones ? 1 : 0}
-            snapToOffsets={(useCarouselClones ? carouselItemsExtended : carouselItems).map((_, i) => i * SNAP_INTERVAL)}
-            onMomentumScrollEnd={(e) => {
-              const offsetX = e.nativeEvent.contentOffset.x;
-              const rawIndex = Math.round(offsetX / Math.max(1, SNAP_INTERVAL));
-              if (carouselCount <= 1) {
-                setCarouselIndex(0);
-                return;
-              }
-              if (!useCarouselClones) {
-                const clamped = Math.max(0, Math.min(rawIndex, carouselCount - 1));
-                setCarouselIndex(clamped);
-              } else if (rawIndex <= 0) {
-                setCarouselIndex(carouselCount - 1);
-                carouselRef.current?.scrollToOffset({ offset: carouselCount * SNAP_INTERVAL, animated: false });
-              } else if (rawIndex >= carouselCount + 1) {
-                setCarouselIndex(0);
-                carouselRef.current?.scrollToOffset({ offset: SNAP_INTERVAL, animated: false });
-              } else {
-                setCarouselIndex(rawIndex - 1);
-              }
-            }}
+            snapToOffsets={carouselSnapOffsets}
+            onMomentumScrollEnd={onCarouselScrollSettled}
             getItemLayout={(_, index) => ({ length: SNAP_INTERVAL, offset: index * SNAP_INTERVAL, index })}
             renderItem={({ item }) => {
               const cardContent = (
@@ -836,11 +883,7 @@ export function DashboardScreen() {
                       padding: 0,
                       borderColor: (item.color || colors.primary) + '80',
                       overflow: 'hidden',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 6 },
-                      shadowOpacity: 0.25,
-                      shadowRadius: 12,
-                      elevation: 8,
+                      ...cardShadowStyle,
                     },
                   ]}
                   imageStyle={{ borderRadius: 20, opacity: 0.8 }}
@@ -1345,7 +1388,7 @@ export function DashboardScreen() {
           <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>Modo visitante: os dados não são salvos. Faça login para persistir.</Text>
         </View>
       )}
-      <ScrollView showsVerticalScrollIndicator={false} scrollEnabled>
+      <ScrollView showsVerticalScrollIndicator={false} scrollEnabled nestedScrollEnabled={isWebMobile}>
         <View style={[ds.headerLogo, { backgroundColor: colors.bg }]}>
           <Text style={[ds.monthText, { color: colors.textSecondary }]}>{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</Text>
         </View>
@@ -1441,7 +1484,7 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
         )}
-        <View style={{ height: 100 }} />
+        <View style={{ height: isWebMobile ? 140 : 100 }} />
       </ScrollView>
       <CardPickerModal
         visible={showCardPicker}
@@ -1461,7 +1504,7 @@ export function DashboardScreen() {
           style={{
             position: 'absolute',
             right: 20,
-            bottom: 24,
+            bottom: 52,
             width: 58,
             height: 58,
             borderRadius: 29,
@@ -1470,11 +1513,7 @@ export function DashboardScreen() {
             backgroundColor: colors.primary,
             borderWidth: 1,
             borderColor: colors.primary + '99',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.3,
-            shadowRadius: 10,
-            elevation: 10,
+            ...fabShadowStyle,
             zIndex: 999,
           }}
         >

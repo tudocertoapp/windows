@@ -57,6 +57,7 @@ function PlaceholderScreen() {
 export function AppNavigator() {
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
+  const isWebMobile = isWeb && !isDesktopLayout;
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
   const [addModalState, setAddModalState] = useState({ type: null, params: null });
@@ -186,23 +187,27 @@ export function AppNavigator() {
               />
             </View>
           )}
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, position: 'relative' }}>
             <NavigationContainer ref={navigationRef}>
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
               <Tab.Navigator
-                tabBar={isDesktopLayout ? () => null : (tabProps) => (
-                  <GlassTabBar
-                    {...tabProps}
-                    customHandlers={{
-                      Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
-                      Menu: () => { playTapSound(); setMenuModalOpen(true); },
-                    }}
-                  />
-                )}
+                tabBar={
+                  isDesktopLayout || isWebMobile
+                    ? () => null
+                    : (tabProps) => (
+                        <GlassTabBar
+                          {...tabProps}
+                          customHandlers={{
+                            Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
+                            MeusGastos: () => { playTapSound(); setMeusGastosModal(true); },
+                          }}
+                        />
+                      )
+                }
                 screenOptions={{
                   headerShown: false,
-                  tabBarShowLabel: true,
-                  tabBarStyle: isDesktopLayout
+                  tabBarShowLabel: false,
+                  tabBarStyle: isDesktopLayout || isWebMobile
                     ? { display: 'none' }
                     : {
                         position: 'absolute',
@@ -248,17 +253,39 @@ export function AppNavigator() {
                 />
                 <Tab.Screen name="Agenda" component={AgendaScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="calendar-outline" size={24} color={color} /> }} />
                 <Tab.Screen
-                  name="Menu"
+                  name="MeusGastos"
                   component={PlaceholderScreen}
                   options={{
-                    tabBarIcon: ({ color }) => <AppIcon name="menu-outline" size={24} color={color} />,
-                    tabBarButton: (props) => (
-                      <TouchableOpacity {...props} onPress={() => { playTapSound(); setMenuModalOpen(true); }} activeOpacity={0.8} />
-                    ),
+                    tabBarLabel: 'Meus gastos',
+                    tabBarIcon: ({ color }) => <AppIcon name="chatbubbles-outline" size={24} color={color} />,
                   }}
                 />
               </Tab.Navigator>
             </NavigationContainer>
+            {isWebMobile ? (
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setMeusGastosModal(true); }}
+                activeOpacity={0.9}
+                accessibilityLabel="Meus gastos"
+                style={{
+                  position: 'absolute',
+                  right: 18,
+                  bottom: Math.max(insets.bottom, 10) + 10,
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: primaryColor,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: `${primaryColor}99`,
+                  zIndex: 1000,
+                  boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
+                }}
+              >
+                <Ionicons name="chatbubbles-outline" size={26} color="#fff" />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       <CircularMenuComponent
@@ -444,8 +471,8 @@ export function AppNavigator() {
           <ListaComprasScreen onClose={() => setListaComprasModal(false)} isModal />
         </SafeAreaView>
       </Modal>
-      <Modal visible={meusGastosModal} animationType="slide" transparent>
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <Modal visible={meusGastosModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <MeusGastosScreen onClose={() => setMeusGastosModal(false)} isModal />
         </SafeAreaView>
       </Modal>

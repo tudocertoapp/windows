@@ -55,6 +55,7 @@ export default function VoiceRecorder({
   const [engine, setEngine] = useState<'native' | 'expo' | null>(null);
   const lastTranscriptRef = useRef('');
   const engineRef = useRef<'native' | 'expo' | null>(null);
+  const webRecognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
 
   const clearTranscript = () => {
     setTranscript('');
@@ -87,10 +88,76 @@ export default function VoiceRecorder({
     }
   };
 
+  const startWebRecognition = (): boolean => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+    const SR = (window as unknown as { SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any }).SpeechRecognition
+      || (window as unknown as { webkitSpeechRecognition?: new () => any }).webkitSpeechRecognition;
+    if (!SR) return false;
+    try {
+      const rec = new SR();
+      rec.lang = locale;
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.maxAlternatives = 1;
+      lastTranscriptRef.current = '';
+      rec.onresult = (ev: any) => {
+        let text = '';
+        for (let i = 0; i < ev.results.length; i += 1) {
+          text += ev.results[i][0]?.transcript || '';
+        }
+        const t = text.trim();
+        if (t) {
+          lastTranscriptRef.current = t;
+          setTranscript(t);
+          onTranscriptChange?.(t);
+        }
+      };
+      rec.onerror = () => {
+        emitError('Erro ao reconhecer sua voz.');
+        setIsListening(false);
+        onListeningChange?.(false);
+        webRecognitionRef.current = null;
+      };
+      rec.onend = () => {
+        webRecognitionRef.current = null;
+        setIsListening(false);
+        onListeningChange?.(false);
+        const ft = (lastTranscriptRef.current || '').trim();
+        if (ft) onFinalTranscript?.(ft);
+      };
+      webRecognitionRef.current = rec;
+      engineRef.current = 'expo';
+      setEngine('expo');
+      setError(null);
+      rec.start();
+      setIsListening(true);
+      onListeningChange?.(true);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
   const startListening = async () => {
     setError(null);
     clearTranscript();
-    if (NativeVoice) {
+
+    if (Platform.OS === 'web') {
+      const ok = startWebRecognition();
+      if (!ok) {
+        engineRef.current = null;
+        setEngine(null);
+        setIsListening(false);
+        onListeningChange?.(false);
+        emitError('Reconhecimento de voz não disponível neste navegador (experimente Chrome ou Edge).');
+      }
+      return;
+    }
+
+    const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
+
+    // Android: SpeechRecognizer | iOS: SFSpeechRecognizer (via @react-native-voice/voice)
+    if (NativeVoice && isNativeMobile) {
       try {
         if (Platform.OS === 'android') {
           const granted = await PermissionsAndroid.request(
@@ -117,7 +184,12 @@ export default function VoiceRecorder({
           onListeningChange?.(true);
           return;
         }
-      } catch (_) {}
+        emitError('Reconhecimento de voz nativo indisponível neste aparelho.');
+        return;
+      } catch (_) {
+        emitError('Não foi possível iniciar o microfone (voz nativa).');
+        return;
+      }
     }
 
     const expoStarted = await startExpoRecognition();
@@ -132,7 +204,12 @@ export default function VoiceRecorder({
 
   const stopListening = async () => {
     try {
-      if (engineRef.current === 'native' && NativeVoice) {
+      if (Platform.OS === 'web' && webRecognitionRef.current) {
+        try {
+          webRecognitionRef.current.stop();
+        } catch (_) {}
+        webRecognitionRef.current = null;
+      } else if (engineRef.current === 'native' && NativeVoice) {
         await NativeVoice.stop();
       } else if (engineRef.current === 'expo' && ExpoSpeechRecognitionModule) {
         ExpoSpeechRecognitionModule.stop?.();
@@ -184,7 +261,7 @@ export default function VoiceRecorder({
   }, [engine, onEngineChange]);
 
   useEffect(() => {
-    if (!NativeVoice) return;
+    if (Platform.OS === 'web' || !NativeVoice) return;
 
     NativeVoice.onSpeechStart = () => {
       if (engineRef.current !== 'native') return;

@@ -18,8 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { useMenu } from '../contexts/MenuContext';
-import { parseExpenseVoice } from '../utils/voiceExpenseParser';
-import { parseVoiceIntent } from '../utils/voiceExpenseParser';
+import { parseExpenseVoice, parseVoiceIntent, buildExpenseVoicePreview, extractMainExpenseDescription } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 import { playTapSound } from '../utils/sounds';
 import VoiceRecorder from './VoiceRecorder';
@@ -57,6 +56,8 @@ function cleanTranscriptText(text) {
 }
 
 function extractImportantDescription(text) {
+  const fromParser = extractMainExpenseDescription(text);
+  if (fromParser) return fromParser;
   const raw = cleanTranscriptText(text);
   if (!raw) return '';
 
@@ -322,6 +323,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const inputRef = useRef(null);
   const lastTxIdRef = useRef(null);
   const receiptAddCandidateRef = useRef(null);
+  const voiceRecordedAtRef = useRef(null);
   // Para evitar duplicar mensagens quando a despesa já foi adicionada pelo próprio chat (ex.: voz)
   const suppressAssistantMessageRef = useRef(null);
 
@@ -590,7 +592,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     });
   };
 
-  const handleUserContent = async ({ kind, text, imageUri, imageBase64, skipUserBubble = false, hideTranscriptInChat = false }) => {
+  const handleUserContent = async ({ kind, text, imageUri, imageBase64, skipUserBubble = false, hideTranscriptInChat = false, recordedAt = null }) => {
     const baseId = Date.now();
     const normalizedText = typeof text === 'string' ? text.trim() : '';
     const filteredText = kind === 'voice' ? cleanTranscriptText(normalizedText) : normalizedText;
@@ -655,10 +657,8 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     }
     if (kind === 'voice' || kind === 'text') {
       const intent = parseVoiceIntent(filteredText);
-      if (intent?.type) {
-        const params = intent.type === 'agenda'
-          ? { initialData: intent.params || {} }
-          : (intent.params || null);
+
+      if (intent?.type === 'agenda') {
         appendMessage({
           id: `assistant-intent-${Date.now()}`,
           from: 'assistant',
@@ -667,7 +667,107 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
           action: {
             label: 'CADASTRAR',
             type: intent.type,
-            params,
+            params: { initialData: intent.params || {} },
+          },
+          createdAt: nowIso(),
+        });
+        return;
+      }
+      if (intent?.type === 'receita') {
+        appendMessage({
+          id: `assistant-intent-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: `${buildIntentSummary(intent)} Toque em "CADASTRAR" para abrir o formulário preenchido.`,
+          action: {
+            label: 'CADASTRAR',
+            type: intent.type,
+            params: intent.params || null,
+          },
+          createdAt: nowIso(),
+        });
+        return;
+      }
+      if (intent?.type && intent.type !== 'despesa') {
+        appendMessage({
+          id: `assistant-intent-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: `${buildIntentSummary(intent)} Toque em "CADASTRAR" para abrir o formulário preenchido.`,
+          action: {
+            label: 'CADASTRAR',
+            type: intent.type,
+            params: intent.params || null,
+          },
+          createdAt: nowIso(),
+        });
+        return;
+      }
+
+      const recorded = kind === 'voice' ? (recordedAt || new Date()) : new Date();
+      const preview = buildExpenseVoicePreview(filteredText, recorded);
+
+      if (kind === 'voice') {
+        if (preview) {
+          const modalParams = { ...preview.modalParams };
+          if (intent?.type === 'despesa' && intent.params?.categoryDesp) {
+            modalParams.categoryDesp = intent.params.categoryDesp;
+            modalParams.subcategoryDesp = intent.params.subcategoryDesp || modalParams.subcategoryDesp;
+          }
+          appendMessage({
+            id: `assistant-voice-preview-${Date.now()}`,
+            from: 'assistant',
+            kind: 'text',
+            text: preview.summaryText,
+            action: {
+              label: 'CADASTRAR',
+              type: 'despesa',
+              params: modalParams,
+            },
+            createdAt: nowIso(),
+          });
+          return;
+        }
+        appendMessage({
+          id: `assistant-voice-no-val-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: 'Não identifiquei um valor no áudio. Inclua o valor (ex.: “cinquenta reais” ou “50,00”) ou digite na caixa acima e envie.',
+          createdAt: nowIso(),
+        });
+        return;
+      }
+
+      if (preview && (intent?.type === 'despesa' || /\b(gastei|gastar|gasto|paguei|despesa|compr[ea][iu]?|compra|acabei)\b/i.test(filteredText))) {
+        const modalParams = { ...preview.modalParams };
+        if (intent?.type === 'despesa' && intent.params?.categoryDesp) {
+          modalParams.categoryDesp = intent.params.categoryDesp;
+          modalParams.subcategoryDesp = intent.params.subcategoryDesp || modalParams.subcategoryDesp;
+        }
+        appendMessage({
+          id: `assistant-text-preview-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: preview.summaryText,
+          action: {
+            label: 'CADASTRAR',
+            type: 'despesa',
+            params: modalParams,
+          },
+          createdAt: nowIso(),
+        });
+        return;
+      }
+      if (intent?.type === 'despesa') {
+        appendMessage({
+          id: `assistant-intent-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: `${buildIntentSummary(intent)} Toque em "CADASTRAR" para abrir o formulário preenchido.`,
+          action: {
+            label: 'CADASTRAR',
+            type: intent.type,
+            params: intent.params || null,
           },
           createdAt: nowIso(),
         });
@@ -795,8 +895,9 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
       await handleUserContent({
         kind: 'voice',
         text: content,
-        skipUserBubble: true,
-        hideTranscriptInChat: true,
+        skipUserBubble: false,
+        hideTranscriptInChat: false,
+        recordedAt: voiceRecordedAtRef.current || new Date(),
       });
     } finally {
       setProcessingVoice(false);
@@ -919,7 +1020,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               <View style={[s.voiceDot, { backgroundColor: isListening ? '#ef4444' : colors.primary }]} />
               <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '700' }}>
                 {isListening
-                  ? `Gravando${voiceEngine === 'expo' ? ' (alternativo)' : ''}...`
+                  ? `Gravando${voiceEngine === 'native' ? ' (voz nativa)' : voiceEngine === 'expo' ? ' (compatível)' : ''}...`
                   : 'Analisando áudio...'}
               </Text>
             </View>
@@ -933,6 +1034,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               setIsListening(false);
               const content = (t || '').trim();
               if (!content) return;
+              voiceRecordedAtRef.current = new Date();
               setPendingVoiceText(content);
               setInputText(content);
             }}
@@ -982,7 +1084,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             placeholderTextColor={colors.textSecondary}
             value={inputText}
             onChangeText={setInputText}
-            editable={!processingImage && !processingVoice && !pendingVoiceText}
+            editable={!processingImage && !processingVoice}
             onSubmitEditing={handleSendText}
             returnKeyType="send"
           />

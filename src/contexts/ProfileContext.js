@@ -29,16 +29,15 @@ export function ProfileProvider({ children }) {
         if (user) {
           const cachedUri = await getCachedPhotoUri(user.id);
           let data = null;
-          const { data: basicData, error: basicError } = await supabase.from('profiles').select('nome, foto, profissao, empresa, primary_color, theme_mode, custom_bg').eq('id', user.id).single();
-          if (!basicError && basicData) {
-            data = { ...basicData, cnpj: '', endereco: '', telefone: '', email: basicData.email || '' };
-            const { data: extraData } = await supabase.from('profiles').select('cnpj, endereco, telefone, email').eq('id', user.id).single();
-            if (extraData) {
-              data.cnpj = extraData.cnpj || '';
-              data.endereco = extraData.endereco || '';
-              data.telefone = extraData.telefone || '';
-              data.email = extraData.email || '';
-            }
+          const { data: fullData, error: fullError } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          if (!fullError && fullData) {
+            data = {
+              ...fullData,
+              cnpj: fullData.cnpj || '',
+              endereco: fullData.endereco || '',
+              telefone: fullData.telefone || '',
+              email: fullData.email || user?.email || '',
+            };
           } else {
             data = null;
           }

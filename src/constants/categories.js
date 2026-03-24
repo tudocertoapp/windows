@@ -14,7 +14,7 @@ export const CATEGORIAS_DESPESA = [
   { id: 'saude', label: 'Saúde', icon: 'medkit-outline', sub: ['Plano de saúde', 'Farmácia', 'Médico', 'Dentista', 'Academia', 'Laboratório', 'Fisioterapia', 'Psicólogo', 'Nutricionista', 'Óticas', 'Perfumaria', 'Dermato'] },
   { id: 'educacao', label: 'Educação', icon: 'school-outline', sub: ['Cursos', 'Livros', 'Material escolar', 'Faculdade', 'Pós-graduação', 'Idiomas', 'Mensalidade', 'Matrícula'] },
   { id: 'lazer', label: 'Lazer', icon: 'game-controller-outline', sub: ['Streaming', 'Cinema', 'Shows', 'Viagem', 'Hobby', 'Esportes', 'Bar', 'Balada', 'Teatro', 'Museu', 'Parque', 'Hotel', 'Passeio'] },
-  { id: 'compras', label: 'Compras', icon: 'bag-outline', sub: ['Roupas', 'Eletrônicos', 'Móveis', 'Casa', 'Sapatos', 'Acessórios', 'Cosméticos', 'Pet shop', 'Papelaria', 'Ferramentas'] },
+  { id: 'compras', label: 'Compras', icon: 'bag-outline', sub: ['Roupas', 'Eletrônicos', 'Móveis', 'Casa', 'Sapatos', 'Acessórios', 'Cosméticos', 'Pet shop', 'Papelaria', 'Ferramentas', 'Loja'] },
   { id: 'financeiro', label: 'Financeiro', icon: 'card-outline', sub: ['Empréstimo', 'Seguro', 'Taxas bancárias', 'Impostos', 'Cartão de crédito', 'Financiamento', 'Consórcio'] },
   { id: 'outros_desp', label: 'Outros', icon: 'ellipsis-horizontal-outline', sub: ['Doação', 'Presente', 'Outros', 'Bancos', 'Serviços gerais'] },
 ];

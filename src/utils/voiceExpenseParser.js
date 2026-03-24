@@ -1,37 +1,223 @@
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 
-/**
- * Mapeia palavras faladas para categoria e subcategoria.
- * Ex: "padaria" ou "na padaria com pão" -> { catId: 'alimentacao', sub: 'Padaria' }
- */
-function findCategoryFromText(text) {
-  const t = (text || '').toLowerCase().trim();
-  const words = t.split(/\s+/);
+/** Prefer o match mais longo (ex.: "supermercado" antes de "mercado"). */
+function findLongestCategoryMatch(text) {
+  const t = (text || '').toLowerCase();
+  let best = null;
+  let bestLen = 0;
   for (const cat of CATEGORIAS_DESPESA) {
     for (const sub of cat.sub || []) {
-      const subLow = sub.toLowerCase();
-      if (t.includes(subLow) || words.some((w) => subLow.includes(w) || w.includes(subLow))) return { catId: cat.id, sub };
+      const sl = (sub || '').toLowerCase();
+      if (!sl) continue;
+      if (t.includes(sl) && sl.length > bestLen) {
+        best = { catId: cat.id, sub };
+        bestLen = sl.length;
+      }
     }
-    const labelLow = cat.label.toLowerCase();
-    if (t.includes(labelLow) || words.some((w) => labelLow.includes(w))) {
-      return { catId: cat.id, sub: cat.sub?.[0] || cat.label };
+    const ll = (cat.label || '').toLowerCase();
+    if (ll && t.includes(ll) && ll.length > bestLen) {
+      best = { catId: cat.id, sub: cat.sub?.[0] || cat.label };
+      bestLen = ll.length;
     }
+  }
+  return best;
+}
+
+/** @deprecated use findLongestCategoryMatch */
+function findCategoryFromText(text) {
+  return findLongestCategoryMatch(text);
+}
+
+/** Local após na/no/em (para subcategoria), até valor ou fim da frase. */
+function extractPlaceRaw(text) {
+  const s = String(text || '');
+  const m = s.match(/\b(?:na|no|nem|em)\s+([^\d,]+?)(?=\s*[\d]{1,4}(?:[.,]\d{2})?|\s*,\s*gasto|\s+gasto\s|\s+gastei\b|\s+pessoal\b|\s+empresa\b|$)/i);
+  if (!m) return '';
+  return m[1].replace(/\s+/g, ' ').trim();
+}
+
+/** Mapeia trecho do lugar (ex.: "padaria", "loja de roupas") para categoria/sub do app. */
+function matchPlaceToCategory(placeStr) {
+  const p = (placeStr || '').toLowerCase().trim();
+  if (!p) return null;
+
+  if (/^loja\b/.test(p) || p === 'loja') {
+    return { catId: 'compras', sub: 'Loja' };
+  }
+
+  let best = null;
+  let bestLen = 0;
+  for (const cat of CATEGORIAS_DESPESA) {
+    for (const sub of cat.sub || []) {
+      const sl = (sub || '').toLowerCase();
+      if (!sl) continue;
+      if (p.includes(sl) || sl.includes(p.split(/\s+/)[0])) {
+        if (sl.length >= bestLen) {
+          best = { catId: cat.id, sub };
+          bestLen = sl.length;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/** Dicas por produto quando o texto não cita padaria/mercado etc. */
+function matchItemKeywordToCategory(itemLower) {
+  const t = (itemLower || '').toLowerCase();
+  if (!t) return null;
+  const hints = [
+    { re: /\b(celular|smartphone|iphone|galaxy|tablet|notebook|monitor|mouse|teclado|fone|headphone|carregador)\b/i, catId: 'compras', sub: 'Eletrônicos' },
+    { re: /\b(p[aã]o|sandu[íi]che|manteiga|leite|caf[ée]|a[cç][uú]car)\b/i, catId: 'alimentacao', sub: 'Padaria' },
+    { re: /\b(uber|99|t[aá]xi|carro por app)\b/i, catId: 'transporte', sub: 'Uber/99' },
+    { re: /\b(combust[ií]vel|gasolina|etanol)\b/i, catId: 'transporte', sub: 'Combustível' },
+    { re: /\b([ôo]nibus|metr[ôo]|passe)\b/i, catId: 'transporte', sub: 'Ônibus/Metrô' },
+    { re: /\b(rem[eé]dio|farm[aá]cia|vitamina)\b/i, catId: 'saude', sub: 'Farmácia' },
+  ];
+  for (const h of hints) {
+    if (h.re.test(t)) return { catId: h.catId, sub: h.sub };
   }
   return null;
 }
 
 /**
- * Extrai valor monetário do texto. Aceita "50", "50,00", "50.00", "50 reais"
+ * Prioridade: lugar explícito (na padaria > na loja); depois palavras-chave do item; depois maior match no texto.
+ */
+function inferExpenseCategory(fullText, itemDescription, placeRaw) {
+  const t = (fullText || '').toLowerCase();
+  const place = (placeRaw || '').toLowerCase().trim();
+  const item = (itemDescription || '').toLowerCase();
+
+  const fromPlace = matchPlaceToCategory(place);
+  const fromText = findLongestCategoryMatch(t);
+  const fromItem = matchItemKeywordToCategory(item);
+
+  if (fromPlace) {
+    return { categoryDesp: fromPlace.catId, subcategoryDesp: fromPlace.sub, category: fromPlace.sub };
+  }
+
+  if (fromItem) {
+    return { categoryDesp: fromItem.catId, subcategoryDesp: fromItem.sub, category: fromItem.sub };
+  }
+
+  if (fromText) {
+    return { categoryDesp: fromText.catId, subcategoryDesp: fromText.sub, category: fromText.sub };
+  }
+
+  return null;
+}
+
+function stripNoiseForItem(text) {
+  return String(text || '')
+    .replace(/\bR\$\s*[\d.,]+|[\d]{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanItemPhrase(phrase) {
+  let p = String(phrase || '').trim().replace(/\s+/g, ' ');
+  if (!p) return '';
+  const lead =
+    /^(comprando|comprar|comprei|compro|compramos|um|uma|uns|umas|o|a|os|as|de|da|do|dizendo|tipo)\s+/i;
+  while (lead.test(p)) p = p.replace(lead, '').trim();
+  p = p.replace(/\s+(gasto|gastei|pessoal|empresa|reais|real|despesa)$/i, '').trim();
+  const stop = new Set([
+    'comprando',
+    'comprar',
+    'gastei',
+    'gasto',
+    'pessoal',
+    'empresa',
+    'reais',
+    'real',
+    'despesa',
+    'na',
+    'no',
+    'em',
+    'com',
+    'foi',
+    'fui',
+  ]);
+  const words = p.split(/\s+/).filter((w) => {
+    const c = w.replace(/[.,]/g, '').toLowerCase();
+    return c && !stop.has(c);
+  });
+  if (!words.length) return '';
+  return words.slice(0, 6).join(' ');
+}
+
+/**
+ * Extrai o nome do gasto (o que foi comprado/pago), sem gerúndios tipo "comprando".
+ * Ex.: "gastei 10,00 comprando pão" -> "Pão"; "compre um celular na loja 1000" -> "Celular"
+ */
+export function extractMainExpenseDescription(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+  const low = raw.toLowerCase();
+
+  let m = low.match(
+    /\bcomprando\s+(?:um|uma|uns|umas|o|a|os|as)?\s*([^,;]+?)(?=\s*[,;]|\s+gasto\s|\s+gastei\b|\s+pessoal\b|\s+empresa\b|$)/i,
+  );
+  if (m) {
+    const item = cleanItemPhrase(m[1]);
+    if (item) return capitalizeWords(item);
+  }
+
+  const beforePlace = raw.split(/\s+(?:na|no|nem|em)\s+/i)[0];
+  let clause = stripNoiseForItem(beforePlace);
+  clause = clause
+    .replace(/\b(gasto|gastei|gastar|despesa)\s+(pessoal|empresa|empresarial)\b/gi, ' ')
+    .replace(/\b(pessoal|empresa|empresarial)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  m = clause.match(/\b(?:comprei|compre|compramos)\s+(?:um|uma|uns|umas)?\s*(.+)$/i);
+  if (m) {
+    const item = cleanItemPhrase(m[1]);
+    if (item) return capitalizeWords(item);
+  }
+
+  m = clause.match(/\b(?:gastei|paguei)\s+(?:de\s+)?(?:com|comprando)\s+(.+)$/i);
+  if (m) {
+    const item = cleanItemPhrase(m[1]);
+    if (item) return capitalizeWords(item);
+  }
+
+  m = clause.match(/\bcom\s+(.+)$/i);
+  if (m) {
+    const item = cleanItemPhrase(m[1]);
+    if (item) return capitalizeWords(item);
+  }
+
+  let tail = clause
+    .replace(/\b(gastei|paguei|acabei|fui|foi|despesa)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const item = cleanItemPhrase(tail);
+  if (item) return capitalizeWords(item);
+
+  return '';
+}
+
+/**
+ * Extrai valor monetário do texto (maior valor plausível). Aceita "50", "50,00", "1.234,56"
  */
 function extractAmount(text) {
-  const t = (text || '').replace(/\s/g, '');
-  const match = t.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?)/);
-  if (match) {
-    const numStr = match[1].replace(/\./g, '').replace(',', '.');
-    const n = parseFloat(numStr);
-    return isNaN(n) ? null : n;
-  }
-  return null;
+  const matches = String(text || '').match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g) || [];
+  const nums = matches
+    .map((v) => Number(v.replace(/\./g, '').replace(',', '.')))
+    .filter((n) => Number.isFinite(n) && n > 0 && n < 1e9);
+  if (!nums.length) return null;
+  return Math.max(...nums);
+}
+
+function capitalizeWords(s) {
+  if (!s) return '';
+  return String(s)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
 }
 
 function normalizeTimeToken(token) {
@@ -71,7 +257,6 @@ export function parseExpenseVoice(transcript) {
   if (!t) return {};
 
   const result = {};
-  const words = t.split(/\s+/).map((w) => w.toLowerCase());
 
   if (/empresa|empresarial/.test(t)) result.tipoVenda = 'empresa';
   else if (/pessoal/.test(t)) result.tipoVenda = 'pessoal';
@@ -79,28 +264,93 @@ export function parseExpenseVoice(transcript) {
   const amount = extractAmount(t);
   if (amount != null) result.amount = amount.toFixed(2).replace('.', ',');
 
-  const catResult = findCategoryFromText(t);
-  if (catResult) {
-    result.categoryDesp = catResult.catId;
-    result.subcategoryDesp = catResult.sub;
-    result.category = catResult.sub;
-  }
+  const placeRaw = extractPlaceRaw(t);
+  const itemDesc = extractMainExpenseDescription(t);
+  if (itemDesc) result.description = itemDesc;
 
-  const descParts = [];
-  const stopWords = ['gastei', 'gasto', 'paguei', 'paguei', 'na', 'no', 'em', 'com', 'de', 'da', 'do', 'empresa', 'pessoal', 'reais', 'real', 'fui', 'foi', 'estava', 'estive', 'em', 'total'];
-  const numPattern = /[\d,\.]+/;
-  for (const w of words) {
-    const clean = w.replace(/[,\.]/g, '');
-    if (stopWords.includes(clean)) continue;
-    if (numPattern.test(w)) continue;
-    const cat = CATEGORIAS_DESPESA.flatMap((c) => (c.sub || []).map((s) => s.toLowerCase()));
-    if (cat.some((s) => s.includes(clean) || clean.includes(s))) continue;
-    descParts.push(w);
+  const cat = inferExpenseCategory(t, itemDesc, placeRaw);
+  if (cat) {
+    result.categoryDesp = cat.categoryDesp;
+    result.subcategoryDesp = cat.subcategoryDesp;
+    result.category = cat.category;
   }
-  const description = descParts.join(' ').trim();
-  if (description) result.description = description.charAt(0).toUpperCase() + description.slice(1);
 
   return result;
+}
+
+/**
+ * Monta resumo + parâmetros para o formulário de despesa (voz/texto), com data/hora da gravação.
+ * Ex.: "acabei de gastar 50,00 na padaria comprei pão gasto pessoal"
+ */
+export function buildExpenseVoicePreview(transcript, recordedAt = new Date()) {
+  const t = (transcript || '').trim();
+  if (!t) return null;
+
+  const parsed = parseExpenseVoice(t);
+  const amountNum = extractAmount(t);
+  if (!amountNum) return null;
+  const amountStr = amountNum.toFixed(2).replace('.', ',');
+
+  const placeRaw = extractPlaceRaw(t);
+  const placeLabel = placeRaw ? capitalizeWords(placeRaw) : '';
+  const itemLabel = extractMainExpenseDescription(t) || parsed.description || '';
+
+  const description =
+    itemLabel ||
+    parsed.description ||
+    (placeLabel ? `Gasto em ${placeLabel}` : 'Gasto por voz');
+
+  const tipoVenda = parsed.tipoVenda || (/\bempresa|empresarial\b/i.test(t) ? 'empresa' : 'pessoal');
+
+  const d = recordedAt instanceof Date ? recordedAt : new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const dateBr = `${dd}/${mm}/${yyyy}`;
+  const timeBr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  let categoryDesp = parsed.categoryDesp;
+  let subcategoryDesp = parsed.subcategoryDesp;
+  if (!categoryDesp) {
+    const cat = findLongestCategoryMatch(t);
+    if (cat) {
+      categoryDesp = cat.catId;
+      subcategoryDesp = cat.sub;
+    }
+  }
+
+  const summaryLines = [
+    `• Valor: R$ ${amountStr}`,
+    itemLabel ? `• Descrição (produto/serviço): ${itemLabel}` : null,
+    placeLabel ? `• Onde / subcategoria: ${placeLabel}` : null,
+    subcategoryDesp ? `• Categoria no app: ${subcategoryDesp}` : null,
+    `• Tipo: ${tipoVenda === 'empresa' ? 'Empresa' : 'Pessoal'}`,
+    `• Gravação: ${dateBr} às ${timeBr}`,
+  ].filter(Boolean);
+
+  const modalParams = {
+    amount: amountStr,
+    description,
+    tipoVenda,
+    date: dateBr,
+    ...(categoryDesp ? { categoryDesp } : {}),
+    ...(subcategoryDesp ? { subcategoryDesp } : {}),
+  };
+
+  return {
+    amountStr,
+    description,
+    categoryDesp,
+    subcategoryDesp,
+    tipoVenda,
+    dateBr,
+    timeBr,
+    placeLabel,
+    itemLabel,
+    summaryLines,
+    summaryText: `Entendi o gasto:\n${summaryLines.join('\n')}\n\nToque em CADASTRAR para abrir o formulário já preenchido.`,
+    modalParams,
+  };
 }
 
 /**
@@ -146,10 +396,12 @@ export function parseVoiceIntent(transcript) {
     return result;
   }
 
-  if (/\b(despesa|saída|saida|gastei|paguei|gasto|fui|foi em|estava na|estava no)\b/.test(t)) {
+  if (/\b(despesa|saída|saida|gastei|gastar|gasto|paguei|pagamento|fui|foi em|estava na|estava no|compr[ea][iu]?|compra|acabei)\b/.test(t)) {
     result.type = 'despesa';
     const parsed = parseExpenseVoice(transcript);
-    if (parsed.amount) result.params.amount = parsed.amount;
+    const amt = extractAmount(transcript);
+    if (amt != null) result.params.amount = amt.toFixed(2).replace('.', ',');
+    else if (parsed.amount) result.params.amount = parsed.amount;
     if (parsed.description) result.params.description = parsed.description;
     if (parsed.categoryDesp) result.params.categoryDesp = parsed.categoryDesp;
     if (parsed.subcategoryDesp) result.params.subcategoryDesp = parsed.subcategoryDesp;
@@ -188,7 +440,7 @@ export function parseVoiceIntent(transcript) {
 
   const amount = extractAmount(transcript);
   if (amount != null && amount > 0) {
-    if (/\b(gastei|paguei|gasto|despesa|fui|foi em|estava na|estava no)\b/.test(t)) {
+    if (/\b(gastei|gastar|paguei|gasto|despesa|fui|foi em|estava na|estava no|compr[ea][iu]?|compra|acabei)\b/.test(t)) {
       result.type = 'despesa';
       const parsed = parseExpenseVoice(transcript);
       result.params = { amount: parsed.amount || amount.toFixed(2).replace('.', ','), description: parsed.description, categoryDesp: parsed.categoryDesp, subcategoryDesp: parsed.subcategoryDesp, tipoVenda: parsed.tipoVenda };

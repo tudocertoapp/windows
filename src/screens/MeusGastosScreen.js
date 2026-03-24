@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { MeusGastosChat } from '../components/MeusGastosChat';
@@ -14,8 +14,8 @@ export function MeusGastosScreen({ onClose, isModal }) {
   const { colors } = useTheme();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-      <View style={[s.header, { borderBottomColor: colors.border }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom', 'top']}>
+      <View style={[s.header, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
         <Text style={[s.headerTitle, { color: colors.text }]}>Meus gastos</Text>
         {isModal && (
           <TouchableOpacity onPress={onClose} style={[s.headerBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
@@ -29,7 +29,7 @@ export function MeusGastosScreen({ onClose, isModal }) {
           Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
         </Text>
       </View>
-      <MeusGastosChat transparentBg={isModal} />
+      <MeusGastosChat transparentBg={false} />
     </SafeAreaView>
   );
 }

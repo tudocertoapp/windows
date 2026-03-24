@@ -8,6 +8,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 // Cache da frase: muda só 1x por dia ou quando o usuário sai e volta ao app
 let headerPromptCache = { prompt: null, dateKey: null };
@@ -38,8 +39,10 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
+  const isDesktopLayout = useIsDesktopLayout();
   const isHome = title === 'Início' || useLogoImage;
   const isWeb = Platform.OS === 'web';
+  const showSlideMenu = !hideMenu && (Platform.OS !== 'web' || !isDesktopLayout);
   const appStateRef = useRef(AppState.currentState);
   const [homePrompt, setHomePrompt] = useState(() => {
     const today = new Date().toDateString();
@@ -78,7 +81,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
 
   const Bar = (
     <View style={[topBarStyles.bar, { backgroundColor: colors.bg }]}>
-      {!hideMenu && Platform.OS !== 'web' && (
+      {showSlideMenu && (
         <TouchableOpacity
           style={{ padding: 8, marginRight: 4 }}
           onPress={() => { playTapSound(); openMenu?.(); }}
