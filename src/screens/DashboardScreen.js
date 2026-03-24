@@ -156,7 +156,7 @@ export function DashboardScreen() {
   const { width: winWidth } = useWindowDimensions();
   const carouselViewportWidth = useWebLayout
     ? Math.min((winWidth || SW) * 0.62, 620)
-    : (carouselContainerWidth ?? winWidth ?? SW);
+    : (isWeb ? (carouselContainerWidth ?? winWidth ?? SW) : (winWidth || SW));
   const { CARD_WIDTH, CARD_GAP, SNAP_INTERVAL, CAROUSEL_PADDING } = useMemo(() => {
     const w = Math.max(100, carouselViewportWidth || SW);
     const cw = (w * 0.78) + 32;
@@ -794,7 +794,7 @@ export function DashboardScreen() {
             data={useCarouselClones ? carouselItemsExtended : carouselItems}
             horizontal
             pagingEnabled={false}
-            style={{ overflow: 'visible', width: '100%', alignSelf: 'center', minHeight: 185 }}
+            style={{ overflow: 'visible', width: '100%', alignSelf: 'center', minHeight: isWeb ? 185 : undefined }}
             snapToInterval={SNAP_INTERVAL}
             snapToAlignment="center"
             decelerationRate="fast"

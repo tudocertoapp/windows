@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   InteractionManager,
+  useWindowDimensions,
 } from 'react-native';
 import { Gesture, GestureDetector, ScrollView as RNGHScrollView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, useAnimatedRef, useAnimatedScrollHandler, scrollTo, runOnJS, withTiming, withSpring, Easing, cancelAnimation } from 'react-native-reanimated';
@@ -373,6 +374,8 @@ export function AgendaScreen() {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [agendaFormState, setAgendaFormState] = useState({ visible: false, editingEvent: null });
   const [openEventActionsId, setOpenEventActionsId] = useState(null);
+  const { width: winWidth } = useWindowDimensions();
+  const screenW = Math.max(320, winWidth || SW);
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth());
   const [isPinching, setIsPinching] = useState(false);
@@ -387,7 +390,7 @@ export function AgendaScreen() {
     const clamped = Math.max(0, Math.min(weekIndex, ALL_WEEKS.length - 1));
     const scrollX = clamped * weekItemWidth;
     weekScrollRef.current?.scrollToOffset?.({ offset: scrollX, animated });
-  }, []);
+  }, [weekItemWidth]);
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -430,7 +433,7 @@ export function AgendaScreen() {
         .failOffsetY([-25, 25])
         .onUpdate((e) => {
           'worklet';
-          const maxDrag = SW * 0.85;
+          const maxDrag = screenW * 0.85;
           contentPanX.value = Math.max(-maxDrag, Math.min(maxDrag, e.translationX));
         })
         .onEnd((e) => {
@@ -439,18 +442,18 @@ export function AgendaScreen() {
           const goNext = translationX < -SWIPE_THRESHOLD || velocityX < -350;
           const goPrev = translationX > SWIPE_THRESHOLD || velocityX > 350;
           if (goNext) {
-            contentPanX.value = withTiming(-SW, { duration: SWIPE_DURATION, easing: Easing.out(Easing.cubic) }, (finished) => {
+            contentPanX.value = withTiming(-screenW, { duration: SWIPE_DURATION, easing: Easing.out(Easing.cubic) }, (finished) => {
               if (finished) runOnJS(commitSwipeNext)();
             });
           } else if (goPrev) {
-            contentPanX.value = withTiming(SW, { duration: SWIPE_DURATION, easing: Easing.out(Easing.cubic) }, (finished) => {
+            contentPanX.value = withTiming(screenW, { duration: SWIPE_DURATION, easing: Easing.out(Easing.cubic) }, (finished) => {
               if (finished) runOnJS(commitSwipePrev)();
             });
           } else {
             contentPanX.value = withSpring(0, { damping: 22, stiffness: 260 });
           }
         }),
-    [commitSwipeNext, commitSwipePrev]
+    [commitSwipeNext, commitSwipePrev, screenW]
   );
 
   const pinchGesture = useMemo(
@@ -547,7 +550,7 @@ export function AgendaScreen() {
   const currentMonthName = MONTHS[currentMonthIdx];
   const currentDay = now.getDate();
 
-  const weekPaddingH = (SW - weekItemWidth) / 2;
+  const weekPaddingH = (screenW - weekItemWidth) / 2;
 
   const scrollToToday = useCallback(() => {
     playTapSound();
@@ -570,7 +573,7 @@ export function AgendaScreen() {
     const prev = new Date(selectedDate);
     prev.setDate(prev.getDate() - 1);
     slideDirectionRef.current = -1;
-    timelineSlideX.value = -SW;
+    timelineSlideX.value = -screenW;
     setSelectedDate(prev);
     setDisplayedMonthDate(prev);
     scrollToWeek(getWeekIndexForDate(prev));
@@ -580,7 +583,7 @@ export function AgendaScreen() {
     const next = new Date(selectedDate);
     next.setDate(next.getDate() + 1);
     slideDirectionRef.current = 1;
-    timelineSlideX.value = SW;
+    timelineSlideX.value = screenW;
     setSelectedDate(next);
     setDisplayedMonthDate(next);
     scrollToWeek(getWeekIndexForDate(next));
@@ -591,10 +594,10 @@ export function AgendaScreen() {
     const newD = new Date(d);
     const direction = newD.getTime() > selectedDate.getTime() ? 1 : -1;
     slideDirectionRef.current = direction;
-    timelineSlideX.value = direction * SW;
+    timelineSlideX.value = direction * screenW;
     setSelectedDate(newD);
     setDisplayedMonthDate(newD);
-  }, [selectedDate]);
+  }, [selectedDate, screenW]);
 
   const updateSelectionForWeek = useCallback(
     (weekIndex) => {
@@ -612,14 +615,14 @@ export function AgendaScreen() {
         if (newKey !== formatDayKey(selectedDate)) {
           const direction = dayInWeek.getTime() > selectedDate.getTime() ? 1 : -1;
           slideDirectionRef.current = direction;
-          timelineSlideX.value = direction * SW;
+          timelineSlideX.value = direction * screenW;
           setSelectedDate(new Date(dayInWeek));
         }
       }
       const midDay = week[3];
       if (midDay) setDisplayedMonthDate(new Date(midDay));
     },
-    [selectedDate]
+    [selectedDate, screenW]
   );
 
   const lastScrollWeekRef = useRef(-1);
@@ -730,7 +733,7 @@ export function AgendaScreen() {
   );
 
   const timelineSwipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -SW + contentPanX.value }],
+    transform: [{ translateX: -screenW + contentPanX.value }],
   }));
 
   useLayoutEffect(() => {
@@ -898,13 +901,13 @@ export function AgendaScreen() {
           contentContainerStyle={{ paddingBottom: 20, backgroundColor: colors.bg }}
           removeClippedSubviews={false}
         >
-          <Animated.View style={[animatedTimelineStyle, { width: SW, overflow: 'hidden' }]}>
-            <Animated.View style={[timelineSwipeStyle, { flexDirection: 'row', width: SW * 3 }]}>
+          <Animated.View style={[animatedTimelineStyle, { width: screenW, overflow: 'hidden' }]}>
+            <Animated.View style={[timelineSwipeStyle, { flexDirection: 'row', width: screenW * 3 }]}>
             {panelsData.map(({ events, showTodayLine }, panelIdx) => (
               <View
                 key={panelIdx}
                 style={{
-                  width: SW,
+                  width: screenW,
                   flexDirection: 'row',
                   position: 'relative',
                   paddingLeft: TIMELINE_PADDING,
@@ -1138,7 +1141,7 @@ export function AgendaScreen() {
           </Animated.View>
 
           {eventsForSelected.length === 0 && (
-            <View style={{ width: SW, alignSelf: 'center' }}>
+            <View style={{ width: screenW, alignSelf: 'center' }}>
               <View style={[as.empty, { marginTop: 24 }]}>
                 <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
                 <Text style={{ fontSize: 15, color: colors.textSecondary }}>Nenhum evento neste dia</Text>
