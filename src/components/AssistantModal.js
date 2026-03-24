@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Animated } from 'react-native';
+import { useNativeDriverSafe } from '../utils/platformLayout';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { parseVoiceIntent } from '../utils/voiceExpenseParser';
@@ -50,8 +51,8 @@ export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListening
   useEffect(() => {
     if (listening) {
       Animated.loop(Animated.sequence([
-        Animated.timing(micPulse, { toValue: 1.2, duration: 500, useNativeDriver: true }),
-        Animated.timing(micPulse, { toValue: 0.9, duration: 500, useNativeDriver: true }),
+        Animated.timing(micPulse, { toValue: 1.2, duration: 500, useNativeDriver: useNativeDriverSafe }),
+        Animated.timing(micPulse, { toValue: 0.9, duration: 500, useNativeDriver: useNativeDriverSafe }),
       ])).start();
     } else {
       micPulse.setValue(1);

@@ -31,7 +31,7 @@ import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CardExpandedModal } from '../components/CardExpandedModal';
 import { DEFAULT_DINHEIRO_SECTIONS, DEFAULT_DINHEIRO_SECTIONS_WEB, DINHEIRO_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
-import { getLayoutStorageKey, getDefaultForPlatform } from '../utils/platformLayout';
+import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout } from '../utils/platformLayout';
 
 const DINHEIRO_SECTIONS_KEY = '@tudocerto_dinheiro_sections';
 
@@ -118,6 +118,8 @@ function getBankGrad(bank) {
 
 export function DinheiroScreen({ route }) {
   const isWeb = Platform.OS === 'web';
+  const isDesktopLayout = useIsDesktopLayout();
+  const useWebLayout = isWeb && isDesktopLayout;
   const { transactions, boletos, checkListItems, agendaEvents, clients, deleteTransaction } = useFinance();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
@@ -378,6 +380,7 @@ export function DinheiroScreen({ route }) {
           onFilterPeriodChange={(start, end) => { setPeriodStart(start); setPeriodEnd(end); }}
           showValues={showValues}
           onToggleValues={() => { playTapSound(); toggleValues(); }}
+          stackBoxes={!useWebLayout}
         />
       </View>
     ),
@@ -552,7 +555,7 @@ export function DinheiroScreen({ route }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       {(() => {
-        const showInlineToggle = isWeb && canToggleView;
+        const showInlineToggle = useWebLayout && canToggleView;
         return (
       <TopBar
         title="Dinheiro"
@@ -567,14 +570,14 @@ export function DinheiroScreen({ route }) {
       />
         );
       })()}
-      {!(isWeb && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
+      {!(useWebLayout && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, backgroundColor: colors.bg }}>
           <Text style={{ fontSize: 11, fontWeight: '600', letterSpacing: 1, color: colors.textSecondary }}>
             {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
           </Text>
         </View>
-        {isWeb ? (
+        {useWebLayout ? (
           <>
             {sectionContent.balance}
             {sectionContent.contas}

@@ -58,6 +58,7 @@ export function BalanceCard({
   showValues,
   onToggleValues,
   lightBackground,
+  stackBoxes,
 }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
@@ -126,16 +127,16 @@ export function BalanceCard({
           )}
         </>
       )}
-      <View style={ds.balanceRow}>
-        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+      <View style={[ds.balanceRow, stackBoxes && { flexDirection: 'column' }]}>
+        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>ENTRADA</Text>
           <Text style={[ds.boxValue, { color: colors.text }]}>+ {m(fmt(income))}</Text>
         </View>
-        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>SAÍDA</Text>
           <Text style={[ds.boxValue, { color: colors.expense || '#dc2626' }]}>- {m(fmt(expense))}</Text>
         </View>
-        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }]}>
+        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>SALDO</Text>
           <Text style={[ds.boxValue, { color: balance >= 0 ? accent : '#dc2626' }]}>{m(fmt(balance))}</Text>
         </View>

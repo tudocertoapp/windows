@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Animated, Vibration, Pressable } from 'react-native';
+import { useNativeDriverSafe } from '../utils/platformLayout';
 
 const LONG_PRESS_MS = 3000;
 const FLOAT_SCALE = 1.03;
@@ -13,7 +14,7 @@ export function DraggableCard({ id, editMode, children, onLayoutMeasured, onFloa
     Animated.timing(scale, {
       toValue: 1,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: useNativeDriverSafe,
     }).start();
   };
 
@@ -25,7 +26,7 @@ export function DraggableCard({ id, editMode, children, onLayoutMeasured, onFloa
     Animated.timing(scale, {
       toValue: FLOAT_SCALE,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: useNativeDriverSafe,
     }).start();
   };
 

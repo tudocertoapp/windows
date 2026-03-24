@@ -912,7 +912,7 @@ export function AgendaScreen() {
                   flex: 0,
                 }}
               >
-                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 1, left: 0 }]}>
+                <View style={[StyleSheet.absoluteFill, { zIndex: 1, left: 0, pointerEvents: 'none' }]}>
                   {HOURS.map((hour) => (
                     <View
                       key={`grid-${panelIdx}-${hour}`}
@@ -934,7 +934,6 @@ export function AgendaScreen() {
                 {showTodayLine && (
                   <>
                     <View
-                      pointerEvents="none"
                       style={{
                         position: 'absolute',
                         left: 0,
@@ -944,10 +943,10 @@ export function AgendaScreen() {
                         marginTop: -1,
                         backgroundColor: colors.primary,
                         zIndex: 10,
+                        pointerEvents: 'none',
                       }}
                     />
                     <View
-                      pointerEvents="none"
                       style={{
                         position: 'absolute',
                         left: TIMELINE_PADDING + 4,
@@ -958,6 +957,7 @@ export function AgendaScreen() {
                         paddingHorizontal: 8,
                         paddingVertical: 5,
                         borderRadius: 12,
+                        pointerEvents: 'none',
                       }}
                     >
                       <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>

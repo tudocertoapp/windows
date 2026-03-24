@@ -17,6 +17,7 @@ import { ServicoFormModal } from './ServicoFormModal';
 import { TarefaFormModal } from './TarefaFormModal';
 import { parseMoney, formatCurrency } from '../utils/format';
 import { playTapSound, playRecordingBeep } from '../utils/sounds';
+import { useNativeDriverSafe } from '../utils/platformLayout';
 import { parseExpenseVoice } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_RECEITA, CATEGORIAS_DESPESA } from '../constants/categories';
 
@@ -372,8 +373,8 @@ export function AddModal({ type, params, onClose }) {
   useEffect(() => {
     if (voiceListening) {
       Animated.loop(Animated.sequence([
-        Animated.timing(micPulse, { toValue: 1.2, duration: 500, useNativeDriver: true }),
-        Animated.timing(micPulse, { toValue: 0.9, duration: 500, useNativeDriver: true }),
+        Animated.timing(micPulse, { toValue: 1.2, duration: 500, useNativeDriver: useNativeDriverSafe }),
+        Animated.timing(micPulse, { toValue: 0.9, duration: 500, useNativeDriver: useNativeDriverSafe }),
       ])).start();
     } else micPulse.setValue(1);
   }, [voiceListening]);

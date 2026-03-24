@@ -67,7 +67,7 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
           onPress={onClose}
           accessible={false}
         />
-        <View style={[s.content, { backgroundColor: colors.card, borderColor: colors.border }]} pointerEvents="box-none">
+        <View style={[s.content, { backgroundColor: colors.card, borderColor: colors.border, pointerEvents: 'box-none' }]}>
           <View style={[s.header, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 80 }}>
               <Ionicons name="arrow-back" size={22} color={colors.primary} />

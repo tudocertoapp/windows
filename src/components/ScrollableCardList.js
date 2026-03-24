@@ -71,8 +71,8 @@ export function ScrollableCardList({
                 backgroundColor: colors.border + '25',
                 marginLeft: 8,
               },
+              { pointerEvents: 'none' },
             ]}
-            pointerEvents="none"
           >
             <View
               style={[

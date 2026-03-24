@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { playTapSound } from '../utils/sounds';
+import { useNativeDriverSafe } from '../utils/platformLayout';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -35,15 +36,15 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
   useEffect(() => {
     if (isOpen) {
       Animated.parallel([
-        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 10 }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.timing(btnRotateAnim, { toValue: 1, duration: 450, useNativeDriver: true, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
+        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: useNativeDriverSafe, tension: 80, friction: 10 }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: useNativeDriverSafe }),
+        Animated.timing(btnRotateAnim, { toValue: 1, duration: 450, useNativeDriver: useNativeDriverSafe, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.spring(scaleAnim, { toValue: 0, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-        Animated.timing(btnRotateAnim, { toValue: 0, duration: 300, useNativeDriver: true, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
+        Animated.spring(scaleAnim, { toValue: 0, useNativeDriver: useNativeDriverSafe }),
+        Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: useNativeDriverSafe }),
+        Animated.timing(btnRotateAnim, { toValue: 0, duration: 300, useNativeDriver: useNativeDriverSafe, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
       ]).start();
       rotateAnim.setValue(0);
     }
@@ -55,7 +56,7 @@ export function CircularMenuComponent({ isOpen, onClose, onAddType, onAssistant 
       Animated.timing(rotateAnim, {
         toValue: 360,
         duration: ROTATION_DURATION,
-        useNativeDriver: true,
+        useNativeDriver: useNativeDriverSafe,
       }).start(({ finished }) => {
         if (finished && isOpenRef.current) {
           rotateAnim.setValue(0);

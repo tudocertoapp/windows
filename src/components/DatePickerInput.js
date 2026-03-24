@@ -42,12 +42,11 @@ export function DatePickerInput({ value, onChange, placeholder = 'DD/MM/YYYY', s
     <>
       <TouchableOpacity onPress={openPicker} activeOpacity={0.8}>
         <TextInput
-          style={[{ borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 }, style, { borderColor: colors?.border, color: colors?.text, backgroundColor: colors?.bg }]}
+          style={[{ borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 }, style, { borderColor: colors?.border, color: colors?.text, backgroundColor: colors?.bg, pointerEvents: 'none' }]}
           value={value}
           placeholder={placeholder}
           placeholderTextColor={colors?.textSecondary}
           editable={false}
-          pointerEvents="none"
         />
       </TouchableOpacity>
       {show && (

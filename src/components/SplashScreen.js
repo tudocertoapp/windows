@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
+import { useNativeDriverSafe } from '../utils/platformLayout';
 
 const logoImage = require('../../assets/logo.png');
 
@@ -21,13 +22,13 @@ export function SplashScreen({ duration = 4000, onFinish, backgroundColor = '#11
         toValue: 1.2,
         duration: half,
         easing,
-        useNativeDriver: true,
+        useNativeDriver: useNativeDriverSafe,
       }),
       Animated.timing(scale, {
         toValue: 0.92,
         duration: half,
         easing,
-        useNativeDriver: true,
+        useNativeDriver: useNativeDriverSafe,
       }),
     ]);
     anim.start(() => {

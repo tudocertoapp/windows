@@ -48,3 +48,6 @@ export function getDefaultForPlatform(defaultValue, platformDefaults = {}) {
 }
 
 export const isWeb = IS_WEB;
+
+/** No web, useNativeDriver deve ser false (módulo nativo não disponível) */
+export const useNativeDriverSafe = !IS_WEB;

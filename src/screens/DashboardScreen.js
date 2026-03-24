@@ -30,7 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS } from '../constants/dashboardCards';
-import { getLayoutStorageKey, getDefaultForPlatform } from '../utils/platformLayout';
+import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout } from '../utils/platformLayout';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -125,16 +125,18 @@ function parseDateKey(str) {
 
 export function DashboardScreen() {
   const isWeb = Platform.OS === 'web';
-  const WEB_CARD_MARGIN_H = isWeb ? 6 : 16;
-  const WEB_CARD_MARGIN_TOP = isWeb ? 6 : 16;
-  const WEB_CARD_PADDING = isWeb ? 12 : 20;
-  const WEB_HEADER_GAP = isWeb ? 5 : 12;
-  const CARD_ACTION_SIZE = isWeb ? 32 : 40;
-  const CARD_ACTION_ICON_SIZE = isWeb ? 20 : 24;
-  const CARD_EXPAND_ICON_SIZE = isWeb ? 18 : 22;
-  const TRIO_CARD_HEIGHT = isWeb ? 280 : undefined;
-  const HEADER_ICON_BOX_SIZE = isWeb ? 40 : 48;
-  const HEADER_ICON_SIZE = isWeb ? 22 : 26;
+  const isDesktopLayout = useIsDesktopLayout();
+  const useWebLayout = isWeb && isDesktopLayout;
+  const WEB_CARD_MARGIN_H = useWebLayout ? 6 : 16;
+  const WEB_CARD_MARGIN_TOP = useWebLayout ? 6 : 16;
+  const WEB_CARD_PADDING = useWebLayout ? 12 : 20;
+  const WEB_HEADER_GAP = useWebLayout ? 5 : 12;
+  const CARD_ACTION_SIZE = useWebLayout ? 32 : 40;
+  const CARD_ACTION_ICON_SIZE = useWebLayout ? 20 : 24;
+  const CARD_EXPAND_ICON_SIZE = useWebLayout ? 18 : 22;
+  const TRIO_CARD_HEIGHT = useWebLayout ? 280 : undefined;
+  const HEADER_ICON_BOX_SIZE = useWebLayout ? 40 : 48;
+  const HEADER_ICON_SIZE = useWebLayout ? 22 : 26;
   const route = useRoute();
   const navigation = useNavigation();
   const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction } = useFinance();
@@ -150,14 +152,17 @@ export function DashboardScreen() {
   const [quoteType, setQuoteType] = useState('motivacional');
   const carouselRef = useRef(null);
   const [carouselIndex, setCarouselIndex] = useState(0); // display index 0..count-1
+  const [carouselContainerWidth, setCarouselContainerWidth] = useState(null);
   const { width: winWidth } = useWindowDimensions();
-  const carouselViewportWidth = isWeb ? Math.min((winWidth || SW) * 0.62, 620) : (winWidth || SW);
+  const carouselViewportWidth = useWebLayout
+    ? Math.min((winWidth || SW) * 0.62, 620)
+    : (carouselContainerWidth ?? winWidth ?? SW);
   const { CARD_WIDTH, CARD_GAP, SNAP_INTERVAL, CAROUSEL_PADDING } = useMemo(() => {
-    const w = carouselViewportWidth;
+    const w = Math.max(100, carouselViewportWidth || SW);
     const cw = (w * 0.78) + 32;
     const gap = 12;
     const snap = cw + gap;
-    const pad = (w - snap) / 2;
+    const pad = Math.max(0, (w - snap) / 2);
     return { CARD_WIDTH: cw, CARD_GAP: gap, SNAP_INTERVAL: snap, CAROUSEL_PADDING: pad };
   }, [carouselViewportWidth]);
   const defaultSections = getDefaultForPlatform(DEFAULT_SECTIONS, { web: DEFAULT_SECTIONS_WEB });
@@ -382,28 +387,28 @@ export function DashboardScreen() {
     }
   }, [navigation, openOrcamento, openAssinatura, openIndique, openMensagensWhatsApp]);
 
-  const useCarouselClones = !isWeb && carouselItems.length > 1;
+  const useCarouselClones = !useWebLayout && carouselItems.length > 1;
 
   const jumpToCarouselIndex = useCallback((nextIndex) => {
     const count = carouselItems.length;
     if (count <= 0) return;
     const target = Math.max(0, Math.min(nextIndex, count - 1));
     setCarouselIndex(target);
-    if (isWeb) return;
+    if (useWebLayout) return;
     const targetIndex = useCarouselClones ? (target + 1) : target;
     carouselRef.current?.scrollToOffset?.({ offset: targetIndex * SNAP_INTERVAL, animated: true });
-  }, [carouselItems.length, isWeb, useCarouselClones, SNAP_INTERVAL]);
+  }, [carouselItems.length, useWebLayout, useCarouselClones, SNAP_INTERVAL]);
 
   const carouselCount = carouselItems.length;
   const webSectionOrder = useMemo(() => {
-    if (!isWeb) return sectionOrder;
+    if (!useWebLayout) return sectionOrder;
     const first = ['carousel', 'quote'];
     const rest = sectionOrder.filter((id) => !first.includes(id));
     return [...first.filter((id) => sectionOrder.includes(id)), ...rest];
-  }, [isWeb, sectionOrder]);
+  }, [useWebLayout, sectionOrder]);
   const [webProductivityTab, setWebProductivityTab] = useState('anotacoes');
   const webSectionTail = useMemo(() => {
-    if (!isWeb) return [];
+    if (!useWebLayout) return [];
     const tail = webSectionOrder.slice(2);
     const hasAnotacoes = tail.includes('anotacoes');
     const hasCompras = tail.includes('listacompras');
@@ -412,13 +417,13 @@ export function DashboardScreen() {
     const filtered = tail.filter((id) => id !== 'anotacoes' && id !== 'listacompras');
     filtered.splice(firstIdx, 0, 'produtividade');
     return filtered;
-  }, [isWeb, webSectionOrder]);
+  }, [useWebLayout, webSectionOrder]);
 
   useEffect(() => {
     const count = carouselItems.length;
     if (count <= 1) return;
     const interval = setInterval(() => {
-      if (isWeb) {
+      if (useWebLayout) {
         setCarouselIndex((prev) => (prev + 1) % count);
         return;
       }
@@ -428,7 +433,7 @@ export function DashboardScreen() {
       carouselRef.current?.scrollToOffset({ offset: targetIndex * SNAP_INTERVAL, animated: true });
     }, 4000);
     return () => clearInterval(interval);
-  }, [carouselIndex, SNAP_INTERVAL, carouselItems.length, useCarouselClones, isWeb]);
+  }, [carouselIndex, SNAP_INTERVAL, carouselItems.length, useCarouselClones, useWebLayout]);
 
   const handleLayoutMeasured = (id, y, height) => {
     layoutsRef.current[id] = { y, height };
@@ -538,7 +543,7 @@ export function DashboardScreen() {
     borderWidth: 1,
     borderColor: colors.primary + '50',
   };
-  const cardHeaderActionsStyle = { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: isWeb ? 2 : 0 };
+  const cardHeaderActionsStyle = { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: useWebLayout ? 2 : 0 };
 
   const taskCardBase = (icon, _iconColor, title, subtitle, items, renderItem, emptyText, extraHeaderContent, onVerMais, headerRightActions, extraFooterContent) => (
     <TouchableOpacity
@@ -548,13 +553,13 @@ export function DashboardScreen() {
       style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
     >
       <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 16 }}>
           <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
             <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
           </View>
           <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>{title}</Text>
-            <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
+              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>{title}</Text>
+            <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
           </View>
           {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
         </View>
@@ -564,7 +569,7 @@ export function DashboardScreen() {
           colors={colors}
           emptyText={emptyText}
           onVerMais={onVerMais}
-          fixedVisibleHeight={isWeb}
+          fixedVisibleHeight={useWebLayout}
           renderItem={(item) => renderItem(item)}
         />
         {extraFooterContent}
@@ -581,15 +586,15 @@ export function DashboardScreen() {
         style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
       >
         <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 12 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>
                 {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
               </Text>
-              <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+              <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
                 {showConcluidasProximos
                   ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
                   : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
@@ -610,7 +615,7 @@ export function DashboardScreen() {
             accentColor={colors.primary}
             emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
             onVerMais={() => { playTapSound(); setExpandedCard('proximos'); }}
-            fixedVisibleHeight={isWeb}
+            fixedVisibleHeight={useWebLayout}
             renderItem={(t) => (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 4 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -735,8 +740,15 @@ export function DashboardScreen() {
       )
     ),
     carousel: (
-      <View key="carousel" style={ds.carousel}>
-        {isWeb ? (
+      <View
+        key="carousel"
+        style={[ds.carousel, !useWebLayout && { width: '100%' }]}
+        onLayout={!useWebLayout ? (e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w > 0) setCarouselContainerWidth(w);
+        } : undefined}
+      >
+        {useWebLayout ? (
           (() => {
             const item = carouselItems[Math.max(0, Math.min(carouselIndex, Math.max(0, carouselItems.length - 1)))] || carouselItems[0];
             if (!item) return null;
@@ -782,7 +794,7 @@ export function DashboardScreen() {
             data={useCarouselClones ? carouselItemsExtended : carouselItems}
             horizontal
             pagingEnabled={false}
-            style={{ overflow: 'visible', width: carouselViewportWidth, alignSelf: 'center' }}
+            style={{ overflow: 'visible', width: '100%', alignSelf: 'center', minHeight: 185 }}
             snapToInterval={SNAP_INTERVAL}
             snapToAlignment="center"
             decelerationRate="fast"
@@ -875,25 +887,25 @@ export function DashboardScreen() {
         <GlassCard
           colors={colors}
           solid
-          style={[ds.card, { padding: isWeb ? 10 : WEB_CARD_PADDING, minHeight: isWeb ? 130 : undefined }]}
-          contentStyle={{ padding: isWeb ? 10 : WEB_CARD_PADDING }}
+          style={[ds.card, { padding: useWebLayout ? 10 : WEB_CARD_PADDING, minHeight: useWebLayout ? 130 : undefined }]}
+          contentStyle={{ padding: useWebLayout ? 10 : WEB_CARD_PADDING }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 12 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>
                 {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
               </Text>
-              <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+              <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
                 {quoteType === 'motivacional' ? 'Citação motivacional' : 'Palavra de sabedoria'}
               </Text>
             </View>
             <View style={cardHeaderActionsStyle}>
               <TouchableOpacity
                 onPress={(e) => { e.stopPropagation(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
-                style={[cardActionButtonStyle, { width: isWeb ? 40 : CARD_ACTION_SIZE, borderRadius: isWeb ? 20 : CARD_ACTION_SIZE / 2 }]}
+                style={[cardActionButtonStyle, { width: useWebLayout ? 40 : CARD_ACTION_SIZE, borderRadius: useWebLayout ? 20 : CARD_ACTION_SIZE / 2 }]}
               >
                 <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
               </TouchableOpacity>
@@ -905,7 +917,7 @@ export function DashboardScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <Text style={[ds.quoteText, { color: colors.text, fontSize: isWeb ? 14 : ds.quoteText.fontSize }]} numberOfLines={isWeb ? 2 : 3}>"{quote}"</Text>
+          <Text style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 14 : ds.quoteText.fontSize }]} numberOfLines={useWebLayout ? 2 : 3}>"{quote}"</Text>
         </GlassCard>
       </TouchableOpacity>
     ),
@@ -966,14 +978,14 @@ export function DashboardScreen() {
       return (
         <View key="aniversariantes" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
           <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: isWeb ? 10 : 12 }}>
-              <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: isWeb ? 8 : 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 12 }}>
+              <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: useWebLayout ? 8 : 12 }}>
                 <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                   <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
-                  <Text style={{ fontSize: isWeb ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                  <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
+                  <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
                     {aniversariantesSemana.length > 0
                       ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''} (empresa)` : `${aniversariantesSemana.length} família e amigos (pessoal)`)
                       : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
@@ -995,7 +1007,7 @@ export function DashboardScreen() {
               accentColor={colors.primary}
               emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
               onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
-              fixedVisibleHeight={isWeb}
+              fixedVisibleHeight={useWebLayout}
               renderItem={(c) => {
                 const bd = c.birthDate || c.dataNascimento;
                 const diaLabel = getDiaLabel(bd);
@@ -1313,7 +1325,7 @@ export function DashboardScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       {(() => {
-        const showInlineToggle = isWeb && canToggleView;
+        const showInlineToggle = useWebLayout && canToggleView;
         return (
       <TopBar
         title="Início"
@@ -1327,7 +1339,7 @@ export function DashboardScreen() {
       />
         );
       })()}
-      {!(isWeb && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
+      {!(useWebLayout && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       {isGuest && (
         <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center' }}>
           <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>Modo visitante: os dados não são salvos. Faça login para persistir.</Text>
@@ -1338,7 +1350,7 @@ export function DashboardScreen() {
           <Text style={[ds.monthText, { color: colors.textSecondary }]}>{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</Text>
         </View>
 
-        {isWeb ? (
+        {useWebLayout ? (
           <View style={{ paddingHorizontal: 10 }}>
             {(() => {
               const carouselContent = sectionMap.carousel;
@@ -1442,7 +1454,7 @@ export function DashboardScreen() {
         onAddCard={(id) => { playTapSound(); setSectionOrder((prev) => [...prev, id]); }}
         onRemoveCard={(id) => { playTapSound(); setSectionOrder((prev) => prev.filter((x) => x !== id)); }}
       />
-      {isWeb && (
+      {useWebLayout && (
         <TouchableOpacity
           onPress={() => { playTapSound(); openMeusGastos?.(); }}
           activeOpacity={0.9}

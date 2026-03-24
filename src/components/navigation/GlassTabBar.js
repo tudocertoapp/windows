@@ -100,7 +100,7 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
   const paddingBottom = Math.max(insets.bottom, 8);
 
   return (
-    <View style={[styles.container, { paddingBottom }]} pointerEvents="box-none">
+    <View style={[styles.container, { paddingBottom, pointerEvents: 'box-none' }]}>
       <View style={[styles.glass, isDark ? styles.glassDark : styles.glassLight]}>
         <View style={[styles.glassInner, { borderRadius: 26 }]}>
           {Platform.OS === 'web' || Platform.OS === 'android' ? (

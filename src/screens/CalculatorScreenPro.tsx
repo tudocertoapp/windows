@@ -281,7 +281,7 @@ export function CalculatorScreenPro({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: compact ? 8 : SIDE_PAD, maxWidth: isWeb ? 460 : undefined, alignSelf: isWeb ? 'center' : 'auto', width: '100%' }]}>
-      <View style={styles.headerBtnsWrap} pointerEvents="box-none">
+      <View style={[styles.headerBtnsWrap, { pointerEvents: 'box-none' }]}>
         {isModal && onClose && (
           <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={styles.closeBtn} hitSlop={18} activeOpacity={0.7}>
             <Ionicons name="close" size={24} color={colors.text} />
