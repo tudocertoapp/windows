@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   Platform,
+  useWindowDimensions,
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,8 @@ import { GlassCard } from '../components/GlassCard';
 import { ReceiptPrintWeb } from '../components/ReceiptPrintWeb';
 import { formatCurrency, parseMoney } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
+import { MoneyInput } from '../components/MoneyInput';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const PDV_SALE_KEY = '@tudocerto_pdv_ultima_venda';
 const PDV_SENHA_KEY = '@tudocerto_pdv_senha_gerente';
@@ -44,8 +47,27 @@ function stripAccents(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Alinha ao MoneyInput / idioma (milhar e decimal do perfil de idioma). */
+function amountToLocalizedInputString(n, lang) {
+  const num = Number(n) || 0;
+  const dec = lang?.decimalSep ?? ',';
+  const th = lang?.thousandsSep ?? '.';
+  const intPart = Math.floor(Math.abs(num));
+  const decPart = Math.round((Math.abs(num) - intPart) * 100);
+  let intStr = String(intPart);
+  if (th && th !== dec) intStr = intStr.replace(/\B(?=(\d{3})+(?!\d))/g, th);
+  return `${intStr}${dec}${String(decPart).padStart(2, '0')}`;
+}
+
+const LAYOUT_BREAKPOINT = 960;
+
 export function PDVScreen({ onClose }) {
   const { colors } = useTheme();
+  const { lang } = useLanguage();
+  const { width: windowWidth } = useWindowDimensions();
+  const layoutW = windowWidth > 0 ? windowWidth : Dimensions.get('window').width;
+  const narrowLayout = layoutW < LAYOUT_BREAKPOINT;
+  const currencySym = lang?.currency || 'R$';
   const { products, services, clients, addTransaction } = useFinance();
   const { profile } = useProfile();
   const { banks, addToBank } = useBanks();
@@ -55,7 +77,7 @@ export function PDVScreen({ onClose }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedQty, setSelectedQty] = useState('1');
   const [selectedPrice, setSelectedPrice] = useState('');
-  const [selectedDesconto, setSelectedDesconto] = useState('0');
+  const [selectedDesconto, setSelectedDesconto] = useState('0,00');
   const [cliente, setCliente] = useState(null);
   const [clienteSearch, setClienteSearch] = useState('');
   const [showClienteSuggest, setShowClienteSuggest] = useState(false);
@@ -114,19 +136,23 @@ export function PDVScreen({ onClose }) {
     })();
   }, []);
 
-  const selectItem = useCallback((item) => {
-    playTapSound();
-    setSelectedItem(item);
-    setSelectedQty('1');
-    setSelectedPrice(String(item.price || 0));
-    setSelectedDesconto('0');
-  }, []);
+  const selectItem = useCallback(
+    (item) => {
+      playTapSound();
+      setSelectedItem(item);
+      setSelectedQty('1');
+      setSelectedPrice(amountToLocalizedInputString(item.price || 0, lang));
+      const z = lang?.decimalSep === '.' ? '0.00' : '0,00';
+      setSelectedDesconto(z);
+    },
+    [lang],
+  );
 
   const confirmAddItem = useCallback(() => {
     if (!selectedItem) return;
     const qty = Math.max(1, parseInt(selectedQty, 10) || 1);
-    const price = parseMoney(selectedPrice) || selectedItem.price || 0;
-    const desc = parseMoney(selectedDesconto) || 0;
+    const price = parseMoney(String(selectedPrice)) || selectedItem.price || 0;
+    const desc = parseMoney(String(selectedDesconto)) || 0;
     const precoFinal = Math.max(0, price - desc);
     if (precoFinal <= 0) return;
     playTapSound();
@@ -143,8 +169,8 @@ export function PDVScreen({ onClose }) {
     setSelectedItem(null);
     setSelectedQty('1');
     setSelectedPrice('');
-    setSelectedDesconto('0');
-  }, [selectedItem, selectedQty, selectedPrice, selectedDesconto]);
+    setSelectedDesconto(lang?.decimalSep === '.' ? '0.00' : '0,00');
+  }, [selectedItem, selectedQty, selectedPrice, selectedDesconto, lang]);
 
   const addToCartQuick = useCallback((item) => {
     playTapSound();
@@ -175,7 +201,7 @@ export function PDVScreen({ onClose }) {
   }, []);
 
   const addPayment = useCallback(() => {
-    const val = parseMoney(paymentValor) || 0;
+    const val = parseMoney(String(paymentValor)) || 0;
     if (val <= 0) return;
     playTapSound();
     const parcelas = paymentForma === 'credito' ? Math.max(1, parseInt(paymentParcelas, 10) || 1) : 1;
@@ -307,38 +333,48 @@ export function PDVScreen({ onClose }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* Header - Barra superior estilo PDV mercado */}
+      {/* Header — CAIXA LIVRE centralizado e destaque; linha de metadados responsiva */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerLabel}>Cliente: </Text>
-          <Text style={styles.headerValue}>{cliente?.name || 'Consumidor final'}</Text>
-          <Text style={[styles.headerSeparator, { opacity: 0.7 }]}> | </Text>
-          <Text style={styles.headerLabel}>Vendedor: </Text>
-          <Text style={styles.headerValue}>{profile?.nome || 'Operador'}</Text>
+        <View style={styles.headerStatusWrap}>
+          <Text style={styles.headerStatus}>CAIXA LIVRE</Text>
         </View>
-        <Text style={styles.headerStatus}>CAIXA LIVRE</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerBtn} onPress={handleNovaVenda}>
-            <Ionicons name="add-circle-outline" size={20} color="#fff" />
-            <Text style={styles.headerBtnText}>Nova venda (F2)</Text>
-          </TouchableOpacity>
-          {completedSale && (
-            <TouchableOpacity style={styles.headerBtn} onPress={handlePrint}>
-              <Ionicons name="print-outline" size={20} color="#fff" />
-              <Text style={styles.headerBtnText}>Imprimir</Text>
+        <View style={[styles.headerMetaRow, narrowLayout && styles.headerMetaRowWrap]}>
+          <View style={[styles.headerLeft, narrowLayout && styles.headerLeftWrap]}>
+            <Text style={styles.headerLabel}>Cliente: </Text>
+            <Text style={styles.headerValue} numberOfLines={1}>{cliente?.name || 'Consumidor final'}</Text>
+            <Text style={[styles.headerSeparator, { opacity: 0.7 }]}> | </Text>
+            <Text style={styles.headerLabel}>Vendedor: </Text>
+            <Text style={styles.headerValue} numberOfLines={1}>{profile?.nome || 'Operador'}</Text>
+          </View>
+          <View style={[styles.headerRight, narrowLayout && styles.headerRightWrap]}>
+            <TouchableOpacity style={styles.headerBtn} onPress={handleNovaVenda}>
+              <Ionicons name="add-circle-outline" size={20} color="#fff" />
+              <Text style={styles.headerBtnText}>Nova venda (F2)</Text>
             </TouchableOpacity>
-          )}
-          <Text style={styles.headerTime}>{dataHora}</Text>
-          <TouchableOpacity style={styles.headerClose} onPress={handleCancel}>
-            <Ionicons name="close" size={24} color="#fff" />
-          </TouchableOpacity>
+            {completedSale && (
+              <TouchableOpacity style={styles.headerBtn} onPress={handlePrint}>
+                <Ionicons name="print-outline" size={20} color="#fff" />
+                <Text style={styles.headerBtnText}>Imprimir</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.headerTime} numberOfLines={1}>{dataHora}</Text>
+            <TouchableOpacity style={styles.headerClose} onPress={handleCancel}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
       {/* Main content */}
-      <View style={styles.main}>
+      <View style={[styles.main, narrowLayout && styles.mainColumn]}>
         {/* Painel esquerdo */}
-        <View style={[styles.leftPanel, { borderRightColor: colors.border }]}>
+        <View
+          style={[
+            styles.leftPanel,
+            narrowLayout ? styles.leftPanelNarrow : styles.leftPanelWide,
+            { borderRightColor: colors.border, borderBottomColor: colors.border },
+          ]}
+        >
           <View style={styles.tabs}>
             {TABS.map((t) => (
               <TouchableOpacity
@@ -389,24 +425,18 @@ export function PDVScreen({ onClose }) {
                   </View>
                   <View style={styles.itemDetailFields}>
                     <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Preço unit.</Text>
-                    <TextInput
-                      style={[styles.fieldInput, { color: colors.text, borderColor: colors.border }]}
+                    <MoneyInput
                       value={selectedPrice}
-                      onChangeText={setSelectedPrice}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={colors.textSecondary}
+                      onChange={setSelectedPrice}
+                      containerStyle={[styles.moneyInputWrap, { backgroundColor: colors.bg }]}
                     />
                   </View>
                   <View style={styles.itemDetailFields}>
                     <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Desconto</Text>
-                    <TextInput
-                      style={[styles.fieldInput, { color: colors.text, borderColor: colors.border }]}
+                    <MoneyInput
                       value={selectedDesconto}
-                      onChangeText={setSelectedDesconto}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor={colors.textSecondary}
+                      onChange={setSelectedDesconto}
+                      containerStyle={[styles.moneyInputWrap, { backgroundColor: colors.bg }]}
                     />
                   </View>
                   <View style={styles.itemDetailBtns}>
@@ -420,7 +450,12 @@ export function PDVScreen({ onClose }) {
                 </GlassCard>
               ) : null}
 
-              <ScrollView style={styles.itemGrid} showsVerticalScrollIndicator={false} contentContainerStyle={styles.itemGridContent}>
+              <ScrollView
+                style={[styles.itemGrid, narrowLayout && styles.itemGridNarrow]}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.itemGridContent}
+              >
                 {filteredItems.map((item) => (
                   <TouchableOpacity
                     key={`${item._tipo}-${item.id}`}
@@ -478,6 +513,13 @@ export function PDVScreen({ onClose }) {
           )}
 
           {activeTab === 'finalizacao' && (
+            <ScrollView
+              style={styles.finalizacaoScroll}
+              contentContainerStyle={styles.finalizacaoScrollContent}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
             <GlassCard colors={colors} solid style={[styles.finalizacaoCard, { borderColor: colors.border }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Formas de pagamento</Text>
               {payments.map((p, i) => (
@@ -496,16 +538,28 @@ export function PDVScreen({ onClose }) {
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.paymentForm, { borderColor: colors.border }]}>
-                  <View style={styles.paymentFormaRow}>
-                    {FORMAS_PAG.map((f) => (
-                      <TouchableOpacity
-                        key={f.id}
-                        style={[styles.formaBtn, paymentForma === f.id && { backgroundColor: (colors.primaryRgba && colors.primaryRgba(0.3)) || colors.primary }]}
-                        onPress={() => setPaymentForma(f.id)}
-                      >
-                        <Ionicons name={f.icon} size={18} color={paymentForma === f.id ? colors.primary : colors.textSecondary} />
-                      </TouchableOpacity>
-                    ))}
+                  <View style={styles.paymentFormaGrid}>
+                    {FORMAS_PAG.map((f) => {
+                      const active = paymentForma === f.id;
+                      return (
+                        <TouchableOpacity
+                          key={f.id}
+                          style={[
+                            styles.formaBtnCell,
+                            {
+                              borderColor: active ? colors.primary : colors.border,
+                              backgroundColor: active ? colors.primaryRgba?.(0.12) ?? colors.primary + '22' : colors.bg,
+                            },
+                          ]}
+                          onPress={() => setPaymentForma(f.id)}
+                        >
+                          <Ionicons name={f.icon} size={22} color={active ? colors.primary : colors.textSecondary} />
+                          <Text style={[styles.formaBtnLabel, { color: active ? colors.primary : colors.text }]} numberOfLines={2}>
+                            {f.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                   {paymentForma === 'credito' && (
                     <TextInput
@@ -516,13 +570,12 @@ export function PDVScreen({ onClose }) {
                       onChangeText={(t) => setPaymentParcelas(parseInt(t, 10) || 1)}
                     />
                   )}
-                  <View style={styles.paymentFormRow}>
-                    <TextInput
-                      style={[styles.valorInput, { color: colors.text, borderColor: colors.border }]}
-                      placeholder="Valor"
-                      keyboardType="decimal-pad"
+                  <View style={[styles.paymentFormRow, narrowLayout && styles.paymentFormRowWrap]}>
+                    <MoneyInput
                       value={paymentValor}
-                      onChangeText={setPaymentValor}
+                      onChange={setPaymentValor}
+                      placeholder={lang?.decimalSep === '.' ? '0.00' : '0,00'}
+                      containerStyle={[styles.paymentValorMoney, { backgroundColor: colors.bg, minWidth: 0 }]}
                     />
                     <TouchableOpacity style={[styles.confirmPaymentBtn, { backgroundColor: colors.primary }]} onPress={addPayment}>
                       <Text style={styles.confirmPaymentText}>OK</Text>
@@ -535,24 +588,23 @@ export function PDVScreen({ onClose }) {
               )}
               <View style={[styles.descontoRow, { borderTopColor: colors.border }]}>
                 <Text style={[styles.descontoLabel, { color: colors.text }]}>Desconto geral</Text>
-                <TextInput
-                  style={[styles.descontoInput, { color: colors.text, borderColor: colors.border }]}
-                  placeholder="0"
-                  keyboardType="decimal-pad"
-                  value={String(desconto)}
-                  onChangeText={setDesconto}
+                <MoneyInput
+                  value={desconto}
+                  onChange={setDesconto}
+                  containerStyle={[styles.descontoMoneyWrap, { backgroundColor: colors.bg }]}
                 />
               </View>
             </GlassCard>
+            </ScrollView>
           )}
         </View>
 
         {/* Painel direito - Carrinho e Total */}
-        <View style={[styles.rightPanel, { backgroundColor: colors.bg }]}>
+        <View style={[styles.rightPanel, { backgroundColor: colors.bg }, narrowLayout && styles.rightPanelNarrow]}>
           <View style={[styles.cartHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.cartHeaderText, { color: colors.text }]}>{totalItens} ITENS</Text>
           </View>
-          <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.cartList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
             {cart.length === 0 ? (
               <View style={styles.cartEmpty}>
                 <Ionicons name="cart-outline" size={80} color={colors.textSecondary} />
@@ -583,11 +635,11 @@ export function PDVScreen({ onClose }) {
           </ScrollView>
           <View style={[styles.totalsBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.totalRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>R$ Bruto</Text>
+              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>{currencySym} Bruto</Text>
               <Text style={[styles.totalVal, { color: colors.text }]}>{formatCurrency(subtotal)}</Text>
             </View>
             <View style={[styles.totalRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>R$ Desconto</Text>
+              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>{currencySym} Desconto</Text>
               <Text style={[styles.totalVal, { color: colors.text }]}>{formatCurrency(descontoNum)}</Text>
             </View>
             <View style={[styles.totalRow, { borderBottomColor: colors.border }]}>
@@ -609,7 +661,7 @@ export function PDVScreen({ onClose }) {
       </View>
 
       {/* Barra inferior - Atalhos */}
-      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#22c55e' }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
           <Ionicons name="add" size={18} color="#fff" />
           <Text style={styles.footerBtnText}>+ Item (F3)</Text>
@@ -698,25 +750,58 @@ export function PDVScreen({ onClose }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  headerStatusWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  headerStatus: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 3,
+    textAlign: 'center',
+  },
+  headerMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 48,
+    gap: 10,
+    paddingTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.35)',
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  headerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-  headerValue: { fontSize: 13, color: '#fff', fontWeight: '600' },
+  headerMetaRowWrap: { flexWrap: 'wrap', justifyContent: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, flexShrink: 1, minWidth: 0 },
+  headerLeftWrap: { flexBasis: '100%', justifyContent: 'center', flexWrap: 'wrap' },
+  headerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.85)' },
+  headerValue: { fontSize: 13, color: '#fff', fontWeight: '600', maxWidth: 160 },
   headerSeparator: { color: '#fff', fontSize: 13 },
-  headerStatus: { fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  headerRightWrap: { flexBasis: '100%', justifyContent: 'center' },
   headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerBtnText: { fontSize: 12, color: '#fff', fontWeight: '600' },
-  headerTime: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
+  headerBtnText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+  headerTime: { fontSize: 11, color: 'rgba(255,255,255,0.9)', maxWidth: 200 },
   headerClose: { padding: 4 },
   main: { flex: 1, flexDirection: 'row', minHeight: 0 },
-  leftPanel: { width: 380, borderRightWidth: 1, padding: 12 },
+  mainColumn: { flexDirection: 'column' },
+  leftPanel: { minHeight: 0, padding: 12 },
+  leftPanelWide: { width: 380, maxWidth: '42%', borderRightWidth: 1, borderBottomWidth: 0 },
+  leftPanelNarrow: {
+    width: '100%',
+    maxWidth: '100%',
+    flex: 0,
+    maxHeight: 480,
+    minHeight: 280,
+    borderRightWidth: 0,
+    borderBottomWidth: 1,
+    padding: 10,
+  },
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
   tabLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
@@ -730,15 +815,17 @@ const styles = StyleSheet.create({
   itemDetailFields: { marginBottom: 10 },
   fieldLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
   fieldInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  moneyInputWrap: { flex: 1, minWidth: 0, minHeight: 44 },
   itemDetailBtns: { flexDirection: 'row', gap: 12, marginTop: 16 },
   detailBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   cancelBtn: { borderWidth: 1 },
   cancelBtnText: { fontSize: 12, fontWeight: '700' },
   addBtn: {},
   addBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  itemGrid: { flex: 1 },
+  itemGrid: { flex: 1, minHeight: 120 },
+  itemGridNarrow: { maxHeight: 320 },
   itemGridContent: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
-  gridItem: { width: '47%', padding: 10, borderRadius: 10, borderWidth: 1 },
+  gridItem: { width: '47%', minWidth: 140, flexGrow: 1, maxWidth: '48%', padding: 10, borderRadius: 10, borderWidth: 1 },
   gridThumb: { width: 56, height: 56, borderRadius: 8, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   gridImg: { width: 56, height: 56 },
   gridName: { fontSize: 12, fontWeight: '500', marginBottom: 4 },
@@ -751,7 +838,9 @@ const styles = StyleSheet.create({
   suggestItem: { paddingVertical: 10, borderBottomWidth: 1 },
   suggestName: { fontSize: 14 },
   suggestCpf: { fontSize: 11, marginTop: 2 },
-  finalizacaoCard: { flex: 1 },
+  finalizacaoScroll: { flex: 1, minHeight: 0 },
+  finalizacaoScrollContent: { flexGrow: 1, paddingBottom: 12 },
+  finalizacaoCard: {},
   sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginBottom: 12 },
   paymentItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1 },
   paymentForma: { fontSize: 13 },
@@ -760,19 +849,48 @@ const styles = StyleSheet.create({
   addPaymentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, borderRadius: 10, marginTop: 8 },
   addPaymentText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   paymentForm: { marginTop: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
-  paymentFormaRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  formaBtn: { width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  paymentFormaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+    justifyContent: 'space-between',
+  },
+  formaBtnCell: {
+    flexBasis: '47%',
+    minWidth: 120,
+    maxWidth: '48%',
+    flexGrow: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formaBtnLabel: { fontSize: 12, fontWeight: '700', marginTop: 6, textAlign: 'center' },
   parcelasInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8, fontSize: 14 },
   paymentFormRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  valorInput: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  paymentFormRowWrap: { flexWrap: 'wrap' },
+  paymentValorMoney: { flex: 1, minWidth: 160, minHeight: 44 },
   confirmPaymentBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8 },
   confirmPaymentText: { color: '#fff', fontWeight: '600' },
   cancelPaymentBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
   cancelPaymentText: { fontSize: 13 },
-  descontoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
-  descontoLabel: { fontSize: 13 },
-  descontoInput: { width: 100, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
-  rightPanel: { flex: 1, flexDirection: 'column', minWidth: 280 },
+  descontoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  descontoLabel: { fontSize: 13, flexShrink: 0 },
+  descontoMoneyWrap: { flex: 1, minWidth: 160, maxWidth: 280, minHeight: 44 },
+  rightPanel: { flex: 1, flexDirection: 'column', minWidth: 0, minHeight: 0 },
+  rightPanelNarrow: { minHeight: 260, flex: 1 },
   cartHeader: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   cartHeaderText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
   cartList: { flex: 1 },
@@ -786,14 +904,15 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 14, fontWeight: '600', minWidth: 20, textAlign: 'center' },
   cartRowRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cartTotal: { fontSize: 14, fontWeight: '700' },
-  totalsBox: { padding: 16, borderTopWidth: 1 },
+  totalsBox: { padding: 12, borderTopWidth: 1, flexShrink: 0 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1 },
   totalLabel: { fontSize: 13 },
   totalVal: { fontSize: 14, fontWeight: '600' },
   totalFinalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 12, marginTop: 12 },
   totalFinalLabel: { fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
   totalFinalVal: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 16, borderTopWidth: 1 },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1 },
+  footerWrap: { flexWrap: 'wrap', rowGap: 8 },
   footerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   footerBtnText: { fontSize: 12, color: '#fff', fontWeight: '600' },
   footerFinalizar: { paddingHorizontal: 20 },

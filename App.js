@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { FinanceProvider, useFinance } from './src/contexts/FinanceContext';
 import { PlanProvider } from './src/contexts/PlanContext';
 import { ProfileProvider } from './src/contexts/ProfileContext';
+import { ThemeSync } from './src/components/ThemeSync';
 import { BanksProvider } from './src/contexts/BanksContext';
 import { BudgetProvider } from './src/contexts/BudgetContext';
 import { NotesProvider } from './src/contexts/NotesContext';
@@ -84,11 +85,13 @@ function AppContent() {
         <BanksProvider>
           <PlanProvider>
             <ProfileProvider>
-              <EmpresaProvider>
-              <ValuesVisibilityProvider>
-                <AppWithReminders />
-              </ValuesVisibilityProvider>
-              </EmpresaProvider>
+              <ThemeSync>
+                <EmpresaProvider>
+                  <ValuesVisibilityProvider>
+                    <AppWithReminders />
+                  </ValuesVisibilityProvider>
+                </EmpresaProvider>
+              </ThemeSync>
             </ProfileProvider>
           </PlanProvider>
         </BanksProvider>

@@ -26,8 +26,11 @@ export function useIsDesktopLayout() {
   const { width } = useWindowDimensions();
   return useMemo(() => {
     if (!IS_WEB) return false;
-    if (isMobileUserAgent() && width < 900) return false;
-    return width >= DESKTOP_BREAKPOINT;
+    // Viewport estreita: sempre layout mobile (tab bar), evita sidebar em janela redimensionada
+    if (width < DESKTOP_BREAKPOINT) return false;
+    // UA mobile/tablet com largura típica de aparelho: tab bar, não sidebar
+    if (isMobileUserAgent() && width < 1100) return false;
+    return true;
   }, [width]);
 }
 

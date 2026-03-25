@@ -12,7 +12,7 @@ import { useBanks } from '../contexts/BanksContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { useMenu } from '../contexts/MenuContext';
 import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
-import { TopBar } from '../components/TopBar';
+import { TopBar, getStableHomePrompt } from '../components/TopBar';
 import { BanksCarousel } from '../components/BanksCarousel';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
@@ -562,6 +562,8 @@ export function DinheiroScreen({ route }) {
         colors={colors}
         useLogoImage
         hideOrganize
+        headerDate={now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
+        deferFinancePrompt
         inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={openCalculadoraFull}
@@ -572,9 +574,17 @@ export function DinheiroScreen({ route }) {
       })()}
       {!(useWebLayout && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, backgroundColor: colors.bg }}>
-          <Text style={{ fontSize: 11, fontWeight: '600', letterSpacing: 1, color: colors.textSecondary }}>
-            {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
+        <View
+          style={{
+            paddingVertical: 14,
+            paddingHorizontal: 20,
+            backgroundColor: colors.bg,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.border + '99',
+          }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center', lineHeight: 22 }}>
+            {getStableHomePrompt()}
           </Text>
         </View>
         {useWebLayout ? (

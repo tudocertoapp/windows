@@ -14,6 +14,17 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 let headerPromptCache = { prompt: null, dateKey: null };
 let cameFromBackground = false;
 
+/** Mesma frase do dia que o TopBar usa (sincroniza cache). Para exibir no corpo da página (Início / Dinheiro). */
+export function getStableHomePrompt() {
+  const today = new Date().toDateString();
+  if (headerPromptCache.dateKey === today && headerPromptCache.prompt) {
+    return headerPromptCache.prompt;
+  }
+  const p = getFinancePromptByTime();
+  headerPromptCache = { prompt: p, dateKey: today };
+  return p;
+}
+
 const logoImage = require('../../assets/logo.png');
 
 export const topBarStyles = StyleSheet.create({
@@ -34,7 +45,26 @@ export const topBarStyles = StyleSheet.create({
 
 const styles = topBarStyles;
 
-export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hideOrganize, onManageCards, onCalculadora, onChat, onWhatsApp, extendToTop = true, hideMenu, hideLogoIcon, inlineToggle }) {
+export function TopBar({
+  title,
+  colors,
+  useLogoImage,
+  onOrganize,
+  editMode,
+  hideOrganize,
+  onManageCards,
+  onCalculadora,
+  onChat,
+  onWhatsApp,
+  extendToTop = true,
+  hideMenu,
+  hideLogoIcon,
+  inlineToggle,
+  /** Data longa (ex.: TERÇA-FEIRA, 24 DE MARÇO) — cabeçalho compacto. */
+  headerDate,
+  /** Se true, a frase motivacional não fica no topo; mostre no corpo com getStableHomePrompt(). */
+  deferFinancePrompt,
+}) {
   const { openMenu, openPerfil } = useMenu();
   const { profile } = useProfile();
   const insets = useSafeAreaInsets();
@@ -43,6 +73,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
   const isHome = title === 'Início' || useLogoImage;
   const isWeb = Platform.OS === 'web';
   const showSlideMenu = !hideMenu && (Platform.OS !== 'web' || !isDesktopLayout);
+  const showHomeAvatar = !isWeb || !isDesktopLayout;
   const appStateRef = useRef(AppState.currentState);
   const [homePrompt, setHomePrompt] = useState(() => {
     const today = new Date().toDateString();
@@ -93,7 +124,7 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
       <View style={[styles.logoRow, { flex: 1 }]}>
         {isHome ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-            {!isWeb && (
+            {showHomeAvatar && (
               <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
                 <Image
                   source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
@@ -106,9 +137,18 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
               <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                 {getGreeting()}, {profile?.nome || 'você'}!
               </Text>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
-                {homePrompt}
-              </Text>
+              {deferFinancePrompt && headerDate ? (
+                <Text
+                  style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
+                  numberOfLines={2}
+                >
+                  {headerDate}
+                </Text>
+              ) : !deferFinancePrompt ? (
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
+                  {homePrompt}
+                </Text>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -130,7 +170,8 @@ export function TopBar({ title, colors, useLogoImage, onOrganize, editMode, hide
           >
             <Ionicons name="logo-whatsapp" size={24} color={colors.primary} />
           </TouchableOpacity>
-        ) : onChat ? (
+        ) : null}
+        {onChat ? (
           <TouchableOpacity
             style={{ padding: 8, backgroundColor: 'transparent' }}
             onPress={() => { playTapSound(); onChat(); }}

@@ -41,13 +41,23 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   const { profile } = useProfile();
   const [photoError, setPhotoError] = useState(false);
   const [empresaDropdownOpen, setEmpresaDropdownOpen] = useState(false);
+  const [menuContaDropdownOpen, setMenuContaDropdownOpen] = useState(false);
   const isModal = Boolean(onClose);
   const isWeb = typeof window !== 'undefined';
   const isCompact = compact ?? (isWeb && !isModal);
+  const isWebDesktop = isWeb && (typeof window !== 'undefined' ? window.innerWidth >= 900 : false);
 
   useEffect(() => {
     setPhotoError(false);
   }, [profile?.foto]);
+
+  // Web + plano empresa: abrir o dropdown ao carregar o menu (após CONTA, antes de Suporte)
+  useEffect(() => {
+    if (isWeb && showEmpresaFeatures) setEmpresaDropdownOpen(true);
+  }, [isWeb, showEmpresaFeatures]);
+  useEffect(() => {
+    if (isWebDesktop) setMenuContaDropdownOpen(true);
+  }, [isWebDesktop]);
   const comingSoon = () => Alert.alert('Em breve!', 'Funcionalidade em desenvolvimento.');
 
   const goTo = (tabName, params) => {
@@ -134,38 +144,65 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
           <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />
           <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />
         </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>CONTA</Text>
-        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
-          <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
-          <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
-        </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>EMPRESA</Text>
+        {showEmpresaFeatures && (
+          <>
+            <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>EMPRESA</Text>
+            <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+              <TouchableOpacity
+                style={[ms.dropdownHeader, { borderBottomColor: colors.border, paddingHorizontal: isCompact ? 12 : 16, paddingVertical: isCompact ? 10 : 14, gap: isCompact ? 10 : 12 }]}
+                onPress={() => { playTapSound(); setEmpresaDropdownOpen(!empresaDropdownOpen); }}
+                activeOpacity={0.7}
+              >
+                <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: isCompact ? 30 : 36, height: isCompact ? 30 : 36, borderRadius: isCompact ? 8 : 10 }]}>
+                  <AppIcon name="business-outline" size={isCompact ? 18 : 22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 13 : 14 }]}>Empresa</Text>
+                </View>
+                <AppIcon name={empresaDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {empresaDropdownOpen && (
+                <>
+                  {isWeb && <MenuItem icon="cart-outline" label="Abrir Caixa" subtitle="Ponto de venda e vendas" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
+                  <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads e mensagens" badge={`${clients.length}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenMensagensWhatsApp?.(); }} />
+                  <MenuItem icon="document-text-outline" label="Ordem de serviço" subtitle="Cadastro e gestão de OS" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrdemServico?.(); }} />
+                  <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />
+                  <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('produtos'); }} />
+                  <MenuItem icon="construct-outline" label="Serviços" subtitle="Gerenciar serviços" badge={`${services.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('servicos'); }} />
+                  <MenuItem icon="business-outline" label="Fornecedores" subtitle="Gerenciar fornecedores" badge={`${suppliers?.length ?? 0}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('fornecedores'); }} />
+                  <MenuItem icon="wallet-outline" label="Vendas a prazo" subtitle="Vendas a prazo e parcelas" onPress={() => { setEmpresaDropdownOpen(false); onOpenAReceber?.(); }} />
+                  <MenuItem icon="stats-chart-outline" label="Relatórios" subtitle="Relatórios da empresa" onPress={() => { setEmpresaDropdownOpen(false); onOpenEmpresa?.(); }} />
+                </>
+              )}
+            </GlassCard>
+          </>
+        )}
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>CONTA E SUPORTE</Text>
         <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
           <TouchableOpacity
             style={[ms.dropdownHeader, { borderBottomColor: colors.border, paddingHorizontal: isCompact ? 12 : 16, paddingVertical: isCompact ? 10 : 14, gap: isCompact ? 10 : 12 }]}
-            onPress={() => { playTapSound(); setEmpresaDropdownOpen(!empresaDropdownOpen); }}
+            onPress={() => { playTapSound(); setMenuContaDropdownOpen(!menuContaDropdownOpen); }}
             activeOpacity={0.7}
           >
             <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: isCompact ? 30 : 36, height: isCompact ? 30 : 36, borderRadius: isCompact ? 8 : 10 }]}>
-              <AppIcon name="business-outline" size={isCompact ? 18 : 22} color={colors.primary} />
+              <AppIcon name="settings-outline" size={isCompact ? 18 : 22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 13 : 14 }]}>Empresa</Text>
+              <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 13 : 14 }]}>Configurações</Text>
+              <Text style={[ms.menuSub, { color: colors.textSecondary, fontSize: isCompact ? 10 : 11, marginTop: 1 }]} numberOfLines={1}>
+                Perfil, temas e ajuda
+              </Text>
             </View>
-            <AppIcon name={empresaDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+            <AppIcon name={menuContaDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
           </TouchableOpacity>
-          {empresaDropdownOpen && (
+          {menuContaDropdownOpen && (
             <>
-              <MenuItem icon="document-text-outline" label="Ordem de serviço" subtitle="Cadastro e gestão de OS" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrdemServico?.(); }} />
-              <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />
-              {isWeb && <MenuItem icon="cart-outline" label="PDV" subtitle="Ponto de venda" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
-              <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('produtos'); }} />
-              <MenuItem icon="construct-outline" label="Serviços" subtitle="Gerenciar serviços" badge={`${services.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('servicos'); }} />
-              <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads e mensagens" badge={`${clients.length}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenMensagensWhatsApp?.(); }} />
-              {showEmpresaFeatures && <MenuItem icon="wallet-outline" label="Vendas a prazo" subtitle="Vendas a prazo e parcelas" onPress={() => { setEmpresaDropdownOpen(false); onOpenAReceber?.(); }} />}
-              {showEmpresaFeatures && <MenuItem icon="business-outline" label="Fornecedores" subtitle="Gerenciar fornecedores" badge={`${suppliers?.length ?? 0}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('fornecedores'); }} />}
-              <MenuItem icon="stats-chart-outline" label="Relatórios" subtitle="Relatórios da empresa" onPress={() => { setEmpresaDropdownOpen(false); onOpenEmpresa?.(); }} />
+              <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
+              <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
+              <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
+              <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
+              <MenuItem icon="document-text-outline" label="Termos de Uso" subtitle="Leia os termos do aplicativo" onPress={onOpenTermos || comingSoon} />
+              <MenuItem icon="star-outline" label="Avaliar App" subtitle="Deixe sua avaliação" />
             </>
           )}
         </GlassCard>
@@ -183,16 +220,8 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
           <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
           <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso" onPress={onOpenMetasSonhos || comingSoon} />
         </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>VISUALIZAÇÃO</Text>
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>CONTA</Text>
         <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="bar-chart-outline" label="Gráficos" subtitle="Ver gastos por categoria" onPress={() => goTo('Dinheiro', { tab: 'graficos' })} />
-          <MenuItem icon="image-outline" label="Criar imagem Instagram" subtitle="Frase motivacional para compartilhar" onPress={() => onOpenImageGenerator?.()} />
-        </GlassCard>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>SUPORTE</Text>
-        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
-          <MenuItem icon="document-text-outline" label="Termos de Uso" subtitle="Leia os termos do aplicativo" onPress={onOpenTermos || comingSoon} />
-          <MenuItem icon="star-outline" label="Avaliar App" subtitle="Deixe sua avaliação" />
           <MenuItem
             icon="log-out-outline"
             label="Sair da conta"

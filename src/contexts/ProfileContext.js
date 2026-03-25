@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { ThemeSync } from '../components/ThemeSync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
@@ -171,7 +170,7 @@ export function ProfileProvider({ children }) {
 
   return (
     <ProfileContext.Provider value={{ profile, updateProfile, getLastFoto }}>
-      <ThemeSync>{children}</ThemeSync>
+      {children}
     </ProfileContext.Provider>
   );
 }

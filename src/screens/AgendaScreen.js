@@ -361,6 +361,8 @@ function getCalendarGrid(year, month) {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+/** Altura base do dia (24h × faixa); usada para layout web e cadeia flex (evita % que colapsam no RN-web). */
+const BASE_TIMELINE_HEIGHT = 24 * HOUR_HEIGHT;
 
 export function AgendaScreen() {
   const { agendaEvents, deleteAgendaEvent, updateAgendaEvent, refreshAgendaEvents, checkListItems, clients } = useFinance();
@@ -372,6 +374,8 @@ export function AgendaScreen() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [displayedMonthDate, setDisplayedMonthDate] = useState(() => new Date());
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  /** RN Web: Alert.alert com ações muitas vezes não exibe nada; usamos modal explícito. */
+  const [showAddChoiceModal, setShowAddChoiceModal] = useState(false);
   const [agendaFormState, setAgendaFormState] = useState({ visible: false, editingEvent: null });
   const [openEventActionsId, setOpenEventActionsId] = useState(null);
   const { width: winWidth } = useWindowDimensions();
@@ -480,7 +484,7 @@ export function AgendaScreen() {
           const panDy = focal - pinchPrevFocalY.value;
           const currentScroll = scrollY.value;
           let nextScroll = (currentScroll + focal) * ratio - focal - panDy;
-          const contentH = 24 * HOUR_HEIGHT * newScale + 20;
+          const contentH = BASE_TIMELINE_HEIGHT * newScale + 20;
           const maxScroll = Math.max(0, contentH - vh);
           nextScroll = Math.max(0, Math.min(nextScroll, maxScroll));
 
@@ -498,6 +502,10 @@ export function AgendaScreen() {
   );
 
   const handleAddPress = () => {
+    if (Platform.OS === 'web') {
+      setShowAddChoiceModal(true);
+      return;
+    }
     Alert.alert('Adicionar', 'O que deseja criar?', [
       { text: 'Novo evento', onPress: () => openAddModal?.('agenda', { date: formatDayKey(selectedDate) }) },
       { text: 'Nova tarefa', onPress: () => openAddModal?.('tarefa') },
@@ -563,7 +571,7 @@ export function AgendaScreen() {
     setTimeout(() => {
       scrollToTodayInProgress.current = false;
       const mins = today.getHours() * 60 + today.getMinutes();
-      const totalH = 24 * HOUR_HEIGHT * scale.value + 20;
+      const totalH = BASE_TIMELINE_HEIGHT * scale.value + 20;
       const targetY = Math.max(0, Math.min((mins / 1440) * totalH - 120, totalH - 400));
       scrollTo(mainScrollRef, 0, targetY, true);
     }, 150);
@@ -706,7 +714,7 @@ export function AgendaScreen() {
   const isTodaySelected = isToday(selectedDate);
 
   const animatedTimelineStyle = useAnimatedStyle(() => ({
-    height: 24 * HOUR_HEIGHT * scale.value,
+    height: BASE_TIMELINE_HEIGHT * scale.value,
     transform: [{ translateX: timelineSlideX.value }],
   }));
 
@@ -901,35 +909,56 @@ export function AgendaScreen() {
           contentContainerStyle={{ paddingBottom: 20, backgroundColor: colors.bg }}
           removeClippedSubviews={false}
         >
-          <Animated.View style={[animatedTimelineStyle, { width: screenW, overflow: 'hidden' }]}>
-            <Animated.View style={[timelineSwipeStyle, { flexDirection: 'row', width: screenW * 3 }]}>
+          <Animated.View
+            style={[animatedTimelineStyle, { width: screenW, overflow: 'hidden', minHeight: BASE_TIMELINE_HEIGHT }]}
+          >
+            <Animated.View
+              style={[
+                timelineSwipeStyle,
+                {
+                  flexDirection: 'row',
+                  width: screenW * 3,
+                  height: '100%',
+                  minHeight: BASE_TIMELINE_HEIGHT,
+                  alignSelf: 'stretch',
+                },
+              ]}
+            >
             {panelsData.map(({ events, showTodayLine }, panelIdx) => (
               <View
                 key={panelIdx}
                 style={{
                   width: screenW,
+                  height: '100%',
+                  minHeight: BASE_TIMELINE_HEIGHT,
+                  alignSelf: 'stretch',
                   flexDirection: 'row',
                   position: 'relative',
                   paddingLeft: TIMELINE_PADDING,
                   backgroundColor: colors.bg,
-                  flex: 0,
                 }}
               >
-                <View style={[StyleSheet.absoluteFill, { zIndex: 1, left: 0, pointerEvents: 'none' }]}>
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    { zIndex: 1, left: 0, pointerEvents: 'none', flexDirection: 'column' },
+                  ]}
+                >
                   {HOURS.map((hour) => (
                     <View
                       key={`grid-${panelIdx}-${hour}`}
                       style={{
-                        height: `${100 / 24}%`,
+                        flex: 1,
+                        minHeight: 0,
                         borderBottomWidth: 1,
                         borderBottomColor: (colors.border || '#e5e7eb') + 'E6',
                       }}
-                />
+                    />
                   ))}
                 </View>
-                <View style={{ width: 52, zIndex: 2 }}>
+                <View style={{ width: 52, zIndex: 2, height: '100%', flexDirection: 'column', alignSelf: 'stretch' }}>
                   {HOURS.map((hour) => (
-                    <View key={`${panelIdx}-${hour}`} style={[as.timelineHour, { height: `${100 / 24}%` }]}>
+                    <View key={`${panelIdx}-${hour}`} style={[as.timelineHour, { flex: 1, minHeight: 0 }]}>
                       <Text style={[as.hourText, { color: colors.textSecondary }]}>{String(hour).padStart(2, '0')}:00</Text>
                     </View>
                   ))}
@@ -969,7 +998,19 @@ export function AgendaScreen() {
                     </View>
                 </>
                 )}
-                <View style={[as.timelineContentFull, { height: '100%', zIndex: 2, marginLeft: TIMELINE_PADDING }]}>
+                <View
+                  style={[
+                    as.timelineContentFull,
+                    {
+                      height: '100%',
+                      minHeight: 0,
+                      minWidth: 0,
+                      zIndex: 2,
+                      marginLeft: TIMELINE_PADDING,
+                      alignSelf: 'stretch',
+                    },
+                  ]}
+                >
                   {getEventLayouts(events).map(({ event: e, startM, endM, duration, lane, lanesUsed, sameHourIndex, sameHourCount, hourStartM }) => {
                 const isConcluido = e.status === 'concluido';
                 const isActionsOpen = openEventActionsId === e.id;
@@ -1021,7 +1062,7 @@ export function AgendaScreen() {
                       },
                     ]}
                   >
-                    {Platform.OS === 'android' ? (
+                    {Platform.OS === 'android' || Platform.OS === 'web' ? (
                       <View
                         style={[
                           StyleSheet.absoluteFill,
@@ -1326,6 +1367,45 @@ export function AgendaScreen() {
               <Text style={{ color: '#fff', fontWeight: '600' }}>Fechar</Text>
             </TouchableOpacity>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      <Modal visible={showAddChoiceModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowAddChoiceModal(false)} />
+          <View style={[as.searchModalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 }}>Adicionar</Text>
+            <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 16 }}>O que deseja criar?</Text>
+            <TouchableOpacity
+              style={{ paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}
+              onPress={() => {
+                playTapSound();
+                setShowAddChoiceModal(false);
+                openAddModal?.('agenda', { date: formatDayKey(selectedDate) });
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>Novo evento</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}
+              onPress={() => {
+                playTapSound();
+                setShowAddChoiceModal(false);
+                openAddModal?.('tarefa');
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>Nova tarefa</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
+              onPress={() => {
+                playTapSound();
+                setShowAddChoiceModal(false);
+              }}
+            >
+              <Text style={{ fontSize: 16, color: colors.textSecondary }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 

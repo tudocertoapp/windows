@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   Image,
+  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,7 +21,11 @@ import { useFinance } from '../contexts/FinanceContext';
 import { useMenu } from '../contexts/MenuContext';
 import { parseExpenseVoice, parseVoiceIntent, buildExpenseVoicePreview, extractMainExpenseDescription } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_DESPESA } from '../constants/categories';
-import { playTapSound } from '../utils/sounds';
+import {
+  playTapSound,
+  playVoiceRecordingStartSound,
+  playVoiceRecordingStopSound,
+} from '../utils/sounds';
 import VoiceRecorder from './VoiceRecorder';
 import { processReceipt } from '../services/receiptOcr/processReceipt';
 
@@ -317,6 +322,8 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const [pendingVoiceText, setPendingVoiceText] = useState('');
   const [processingImage, setProcessingImage] = useState(false);
   const [previewImageUri, setPreviewImageUri] = useState(null);
+  const [cameraChoiceVisible, setCameraChoiceVisible] = useState(false);
+  const listeningPrevRef = useRef(false);
   const handleUserContentRef = useRef(null);
   const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
   const listRef = useRef(null);
@@ -834,54 +841,88 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     await handleUserContent({ kind: 'text', text: txt });
   };
 
-  const handlePickImage = async () => {
-    playTapSound();
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permissão', 'Permita acesso às fotos para enviar comprovantes.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      // qualidade maior para melhorar o OCR (as imagens ainda são comprimidas no upload)
-      // reduz o tamanho do base64 e melhora tempo de OCR
-      quality: 0.85,
-      allowsEditing: true,
-      allowsMultipleSelection: true,
-      base64: true,
-    });
-    if (result.canceled || !result.assets?.length) return;
-    for (const asset of result.assets) {
-      if (asset?.uri) await handleUserContent({ kind: 'image', imageUri: asset.uri, imageBase64: asset.base64 });
+  const pickImageFromGallery = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permissão', 'Permita acesso às fotos para enviar comprovantes.');
+        return;
+      }
+      // allowsEditing + allowsMultipleSelection juntos quebram em vários Android/iOS
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+        allowsEditing: false,
+        allowsMultipleSelection: true,
+        base64: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      for (const asset of result.assets) {
+        if (asset?.uri) await handleUserContent({ kind: 'image', imageUri: asset.uri, imageBase64: asset.base64 });
+      }
+    } catch (e) {
+      console.warn('Galeria', e);
+      Alert.alert('Galeria', e?.message || 'Não foi possível abrir a galeria. Tente de novo.');
     }
   };
 
-  const handleTakePhoto = async () => {
-    playTapSound();
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permissão', 'Permita acesso à câmera para tirar foto da notinha.');
-      return;
+  const takePhotoWithCamera = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permissão', 'Permita acesso à câmera para tirar foto da notinha.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.85,
+        allowsEditing: true,
+        base64: true,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      await handleUserContent({ kind: 'image', imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
+    } catch (e) {
+      console.warn('Câmera', e);
+      Alert.alert('Câmera', e?.message || 'Não foi possível abrir a câmera. Tente de novo.');
     }
-    const result = await ImagePicker.launchCameraAsync({
-      // reduz o tamanho do base64 e melhora tempo de OCR
-      quality: 0.85,
-      allowsEditing: true,
-      base64: true,
+  };
+
+  /** Fechar o modal e só então abrir o picker evita falha silenciosa (iOS/Android ao empilhar modais). */
+  const runImagePickerAfterModalClose = (fn) => {
+    setCameraChoiceVisible(false);
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        Promise.resolve(fn()).catch(() => {});
+      }, 320);
     });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    await handleUserContent({ kind: 'image', imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64 });
+  };
+
+  const openCameraChoice = () => {
+    playTapSound();
+    setCameraChoiceVisible(true);
   };
 
   const handleMicPress = async () => {
-    playTapSound();
     if (processingVoice) return;
+    if (pendingVoiceText) {
+      setPendingVoiceText('');
+      setInputText('');
+      await voiceActionsRef.current.startListening?.();
+      return;
+    }
     if (isListening) await voiceActionsRef.current.stopListening?.();
     else {
       setPendingVoiceText('');
       setInputText('');
       await voiceActionsRef.current.startListening?.();
     }
+  };
+
+  const handleListeningChange = (v) => {
+    const prev = listeningPrevRef.current;
+    listeningPrevRef.current = v;
+    if (v && !prev) playVoiceRecordingStartSound();
+    else if (!v && prev) playVoiceRecordingStopSound();
+    setIsListening(v);
   };
 
   const handleSendPendingVoice = async () => {
@@ -904,11 +945,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     }
   };
 
-  const handleReRecordVoice = async () => {
-    playTapSound();
-    setPendingVoiceText('');
-    setInputText('');
-    await voiceActionsRef.current.startListening?.();
+  const handleUnifiedSend = async () => {
+    if (processingImage || processingVoice) return;
+    if (pendingVoiceText.trim()) await handleSendPendingVoice();
+    else await handleSendText();
   };
 
   const renderMsg = ({ item }) => {
@@ -1031,17 +1071,15 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               setInputText(t);
             }}
             onFinalTranscript={async (t) => {
-              setIsListening(false);
               const content = (t || '').trim();
               if (!content) return;
               voiceRecordedAtRef.current = new Date();
               setPendingVoiceText(content);
               setInputText(content);
             }}
-            onListeningChange={setIsListening}
+            onListeningChange={handleListeningChange}
             onEngineChange={setVoiceEngine}
             onError={(message) => {
-              setIsListening(false);
               if (!message) return;
               appendMessage({
                 id: `assistant-voice-error-${Date.now()}`,
@@ -1061,74 +1099,105 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               return null;
             }}
           </VoiceRecorder>
-          <TextInput
-            ref={inputRef}
-            style={[
-              s.input,
-              s.inputFullWidth,
-              (embedded || transparentBg)
-                ? { backgroundColor: 'transparent', borderWidth: 0, color: colors.text, borderRadius: 0 }
-                : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
-            ]}
-            placeholder={
-              processingImage
-                ? 'Lendo imagem...'
-                : processingVoice
-                  ? 'Analisando fala...'
-                  : isListening
-                    ? 'Ouvindo... fale agora'
-                    : pendingVoiceText
-                      ? 'Áudio pausado. Envie ou regrave.'
-                      : 'Digite aqui. Ex: fui no mercado e gastei 89,90'
-            }
-            placeholderTextColor={colors.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            editable={!processingImage && !processingVoice}
-            onSubmitEditing={handleSendText}
-            returnKeyType="send"
-          />
-          <View style={s.actionRow}>
-            <TouchableOpacity
-              onPress={handlePickImage}
-              style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <Ionicons name="image-outline" size={20} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleTakePhoto}
-              style={[s.iconBtn, (embedded || transparentBg) ? { backgroundColor: 'transparent', borderWidth: 0 } : { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <Ionicons name="camera-outline" size={20} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleMicPress}
+          <View style={s.inputWithActionsRow}>
+            <TextInput
+              ref={inputRef}
               style={[
-                s.iconBtn,
+                s.input,
+                s.inputInRow,
                 (embedded || transparentBg)
-                  ? { backgroundColor: isListening ? colors.primary : 'transparent', borderWidth: 0 }
-                  : { backgroundColor: isListening ? colors.primary : colors.card, borderColor: colors.border },
+                  ? { backgroundColor: 'transparent', borderWidth: 0, color: colors.text, borderRadius: 0 }
+                  : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
               ]}
-            >
-              <Ionicons name={isListening ? 'stop' : 'mic-outline'} size={20} color={isListening ? '#fff' : colors.primary} />
-            </TouchableOpacity>
-            {pendingVoiceText ? (
-              <View style={{ flexDirection: 'row', gap: 6, marginLeft: 'auto' }}>
-                <TouchableOpacity onPress={handleReRecordVoice} style={[s.secondaryBtn, { borderColor: colors.primary, backgroundColor: 'transparent' }]}>
-                  <Ionicons name="refresh" size={16} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleSendPendingVoice} style={[s.sendBtn, { backgroundColor: colors.primary }]} disabled={processingImage || processingVoice}>
-                  <Ionicons name="checkmark" size={18} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity onPress={handleSendText} style={[s.sendBtn, { backgroundColor: colors.primary, marginLeft: 'auto' }]} disabled={processingImage || processingVoice}>
-                <Ionicons name="send" size={18} color="#fff" />
+              placeholder={
+                processingImage
+                  ? 'Lendo imagem...'
+                  : processingVoice
+                    ? 'Analisando fala...'
+                    : isListening
+                      ? 'Ouvindo... fale agora'
+                      : pendingVoiceText
+                        ? 'Revise o texto e envie, ou toque no microfone para gravar de novo.'
+                        : 'Digite aqui. Ex: fui no mercado e gastei 89,90'
+              }
+              placeholderTextColor={colors.textSecondary}
+              value={inputText}
+              onChangeText={setInputText}
+              editable={!processingImage && !processingVoice}
+              onSubmitEditing={handleUnifiedSend}
+              returnKeyType="send"
+            />
+            <View style={s.inputActionsRow}>
+              <TouchableOpacity
+                onPress={openCameraChoice}
+                style={[
+                  s.actionIconBtn,
+                  (embedded || transparentBg)
+                    ? { backgroundColor: 'transparent', borderWidth: 0 }
+                    : { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+                accessibilityLabel="Câmera ou galeria"
+              >
+                <Ionicons name="camera-outline" size={22} color={colors.primary} />
               </TouchableOpacity>
-            )}
+              <TouchableOpacity
+                onPress={handleMicPress}
+                style={[
+                  s.actionIconBtn,
+                  (embedded || transparentBg)
+                    ? { backgroundColor: isListening ? colors.primary : 'transparent', borderWidth: 0 }
+                    : { backgroundColor: isListening ? colors.primary : colors.card, borderColor: colors.border },
+                ]}
+                accessibilityLabel={isListening ? 'Parar gravação' : pendingVoiceText ? 'Gravar de novo' : 'Gravar áudio'}
+              >
+                <Ionicons name={isListening ? 'stop' : 'mic-outline'} size={22} color={isListening ? '#fff' : colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleUnifiedSend}
+                style={[s.actionIconBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                disabled={processingImage || processingVoice}
+                accessibilityLabel="Enviar"
+              >
+                <Ionicons name="send" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={cameraChoiceVisible} transparent animationType="fade">
+        <View style={s.cameraChoiceOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setCameraChoiceVisible(false)} />
+          <View style={[s.cameraChoiceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 14, textAlign: 'center' }}>
+              Enviar comprovante
+            </Text>
+            <TouchableOpacity
+              style={[s.cameraChoiceBtn, { backgroundColor: colors.primaryRgba(0.15), borderColor: colors.primary + '55' }]}
+              onPress={() => {
+                playTapSound();
+                runImagePickerAfterModalClose(takePhotoWithCamera);
+              }}
+            >
+              <Ionicons name="camera-outline" size={24} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700', marginLeft: 10 }}>Tirar foto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.cameraChoiceBtn, { backgroundColor: colors.primaryRgba(0.08), borderColor: colors.border }]}
+              onPress={() => {
+                playTapSound();
+                runImagePickerAfterModalClose(pickImageFromGallery);
+              }}
+            >
+              <Ionicons name="images-outline" size={24} color={colors.primary} />
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginLeft: 10 }}>Buscar na galeria</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setCameraChoiceVisible(false)} style={{ marginTop: 10, paddingVertical: 8 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 14, textAlign: 'center' }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!previewImageUri} transparent animationType="fade">
         <View style={s.previewOverlay}>
@@ -1215,6 +1284,54 @@ const s = StyleSheet.create({
     fontSize: 14,
   },
   inputFullWidth: { width: '100%', flexBasis: '100%' },
+  inputWithActionsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+  },
+  inputInRow: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inputActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  actionIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  cameraChoiceOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  cameraChoiceCard: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+  },
+  cameraChoiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
   actionRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8 },
   sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   secondaryBtn: {

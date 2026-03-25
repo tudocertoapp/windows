@@ -112,7 +112,18 @@ export default function VoiceRecorder({
           onTranscriptChange?.(t);
         }
       };
-      rec.onerror = () => {
+      rec.onerror = (ev: any) => {
+        const code = ev?.error || '';
+        // Chrome/Edge disparam `aborted` ao chamar .stop() — não é falha do utilizador.
+        if (code === 'aborted') return;
+        if (code === 'no-speech') return;
+        if (code === 'not-allowed') {
+          emitError('Permissão de microfone negada. Permita o microfone no ícone da barra de endereço.');
+          setIsListening(false);
+          onListeningChange?.(false);
+          webRecognitionRef.current = null;
+          return;
+        }
         emitError('Erro ao reconhecer sua voz.');
         setIsListening(false);
         onListeningChange?.(false);

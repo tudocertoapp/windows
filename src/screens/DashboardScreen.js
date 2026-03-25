@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotes } from '../contexts/NotesContext';
 import { useShoppingList } from '../contexts/ShoppingListContext';
 import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
-import { TopBar } from '../components/TopBar';
+import { TopBar, getStableHomePrompt } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { ContasDoMesCard } from '../components/ContasDoMesCard';
 import { GlassCard } from '../components/GlassCard';
@@ -66,6 +66,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 const ds = StyleSheet.create({
   headerLogo: { alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20 },
+  pagePromptBanner: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginHorizontal: 0,
+  },
   logoLarge: { width: 100, height: 100 },
   appTitle: { fontSize: 22, fontWeight: '700', marginTop: 8 },
   monthText: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
@@ -174,7 +179,7 @@ export function DashboardScreen() {
       };
   const carouselViewportWidth = useMemo(() => {
     if (useWebLayout) return Math.min(Math.max((winWidth || SW) * 0.58, 460), 820);
-    if (isWebMobile) return Math.max(260, (winWidth || SW) - (WEB_CARD_MARGIN_H * 2));
+    if (isWebMobile) return Math.max(260, (winWidth || SW) - WEB_CARD_MARGIN_H * 2);
     return winWidth || SW;
   }, [useWebLayout, isWebMobile, winWidth, WEB_CARD_MARGIN_H]);
   const { CARD_WIDTH, CARD_GAP, SNAP_INTERVAL, CAROUSEL_PADDING } = useMemo(() => {
@@ -209,6 +214,11 @@ export function DashboardScreen() {
   const [parabensModalClient, setParabensModalClient] = useState(null);
   const [parabensFrase, setParabensFrase] = useState('');
   const [expandedCard, setExpandedCard] = useState(null);
+  const [agendaCardDate, setAgendaCardDate] = useState(() => new Date());
+  const [agendaCardZoom, setAgendaCardZoom] = useState(1);
+  const [agendaCardShowMonthPicker, setAgendaCardShowMonthPicker] = useState(false);
+  const [agendaCardPickerYear, setAgendaCardPickerYear] = useState(() => new Date().getFullYear());
+  const [agendaCardPickerMonth, setAgendaCardPickerMonth] = useState(() => new Date().getMonth());
   const layoutsRef = useRef({});
   const [floatingId, setFloatingId] = useState(null);
   const now = new Date();
@@ -261,6 +271,115 @@ export function DashboardScreen() {
     const year = parseInt(parts[2], 10) || new Date().getFullYear();
     return new Date(year, month, day);
   }, []);
+
+  const formatBrShort = useCallback((d) => {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }, []);
+
+  const isSameDay = useCallback((a, b) => {
+    if (!a || !b) return false;
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }, []);
+
+  const agendaCardWeek = useMemo(() => {
+    const base = new Date(agendaCardDate);
+    base.setHours(0, 0, 0, 0);
+    const day = base.getDay(); // 0..6 (dom..sab)
+    const mon = new Date(base);
+    // semana começando na segunda (Seg=1)
+    const diffToMon = (day === 0 ? -6 : 1 - day);
+    mon.setDate(base.getDate() + diffToMon);
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      return d;
+    });
+  }, [agendaCardDate]);
+
+  const agendaMonthLabel = useMemo(() => {
+    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    return `${months[agendaCardDate.getMonth()]} ${agendaCardDate.getFullYear()}`;
+  }, [agendaCardDate]);
+
+  const agendaCalendarGrid = useMemo(() => {
+    const year = agendaCardPickerYear;
+    const month = agendaCardPickerMonth;
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const startDow = first.getDay();
+    const daysInMonth = last.getDate();
+    const cells = [];
+    for (let i = 0; i < startDow; i += 1) cells.push({ date: new Date(year, month, -startDow + i + 1), empty: true });
+    for (let d = 1; d <= daysInMonth; d += 1) cells.push({ date: new Date(year, month, d), empty: false });
+    while (cells.length % 7 !== 0) cells.push({ date: new Date(year, month, daysInMonth + (cells.length - (startDow + daysInMonth)) + 1), empty: true });
+    return cells.slice(0, 42);
+  }, [agendaCardPickerYear, agendaCardPickerMonth]);
+
+  useEffect(() => {
+    if (agendaCardShowMonthPicker) {
+      setAgendaCardPickerYear(agendaCardDate.getFullYear());
+      setAgendaCardPickerMonth(agendaCardDate.getMonth());
+    }
+  }, [agendaCardShowMonthPicker, agendaCardDate]);
+
+  const agendaMonthDays = useMemo(() => {
+    const y = agendaCardDate.getFullYear();
+    const m = agendaCardDate.getMonth();
+    const last = new Date(y, m + 1, 0).getDate();
+    return Array.from({ length: last }).map((_, i) => new Date(y, m, i + 1));
+  }, [agendaCardDate]);
+
+  const agendaMonthCounts = useMemo(() => {
+    const y = agendaCardDate.getFullYear();
+    const m = agendaCardDate.getMonth();
+    const counts = {};
+    (agendaEvents || []).forEach((e) => {
+      const key = String(e?.date || '').trim();
+      if (!key) return;
+      const parts = key.split(/[\/\-]/).map((x) => parseInt(x, 10));
+      if (parts.length < 3) return;
+      const [dd, mm, yyyy] = parts;
+      if (!Number.isFinite(dd) || !Number.isFinite(mm) || !Number.isFinite(yyyy)) return;
+      if (yyyy !== y || (mm - 1) !== m) return;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [agendaEvents, agendaCardDate]);
+
+  const handleAgendaCardCalendarDaySelect = useCallback((d) => {
+    playTapSound();
+    setAgendaCardDate(new Date(d));
+    setAgendaCardShowMonthPicker(false);
+  }, []);
+
+  const agendaCardEvents = useMemo(() => {
+    const targetKey = formatBrShort(agendaCardDate);
+    const list = (agendaEvents || []).filter((e) => String(e?.date || '').trim() === targetKey);
+    const toMinutes = (t) => {
+      if (!t) return 0;
+      const [h, m] = String(t).split(':').map((x) => parseInt(x, 10));
+      return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+    };
+    return list.sort((a, b) => toMinutes(a.timeStart) - toMinutes(b.timeStart));
+  }, [agendaEvents, agendaCardDate, formatBrShort]);
+
+  const agendaCardTimeline = useMemo(() => {
+    const toMinutes = (t) => {
+      if (!t) return 0;
+      const [h, m] = String(t).split(':').map((x) => parseInt(x, 10));
+      return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+    };
+    const clamp = (n, a, b) => Math.max(a, Math.min(n, b));
+    return (agendaCardEvents || []).map((e) => {
+      const startM = clamp(toMinutes(e.timeStart), 0, 24 * 60);
+      const endRaw = e.timeEnd ? toMinutes(e.timeEnd) : (startM + 60);
+      const endM = clamp(Math.max(endRaw, startM + 15), 0, 24 * 60); // mínimo 15 min
+      return { e, startM, endM, durM: endM - startM };
+    });
+  }, [agendaCardEvents]);
 
   const periodTx = useMemo(() => {
     const ref = balanceFilterDate;
@@ -410,17 +529,16 @@ export function DashboardScreen() {
   }, [navigation, openOrcamento, openAssinatura, openIndique, openMensagensWhatsApp]);
 
   // Web mobile: clones + initialScrollIndex quebram o FlatList no RN Web (área preta).
-  const useCarouselClones = !useWebLayout && !isWebMobile && carouselItems.length > 1;
+  const useCarouselClones = !isWeb && !useWebLayout && !isWebMobile && carouselItems.length > 1;
 
   const carouselSnapOffsets = useMemo(
     () => (useCarouselClones ? carouselItemsExtended : carouselItems).map((_, i) => i * SNAP_INTERVAL),
     [useCarouselClones, carouselItemsExtended, carouselItems, SNAP_INTERVAL],
   );
 
-  /** Nativo: alinha scroll ao índice. Web mobile: um card por estado (scroll RN Web é instável). */
+  /** Desktop web e web mobile: card único. Só nativo usa FlatList com snap. */
   const applyCarouselScroll = useCallback(
     (displayIndex, animated = true) => {
-      if (useWebLayout || isWebMobile) return;
       const idx = useCarouselClones ? displayIndex + 1 : displayIndex;
       const offset = idx * SNAP_INTERVAL;
       const run = () => {
@@ -432,7 +550,7 @@ export function DashboardScreen() {
         run();
       }
     },
-    [useWebLayout, useCarouselClones, isWebMobile, isWeb, SNAP_INTERVAL],
+    [useCarouselClones, isWeb, SNAP_INTERVAL],
   );
 
   const jumpToCarouselIndex = useCallback((nextIndex) => {
@@ -440,9 +558,8 @@ export function DashboardScreen() {
     if (count <= 0) return;
     const target = Math.max(0, Math.min(nextIndex, count - 1));
     setCarouselIndex(target);
-    if (useWebLayout || isWebMobile) return;
     applyCarouselScroll(target, true);
-  }, [carouselItems.length, useWebLayout, isWebMobile, applyCarouselScroll]);
+  }, [carouselItems.length, applyCarouselScroll]);
 
   const carouselCount = carouselItems.length;
 
@@ -493,18 +610,14 @@ export function DashboardScreen() {
     const count = carouselItems.length;
     if (count <= 1) return;
     const interval = setInterval(() => {
-      if (useWebLayout || isWebMobile) {
-        setCarouselIndex((prev) => (prev + 1) % count);
-        return;
-      }
       setCarouselIndex((prev) => {
         const nextDisplay = (prev + 1) % count;
-        applyCarouselScroll(nextDisplay, true);
+        if (!isWebMobile && !useWebLayout) applyCarouselScroll(nextDisplay, true);
         return nextDisplay;
       });
     }, 4000);
     return () => clearInterval(interval);
-  }, [SNAP_INTERVAL, carouselItems.length, useCarouselClones, useWebLayout, isWebMobile, isWeb, applyCarouselScroll]);
+  }, [SNAP_INTERVAL, carouselItems.length, useCarouselClones, applyCarouselScroll, isWebMobile, useWebLayout]);
 
   const handleLayoutMeasured = (id, y, height) => {
     layoutsRef.current[id] = { y, height };
@@ -810,6 +923,373 @@ export function DashboardScreen() {
         </View>
       )
     ),
+    agenda: !useWebLayout ? null : (
+      <View key="agenda" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
+        <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 10 }}>
+            <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }} numberOfLines={1}>Agenda</Text>
+              <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
+                {formatBrShort(agendaCardDate)}
+              </Text>
+            </View>
+            <View style={cardHeaderActionsStyle}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primaryRgba(0.18), borderWidth: 1, borderColor: colors.primary + '55' }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
+                  {agendaCardEvents.length} agend.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }} style={cardActionButtonStyle}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Hoje</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { initialDate: formatBrShort(agendaCardDate) }); }} style={cardActionButtonStyle}>
+                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); navigation?.navigate?.('Agenda'); }} style={cardActionButtonStyle}>
+                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
+            activeOpacity={0.85}
+            style={{ alignSelf: 'center', marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border + '80', backgroundColor: colors.card }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+            </View>
+          </TouchableOpacity>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingRight: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {agendaMonthDays.map((d) => {
+                const selected = isSameDay(d, agendaCardDate);
+                const dayLabel = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][d.getDay()];
+                const num = d.getDate();
+                const dayKey = formatBrShort(d);
+                const count = agendaMonthCounts[dayKey] || 0;
+                const hasAgenda = count > 0;
+                return (
+                  <TouchableOpacity
+                    key={d.toISOString()}
+                    onPress={() => { playTapSound(); setAgendaCardDate(d); }}
+                    style={{
+                      width: 48,
+                      paddingVertical: 8,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      backgroundColor: selected ? (colors.primary + '26') : (colors.card),
+                      borderWidth: 1,
+                      borderColor: selected ? (colors.primary + '80') : (colors.border + '80'),
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: selected ? colors.primary : colors.textSecondary }}>{dayLabel}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text }}>{num}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '800', marginTop: 2, color: selected ? (hasAgenda ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)') : (hasAgenda ? colors.primary : colors.textSecondary) }}>
+                      {count}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <Modal visible={agendaCardShowMonthPicker} transparent animationType="fade">
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+              <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setAgendaCardShowMonthPicker(false)} />
+              <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 16, maxWidth: 520, width: '100%', alignSelf: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12, gap: 16, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 12 }}>
+                  <TouchableOpacity onPress={() => { playTapSound(); setAgendaCardPickerYear((y) => y - 1); }} style={{ padding: 6 }}>
+                    <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{agendaCardPickerYear}</Text>
+                  <TouchableOpacity onPress={() => { playTapSound(); setAgendaCardPickerYear((y) => y + 1); }} style={{ padding: 6 }}>
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8, gap: 12 }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      playTapSound();
+                      setAgendaCardPickerMonth((m) => (m <= 0 ? 11 : m - 1));
+                      if (agendaCardPickerMonth <= 0) setAgendaCardPickerYear((y) => y - 1);
+                    }}
+                    style={{ padding: 6 }}
+                  >
+                    <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, minWidth: 120, textAlign: 'center' }}>
+                    {['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][agendaCardPickerMonth]}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      playTapSound();
+                      setAgendaCardPickerMonth((m) => (m >= 11 ? 0 : m + 1));
+                      if (agendaCardPickerMonth >= 11) setAgendaCardPickerYear((y) => y + 1);
+                    }}
+                    style={{ padding: 6 }}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                  {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((wd) => (
+                    <View key={wd} style={{ flex: 1, alignItems: 'center', paddingVertical: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary }}>{wd}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {[0, 1, 2, 3, 4, 5].map((row) => (
+                  <View key={row} style={{ flexDirection: 'row' }}>
+                    {agendaCalendarGrid.slice(row * 7, row * 7 + 7).map((cell, idx) => {
+                      const sel = !cell.empty && isSameDay(cell.date, agendaCardDate);
+                      const isCurMonth = !cell.empty && cell.date.getMonth() === agendaCardPickerMonth;
+                      const today = new Date();
+                      const isTodayCell = !cell.empty && isSameDay(cell.date, today);
+                      return (
+                        <TouchableOpacity
+                          key={`${row}-${idx}`}
+                          style={{
+                            flex: 1,
+                            height: 42,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginVertical: 2,
+                            borderRadius: 18,
+                            opacity: cell.empty ? 0.25 : isCurMonth ? 1 : 0.5,
+                            backgroundColor: sel ? colors.primary : 'transparent',
+                            borderWidth: isTodayCell ? 2 : 0,
+                            borderColor: isTodayCell ? (sel ? '#fff' : colors.primary) : 'transparent',
+                          }}
+                          activeOpacity={0.75}
+                          onPress={() => !cell.empty && handleAgendaCardCalendarDaySelect(cell.date)}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? '#fff' : colors.text }}>
+                            {cell.date.getDate()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(false); }}
+                  style={{ marginTop: 12, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: colors.primaryRgba(0.12), borderWidth: 1, borderColor: colors.primary + '55' }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.primary }}>Fechar</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
+          </Modal>
+
+          {(() => {
+            const HOUR_HEIGHT_CARD = 56 * agendaCardZoom;
+            const MINUTES_PER_HOUR = 60;
+            const timelineHeight = 24 * HOUR_HEIGHT_CARD;
+            const accent = CARD_ICON_COLORS.agenda || colors.primary;
+            const nowObj = new Date();
+            const showNowLine = isSameDay(nowObj, agendaCardDate);
+            const nowMinutes = nowObj.getHours() * 60 + nowObj.getMinutes();
+            const nowTop = (nowMinutes / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
+            const isEmpresaMode = showEmpresaFeatures && viewMode === 'empresa';
+            const atendimentosTitle = isEmpresaMode ? 'Próximos atendimentos' : 'Próximos eventos';
+            const atendimentosSubtitle = proximasTarefas.agendas.length === 0
+              ? (isEmpresaMode ? 'Seus atendimentos agendados' : 'Seus eventos agendados nos próximos dias')
+              : `${proximasTarefas.agendas.length} ${(isEmpresaMode ? 'atendimento' : 'evento')}${proximasTarefas.agendas.length !== 1 ? 's' : ''} nos próximos dias`;
+            return (
+              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border + '80', overflow: 'hidden', backgroundColor: colors.bg }}>
+                <View style={{ flexDirection: 'row', gap: 12, padding: 12 }}>
+                  {/* Próximos atendimentos (lado esquerdo) */}
+                  <View style={{ flex: 1, minWidth: 340 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }} numberOfLines={1}>{atendimentosTitle}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{atendimentosSubtitle}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard('agendamentos'); }} style={cardActionButtonStyle}>
+                        <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollableCardList
+                      items={proximasTarefas.agendas}
+                      colors={colors}
+                      accentColor={CARD_ICON_COLORS.agendamentos}
+                      emptyText={isEmpresaMode ? 'Nenhum atendimento agendado' : 'Nenhum evento agendado'}
+                      onVerMais={() => { playTapSound(); setExpandedCard('agendamentos'); }}
+                      fixedVisibleHeight
+                      renderItem={(e) => {
+                        const displayTitle = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+                        const detailParts = [];
+                        if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
+                        if (e.type === 'venda') detailParts.push('Venda');
+                        else if (e.type === 'orcamento') detailParts.push('Orçamento');
+                        else if (e.type === 'manutencao') detailParts.push('Garantia');
+                        const detailStr = detailParts.length ? detailParts.join(' · ') : null;
+                        return (
+                          <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 18, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4 }}>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
+                              {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
+                            </View>
+                            <Text style={{ fontSize: 11, color: colors.textSecondary }}>{e.date}</Text>
+                            <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Ionicons name="pencil" size={20} color={colors.primary} />
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      }}
+                    />
+                  </View>
+
+                  {/* Agenda (timeline) - lado direito */}
+                  <View style={{ flex: 1.25, minWidth: 420, position: 'relative' }}>
+                  <ScrollView style={{ height: 380 }} contentContainerStyle={{ paddingRight: 6 }}>
+                    <View style={{ flexDirection: 'row' }}>
+                      <View style={{ width: 46, paddingTop: 2 }}>
+                        {Array.from({ length: 24 }).map((_, h) => (
+                          <View key={h} style={{ height: HOUR_HEIGHT_CARD, justifyContent: 'flex-start' }}>
+                            <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '600' }}>{String(h).padStart(2, '0')}:00</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <View style={{ flex: 1, position: 'relative' }}>
+                        {Array.from({ length: 24 }).map((_, h) => (
+                          <View
+                            key={h}
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              right: 0,
+                              top: h * HOUR_HEIGHT_CARD + 10,
+                              height: 1,
+                              backgroundColor: colors.border + '55',
+                            }}
+                            pointerEvents="none"
+                          />
+                        ))}
+                        <View style={{ height: timelineHeight, position: 'relative' }}>
+                          {showNowLine && (
+                            <View
+                              style={{
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                top: Math.max(0, Math.min(nowTop, timelineHeight - 1)),
+                                height: 2,
+                                backgroundColor: '#ef4444',
+                                borderRadius: 2,
+                                opacity: 0.85,
+                              }}
+                              pointerEvents="none"
+                            />
+                          )}
+
+                          {agendaCardTimeline.length === 0 ? (
+                            <View style={{ paddingVertical: 14, paddingHorizontal: 12 }}>
+                              <Text style={{ fontSize: 12, color: colors.textSecondary }}>Nenhum evento para este dia</Text>
+                            </View>
+                          ) : null}
+
+                          {agendaCardTimeline.map(({ e, startM, durM }) => {
+                            const title = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+                            const top = (startM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
+                            const height = Math.max(28, (durM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD);
+                            const isEmp = showEmpresaFeatures && (e.tipo === 'empresa');
+                            const timeStr = [e.timeStart, e.timeEnd ? `- ${e.timeEnd}` : null].filter(Boolean).join(' ');
+                            return (
+                              <TouchableOpacity
+                                key={e.id}
+                                activeOpacity={0.9}
+                                onPress={() => { playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }}
+                                style={{
+                                  position: 'absolute',
+                                  left: 0,
+                                  right: 0,
+                                  top,
+                                  height,
+                                  padding: 10,
+                                  borderRadius: 14,
+                                  backgroundColor: accent + '1F',
+                                  borderWidth: 1,
+                                  borderColor: accent + '66',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={1}>
+                                  {title}
+                                </Text>
+                                <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                                  {[timeStr, e.amount > 0 ? formatCurrency(e.amount) : null, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ')}
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                  <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Ionicons name="pencil" size={18} color={colors.primary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={(ev) => {
+                                      ev?.stopPropagation?.();
+                                      playTapSound();
+                                      if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e });
+                                      else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
+                                    }}
+                                    style={{ padding: 6 }}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <Ionicons name="checkmark-done" size={18} color="#10b981" />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity onPress={(ev) => {
+                                    ev?.stopPropagation?.();
+                                    playTapSound();
+                                    Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+                                      { text: 'Cancelar' },
+                                      { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+                                    ]);
+                                  }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                                  </TouchableOpacity>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </View>
+                  </ScrollView>
+                  {/* zoom dentro da timeline */}
+                  <View style={{ position: 'absolute', top: 10, right: 10, flexDirection: 'row', gap: 8 }} pointerEvents="box-none">
+                    <TouchableOpacity
+                      onPress={() => { playTapSound(); setAgendaCardZoom((z) => Math.max(0.7, Number((z - 0.1).toFixed(2)))); }}
+                      style={[cardActionButtonStyle, { backgroundColor: colors.card, borderColor: colors.border + '80' }]}
+                      activeOpacity={0.9}
+                    >
+                      <Ionicons name="remove" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => { playTapSound(); setAgendaCardZoom((z) => Math.min(2.2, Number((z + 0.1).toFixed(2)))); }}
+                      style={[cardActionButtonStyle, { backgroundColor: colors.card, borderColor: colors.border + '80' }]}
+                      activeOpacity={0.9}
+                    >
+                      <Ionicons name="add" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                  </View>
+                </View>
+              </View>
+            );
+          })()}
+        </GlassCard>
+      </View>
+    ),
     carousel: (
       <View
         key="carousel"
@@ -823,38 +1303,80 @@ export function DashboardScreen() {
             const item = carouselItems[Math.max(0, Math.min(carouselIndex, Math.max(0, carouselItems.length - 1)))] || carouselItems[0];
             if (!item) return null;
             return (
-              <TouchableOpacity onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ alignSelf: 'center' }}>
-                <ImageBackground
-                  source={item.image}
-                  style={[
-                    ds.carouselItem,
-                    {
-                      width: CARD_WIDTH,
+              <View style={{ width: '100%', alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ alignSelf: 'center' }}>
+                  <ImageBackground
+                    source={item.image}
+                    style={[
+                      ds.carouselItem,
+                      {
+                        width: CARD_WIDTH,
+                        height: 165,
+                        padding: 0,
+                        borderColor: (item.color || colors.primary) + '80',
+                        overflow: 'hidden',
+                        ...cardShadowStyle,
+                      },
+                    ]}
+                    imageStyle={{ borderRadius: 20, opacity: 0.8 }}
+                    resizeMode="cover"
+                  >
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
+                    <View style={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                      <AppIcon name={item.icon} size={24} color="#fff" />
+                    </View>
+                    <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
+                      <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
+                      <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
+                    </LinearGradient>
+                    <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                    <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                  </ImageBackground>
+                </TouchableOpacity>
+
+                {/* setas/bordas clicáveis */}
+                {carouselItems.length > 1 && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: 0,
                       height: 165,
-                      padding: 0,
-                      borderColor: (item.color || colors.primary) + '80',
-                      overflow: 'hidden',
-                      ...cardShadowStyle,
-                    },
-                  ]}
-                  imageStyle={{ borderRadius: 20, opacity: 0.8 }}
-                  resizeMode="cover"
-                >
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
-                  <View style={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                    <AppIcon name={item.icon} size={24} color="#fff" />
+                      alignSelf: 'center',
+                      width: CARD_WIDTH,
+                      left: '50%',
+                      transform: [{ translateX: -CARD_WIDTH / 2 }],
+                    }}
+                    pointerEvents="box-none"
+                  >
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Anterior"
+                      onPress={() => { playTapSound(); jumpToCarouselIndex((carouselIndex - 1 + carouselItems.length) % carouselItems.length); }}
+                      activeOpacity={0.85}
+                      style={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 44, justifyContent: 'center', alignItems: 'flex-start' }}
+                    >
+                      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
+                        <Ionicons name="chevron-back" size={20} color="#fff" />
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Próximo"
+                      onPress={() => { playTapSound(); jumpToCarouselIndex((carouselIndex + 1) % carouselItems.length); }}
+                      activeOpacity={0.85}
+                      style={{ position: 'absolute', right: 10, top: 0, bottom: 0, width: 44, justifyContent: 'center', alignItems: 'flex-end' }}
+                    >
+                      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
+                        <Ionicons name="chevron-forward" size={20} color="#fff" />
+                      </View>
+                    </TouchableOpacity>
                   </View>
-                  <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
-                    <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
-                    <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
-                  </LinearGradient>
-                  <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-                  <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-                </ImageBackground>
-              </TouchableOpacity>
+                )}
+              </View>
             );
           })()
         ) : (
+          <View style={{ width: '100%', alignItems: 'center' }}>
           <FlatList
             ref={carouselRef}
             data={useCarouselClones ? carouselItemsExtended : carouselItems}
@@ -867,7 +1389,8 @@ export function DashboardScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: CAROUSEL_PADDING }}
             key={`carousel-${Math.round(carouselViewportWidth)}-${useCarouselClones ? 'clones' : 'plain'}`}
-            initialScrollIndex={useCarouselClones ? 1 : 0}
+            // No web, initialScrollIndex + clones podem causar tela preta.
+            initialScrollIndex={(!isWeb && useCarouselClones) ? 1 : 0}
             snapToOffsets={carouselSnapOffsets}
             onMomentumScrollEnd={onCarouselScrollSettled}
             getItemLayout={(_, index) => ({ length: SNAP_INTERVAL, offset: index * SNAP_INTERVAL, index })}
@@ -910,6 +1433,46 @@ export function DashboardScreen() {
               );
             }}
           />
+
+          {/* Zonas clicáveis nas bordas (web desktop + web mobile + nativo) */}
+          {carouselItems.length > 1 && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                height: 165,
+                alignSelf: 'center',
+                width: CARD_WIDTH,
+                left: '50%',
+                transform: [{ translateX: -CARD_WIDTH / 2 }],
+              }}
+              pointerEvents="box-none"
+            >
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Anterior"
+                onPress={() => { playTapSound(); jumpToCarouselIndex((carouselIndex - 1 + carouselItems.length) % carouselItems.length); }}
+                activeOpacity={0.85}
+                style={{ position: 'absolute', left: 10, top: 0, bottom: 0, width: 44, justifyContent: 'center', alignItems: 'flex-start' }}
+              >
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
+                  <Ionicons name="chevron-back" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Próximo"
+                onPress={() => { playTapSound(); jumpToCarouselIndex((carouselIndex + 1) % carouselItems.length); }}
+                activeOpacity={0.85}
+                style={{ position: 'absolute', right: 10, top: 0, bottom: 0, width: 44, justifyContent: 'center', alignItems: 'flex-end' }}
+              >
+                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}>
+                  <Ionicons name="chevron-forward" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
         )}
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 }}>
           {carouselItems.map((_, i) => (
@@ -1375,9 +1938,12 @@ export function DashboardScreen() {
         colors={colors}
         useLogoImage
         hideOrganize
+        headerDate={now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
+        deferFinancePrompt
         inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={openCalculadoraFull}
+        onChat={openMeusGastos}
         onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
       />
         );
@@ -1389,8 +1955,10 @@ export function DashboardScreen() {
         </View>
       )}
       <ScrollView showsVerticalScrollIndicator={false} scrollEnabled nestedScrollEnabled={isWebMobile}>
-        <View style={[ds.headerLogo, { backgroundColor: colors.bg }]}>
-          <Text style={[ds.monthText, { color: colors.textSecondary }]}>{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</Text>
+        <View style={[ds.pagePromptBanner, { backgroundColor: colors.bg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border + '99' }]}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center', lineHeight: 22 }}>
+            {getStableHomePrompt()}
+          </Text>
         </View>
 
         {useWebLayout ? (
@@ -1414,32 +1982,30 @@ export function DashboardScreen() {
               );
             })()}
             {(() => {
-              const trioIds = ['proximos', 'agendamentos', 'aniversariantes'];
-              const trio = trioIds.filter((id) => webSectionTail.includes(id));
-              if (trio.length !== 3) return null;
+              const hasAgenda = webSectionTail.includes('agenda');
+              if (!hasAgenda) return null;
+              // Layout pedido: 1 card grande (Atendimentos + Agenda) e Próximas tarefas embaixo.
+              if (!webSectionTail.includes('proximos')) return null;
               return (
-                <View style={{ flexDirection: 'row', alignItems: 'stretch', marginTop: 4 }}>
-                  {trio.map((sid, idx) => {
-                    const content = sectionMap[sid];
-                    if (!content) return null;
-                    return (
-                      <View
-                        key={sid}
-                        style={{
-                          width: '33.3333%',
-                          paddingLeft: idx === 0 ? 0 : 4,
-                          paddingRight: idx === 2 ? 0 : 4,
-                        }}
-                      >
-                        {content}
-                      </View>
-                    );
-                  })}
-                </View>
+                <>
+                  <View style={{ width: '100%', paddingHorizontal: 4, marginTop: 4 }}>
+                    {sectionMap.agenda}
+                  </View>
+                  <View style={{ width: '100%', paddingHorizontal: 4 }}>
+                    {sectionMap.proximos}
+                  </View>
+                  {webSectionTail.includes('aniversariantes') ? (
+                    <View style={{ width: '100%', paddingHorizontal: 4 }}>
+                      {sectionMap.aniversariantes}
+                    </View>
+                  ) : null}
+                </>
               );
             })()}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              {webSectionTail.filter((sid) => !['proximos', 'agendamentos', 'aniversariantes', 'meusgastos'].includes(sid)).map((sid) => {
+              {webSectionTail
+                .filter((sid) => !['proximos', 'agendamentos', 'agenda', 'aniversariantes', 'meusgastos'].includes(sid))
+                .map((sid) => {
                 const content = sectionMap[sid];
                 if (!content) return null;
                 const isMeusGastos = sid === 'meusgastos';

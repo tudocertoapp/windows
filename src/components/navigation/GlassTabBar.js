@@ -58,6 +58,49 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
   const color = isFocused ? primaryColor : inactiveColor;
   const IconElement = icon;
 
+  const tabInner = (
+    <View style={[styles.tabContent, isFocused && styles.tabContentActive]}>
+      {isFocused && (
+        <View style={[styles.activeIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)' }]} />
+      )}
+      <View style={[styles.iconWrap, !showLabel && styles.iconWrapOnly]}>
+        {IconElement || <Ionicons name={iconName} size={24} color={color} />}
+      </View>
+      {showLabel ? (
+        <Text
+          style={[
+            styles.label,
+            {
+              color,
+              fontWeight: isFocused ? '600' : '500',
+              opacity: isFocused ? 1 : 0.8,
+            },
+          ]}
+          numberOfLines={1}
+        >
+          {displayLabel}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  if (Platform.OS === 'web') {
+    return (
+      <TouchableOpacity
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={displayLabel}
+        accessibilityState={isFocused ? { selected: true } : {}}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        style={styles.tabItem}
+        activeOpacity={0.85}
+      >
+        {tabInner}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <AnimatedTouchable
       accessible
@@ -71,29 +114,7 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
       style={[styles.tabItem, animatedItemStyle]}
       activeOpacity={1}
     >
-      <View style={[styles.tabContent, isFocused && styles.tabContentActive]}>
-        {isFocused && (
-          <View style={[styles.activeIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)' }]} />
-        )}
-        <View style={[styles.iconWrap, !showLabel && styles.iconWrapOnly]}>
-          {IconElement || <Ionicons name={iconName} size={24} color={color} />}
-        </View>
-        {showLabel ? (
-          <Text
-            style={[
-              styles.label,
-              {
-                color,
-                fontWeight: isFocused ? '600' : '500',
-                opacity: isFocused ? 1 : 0.8,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {displayLabel}
-          </Text>
-        ) : null}
-      </View>
+      {tabInner}
     </AnimatedTouchable>
   );
 }
@@ -205,17 +226,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'visible',
+    ...(Platform.OS === 'web'
+      ? { zIndex: 10000, elevation: 10000 }
+      : {}),
   },
   glass: {
     width: '100%',
     borderRadius: 26,
     overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 12,
     backgroundColor: 'transparent',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 20,
+          elevation: 12,
+        }),
   },
   glassLight: {
     borderWidth: 1,
@@ -311,11 +339,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 4px 14px rgba(0,0,0,0.22)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          elevation: 8,
+        }),
   },
 });
 

@@ -22,6 +22,13 @@ const config = {
     assetBundlePatterns: ['**/*'],
     plugins: [
       ['expo-build-properties', { android: { enablePngCrunchInReleaseBuilds: false } }],
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'O app precisa acessar suas fotos para enviar comprovantes em Meus gastos.',
+          cameraPermission: 'O app precisa da câmera para fotografar comprovantes em Meus gastos.',
+        },
+      ],
       ['expo-contacts', { contactsPermission: 'Permitir acessar contatos para importar e cadastrar clientes.' }],
       'expo-speech-recognition',
       ['expo-media-library', { photosPermission: 'Salvar imagens no álbum', savePhotosPermission: 'Salvar imagens geradas' }],
@@ -47,6 +54,8 @@ const config = {
         NSSpeechRecognitionUsageDescription: 'Allow $(PRODUCT_NAME) to use speech recognition.',
         NSMicrophoneUsageDescription: 'Allow $(PRODUCT_NAME) to use the microphone.',
         NSFaceIDUsageDescription: 'Use Face ID para revelar valores financeiros.',
+        NSCameraUsageDescription: 'Fotografar comprovantes para registrar gastos.',
+        NSPhotoLibraryUsageDescription: 'Escolher fotos de comprovantes na galeria.',
       },
     },
     android: {
@@ -66,6 +75,7 @@ const config = {
         },
       ],
       permissions: [
+        'android.permission.CAMERA',
         'android.permission.RECORD_AUDIO',
         'android.permission.READ_EXTERNAL_STORAGE',
         'android.permission.WRITE_EXTERNAL_STORAGE',

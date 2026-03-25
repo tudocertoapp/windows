@@ -5,7 +5,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import { useTheme } from '../contexts/ThemeContext';
@@ -54,10 +53,34 @@ function PlaceholderScreen() {
   return <View style={{ flex: 1 }} />;
 }
 
+/**
+ * RN Web: a tab bar customizada fica fora da área útil se depender só do flex do BottomTabView.
+ * Fixa na viewport para ficar sempre visível no mobile browser / PWA.
+ */
+function WebMobileTabBarDock(props) {
+  if (Platform.OS !== 'web') return <GlassTabBar {...props} />;
+  return (
+    <View
+      style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        minHeight: 110,
+        zIndex: 2147483646,
+        backgroundColor: 'transparent',
+        pointerEvents: 'box-none',
+      }}
+    >
+      <GlassTabBar {...props} />
+    </View>
+  );
+}
+
 export function AppNavigator() {
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
-  const isWebMobile = isWeb && !isDesktopLayout;
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
   const [addModalState, setAddModalState] = useState({ type: null, params: null });
@@ -93,7 +116,6 @@ export function AppNavigator() {
   const [calculatorHistory, setCalculatorHistory] = useState([]);
   const { colors, primaryColor } = useTheme();
   const { addProduct } = useFinance();
-  const insets = useSafeAreaInsets();
 
   const navigationRef = useRef(null);
 
@@ -192,10 +214,10 @@ export function AppNavigator() {
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
               <Tab.Navigator
                 tabBar={
-                  isDesktopLayout || isWebMobile
+                  isDesktopLayout
                     ? () => null
                     : (tabProps) => (
-                        <GlassTabBar
+                        <WebMobileTabBarDock
                           {...tabProps}
                           customHandlers={{
                             Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
@@ -207,18 +229,31 @@ export function AppNavigator() {
                 screenOptions={{
                   headerShown: false,
                   tabBarShowLabel: false,
-                  tabBarStyle: isDesktopLayout || isWebMobile
+                  tabBarStyle: isDesktopLayout
                     ? { display: 'none' }
-                    : {
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        height: 0,
-                        elevation: 0,
-                        backgroundColor: 'transparent',
-                        borderTopWidth: 0,
-                      },
+                    : isWeb
+                      ? {
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          minHeight: 100,
+                          backgroundColor: 'transparent',
+                          borderTopWidth: 0,
+                          elevation: 0,
+                          zIndex: 10000,
+                          overflow: 'visible',
+                        }
+                      : {
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: 0,
+                          elevation: 0,
+                          backgroundColor: 'transparent',
+                          borderTopWidth: 0,
+                        },
                 }}
               >
                 <Tab.Screen name="Início" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="home-outline" size={24} color={color} /> }} />
@@ -262,30 +297,6 @@ export function AppNavigator() {
                 />
               </Tab.Navigator>
             </NavigationContainer>
-            {isWebMobile ? (
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setMeusGastosModal(true); }}
-                activeOpacity={0.9}
-                accessibilityLabel="Meus gastos"
-                style={{
-                  position: 'absolute',
-                  right: 18,
-                  bottom: Math.max(insets.bottom, 10) + 10,
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
-                  backgroundColor: primaryColor,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: `${primaryColor}99`,
-                  zIndex: 1000,
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
-                }}
-              >
-                <Ionicons name="chatbubbles-outline" size={26} color="#fff" />
-              </TouchableOpacity>
-            ) : null}
           </View>
         </View>
       <CircularMenuComponent
