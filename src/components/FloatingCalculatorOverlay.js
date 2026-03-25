@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, PanResponder, Dimensions, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { View, PanResponder, Dimensions, StyleSheet, Animated, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { playTapSound } from '../utils/sounds';
@@ -34,33 +34,53 @@ export function FloatingCalculatorOverlay({
 
   const { width: W, height: H } = Dimensions.get('window');
   const safeTop = insets.top || 44;
+  const isWeb = Platform.OS === 'web';
+
+  const clampPos = (p) => {
+    const x = Number(p?.x) || 0;
+    const y = Number(p?.y) || 0;
+    const minX = 12;
+    const minY = Math.max(12, safeTop);
+    const maxX = Math.max(minX, W - OVERLAY_WIDTH - 12);
+    const maxY = Math.max(minY, H - OVERLAY_HEIGHT - 12);
+    return { x: Math.max(minX, Math.min(x, maxX)), y: Math.max(minY, Math.min(y, maxY)) };
+  };
 
   useEffect(() => {
     if (!visible) return;
     const def = { x: W - OVERLAY_WIDTH - 16, y: safeTop + 40 };
+    // No web mobile a viewport muda com o scroll e posições persistidas podem ficar fora da tela.
+    // Para evitar "sumir" e não atrapalhar a tabbar, no web usamos sempre a posição padrão.
+    if (isWeb) {
+      const pos = clampPos(def);
+      setPosition(pos);
+      lastPos.current = pos;
+      animPos.setValue(pos);
+      return;
+    }
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       let pos;
       if (raw) {
         try {
           const { x, y } = JSON.parse(raw);
-          pos = { x: Number.isFinite(x) ? x : def.x, y: Number.isFinite(y) ? y : def.y };
+          pos = clampPos({ x: Number.isFinite(x) ? x : def.x, y: Number.isFinite(y) ? y : def.y });
         } catch (_) {
-          pos = def;
+          pos = clampPos(def);
         }
       } else {
-        pos = def;
+        pos = clampPos(def);
       }
       setPosition(pos);
       lastPos.current = pos;
       animPos.setValue(pos);
     });
-  }, [visible]);
+  }, [visible, W, H, safeTop, isWeb]);
 
   useEffect(() => {
-    if (position && visible) {
+    if (position && visible && !isWeb) {
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(position));
     }
-  }, [position, visible]);
+  }, [position, visible, isWeb]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -115,13 +135,6 @@ export function FloatingCalculatorOverlay({
         },
       ]}
     >
-      <TouchableOpacity
-        onPress={() => { playTapSound(); onClose?.(); }}
-        style={[styles.overlayCloseBtn, { backgroundColor: colors.bg + 'CC', borderColor: colors.border }]}
-        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-      >
-        <Ionicons name="close" size={16} color={colors.text} />
-      </TouchableOpacity>
       <View {...panResponder.panHandlers} style={styles.dragHandle} />
       <View style={styles.content}>
         <CalculatorScreenPro
@@ -143,7 +156,7 @@ export function FloatingCalculatorOverlay({
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
     zIndex: 1000,
     borderRadius: 20,
     overflow: 'hidden',
@@ -166,17 +179,5 @@ const styles = StyleSheet.create({
     height: DRAG_HANDLE_HEIGHT,
     zIndex: 1,
     backgroundColor: 'transparent',
-  },
-  overlayCloseBtn: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 50,
-    borderWidth: 1,
   },
 });

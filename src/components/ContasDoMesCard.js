@@ -38,7 +38,30 @@ const ds = StyleSheet.create({
 
 const iconBtnStyle = { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(37,99,235,0.15)', borderWidth: 1, borderColor: '#2563eb' + '50' };
 
-export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, formatCurrency, mask, colors, lightBackground, headerActions, iconColor, onOpenFaturas, onAddFatura, playTapSound, filter, filterLabel, filterStartDate, filterEndDate, onFilterChange, onFilterDatePrev, onFilterDateNext, onFilterPeriodChange }) {
+export function ContasDoMesCard({
+  contasPagas,
+  contasAVencer,
+  contasVencidas,
+  formatCurrency,
+  mask,
+  colors,
+  lightBackground,
+  headerActions,
+  iconColor,
+  onOpenFaturas,
+  onAddFatura,
+  playTapSound,
+  filter,
+  filterLabel,
+  filterStartDate,
+  filterEndDate,
+  onFilterChange,
+  onFilterDatePrev,
+  onFilterDateNext,
+  onFilterPeriodChange,
+  /** Quando true, remove margens externas (útil para grids no web). */
+  noMargins,
+}) {
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [tempStart, setTempStart] = useState(filterStartDate || formatDateStr(new Date(new Date().getFullYear(), 0, 1)));
   const [tempEnd, setTempEnd] = useState(filterEndDate || formatDateStr(new Date()));
@@ -62,7 +85,10 @@ export function ContasDoMesCard({ contasPagas, contasAVencer, contasVencidas, fo
     <GlassCard
       colors={colors}
       solid
-      style={ds.card}
+      style={[
+        ds.card,
+        noMargins && { marginHorizontal: 0, marginTop: 0 },
+      ]}
       contentStyle={{ padding: 20 }}
     >
       <CardHeader

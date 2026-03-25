@@ -897,6 +897,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   };
 
   const openCameraChoice = () => {
+    // Mantemos para quem quiser usar em outro lugar, mas no input principal vamos direto.
     playTapSound();
     setCameraChoiceVisible(true);
   };
@@ -1136,7 +1137,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
                     ? { backgroundColor: 'transparent', borderWidth: 0 }
                     : { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
-                accessibilityLabel="Câmera ou galeria"
+                accessibilityLabel="Enviar comprovante"
               >
                 <Ionicons name="camera-outline" size={22} color={colors.primary} />
               </TouchableOpacity>

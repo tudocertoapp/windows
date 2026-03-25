@@ -566,7 +566,7 @@ export function DinheiroScreen({ route }) {
         deferFinancePrompt
         inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
         onManageCards={() => setShowCardPicker(true)}
-        onCalculadora={openCalculadoraFull}
+        onCalculadora={useWebLayout ? openCalculadoraFull : undefined}
         onChat={openMeusGastos}
         onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
       />

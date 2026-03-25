@@ -8,7 +8,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
-import { useIsDesktopLayout } from '../utils/platformLayout';
+import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 
 // Cache da frase: muda só 1x por dia ou quando o usuário sai e volta ao app
 let headerPromptCache = { prompt: null, dateKey: null };
@@ -72,6 +72,7 @@ export function TopBar({
   const isDesktopLayout = useIsDesktopLayout();
   const isHome = title === 'Início' || useLogoImage;
   const isWeb = Platform.OS === 'web';
+  const isWebDesktop = isWeb && isDesktopLayout;
   const showSlideMenu = !hideMenu && (Platform.OS !== 'web' || !isDesktopLayout);
   const showHomeAvatar = !isWeb || !isDesktopLayout;
   const appStateRef = useRef(AppState.currentState);
@@ -111,16 +112,7 @@ export function TopBar({
   }, [isHome, isFocused]);
 
   const Bar = (
-    <View style={[topBarStyles.bar, { backgroundColor: colors.bg }]}>
-      {showSlideMenu && (
-        <TouchableOpacity
-          style={{ padding: 8, marginRight: 4 }}
-          onPress={() => { playTapSound(); openMenu?.(); }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="menu" size={24} color={colors.primary} />
-        </TouchableOpacity>
-      )}
+    <View style={[topBarStyles.bar, { backgroundColor: colors.bg, paddingHorizontal: isWebDesktop ? scaleWebDesktop(16, true) : 16, paddingVertical: isWebDesktop ? scaleWebDesktop(10, true) : 12 }]}>
       <View style={[styles.logoRow, { flex: 1 }]}>
         {isHome ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
@@ -139,13 +131,13 @@ export function TopBar({
               </Text>
               {deferFinancePrompt && headerDate ? (
                 <Text
-                  style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
+                  style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(10, true) : 11, fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
                   numberOfLines={2}
                 >
                   {headerDate}
                 </Text>
               ) : !deferFinancePrompt ? (
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
+                <Text style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(13, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
                   {homePrompt}
                 </Text>
               ) : null}
@@ -202,6 +194,16 @@ export function TopBar({
             <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
+        {showSlideMenu && (
+          <TouchableOpacity
+            style={{ padding: 8, backgroundColor: 'transparent' }}
+            onPress={() => { playTapSound(); openMenu?.(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Menu"
+          >
+            <Ionicons name="menu" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

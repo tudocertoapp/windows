@@ -220,7 +220,8 @@ const GlassTabBar = memo(function GlassTabBar(props) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: Platform.OS === 'web' ? 12 : 20,
+    // Descer 10px no mobile e web mobile
+    bottom: Platform.OS === 'web' ? 2 : 10,
     left: 16,
     right: 16,
     alignItems: 'center',

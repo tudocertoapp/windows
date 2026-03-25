@@ -82,21 +82,24 @@ export function CalculatorScreenPro({
   }, [onHistoryChange]);
 
   const isWeb = Platform.OS === 'web';
-  const calcViewportW = isWeb ? Math.min(screenW, 460) : SW;
+  const calcViewportW = isWeb ? screenW : SW;
   const calcViewportH = isWeb ? screenH : SH;
   const scale = compact ? 0.65 : 1;
   const SIDE_PAD = compact ? 8 : (isWeb ? 16 : Math.max(16, Math.min(24, SW * 0.04)));
   const BOTTOM_PAD = Math.max(20, Math.min(32, calcViewportH * 0.03));
-  const DISPLAY_PAD_BOTTOM = compact ? 12 : (isWeb ? 14 : Math.max(20, SH * 0.02));
-  const PAD_TOP_MARGIN = compact ? 14 : (isWeb ? 12 : Math.max(18, calcViewportH * 0.02));
+  const DISPLAY_PAD_BOTTOM = compact ? 16 : (isWeb ? 14 : Math.max(20, SH * 0.02));
+  const PAD_TOP_MARGIN = compact ? 22 : (isWeb ? 12 : Math.max(18, calcViewportH * 0.02));
   const BTN_GAP = compact ? 6 : (isWeb ? 8 : Math.max(9, Math.min(12, SW * 0.03)));
   const BTN_SIZE = compact
     ? Math.round(52 * scale)
     : Math.round(
         isWeb
-          ? Math.min(72, (calcViewportW - SIDE_PAD * 2 - BTN_GAP * 3) / 4)
+          ? Math.min(96, (calcViewportW - SIDE_PAD * 2 - BTN_GAP * 3) / 4)
           : (SW - SIDE_PAD * 2 - BTN_GAP * 3) / 4
       );
+  // Antes usávamos um "gutter" grande para evitar sobreposição com botões do topo.
+  // Agora os visores ficam abaixo do cabeçalho no compact, então não precisa empurrar o texto pra esquerda.
+  const HEADER_RIGHT_GUTTER = 0;
 
   const isOperator = (char: string) => ['+', '-', '*', '/'].includes(char);
 
@@ -237,6 +240,23 @@ export function CalculatorScreenPro({
 
   const displayExpr = expression || '0';
   const displayResult = result ?? '';
+  const sumLineText = React.useMemo(() => {
+    const raw = String(displayExpr || '').trim();
+    // Sempre visível: mostra a expressão (mesmo sem operador)
+    return (raw || '0').replace(/\*/g, '×').replace(/\//g, '÷');
+  }, [displayExpr]);
+  const topValueText = React.useMemo(() => {
+    if (lastWasEquals && (displayResult || lastEqualsResultRef.current) && (displayResult || lastEqualsResultRef.current) !== CALC_ERROR) {
+      return String(displayResult || lastEqualsResultRef.current);
+    }
+    const raw = String(displayExpr || '').trim();
+    if (!raw) return '0';
+    // Se a expressão termina com operador, mantém o último número visível no visor
+    const stripped = raw.replace(/[+\-*/%\s.,]+$/g, '');
+    const source = stripped.length ? stripped : raw;
+    const lastNum = source.match(/-?\d+(?:[.,]\d*)?$/)?.[0];
+    return lastNum && lastNum.length ? lastNum : '0';
+  }, [displayExpr, displayResult, lastWasEquals]);
 
   const isDark = colors.text === '#f9fafb';
   const numBtn = isDark ? DARK_STYLE.numBtn : colors.card;
@@ -280,51 +300,57 @@ export function CalculatorScreenPro({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: compact ? 8 : SIDE_PAD, maxWidth: isWeb ? 460 : undefined, alignSelf: isWeb ? 'center' : 'auto', width: '100%' }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.bg,
+          paddingHorizontal: compact ? 8 : SIDE_PAD,
+          maxWidth: isWeb ? (compact ? 460 : undefined) : undefined,
+          alignSelf: isWeb ? (compact ? 'center' : 'stretch') : 'auto',
+          width: '100%',
+        },
+      ]}
+    >
       <View style={[styles.headerBtnsWrap, { pointerEvents: 'box-none' }]}>
-        {isModal && onClose && (
-          <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={styles.closeBtn} hitSlop={18} activeOpacity={0.7}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-        )}
-        {(onExpand || onMinimize) && (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
-            onPress={() => { playTapSound(); compact ? onExpand?.() : onMinimize?.(); }}
-            style={styles.modeBtn}
+            onPress={() => { playTapSound(); setShowHistoryModal(true); }}
+            style={styles.historyBtn}
             hitSlop={18}
             activeOpacity={0.7}
+            accessibilityLabel="Histórico"
           >
-            <Ionicons name={compact ? 'expand' : 'contract'} size={24} color={colors.textSecondary} />
+            <Ionicons name="time-outline" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          onPress={() => { playTapSound(); setShowHistoryModal(true); }}
-          style={styles.historyBtn}
-          hitSlop={18}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="time-outline" size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {(onExpand || onMinimize) && (
+            <TouchableOpacity
+              onPress={() => { playTapSound(); compact ? onExpand?.() : onMinimize?.(); }}
+              style={styles.modeBtn}
+              hitSlop={18}
+              activeOpacity={0.7}
+              accessibilityLabel={compact ? 'Tela cheia' : 'Minimizar'}
+            >
+              <Ionicons name={compact ? 'expand' : 'contract'} size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          {isModal && onClose && (
+            <TouchableOpacity
+              onPress={() => { playTapSound(); onClose(); }}
+              style={styles.closeBtn}
+              hitSlop={18}
+              activeOpacity={0.7}
+              accessibilityLabel="Fechar"
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {compact ? (
-        <View style={styles.compactResultWrap}>
-          <Text
-            style={[
-              styles.compactResultValue,
-              { color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {displayResult
-              ? (showCurrency && displayResult !== CALC_ERROR && !isNaN(Number(displayResult))
-                  ? formatCurrency(Number(displayResult))
-                  : displayResult)
-              : '0'}
-          </Text>
-        </View>
-      ) : (
+      {!compact && (
         <View style={styles.logoWrap}>
           <Image
             source={logoImage}
@@ -337,33 +363,40 @@ export function CalculatorScreenPro({
       <View style={[
         styles.displayWrap,
         {
-          paddingTop: compact ? 12 : (isWeb ? 10 : 20),
+          paddingTop: compact ? 8 : (isWeb ? 10 : 20),
           paddingBottom: DISPLAY_PAD_BOTTOM,
           marginBottom: PAD_TOP_MARGIN,
-          minHeight: compact ? 60 : (isWeb ? 70 : Math.max(90, SH * 0.12)),
+          minHeight: compact ? 74 : (isWeb ? 104 : Math.max(110, SH * 0.14)),
+          paddingRight: undefined,
+          marginTop: compact ? 48 : undefined,
         },
       ]}>
-        <Text style={[styles.expression, { fontSize: compact ? 18 : (isWeb ? 18 : 24), color: colors.textSecondary }]} numberOfLines={2}>
-          {displayExpr.replace(/\*/g, '×').replace(/\//g, '÷')}
+        <Text
+          style={[
+            compact ? styles.compactSumLine : styles.bigSumLine,
+            { color: colors.textSecondary },
+          ]}
+          numberOfLines={1}
+          ellipsizeMode="head"
+        >
+          {sumLineText}
         </Text>
-        {displayResult && !compact && (
-          <Text
-            style={[
-              styles.result,
-              { fontSize: compact ? 28 : (isWeb ? 28 : Math.min(42, Math.max(32, calcViewportW * 0.09))), color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {showCurrency && displayResult !== CALC_ERROR && !isNaN(Number(displayResult))
-              ? formatCurrency(Number(displayResult))
-              : displayResult}
-          </Text>
-        )}
+        <Text
+          style={[
+            compact ? styles.compactTopValue : styles.bigTopValue,
+            { color: displayResult === CALC_ERROR ? '#ef4444' : colors.text },
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {(showCurrency && topValueText !== CALC_ERROR && !isNaN(Number(topValueText)))
+            ? formatCurrency(Number(topValueText))
+            : topValueText}
+        </Text>
       </View>
 
       <View style={[styles.pad, !compact && { paddingBottom: BOTTOM_PAD }]}>
-        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP }]}>
+        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
           <Btn label="AC" onPress={handleClear} type="func" />
           <Btn label="%" onPress={handlePercent} type="func" />
           <Btn label="÷" onPress={() => handlePress('/')} type="func" />
@@ -383,25 +416,25 @@ export function CalculatorScreenPro({
             <Ionicons name="backspace-outline" size={compact ? 18 : 22} color="#fff" />
           </TouchableOpacity>
         </View>
-        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP }]}>
+        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
           <Btn label="7" onPress={() => handlePress('7')} />
           <Btn label="8" onPress={() => handlePress('8')} />
           <Btn label="9" onPress={() => handlePress('9')} />
           <Btn label="×" onPress={() => handlePress('*')} type="op" />
         </View>
-        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP }]}>
+        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
           <Btn label="4" onPress={() => handlePress('4')} />
           <Btn label="5" onPress={() => handlePress('5')} />
           <Btn label="6" onPress={() => handlePress('6')} />
           <Btn label="-" onPress={() => handlePress('-')} type="op" />
         </View>
-        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP }]}>
+        <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
           <Btn label="1" onPress={() => handlePress('1')} />
           <Btn label="2" onPress={() => handlePress('2')} />
           <Btn label="3" onPress={() => handlePress('3')} />
           <Btn label="+" onPress={() => handlePress('+')} type="op" />
         </View>
-        <View style={[styles.row, { gap: BTN_GAP }]}>
+        <View style={[styles.row, { gap: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
           <Btn label="+/-" onPress={handlePlusMinus} type="func" />
           <Btn label="0" onPress={() => handlePress('0')} />
           <Btn label="," onPress={() => handlePress(',')} />
@@ -454,16 +487,18 @@ export function CalculatorScreenPro({
 
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: 'hidden' },
-  headerBtnsWrap: { position: 'absolute', top: 0, left: 0, right: 0, height: 52, zIndex: 1000, elevation: 1000, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, paddingRight: 12, paddingTop: 8 },
+  headerBtnsWrap: { position: 'absolute', top: 0, left: 0, right: 0, height: 52, zIndex: 1000, elevation: 1000, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8 },
   closeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   modeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   historyBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 56, marginBottom: 16 },
   logo: { width: 170, height: 170 },
   logoCompact: { width: 96, height: 96 },
-  compactResultWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 54, marginBottom: 12, minHeight: 40, flexShrink: 0, position: 'relative', zIndex: 10, elevation: 10 },
-  compactResultValue: { fontSize: 28, fontWeight: '700', maxWidth: 180 },
-  displayWrap: { paddingHorizontal: 16, flexShrink: 0, position: 'relative', zIndex: 10, elevation: 10 },
+  displayWrap: { paddingHorizontal: 16, flexShrink: 0, position: 'relative', zIndex: 10, elevation: 10, alignItems: 'flex-end' },
+  compactSumLine: { fontSize: 10, fontWeight: '500', textAlign: 'right', width: '100%', marginBottom: 1, marginTop: -2 },
+  compactTopValue: { fontSize: 22, fontWeight: '500', textAlign: 'right', width: '100%' },
+  bigSumLine: { fontSize: 16, fontWeight: '600', textAlign: 'right', alignSelf: 'flex-end', marginBottom: 6, marginTop: -2 },
+  bigTopValue: { fontSize: 52, fontWeight: '300', textAlign: 'right', alignSelf: 'flex-end' },
   expression: { color: 'rgba(255,255,255,0.7)', textAlign: 'right' },
   result: { marginTop: 10, fontWeight: '300', textAlign: 'right' },
   pad: { flex: 1, paddingTop: 8, paddingBottom: 20, justifyContent: 'flex-end', zIndex: 0 },

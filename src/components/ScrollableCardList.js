@@ -44,11 +44,35 @@ export function ScrollableCardList({
 
   return (
     <View>
-      <View style={[s.container, { flexDirection: 'row', height: (showStrip || fixedVisibleHeight) ? VISIBLE_HEIGHT : undefined, maxHeight: (showStrip || fixedVisibleHeight) ? VISIBLE_HEIGHT : undefined }]}>
+      {/*
+        fixedVisibleHeight:
+        - false: altura natural
+        - true: trava em VISIBLE_HEIGHT (comportamento antigo)
+        - 'fill': ocupa a altura disponível do pai (usado no grid do web desktop)
+      */}
+      <View
+        style={[
+          s.container,
+          {
+            flexDirection: 'row',
+            ...(fixedVisibleHeight === true || showStrip
+              ? { height: VISIBLE_HEIGHT, maxHeight: VISIBLE_HEIGHT }
+              : fixedVisibleHeight === 'fill'
+                ? { flex: 1, minHeight: 0 }
+                : null),
+          },
+        ]}
+      >
         <ScrollView
           ref={scrollRef}
           scrollEnabled={showStrip}
-          style={(showStrip || fixedVisibleHeight) ? { height: VISIBLE_HEIGHT, flex: 1 } : { flex: 1 }}
+          style={
+            (showStrip || fixedVisibleHeight === true)
+              ? { height: VISIBLE_HEIGHT, flex: 1 }
+              : fixedVisibleHeight === 'fill'
+                ? { flex: 1, minHeight: 0 }
+                : { flex: 1 }
+          }
           showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
@@ -87,7 +111,7 @@ export function ScrollableCardList({
           </View>
         )}
       </View>
-      {items.length > MAX_VISIBLE && onVerMais && (
+      {items.length > MAX_VISIBLE && onVerMais && fixedVisibleHeight !== 'fill' && (
         <TouchableOpacity
           onPress={onVerMais}
           style={[s.verMaisBtn, { backgroundColor: (accentColor || colors.primary) + '26', borderColor: (accentColor || colors.primary) + '50' }]}

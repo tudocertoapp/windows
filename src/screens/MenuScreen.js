@@ -11,6 +11,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 import { Image } from 'react-native';
+import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 
 const logoImage = require('../../assets/logo.png');
 
@@ -44,8 +45,11 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   const [menuContaDropdownOpen, setMenuContaDropdownOpen] = useState(false);
   const isModal = Boolean(onClose);
   const isWeb = typeof window !== 'undefined';
+  const isDesktopLayout = useIsDesktopLayout();
+  const isWebDesktop = isWeb && isDesktopLayout;
   const isCompact = compact ?? (isWeb && !isModal);
-  const isWebDesktop = isWeb && (typeof window !== 'undefined' ? window.innerWidth >= 900 : false);
+  const compactFont = (n) => scaleWebDesktop(n, isWebDesktop);
+  const webDesktopTight = isWebDesktop && isCompact;
 
   useEffect(() => {
     setPhotoError(false);
@@ -77,13 +81,13 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   };
 
   const MenuItem = ({ icon, label, subtitle, onPress, badge, rightEl }) => (
-    <TouchableOpacity style={[ms.menuItem, { borderBottomColor: colors.border, paddingHorizontal: isCompact ? 12 : 16, paddingVertical: isCompact ? 10 : 14, gap: isCompact ? 10 : 12 }]} onPress={onPress || comingSoon} activeOpacity={0.6}>
+    <TouchableOpacity style={[ms.menuItem, { borderBottomColor: colors.border, paddingHorizontal: isCompact ? 10 : 16, paddingVertical: isCompact ? 9 : 14, gap: isCompact ? 8 : 12 }]} onPress={onPress || comingSoon} activeOpacity={0.6}>
       <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: isCompact ? 30 : 36, height: isCompact ? 30 : 36, borderRadius: isCompact ? 8 : 10 }]}>
         <AppIcon name={icon} size={isCompact ? 18 : 22} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 13 : 14 }]}>{label}</Text>
-        {subtitle && <Text style={[ms.menuSub, { color: colors.textSecondary, fontSize: isCompact ? 10 : 11, marginTop: isCompact ? 1 : 2 }]}>{subtitle}</Text>}
+        <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 12 : compactFont(14) }]} numberOfLines={1}>{label}</Text>
+        {subtitle && <Text style={[ms.menuSub, { color: colors.textSecondary, fontSize: isCompact ? 9 : compactFont(11), marginTop: 1 }]} numberOfLines={1}>{subtitle}</Text>}
       </View>
       {badge && (
         <View style={[ms.badge, { backgroundColor: colors.primaryRgba(0.2) }]}>
@@ -105,13 +109,13 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         </View>
       )}
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[ms.logoHeader, { backgroundColor: colors.bg, borderBottomColor: colors.border, paddingVertical: isCompact ? 14 : 24, paddingTop: isCompact ? 20 : 36 }]}>
-          <Image source={logoImage} style={[ms.logoLarge, { width: isCompact ? 64 : 96, height: isCompact ? 64 : 96 }]} resizeMode="contain" />
+        <View style={[ms.logoHeader, { backgroundColor: colors.bg, borderBottomColor: colors.border, paddingVertical: isCompact ? 12 : 24, paddingTop: isCompact ? 14 : 36 }]}>
+          <Image source={logoImage} style={[ms.logoLarge, { width: isCompact ? 52 : 96, height: isCompact ? 52 : 96 }]} resizeMode="contain" />
           {!isCompact && (
-            <Text style={[ms.appTitle, { color: '#22c55e', fontSize: isCompact ? 20 : 26, marginTop: isCompact ? 2 : 6 }]}>Tudo Certo</Text>
+            <Text style={[ms.appTitle, { color: '#22c55e', fontSize: isCompact ? 20 : compactFont(26), marginTop: isCompact ? 2 : 6 }]}>Tudo Certo</Text>
           )}
         </View>
-        <TouchableOpacity style={[ms.profileSection, { backgroundColor: colors.card, borderBottomColor: colors.border, padding: isCompact ? 12 : 20, gap: isCompact ? 10 : 16 }]} onPress={onOpenPerfil || comingSoon} activeOpacity={0.7}>
+        <TouchableOpacity style={[ms.profileSection, { backgroundColor: colors.card, borderBottomColor: colors.border, padding: isCompact ? 10 : 20, gap: isCompact ? 8 : 16 }]} onPress={onOpenPerfil || comingSoon} activeOpacity={0.7}>
           <View style={[ms.avatar, { backgroundColor: colors.primary, overflow: 'hidden', width: isCompact ? 42 : 56, height: isCompact ? 42 : 56, borderRadius: isCompact ? 21 : 28 }]}>
             {profile?.foto && !photoError ? (
               <Image
@@ -125,24 +129,30 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[ms.profileName, { color: colors.text, fontSize: isCompact ? 15 : 18 }]}>{profile?.nome || 'Meu Perfil'}</Text>
-            <Text style={[ms.profileSub, { color: colors.textSecondary, fontSize: isCompact ? 11 : 13, marginTop: isCompact ? 1 : 2 }]}>Gerencie sua conta</Text>
+            <Text style={[ms.profileName, { color: colors.text, fontSize: isCompact ? 13 : 18 }]} numberOfLines={1}>{profile?.nome || 'Meu Perfil'}</Text>
+            {!webDesktopTight && (
+              <Text style={[ms.profileSub, { color: colors.textSecondary, fontSize: isCompact ? 10 : 13, marginTop: 1 }]} numberOfLines={1}>
+                Gerencie sua conta
+              </Text>
+            )}
             <TouchableOpacity
               onPress={(e) => { e?.stopPropagation?.(); playTapSound(); onOpenAssinatura?.(); }}
               style={{ flexDirection: 'row', alignItems: 'center', marginTop: isCompact ? 4 : 8, gap: 4 }}
               activeOpacity={0.7}
             >
               <Ionicons name="rocket-outline" size={isCompact ? 12 : 14} color={colors.primary} />
-              <Text style={{ fontSize: isCompact ? 11 : 12, fontWeight: '600', color: colors.primary }}>{planLabel || 'Plano Básico'}</Text>
+              <Text style={{ fontSize: isCompact ? 10 : 12, fontWeight: '600', color: colors.primary }} numberOfLines={1}>
+                {planLabel || 'Plano Básico'}
+              </Text>
               <Ionicons name="chevron-forward" size={12} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>NAVEGAÇÃO</Text>
-        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="home-outline" label="Início" subtitle="Painel principal" onPress={() => goTo('Início')} />
-          <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />
-          <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />
+        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 12 : 20, paddingTop: isCompact ? 10 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 9 : 11 } ]}>NAVEGAÇÃO</Text>
+        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 8 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+          {!isWebDesktop && <MenuItem icon="home-outline" label="Início" subtitle="Painel principal" onPress={() => goTo('Início')} />}
+          {!isWebDesktop && <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />}
+          {!isWebDesktop && <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />}
         </GlassCard>
         {showEmpresaFeatures && (
           <>
@@ -198,6 +208,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
           {menuContaDropdownOpen && (
             <>
               <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
+              <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
               <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
               <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
               <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
@@ -208,16 +219,11 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>FINANCEIRO</Text>
         <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
           <MenuItem icon="cash-outline" label="Meu Orçamento" subtitle="Limite de gastos por categoria" onPress={onOpenOrcamento || comingSoon} />
-          <MenuItem icon="chatbubbles-outline" label="Meus gastos" subtitle="Conversa por texto, voz e foto" onPress={onOpenMeusGastos || comingSoon} />
           <MenuItem icon="document-text-outline" label="Boletos" subtitle="Gerenciar boletos" badge={`${boletos.length}`} onPress={() => goToCadastro('boletos')} />
         </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>PRODUTIVIDADE</Text>
         <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 10 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          <MenuItem icon="document-text-outline" label="Minhas anotações" subtitle="Notas e lembretes" onPress={onOpenAnotacoes || comingSoon} />
-          <MenuItem icon="cart-outline" label="Lista de compras" subtitle="Anote o que precisa comprar" onPress={onOpenListaCompras || comingSoon} />
-          <MenuItem icon="checkbox-outline" label="Tarefas" subtitle="Gerenciar tarefas" badge={`${checkListItems.length}`} onPress={() => goToCadastro('tarefas')} />
           <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso" onPress={onOpenMetasSonhos || comingSoon} />
         </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>CONTA</Text>

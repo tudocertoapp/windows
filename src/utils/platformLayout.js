@@ -54,3 +54,16 @@ export const isWeb = IS_WEB;
 
 /** No web, useNativeDriver deve ser false (módulo nativo não disponível) */
 export const useNativeDriverSafe = !IS_WEB;
+
+/**
+ * Escala leve para deixar o web desktop mais compacto (mais informação por tela).
+ * Use apenas para tamanhos (font/padding/altura). Mantém proporções sem “quebrar” layout.
+ */
+export const WEB_DESKTOP_SCALE = 0.92;
+
+export function scaleWebDesktop(value, isWebDesktop) {
+  if (!isWebDesktop) return value;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  return Math.round(n * WEB_DESKTOP_SCALE);
+}
