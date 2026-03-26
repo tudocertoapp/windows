@@ -117,6 +117,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const STYLE_ID = 'tc-web-scrollbars-style';
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.type = 'text/css';
+    // Chrome/Edge (WebKit): esconder scrollbar mantendo scroll.
+    // Escopado para a timeline da Agenda (className no ScrollView).
+    style.appendChild(document.createTextNode(`
+      .tc-agenda-timeline-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
+      .tc-agenda-timeline-scroll::-webkit-scrollbar-thumb { background: transparent; }
+      .tc-agenda-timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+    `));
+    document.head.appendChild(style);
+  }, []);
+
+  useEffect(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const h = (e) => {
         console.error('[App] Uncaught error:', e?.error || e?.message || e);

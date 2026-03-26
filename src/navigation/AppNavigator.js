@@ -83,6 +83,7 @@ function WebMobileTabBarDock(props) {
 export function AppNavigator() {
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
+  const isWebDesktop = isWeb && isDesktopLayout;
   const isWebMobile = isWeb && !isDesktopLayout;
   const isNativeMobile = !isWeb && !isDesktopLayout;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -175,9 +176,18 @@ export function AppNavigator() {
         setMenuModalOpen(false);
         navigationRef.current?.navigate('Início', { openCardPicker: true });
       },
-      openCalculadoraFull: () => { setCalculadoraFloating(false); setCalculadoraModal(true); },
+      openCalculadoraFull: () => {
+        // No web desktop preferimos manter apenas a calculadora compacta (overlay).
+        if (isWebDesktop) {
+          setCalculadoraModal(false);
+          setCalculadoraFloating(true);
+          return;
+        }
+        setCalculadoraFloating(false);
+        setCalculadoraModal(true);
+      },
     }),
-    [isDesktopLayout]
+    [isDesktopLayout, isWebDesktop]
   );
 
   return (
@@ -615,7 +625,7 @@ export function AppNavigator() {
       <FloatingCalculatorOverlay
         visible={calculadoraFloating}
         onClose={() => setCalculadoraFloating(false)}
-        onExpand={() => { setCalculadoraFloating(false); setCalculadoraModal(true); }}
+        onExpand={isWebDesktop ? undefined : () => { setCalculadoraFloating(false); setCalculadoraModal(true); }}
         expression={calculatorExpression}
         result={calculatorResult}
         history={calculatorHistory}

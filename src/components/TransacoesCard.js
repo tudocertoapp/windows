@@ -13,8 +13,31 @@ const s = StyleSheet.create({
   txIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   txDesc: { fontSize: 14, fontWeight: '500' },
   txCat: { fontSize: 11, marginTop: 2 },
+  txWhen: { fontSize: 10, marginTop: 2 },
   txAmount: { fontSize: 14, fontWeight: '600' },
 });
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+/** Data/hora do registro (createdAt) ou só a data da transação (campo date). */
+export function formatTransactionDateTime(tx) {
+  if (tx?.createdAt) {
+    const d = new Date(tx.createdAt);
+    if (!Number.isNaN(d.getTime())) {
+      return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+  }
+  const raw = tx?.date;
+  if (raw == null || raw === '') return '';
+  const str = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const [y, m, day] = str.split(/[-T]/);
+    return `${day}/${m}/${y}`;
+  }
+  return str;
+}
 
 export function TransacoesCard({ transactions, formatCurrency, mask, colors, iconColor, title = 'Últimas transações', subtitle = 'Receitas e despesas recentes', onVerMais, onEdit, onDelete, deleteLabel = 'Excluir', deleteMessage = 'Excluir esta transação? O valor será devolvido ao saldo.', playTapSound }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
@@ -46,14 +69,21 @@ export function TransacoesCard({ transactions, formatCurrency, mask, colors, ico
         accentColor={primary}
         emptyText="Nenhuma transação"
         itemMarginBottom={0}
-        renderItem={(tx) => (
+        renderItem={(tx) => {
+          const whenLabel = formatTransactionDateTime(tx);
+          return (
         <View style={[s.txItem, { borderBottomColor: colors.border }]}>
           <View style={[s.txIcon]}>
             <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? (iconColor || primary) : '#ef4444'} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[s.txDesc, { color: colors.text }]} numberOfLines={1}>{tx.description}</Text>
-            <Text style={[s.txCat, { color: colors.textSecondary }]}>{tx.category}</Text>
+            <Text style={[s.txCat, { color: colors.textSecondary }]} numberOfLines={1}>{tx.category}</Text>
+            {whenLabel ? (
+              <Text style={[s.txWhen, { color: colors.textSecondary }]} numberOfLines={1}>
+                {whenLabel}
+              </Text>
+            ) : null}
           </View>
           <Text style={[s.txAmount, { color: tx.type === 'income' ? (iconColor || primary) : '#ef4444' }]}>
             {tx.type === 'income' ? '+' : '-'}
@@ -73,7 +103,8 @@ export function TransacoesCard({ transactions, formatCurrency, mask, colors, ico
             </TouchableOpacity>
           )}
         </View>
-      )}
+          );
+        }}
       />
     </GlassCard>
   );

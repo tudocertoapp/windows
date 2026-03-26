@@ -159,6 +159,8 @@ export function DashboardScreen() {
   const [quoteType, setQuoteType] = useState('motivacional');
   const carouselRef = useRef(null);
   const [carouselIndex, setCarouselIndex] = useState(0); // display index 0..count-1
+  // Web desktop: mede altura real do card "Agenda" para manter simetria no grid.
+  const [webAgendaCardHeight, setWebAgendaCardHeight] = useState(0);
   const { width: winWidth } = useWindowDimensions();
   const isWebMobile = isWeb && !useWebLayout;
   const cardShadowStyle = isWeb
@@ -737,7 +739,9 @@ export function DashboardScreen() {
       key={title}
       onPress={() => navigation?.navigate?.('Agenda')}
       activeOpacity={0.9}
-      style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
+      // No web desktop o layout (grid/colunas) já controla espaçamento.
+      // Margens externas aqui fazem o card "vazar" do container com altura fixa e parecer cortado.
+      style={{ marginHorizontal: useWebLayout ? 0 : WEB_CARD_MARGIN_H, marginTop: useWebLayout ? 0 : WEB_CARD_MARGIN_TOP }}
     >
       <GlassCard
         colors={colors}
@@ -784,7 +788,7 @@ export function DashboardScreen() {
         key="proximos"
         onPress={() => navigation?.navigate?.('Agenda')}
         activeOpacity={0.9}
-        style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
+        style={{ marginHorizontal: useWebLayout ? 0 : WEB_CARD_MARGIN_H, marginTop: useWebLayout ? 0 : WEB_CARD_MARGIN_TOP }}
       >
         <GlassCard
           colors={colors}
@@ -955,8 +959,21 @@ export function DashboardScreen() {
       )
     ),
     agenda: !useWebLayout ? null : (
-      <View key="agenda" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
-        <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
+      <View
+        key="agenda"
+        style={{ marginHorizontal: 0, marginTop: 0 }}
+        onLayout={(e) => {
+          // Medimos aqui porque o componente GlassCard pode não repassar onLayout no RN-web.
+          const h = e?.nativeEvent?.layout?.height;
+          if (typeof h === 'number' && h > 0) setWebAgendaCardHeight(h);
+        }}
+      >
+        <GlassCard
+          colors={colors}
+          solid
+          style={[ds.card, { padding: WEB_CARD_PADDING }]}
+          contentStyle={{ padding: WEB_CARD_PADDING }}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 10 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
@@ -1981,23 +1998,31 @@ export function DashboardScreen() {
                   {/* Grid 2x2: direita (Agenda) ocupa 2 espaços; esquerda: Atendimentos + Tarefas empilhados */}
                   {(() => {
                     // Padroniza alinhamento/altura/spacing entre os cards no grid do web.
+                    // Gap pequeno, mesmo “peso” do espaçamento lateral (4 + 4).
                     const GAP = 8;
                     const baseH = (TRIO_CARD_HEIGHT || 250);
                     const GRID_H = baseH * 2 + GAP;
-                    const LEFT_ITEM_H = (GRID_H - GAP) / 2;
+                    // Regra pedida: (alturaAgenda - GAP) / 2.
+                    // Se ainda não mediu, usa fallback estável pelo TRIO_CARD_HEIGHT.
+                    const agendaH = Number(webAgendaCardHeight) || 0;
+                    const STACK_H = agendaH > 0 ? agendaH : GRID_H;
+                    const LEFT_ITEM_H = Math.max(140, (STACK_H - GAP) / 2);
                     return (
                       <View style={{ flexDirection: 'row', alignItems: 'stretch', marginTop: 4 }}>
-                        <View style={{ width: '40%', paddingRight: 4 }}>
-                          <View style={{ height: LEFT_ITEM_H, marginBottom: GAP }}>
-                            {sectionMap.agendamentos}
-                          </View>
-                          <View style={{ height: LEFT_ITEM_H }}>
-                            {sectionMap.proximos}
+                        <View style={{ width: '40%', paddingRight: 4, height: STACK_H }}>
+                          <View style={{ flex: 1, justifyContent: 'flex-start' }}>
+                            <View style={{ height: LEFT_ITEM_H, marginBottom: GAP }}>
+                              {sectionMap.agendamentos}
+                            </View>
+                            <View style={{ height: LEFT_ITEM_H }}>
+                              {sectionMap.proximos}
+                            </View>
                           </View>
                         </View>
                         <View style={{ width: '60%', paddingLeft: 4 }}>
-                          {/* Garante que o card Agenda não "vaze" e sobreponha cards abaixo */}
-                          <View style={{ height: GRID_H, overflow: 'hidden' }}>
+                          {/* No web/desktop, altura fixa + overflow hidden recorta o card em alguns tamanhos de janela.
+                              Preferimos deixar crescer quando necessário para nunca cortar conteúdo. */}
+                          <View style={{ minHeight: GRID_H }}>
                             {sectionMap.agenda}
                           </View>
                         </View>

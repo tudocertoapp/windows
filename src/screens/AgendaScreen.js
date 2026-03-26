@@ -781,6 +781,8 @@ export function AgendaScreen() {
     return Object.entries(byName).map(([name, events]) => ({ name, events, count: events.length })).sort((a, b) => b.count - a.count);
   }, [agendaEvents, searchQuery, clients]);
 
+  const webEventBlockTight = Platform.OS === 'web';
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <View style={{ flex: 1, paddingTop: insets.top || 0 }}>
@@ -901,11 +903,23 @@ export function AgendaScreen() {
         >
         <AnimatedScrollView
           ref={mainScrollRef}
-          style={{ flex: 1, backgroundColor: colors.bg }}
+          // RN Web: usamos className para CSS global (Chrome/Edge) esconder scrollbar
+          className={Platform.OS === 'web' ? 'tc-agenda-timeline-scroll' : undefined}
+          style={[
+            { flex: 1, backgroundColor: colors.bg },
+            Platform.OS === 'web'
+              ? {
+                  // Web: esconder scrollbar sem perder scroll (wheel/trackpad/touch).
+                  // Firefox/Edge legado
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                }
+              : null,
+          ]}
           scrollEnabled={!isPinching}
           onScroll={onTimelineScroll}
           scrollEventThrottle={1}
-          showsVerticalScrollIndicator
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20, backgroundColor: colors.bg }}
           removeClippedSubviews={false}
         >
@@ -1053,7 +1067,10 @@ export function AgendaScreen() {
                         width: `${shouldSplitByFirstHour ? hourSlotWidth : (isLongEvent ? longEventWidth : width)}%`,
                         top: `${rowTop}%`,
                         height: `${rowHeight}%`,
-                        minHeight: 80,
+                        minHeight: webEventBlockTight ? 58 : 80,
+                        paddingVertical: webEventBlockTight ? 6 : 8,
+                        paddingHorizontal: webEventBlockTight ? 8 : 8,
+                        paddingRight: webEventBlockTight ? 40 : 44,
                         overflow: 'hidden',
                         borderLeftColor: isConcluido ? colors.textSecondary : colors.primary,
                         transform: transformPx ? [{ translateX: transformPx }] : undefined,
@@ -1067,6 +1084,7 @@ export function AgendaScreen() {
                         style={[
                           StyleSheet.absoluteFill,
                           {
+                            borderRadius: 10,
                             backgroundColor: isLongEvent
                               ? (isConcluido ? colors.primaryRgba(0.45) : colors.primaryRgba(0.55))
                               : (isConcluido ? colors.primaryRgba(0.40) : colors.primaryRgba(0.50)),
@@ -1079,12 +1097,13 @@ export function AgendaScreen() {
                         <BlurView
                           intensity={Platform.OS === 'ios' ? 60 : 50}
                           tint={isDarkBg ? 'dark' : 'light'}
-                          style={StyleSheet.absoluteFill}
+                          style={[StyleSheet.absoluteFill, { borderRadius: 10 }]}
                         />
                         <View
                           style={[
                             StyleSheet.absoluteFill,
                             {
+                              borderRadius: 10,
                               backgroundColor: isLongEvent
                                 ? (isConcluido ? colors.primaryRgba(0.45) : colors.primaryRgba(0.55))
                                 : (isConcluido ? colors.primaryRgba(0.40) : colors.primaryRgba(0.50)),

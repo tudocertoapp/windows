@@ -141,7 +141,7 @@ export function FloatingCalculatorOverlay({
           compact
           isModal
           onClose={() => { playTapSound(); onClose?.(); }}
-          onExpand={() => { playTapSound(); onExpand?.(); }}
+          onExpand={onExpand ? () => { playTapSound(); onExpand?.(); } : undefined}
           expression={expression}
           result={result}
           history={history}

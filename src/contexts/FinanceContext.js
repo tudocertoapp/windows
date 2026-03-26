@@ -29,6 +29,7 @@ function toTransaction(r) {
     description: r.description,
     category: r.category,
     date: r.date,
+    createdAt: r.created_at || r.createdAt || null,
     formaPagamento: r.forma_pagamento,
     tipoVenda: r.tipo_venda,
     desconto: Number(r.desconto || 0),
@@ -262,7 +263,7 @@ export function FinanceProvider({ children }) {
 
   const addTransaction = async (t) => {
     if (!user) {
-      const n = { ...t, id: Date.now().toString() };
+      const n = { ...t, id: Date.now().toString(), createdAt: t.createdAt || new Date().toISOString() };
       setTransactions((prev) => [...prev, n]);
       return;
     }

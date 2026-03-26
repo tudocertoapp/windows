@@ -148,12 +148,16 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-        <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 12 : 20, paddingTop: isCompact ? 10 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 9 : 11 } ]}>NAVEGAÇÃO</Text>
-        <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 8 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-          {!isWebDesktop && <MenuItem icon="home-outline" label="Início" subtitle="Painel principal" onPress={() => goTo('Início')} />}
-          {!isWebDesktop && <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />}
-          {!isWebDesktop && <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />}
-        </GlassCard>
+        {!isWebDesktop && (
+          <>
+            <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 12 : 20, paddingTop: isCompact ? 10 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 9 : 11 } ]}>NAVEGAÇÃO</Text>
+            <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: isCompact ? 8 : 16, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+              <MenuItem icon="home-outline" label="Início" subtitle="Painel principal" onPress={() => goTo('Início')} />
+              <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />
+              <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />
+            </GlassCard>
+          </>
+        )}
         {showEmpresaFeatures && (
           <>
             <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>EMPRESA</Text>

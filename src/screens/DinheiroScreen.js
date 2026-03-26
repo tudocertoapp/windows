@@ -18,7 +18,7 @@ import { ViewModeToggle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
 import { ContasDoMesCard } from '../components/ContasDoMesCard';
 import { ResumoDoMesCard } from '../components/ResumoDoMesCard';
-import { TransacoesCard } from '../components/TransacoesCard';
+import { TransacoesCard, formatTransactionDateTime } from '../components/TransacoesCard';
 import { GastosPorCategoriaCard } from '../components/GastosPorCategoriaCard';
 import { GlassCard } from '../components/GlassCard';
 import { CardHeader } from '../components/CardHeader';
@@ -656,14 +656,19 @@ export function DinheiroScreen({ route }) {
         onClose={() => { playTapSound(); setExpandedCard(null); }}
         title={showEmpresaFeatures && viewMode === 'empresa' ? 'Fluxo de caixa' : 'Últimas transações'}
       >
-        {[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date)).map((tx) => (
+        {[...monthTx].sort((a, b) => new Date(b.date) - new Date(a.date)).map((tx) => {
+          const whenLabel = formatTransactionDateTime(tx);
+          return (
           <View key={tx.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: CARD_ICON_COLORS.transacoes + '26', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name={tx.type === 'income' ? 'trending-up-outline' : 'trending-down-outline'} size={18} color={tx.type === 'income' ? CARD_ICON_COLORS.transacoes : '#ef4444'} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: colors.text }} numberOfLines={1}>{tx.description}</Text>
-              <Text style={{ fontSize: 11, color: colors.textSecondary }}>{tx.category}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{tx.category}</Text>
+              {whenLabel ? (
+                <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{whenLabel}</Text>
+              ) : null}
             </View>
             <Text style={{ fontSize: 14, fontWeight: '600', color: tx.type === 'income' ? CARD_ICON_COLORS.transacoes : '#ef4444' }}>
               {tx.type === 'income' ? '+' : '-'}{mask(fmt(tx.amount))}
@@ -688,7 +693,8 @@ export function DinheiroScreen({ route }) {
               <Ionicons name="trash-outline" size={18} color="#ef4444" />
             </TouchableOpacity>
           </View>
-        ))}
+          );
+        })}
       </CardExpandedModal>
     </SafeAreaView>
   );
