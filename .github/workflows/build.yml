@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch: # Allow manual trigger para testar
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
