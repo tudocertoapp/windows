@@ -21,8 +21,9 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.meuapp.desktop",
-    "productName": "MeuApp",
+    "appId": "com.tudocerto.desktop",
+    "productName": "Tudo Certo - Agenda e Finanças",
+    "artifactName": "TudoCerto-Setup-${version}.${ext}",
     "directories": {
       "output": "dist"
     },
@@ -34,6 +35,12 @@
       "provider": "github",
       "owner": "tudocertoapp",
       "repo": "windows"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "win": {
       "target": "nsis",

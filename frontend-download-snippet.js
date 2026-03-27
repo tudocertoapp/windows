@@ -39,7 +39,7 @@ function getDownloadLink(os) {
     switch (os) {
         case 'Windows':
             return {
-                url: `${baseUrl}/MeuApp-Setup.exe`,
+                url: `${baseUrl}/TudoCerto-Setup-1.0.0.exe`,
                 label: 'Baixar para Windows (.exe)'
             };
         case 'MacOS':

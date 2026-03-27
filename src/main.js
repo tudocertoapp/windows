@@ -8,7 +8,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: 'MeuApp',
+    title: 'Tudo Certo - Agenda e Finanças',
     icon: path.join(__dirname, '../build/icon.png'), // Cross-platform fallback fallback
     webPreferences: {
       nodeIntegration: false,
