@@ -16,6 +16,18 @@ function createWindow() {
     }
   });
 
+  // Start maximized
+  mainWindow.maximize();
+
+  // Allow system permissions (Microphone, Camera, etc)
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (webContents.getURL().includes('tudocerto-web.vercel.app')) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
   // Remove default menu
   Menu.setApplicationMenu(null);
 
