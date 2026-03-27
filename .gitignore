@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-win/
+dist-mac/
+dist-linux/
+build-artifacts-*/
+.DS_Store
+*.log

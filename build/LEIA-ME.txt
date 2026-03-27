@@ -1,0 +1,13 @@
+Este diretório é onde você deve colocar os ícones do seu aplicativo para que o electron-builder os use durante o processo de empacotamento.
+
+Para que seu aplicativo tenha uma logo profissional:
+
+1. Crie uma imagem quadrada de alta resolução da sua logo (recomendado 512x512 pixels).
+2. Converta essa imagem para os seguintes formatos e salve nesta pasta:
+   - `icon.ico` (Para Windows)
+   - `icon.icns` (Para macOS)
+   - `icon.png` (Para Linux)
+
+Você pode usar sites gratuitos como https://iconconverter.com/ ou https://icoconvert.com/ para converter seu PNG para ICO e ICNS.
+
+Lembre-se: Os nomes dos arquivos DEVEM ser exatamente esses (icon.ico, icon.icns, icon.png) caso você não altere a configuração no arquivo `package.json`.
