@@ -23,6 +23,8 @@ interface Props {
   onClose?: () => void;
   isModal?: boolean;
   compact?: boolean;
+  /** Overlay flutuante (web desktop): toques mais rápidos e estilos para precisão */
+  floatingOverlay?: boolean;
   onExpand?: () => void;
   onMinimize?: () => void;
   showCurrency?: boolean;
@@ -38,6 +40,7 @@ export function CalculatorScreenPro({
   onClose,
   isModal,
   compact,
+  floatingOverlay,
   onExpand,
   onMinimize,
   showCurrency = false,
@@ -82,6 +85,11 @@ export function CalculatorScreenPro({
   }, [onHistoryChange]);
 
   const isWeb = Platform.OS === 'web';
+  const webFloating = Boolean(isWeb && compact && floatingOverlay);
+  const webFloatingPadStyle = webFloating && isWeb ? ({ touchAction: 'manipulation' } as object) : undefined;
+  const webFloatingBtnStyle = webFloating && isWeb
+    ? ({ cursor: 'pointer', userSelect: 'none' } as object)
+    : undefined;
   const calcViewportW = isWeb ? screenW : SW;
   const calcViewportH = isWeb ? screenH : SH;
   const scale = compact ? 0.65 : 1;
@@ -281,7 +289,9 @@ export function CalculatorScreenPro({
     return (
       <TouchableOpacity
         onPress={onPress}
-        activeOpacity={0.6}
+        activeOpacity={0.65}
+        delayPressIn={webFloating ? 0 : undefined}
+        hitSlop={webFloating ? { top: 5, bottom: 5, left: 5, right: 5 } : undefined}
         style={[
           styles.btn,
           {
@@ -290,6 +300,7 @@ export function CalculatorScreenPro({
             borderRadius: BTN_SIZE / 2,
             backgroundColor: bg,
           },
+          webFloatingBtnStyle,
         ]}
       >
         <Text style={[styles.btnText, { color: type === 'op' ? '#fff' : btnTextColor(type), fontSize }]}>
@@ -316,8 +327,9 @@ export function CalculatorScreenPro({
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             onPress={() => { playTapSound(); setShowHistoryModal(true); }}
-            style={styles.historyBtn}
-            hitSlop={18}
+            style={[styles.historyBtn, webFloatingBtnStyle]}
+            hitSlop={webFloating ? 14 : 18}
+            delayPressIn={webFloating ? 0 : undefined}
             activeOpacity={0.7}
             accessibilityLabel="Histórico"
           >
@@ -328,8 +340,9 @@ export function CalculatorScreenPro({
           {(onExpand || onMinimize) && (
             <TouchableOpacity
               onPress={() => { playTapSound(); compact ? onExpand?.() : onMinimize?.(); }}
-              style={styles.modeBtn}
-              hitSlop={18}
+              style={[styles.modeBtn, webFloatingBtnStyle]}
+              hitSlop={webFloating ? 14 : 18}
+              delayPressIn={webFloating ? 0 : undefined}
               activeOpacity={0.7}
               accessibilityLabel={compact ? 'Tela cheia' : 'Minimizar'}
             >
@@ -339,8 +352,9 @@ export function CalculatorScreenPro({
           {isModal && onClose && (
             <TouchableOpacity
               onPress={() => { playTapSound(); onClose(); }}
-              style={styles.closeBtn}
-              hitSlop={18}
+              style={[styles.closeBtn, webFloatingBtnStyle]}
+              hitSlop={webFloating ? 14 : 18}
+              delayPressIn={webFloating ? 0 : undefined}
               activeOpacity={0.7}
               accessibilityLabel="Fechar"
             >
@@ -395,14 +409,16 @@ export function CalculatorScreenPro({
         </Text>
       </View>
 
-      <View style={[styles.pad, !compact && { paddingBottom: BOTTOM_PAD }]}>
+      <View style={[styles.pad, !compact && { paddingBottom: BOTTOM_PAD }, webFloatingPadStyle]}>
         <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
           <Btn label="AC" onPress={handleClear} type="func" />
           <Btn label="%" onPress={handlePercent} type="func" />
           <Btn label="÷" onPress={() => handlePress('/')} type="func" />
           <TouchableOpacity
             onPress={handleBackspace}
-            activeOpacity={0.6}
+            activeOpacity={0.65}
+            delayPressIn={webFloating ? 0 : undefined}
+            hitSlop={webFloating ? { top: 5, bottom: 5, left: 5, right: 5 } : undefined}
             style={[
               styles.btn,
               {
@@ -411,6 +427,7 @@ export function CalculatorScreenPro({
                 borderRadius: BTN_SIZE / 2,
                 backgroundColor: opBtn,
               },
+              webFloatingBtnStyle,
             ]}
           >
             <Ionicons name="backspace-outline" size={compact ? 18 : 22} color="#fff" />

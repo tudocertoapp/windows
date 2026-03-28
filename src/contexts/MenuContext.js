@@ -8,6 +8,8 @@ export const MenuContext = createContext({
   openManageCards: () => {},
   openMeusGastos: () => {},
   openReceiptScanner: () => {},
+  openCalculadoraFull: () => {},
+  openMensagensWhatsApp: () => {},
 });
 
 export function useMenu() {

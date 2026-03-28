@@ -20,13 +20,16 @@ export function ScrollableCardList({
   emptyText,
   itemMarginBottom = 4,
   fixedVisibleHeight = false,
+  scrollStartsAt = 6,
 }) {
   const scrollRef = useRef(null);
+  const [fillHeight, setFillHeight] = useState(VISIBLE_HEIGHT);
+  const visibleHeight = fixedVisibleHeight === 'fill' ? fillHeight : VISIBLE_HEIGHT;
   const contentHeight = items.length * (ITEM_HEIGHT_EST + itemMarginBottom);
-  const showStrip = items.length >= 6;
-  const maxScroll = Math.max(0, contentHeight - VISIBLE_HEIGHT);
-  const thumbHeight = maxScroll > 0 ? Math.max(20, (VISIBLE_HEIGHT / contentHeight) * VISIBLE_HEIGHT) : VISIBLE_HEIGHT;
-  const thumbMaxTop = VISIBLE_HEIGHT - thumbHeight;
+  const showStrip = items.length >= Math.max(1, Number(scrollStartsAt) || 6);
+  const maxScroll = Math.max(0, contentHeight - visibleHeight);
+  const thumbHeight = maxScroll > 0 ? Math.max(20, (visibleHeight / contentHeight) * visibleHeight) : visibleHeight;
+  const thumbMaxTop = visibleHeight - thumbHeight;
   const [thumbPos, setThumbPos] = useState(0);
 
   const handleScroll = useCallback(
@@ -62,6 +65,13 @@ export function ScrollableCardList({
                 : null),
           },
         ]}
+        onLayout={(e) => {
+          if (fixedVisibleHeight !== 'fill') return;
+          const h = e?.nativeEvent?.layout?.height;
+          if (typeof h === 'number' && h > 0 && Math.abs(h - fillHeight) > 1) {
+            setFillHeight(h);
+          }
+        }}
       >
         <ScrollView
           ref={scrollRef}
@@ -91,7 +101,7 @@ export function ScrollableCardList({
               s.scrollStrip,
               {
                 width: SCROLL_STRIP_WIDTH,
-                height: VISIBLE_HEIGHT,
+                height: visibleHeight,
                 backgroundColor: colors.border + '25',
                 marginLeft: 8,
               },

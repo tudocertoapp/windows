@@ -1,18 +1,39 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, PanResponder, Dimensions, StyleSheet, Animated, TouchableOpacity, Platform } from 'react-native';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { View, PanResponder, Dimensions, StyleSheet, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { playTapSound } from '../utils/sounds';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../contexts/ThemeContext';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const STORAGE_KEY = '@tudocerto_calc_overlay_pos';
 const OVERLAY_WIDTH = 212;
 const OVERLAY_HEIGHT = 316;
-const DRAG_THRESHOLD = 6;
-const DRAG_HANDLE_HEIGHT = 48;
-const DRAG_HANDLE_WIDTH_RATIO = 0.5;
+/** Cabeçalho absoluto (histórico / expandir / fechar) */
+const HEADER_H = 52;
+/** Reserva nas laterais do header para os ícones (~42px + padding) */
+const HEADER_ICON_INSET = 54;
+/**
+ * Acima disto: área do teclado (teclas no fundo do painel em layout compact).
+ * Estimativa: 5 fileiras × (~34px botão + ~6 gap) + paddings do pad.
+ */
+const KEYPAD_ZONE_HEIGHT = 188;
+const KEYPAD_TOP_Y = OVERLAY_HEIGHT - KEYPAD_ZONE_HEIGHT;
+const MOVE_THRESHOLD = 3;
+
+/**
+ * Zonas de arraste (coordenadas relativas ao painel):
+ * - Faixa central do topo (sem cobrir ícones)
+ * - Área do visor / espaço até o teclado (sem cobrir botões)
+ */
+function isOverlayDragZone(x, y) {
+  if (y < 0 || y > OVERLAY_HEIGHT || x < 0 || x > OVERLAY_WIDTH) return false;
+  if (y >= KEYPAD_TOP_Y) return false;
+  if (y <= HEADER_H) {
+    return x >= HEADER_ICON_INSET && x <= OVERLAY_WIDTH - HEADER_ICON_INSET;
+  }
+  return true;
+}
 
 export function FloatingCalculatorOverlay({
   visible,
@@ -26,15 +47,16 @@ export function FloatingCalculatorOverlay({
   onHistoryChange,
 }) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const isWeb = Platform.OS === 'web';
+  const isWebDesktop = isWeb && useIsDesktopLayout();
+  const persistPosition = !isWeb || isWebDesktop;
+
   const [position, setPosition] = useState(null);
   const animPos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const lastPos = useRef({ x: 0, y: 0 });
-  const dragEnabledRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
 
   const { width: W, height: H } = Dimensions.get('window');
   const safeTop = insets.top || 44;
-  const isWeb = Platform.OS === 'web';
 
   const clampPos = (p) => {
     const x = Number(p?.x) || 0;
@@ -49,12 +71,9 @@ export function FloatingCalculatorOverlay({
   useEffect(() => {
     if (!visible) return;
     const def = { x: W - OVERLAY_WIDTH - 16, y: safeTop + 40 };
-    // No web mobile a viewport muda com o scroll e posições persistidas podem ficar fora da tela.
-    // Para evitar "sumir" e não atrapalhar a tabbar, no web usamos sempre a posição padrão.
-    if (isWeb) {
+    if (!persistPosition) {
       const pos = clampPos(def);
       setPosition(pos);
-      lastPos.current = pos;
       animPos.setValue(pos);
       return;
     }
@@ -71,75 +90,72 @@ export function FloatingCalculatorOverlay({
         pos = clampPos(def);
       }
       setPosition(pos);
-      lastPos.current = pos;
       animPos.setValue(pos);
     });
-  }, [visible, W, H, safeTop, isWeb]);
+  }, [visible, W, H, safeTop, persistPosition, animPos]);
 
   useEffect(() => {
-    if (position && visible && !isWeb) {
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(position));
+    if (position && visible && persistPosition) {
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(position)).catch(() => {});
     }
-  }, [position, visible, isWeb]);
+  }, [position, visible, persistPosition]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt) => {
-        const x = evt?.nativeEvent?.locationX ?? 0;
-        const y = evt?.nativeEvent?.locationY ?? 0;
-        const maxX = OVERLAY_WIDTH * DRAG_HANDLE_WIDTH_RATIO;
-        const enabled = y <= DRAG_HANDLE_HEIGHT && x <= maxX;
-        dragEnabledRef.current = enabled;
-        return enabled;
-      },
-      onMoveShouldSetPanResponder: (_evt, g) => {
-        if (!dragEnabledRef.current) return false;
-        return Math.abs(g.dx) > DRAG_THRESHOLD || Math.abs(g.dy) > DRAG_THRESHOLD;
-      },
-      onPanResponderGrant: () => {
-        animPos.extractOffset();
-      },
-      onPanResponderMove: Animated.event([null, { dx: animPos.x, dy: animPos.y }], { useNativeDriver: false }),
-      onPanResponderRelease: () => {
-        animPos.flattenOffset();
-        const x = animPos.x.__getValue();
-        const y = animPos.y.__getValue();
-        lastPos.current = { x, y };
-        setPosition({ x, y });
-      },
-      onPanResponderTerminate: () => {
-        animPos.flattenOffset();
-        const x = animPos.x.__getValue();
-        const y = animPos.y.__getValue();
-        lastPos.current = { x, y };
-        setPosition({ x, y });
-      },
-    })
-  ).current;
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: (evt) => {
+          const x = evt?.nativeEvent?.locationX ?? 0;
+          const y = evt?.nativeEvent?.locationY ?? 0;
+          dragStartRef.current = { x, y };
+          return isOverlayDragZone(x, y);
+        },
+        onMoveShouldSetPanResponder: (_evt, g) =>
+          isOverlayDragZone(dragStartRef.current.x, dragStartRef.current.y) &&
+          (Math.abs(g.dx) > MOVE_THRESHOLD || Math.abs(g.dy) > MOVE_THRESHOLD),
+        onPanResponderGrant: () => {
+          animPos.extractOffset();
+        },
+        onPanResponderMove: Animated.event([null, { dx: animPos.x, dy: animPos.y }], {
+          useNativeDriver: false,
+        }),
+        onPanResponderRelease: () => {
+          animPos.flattenOffset();
+          const x = animPos.x.__getValue();
+          const y = animPos.y.__getValue();
+          setPosition({ x, y });
+        },
+        onPanResponderTerminate: () => {
+          animPos.flattenOffset();
+          const x = animPos.x.__getValue();
+          const y = animPos.y.__getValue();
+          setPosition({ x, y });
+        },
+      }),
+    [animPos]
+  );
 
   if (!visible || position === null) return null;
 
   return (
     <Animated.View
+      {...panResponder.panHandlers}
       style={[
         styles.overlay,
+        Platform.OS === 'web' && styles.overlayWeb,
         {
           width: OVERLAY_WIDTH,
           height: OVERLAY_HEIGHT,
           left: 0,
           top: 0,
-          transform: [
-            { translateX: animPos.x },
-            { translateY: animPos.y },
-          ],
+          transform: [{ translateX: animPos.x }, { translateY: animPos.y }],
         },
       ]}
     >
-      <View {...panResponder.panHandlers} style={styles.dragHandle} />
-      <View style={styles.content}>
+      <View style={styles.content} pointerEvents="box-none" collapsable={false}>
         <CalculatorScreenPro
           compact
           isModal
+          floatingOverlay
           onClose={() => { playTapSound(); onClose?.(); }}
           onExpand={onExpand ? () => { playTapSound(); onExpand?.(); } : undefined}
           expression={expression}
@@ -157,27 +173,23 @@ export function FloatingCalculatorOverlay({
 const styles = StyleSheet.create({
   overlay: {
     position: Platform.OS === 'web' ? 'fixed' : 'absolute',
-    zIndex: 1000,
+    zIndex: 2147483000,
     borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  overlayWeb: {
+    // @ts-ignore RN Web
+    willChange: 'transform',
+    boxShadow: '0 6px 24px rgba(0,0,0,0.14)',
   },
   content: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-  },
-  dragHandle: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '50%',
-    height: DRAG_HANDLE_HEIGHT,
-    zIndex: 1,
-    backgroundColor: 'transparent',
   },
 });

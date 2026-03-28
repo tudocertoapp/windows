@@ -1,55 +1,158 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
+import { usePlan } from '../../contexts/PlanContext';
+import { useMenu } from '../../contexts/MenuContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
+import { WEB_DESKTOP_RAIL_HEADER_OFFSET } from '../../utils/platformLayout';
+
+/**
+ * Largura da coluna direita (layout desktop web) — reservada no flex.
+ */
+export const WEB_DESKTOP_RAIL_WIDTH = 72;
+
+const ISLAND_RADIUS = 22;
+const BTN = 44;
+const ICON_SIZE = 22;
+const ADD_ICON_SIZE = 26;
+
+function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => {
+        playTapSound();
+        onPress?.();
+      }}
+      style={[
+        s.roundBtn,
+        { borderColor: colors.border },
+        active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
+      ]}
+      accessibilityLabel={label}
+      accessibilityRole="button"
+    >
+      {ionIcon ? (
+        <Ionicons name={ionIcon} size={ICON_SIZE} color={active ? colors.primary : colors.textSecondary} />
+      ) : (
+        <AppIcon name={icon} size={ICON_SIZE} color={active ? colors.primary : colors.textSecondary} />
+      )}
+    </TouchableOpacity>
+  );
+}
 
 export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGastos }) {
   const { colors } = useTheme();
+  const { showEmpresaFeatures } = usePlan();
+  const { openCalculadoraFull, openMensagensWhatsApp } = useMenu();
   const insets = useSafeAreaInsets();
+  const { height: winH } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   if (!isWeb) return null;
 
-  const items = [
-    { key: 'Início', icon: 'home-outline', onPress: () => onNavigate?.('Início') },
-    { key: 'Dinheiro', icon: 'wallet-outline', onPress: () => onNavigate?.('Dinheiro') },
-    { key: 'Adicionar', icon: 'add', isAdd: true, onPress: () => onAdd?.() },
-    { key: 'Agenda', icon: 'calendar-outline', onPress: () => onNavigate?.('Agenda') },
-    { key: 'MeusGastos', icon: 'chatbubbles-outline', onPress: () => onMeusGastos?.() },
+  const tabItems = [
+    { key: 'Início', label: 'Início', icon: 'home-outline', onPress: () => onNavigate?.('Início') },
+    { key: 'Dinheiro', label: 'Dinheiro', icon: 'wallet-outline', onPress: () => onNavigate?.('Dinheiro') },
+    { key: 'Agenda', label: 'Agenda', icon: 'calendar-outline', onPress: () => onNavigate?.('Agenda') },
+    {
+      key: 'Adicionar',
+      label: 'Adicionar',
+      icon: 'add',
+      isAdd: true,
+      onPress: () => onAdd?.(),
+    },
+    {
+      key: 'MeusGastos',
+      label: 'Meus gastos',
+      icon: 'chatbubbles-outline',
+      onPress: () => onMeusGastos?.(),
+    },
+    {
+      key: 'calc',
+      label: 'Calculadora',
+      icon: 'calculator-outline',
+      onPress: () => openCalculadoraFull?.(),
+    },
   ];
 
+  if (showEmpresaFeatures) {
+    tabItems.push({
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      ionIcon: 'logo-whatsapp',
+      onPress: () => openMensagensWhatsApp?.(),
+    });
+  }
+
+  /** Centro da ilha ≈ área útil; offset menor que WEB_APP_HEADER_ESTIMATE para não ficar baixo demais. */
+  const padTop = (insets.top || 0) + WEB_DESKTOP_RAIL_HEADER_OFFSET;
+  const padBottom = Math.max(12, insets.bottom || 0);
+  const colUsable = Math.max(120, (winH || 0) - padTop - padBottom);
+  const railLift = colUsable * 0.25;
+
   return (
-    <View style={[s.wrap, { top: Math.max(12, (insets.top || 0) + 90) }]} pointerEvents="box-none">
-      <View style={[s.bar, { borderColor: colors.border, backgroundColor: colors.card }]}>
-        {items.map((it) => {
-          const active = activeRouteName === it.key;
-          if (it.isAdd) {
+    <View
+      style={[
+        s.wrap,
+        {
+          width: WEB_DESKTOP_RAIL_WIDTH,
+          paddingTop: padTop,
+          paddingBottom: padBottom,
+          backgroundColor: colors.bg,
+          marginTop: -Math.round(railLift),
+        },
+      ]}
+    >
+      <View
+        style={[
+          s.island,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            ...(Platform.OS === 'web'
+              ? {
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
+                }
+              : {}),
+          },
+        ]}
+      >
+        <View style={s.btnColumn}>
+          {tabItems.map((it) => {
+            const active = !it.isAdd && activeRouteName === it.key;
+            if (it.isAdd) {
+              return (
+                <TouchableOpacity
+                  key={it.key}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    playTapSound();
+                    it.onPress?.();
+                  }}
+                  style={[s.addRound, { backgroundColor: colors.primary }]}
+                  accessibilityLabel={it.label}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="add" size={ADD_ICON_SIZE} color="#fff" />
+                </TouchableOpacity>
+              );
+            }
             return (
-              <TouchableOpacity
+              <RailItem
                 key={it.key}
-                activeOpacity={0.85}
-                onPress={() => { playTapSound(); it.onPress?.(); }}
-                style={[s.addBtn, { backgroundColor: colors.primary }]}
-                accessibilityLabel="Adicionar"
-              >
-                <Ionicons name="add" size={22} color="#fff" />
-              </TouchableOpacity>
+                icon={it.icon}
+                ionIcon={it.ionIcon}
+                label={it.label}
+                onPress={it.onPress}
+                active={active}
+                colors={colors}
+              />
             );
-          }
-          return (
-            <TouchableOpacity
-              key={it.key}
-              activeOpacity={0.85}
-              onPress={() => { playTapSound(); it.onPress?.(); }}
-              style={[s.item, active && { backgroundColor: colors.primaryRgba(0.12), borderColor: colors.primary + '55' }]}
-              accessibilityLabel={it.key}
-            >
-              <AppIcon name={it.icon} size={22} color={active ? colors.primary : colors.textSecondary} />
-            </TouchableOpacity>
-          );
-        })}
+          })}
+        </View>
       </View>
     </View>
   );
@@ -57,44 +160,50 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
 
 const s = StyleSheet.create({
   wrap: {
-    position: 'absolute',
-    right: 14,
-    zIndex: 2147483644,
+    flex: 1,
+    alignSelf: 'stretch',
+    maxWidth: WEB_DESKTOP_RAIL_WIDTH,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  bar: {
-    width: 56,
-    borderRadius: 18,
+  island: {
+    alignSelf: 'center',
+    flexShrink: 1,
+    maxHeight: '100%',
+    borderRadius: ISLAND_RADIUS,
     borderWidth: 1,
-    padding: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+  },
+  btnColumn: {
+    alignItems: 'center',
     gap: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 20,
   },
-  item: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+  roundBtn: {
+    width: BTN,
+    height: BTN,
+    borderRadius: BTN / 2,
     borderWidth: 1,
-    borderColor: 'transparent',
-    backgroundColor: 'transparent',
-  },
-  addBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addRound: {
+    width: BTN,
+    height: BTN,
+    borderRadius: BTN / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    elevation: 18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });
-

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, SafeAreaView, Platform, Alert, StyleSheet, Dimensions } from 'react-native';
+import { View, TouchableOpacity, Modal, SafeAreaView, Platform, Alert, StyleSheet, Dimensions, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -47,7 +47,8 @@ import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverl
 import { FloatingCalculatorFab } from '../components/FloatingCalculatorFab';
 import { GlassTabBar } from '../components/navigation/GlassTabBar';
 import { RightSideTabBar } from '../components/navigation/RightSideTabBar';
-import { useIsDesktopLayout } from '../utils/platformLayout';
+import { useIsDesktopLayout, WEB_APP_HEADER_ESTIMATE, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 
@@ -122,8 +123,11 @@ export function AppNavigator() {
   const [calculatorHistory, setCalculatorHistory] = useState([]);
   const { colors, primaryColor } = useTheme();
   const { addProduct } = useFinance();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
 
   const navigationRef = useRef(null);
+  const [desktopTabRoute, setDesktopTabRoute] = useState('Início');
 
   const isDarkBg = colors.isDarkBg ?? (colors.text === '#ffffff');
   const tabBarGlassBg = () => (
@@ -135,7 +139,7 @@ export function AppNavigator() {
 
   const menuActions = useMemo(
     () => ({
-      openMenu: () => { if (!isDesktopLayout) setMenuModalOpen(true); },
+      openMenu: () => { setMenuModalOpen(true); },
       closeAndNavigate: (tabName, params) => {
         setMenuModalOpen(false);
         setTimeout(() => navigationRef.current?.navigate(tabName, params || {}), 200);
@@ -187,45 +191,57 @@ export function AppNavigator() {
         setCalculadoraModal(true);
       },
     }),
-    [isDesktopLayout, isWebDesktop]
+    [isWebDesktop]
   );
+
+  const calcEdgeFabTop = useMemo(() => {
+    const h = windowHeight > 0 ? windowHeight : Dimensions.get('window').height;
+    const half = 26;
+    if (isWebMobile) {
+      const topU = insets.top + WEB_APP_HEADER_ESTIMATE;
+      const bottomU = h - Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE);
+      const usable = Math.max(0, bottomU - topU);
+      const mid = (topU + bottomU) / 2;
+      const base = Math.max(topU + 4, mid - half);
+      return Math.max(topU + 4, base - usable * 0.25);
+    }
+    const usable = Math.max(0, h - 32);
+    const base = Math.max(16, h / 2 - half);
+    return Math.max(16, base - usable * 0.25);
+  }, [isWebMobile, insets.top, insets.bottom, windowHeight]);
+
+  const calcEdgeMenuTop = useMemo(() => {
+    const h = windowHeight > 0 ? windowHeight : Dimensions.get('window').height;
+    const halfMenu = 36;
+    if (isWebMobile) {
+      const topU = insets.top + WEB_APP_HEADER_ESTIMATE;
+      const bottomU = h - Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE);
+      const usable = Math.max(0, bottomU - topU);
+      const mid = (topU + bottomU) / 2;
+      const base = Math.max(topU + 4, mid - halfMenu);
+      return Math.max(topU + 4, base - usable * 0.25);
+    }
+    const usable = Math.max(0, h - 32);
+    const base = Math.max(16, h / 2 - halfMenu);
+    return Math.max(16, base - usable * 0.25);
+  }, [isWebMobile, insets.top, insets.bottom, windowHeight]);
 
   return (
     <MenuContext.Provider value={menuActions}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, flexDirection: isDesktopLayout ? 'row' : 'column' }}>
-          {isDesktopLayout && (
-            <View style={{ width: 204, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.bg }}>
-              <MenuScreen
-                compact
-                onNavigateToTab={(tabName, params) => navigationRef.current?.navigate(tabName, params || {})}
-                onOpenCadastro={menuActions.openCadastro}
-                onOpenPerfil={menuActions.openPerfil}
-                onOpenTemas={menuActions.openTemas}
-                onOpenTermos={menuActions.openTermos}
-                onOpenAssinatura={menuActions.openAssinatura}
-                onOpenIndique={menuActions.openIndique}
-                onOpenAReceber={menuActions.openAReceber}
-                onOpenClientes={menuActions.openClientes}
-                onOpenBancos={menuActions.openBancos}
-                onOpenOrcamento={menuActions.openOrcamento}
-                onOpenAnotacoes={menuActions.openAnotacoes}
-                onOpenMeusGastos={menuActions.openMeusGastos}
-                onOpenListaCompras={menuActions.openListaCompras}
-                onOpenMetasSonhos={menuActions.openMetasSonhos}
-                onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
-                onOpenAniversariantes={menuActions.openAniversariantes}
-                onOpenEmpresa={menuActions.openEmpresa}
-                onOpenOrdemServico={menuActions.openOrdemServico}
-                onOpenOrcamentos={menuActions.openOrcamentos}
-                onOpenPDV={menuActions.openPDV}
-                onOpenImageGenerator={menuActions.openImageGenerator}
-                onOpenCalculadoraFull={menuActions.openCalculadoraFull}
-              />
-            </View>
-          )}
-          <View style={{ flex: 1, position: 'relative' }}>
-            <NavigationContainer ref={navigationRef}>
+        <View style={{ flex: 1, flexDirection: isWebDesktop ? 'row' : 'column' }}>
+          <View style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+            <NavigationContainer
+              ref={navigationRef}
+              onReady={() => {
+                const n = navigationRef.current?.getCurrentRoute?.()?.name;
+                if (n) setDesktopTabRoute(n);
+              }}
+              onStateChange={() => {
+                const n = navigationRef.current?.getCurrentRoute?.()?.name;
+                if (n) setDesktopTabRoute(n);
+              }}
+            >
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
               <Tab.Navigator
                 tabBar={
@@ -313,16 +329,6 @@ export function AppNavigator() {
               </Tab.Navigator>
             </NavigationContainer>
 
-            {/* Web desktop: tabbar vertical na direita (mesmos botões do mobile) */}
-            {isWeb && isDesktopLayout && (
-              <RightSideTabBar
-                activeRouteName={navigationRef.current?.getCurrentRoute?.()?.name}
-                onNavigate={(name) => navigationRef.current?.navigate?.(name)}
-                onAdd={() => { setMenuOpen(!menuOpen); }}
-                onMeusGastos={() => { setMeusGastosModal(true); }}
-              />
-            )}
-
             {/* Mobile nativo: seta na borda direita para mostrar o FAB */}
             {(isNativeMobile || isWebMobile) && !calculadoraModal && (
               <TouchableOpacity
@@ -331,8 +337,7 @@ export function AppNavigator() {
                 style={{
                   position: 'absolute',
                   right: 0,
-                  // Meio da tela total (inclui cabeçalho)
-                  top: Math.max(16, (Dimensions.get('window').height / 2) - 26),
+                  top: calcEdgeFabTop,
                   width: 28,
                   height: 52,
                   borderTopLeftRadius: 14,
@@ -356,24 +361,22 @@ export function AppNavigator() {
                 style={{
                   position: 'absolute',
                   right: 36,
-                  top: Math.max(16, (Dimensions.get('window').height / 2) - 36),
+                  top: calcEdgeMenuTop,
                   zIndex: 2147483646,
                 }}
                 pointerEvents="box-none"
               >
                 <View
                   style={{
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 16,
-                    padding: 10,
+                    backgroundColor: 'transparent',
+                    padding: 0,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.18,
-                    shadowRadius: 18,
-                    elevation: 30,
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 12,
+                    elevation: 24,
                   }}
+                  pointerEvents="box-none"
                 >
                   <TouchableOpacity
                     onPress={() => {
@@ -384,30 +387,40 @@ export function AppNavigator() {
                     }}
                     activeOpacity={0.85}
                     style={{
-                      flexDirection: 'row',
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                      justifyContent: 'center',
                       alignItems: 'center',
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      backgroundColor: colors.primaryRgba?.(0.12) ?? (colors.primary + '1F'),
+                      backgroundColor: colors.card,
                       borderWidth: 1,
-                      borderColor: colors.primary + '55',
-                      minWidth: 160,
+                      borderColor: colors.border,
                     }}
                     accessibilityLabel="Abrir calculadora"
                   >
-                    <Ionicons name="calculator-outline" size={20} color={colors.primary} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <View>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>Calculadora</Text>
-                        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>Abrir calculadora</Text>
-                      </View>
-                    </View>
+                    <Ionicons name="calculator-outline" size={24} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
               </View>
             )}
           </View>
+          {isWebDesktop ? (
+            <View
+              style={{
+                flexShrink: 0,
+                paddingLeft: 14,
+                paddingRight: 16,
+                backgroundColor: colors.bg,
+              }}
+            >
+              <RightSideTabBar
+                activeRouteName={desktopTabRoute}
+                onNavigate={(name) => navigationRef.current?.navigate?.(name)}
+                onAdd={() => { setMenuOpen(!menuOpen); }}
+                onMeusGastos={() => { setMeusGastosModal(true); }}
+              />
+            </View>
+          ) : null}
         </View>
       <CircularMenuComponent
         isOpen={menuOpen}
@@ -465,36 +478,101 @@ export function AppNavigator() {
           else setAddModalState({ type, params: params || null });
         }}
       />
-      <Modal visible={menuModalOpen} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <MenuScreen
-            onClose={() => setMenuModalOpen(false)}
-            onNavigateToTab={menuActions.closeAndNavigate}
-            onOpenCadastro={menuActions.openCadastro}
-            onOpenPerfil={menuActions.openPerfil}
-            onOpenTemas={menuActions.openTemas}
-            onOpenTermos={menuActions.openTermos}
-            onOpenAssinatura={menuActions.openAssinatura}
-            onOpenIndique={menuActions.openIndique}
-            onOpenAReceber={menuActions.openAReceber}
-            onOpenClientes={menuActions.openClientes}
-            onOpenBancos={menuActions.openBancos}
-            onOpenOrcamento={menuActions.openOrcamento}
-            onOpenAnotacoes={menuActions.openAnotacoes}
-            onOpenMeusGastos={menuActions.openMeusGastos}
-            onOpenListaCompras={menuActions.openListaCompras}
-            onOpenMetasSonhos={menuActions.openMetasSonhos}
-            onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
-            onOpenAniversariantes={menuActions.openAniversariantes}
-            onOpenEmpresa={menuActions.openEmpresa}
-            onOpenOrdemServico={menuActions.openOrdemServico}
-            onOpenOrcamentos={menuActions.openOrcamentos}
-            onOpenPDV={menuActions.openPDV}
-            onOpenImageGenerator={menuActions.openImageGenerator}
-            onOpenCalculadoraFull={menuActions.openCalculadoraFull}
-          />
-        </SafeAreaView>
-      </Modal>
+      {isWebDesktop ? (
+        <Modal
+          visible={menuModalOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMenuModalOpen(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'stretch',
+              ...(Platform.OS === 'web' ? { minHeight: '100vh' } : {}),
+            }}
+          >
+            <View
+              style={{
+                width: Math.min(
+                  266,
+                  Math.max(232, Math.round(Dimensions.get('window').width * 0.31))
+                ),
+                flexShrink: 0,
+                backgroundColor: colors.bg,
+                maxWidth: '100%',
+                ...(Platform.OS === 'web'
+                  ? { boxShadow: '4px 0 32px rgba(0,0,0,0.18)', height: '100vh', maxHeight: '100vh' }
+                  : { flex: 0 }),
+              }}
+            >
+              <MenuScreen
+                onClose={() => setMenuModalOpen(false)}
+                onNavigateToTab={menuActions.closeAndNavigate}
+                onOpenCadastro={menuActions.openCadastro}
+                onOpenPerfil={menuActions.openPerfil}
+                onOpenTemas={menuActions.openTemas}
+                onOpenTermos={menuActions.openTermos}
+                onOpenAssinatura={menuActions.openAssinatura}
+                onOpenIndique={menuActions.openIndique}
+                onOpenAReceber={menuActions.openAReceber}
+                onOpenClientes={menuActions.openClientes}
+                onOpenBancos={menuActions.openBancos}
+                onOpenOrcamento={menuActions.openOrcamento}
+                onOpenAnotacoes={menuActions.openAnotacoes}
+                onOpenMeusGastos={menuActions.openMeusGastos}
+                onOpenListaCompras={menuActions.openListaCompras}
+                onOpenMetasSonhos={menuActions.openMetasSonhos}
+                onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+                onOpenEmpresa={menuActions.openEmpresa}
+                onOpenOrdemServico={menuActions.openOrdemServico}
+                onOpenOrcamentos={menuActions.openOrcamentos}
+                onOpenPDV={menuActions.openPDV}
+                onOpenImageGenerator={menuActions.openImageGenerator}
+                onOpenCalculadoraFull={menuActions.openCalculadoraFull}
+                compact={false}
+              />
+            </View>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
+              activeOpacity={1}
+              onPress={() => setMenuModalOpen(false)}
+              accessibilityLabel="Fechar menu"
+            />
+          </View>
+        </Modal>
+      ) : (
+        <Modal visible={menuModalOpen} animationType="slide" onRequestClose={() => setMenuModalOpen(false)}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+            <MenuScreen
+              onClose={() => setMenuModalOpen(false)}
+              onNavigateToTab={menuActions.closeAndNavigate}
+              onOpenCadastro={menuActions.openCadastro}
+              onOpenPerfil={menuActions.openPerfil}
+              onOpenTemas={menuActions.openTemas}
+              onOpenTermos={menuActions.openTermos}
+              onOpenAssinatura={menuActions.openAssinatura}
+              onOpenIndique={menuActions.openIndique}
+              onOpenAReceber={menuActions.openAReceber}
+              onOpenClientes={menuActions.openClientes}
+              onOpenBancos={menuActions.openBancos}
+              onOpenOrcamento={menuActions.openOrcamento}
+              onOpenAnotacoes={menuActions.openAnotacoes}
+              onOpenMeusGastos={menuActions.openMeusGastos}
+              onOpenListaCompras={menuActions.openListaCompras}
+              onOpenMetasSonhos={menuActions.openMetasSonhos}
+              onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+              onOpenEmpresa={menuActions.openEmpresa}
+              onOpenOrdemServico={menuActions.openOrdemServico}
+              onOpenOrcamentos={menuActions.openOrcamentos}
+              onOpenPDV={menuActions.openPDV}
+              onOpenImageGenerator={menuActions.openImageGenerator}
+              onOpenCalculadoraFull={menuActions.openCalculadoraFull}
+            />
+          </SafeAreaView>
+        </Modal>
+      )}
       <Modal visible={!!cadastroModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <CadastrosScreen initialSection={cadastroModal?.section} initialEditItemId={cadastroModal?.editItemId} onClose={() => setCadastroModal(null)} isModal />

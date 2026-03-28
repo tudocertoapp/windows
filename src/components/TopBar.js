@@ -9,6 +9,12 @@ import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
+import { WEB_DESKTOP_RAIL_WIDTH } from './navigation/RightSideTabBar';
+
+/** Padding direito da coluna da rail no AppNavigator — centraliza o botão na faixa da tabbar. */
+const WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT = 16;
+const WEB_DESKTOP_ORGANIZE_BTN = 40;
+const WEB_DESKTOP_RAIL_BTN_GAP = 8;
 
 // Cache da frase: muda só 1x por dia ou quando o usuário sai e volta ao app
 let headerPromptCache = { prompt: null, dateKey: null };
@@ -73,8 +79,10 @@ export function TopBar({
   const isHome = title === 'Início' || useLogoImage;
   const isWeb = Platform.OS === 'web';
   const isWebDesktop = isWeb && isDesktopLayout;
-  const showSlideMenu = !hideMenu && (Platform.OS !== 'web' || !isDesktopLayout);
-  const showHomeAvatar = !isWeb || !isDesktopLayout;
+  // Web desktop: menu lateral sumiu — o botão de menu no cabeçalho abre o modal (igual mobile).
+  const showSlideMenu = !hideMenu;
+  // Foto de perfil no cabeçalho também no web desktop (Início).
+  const showHomeAvatar = isHome;
   const appStateRef = useRef(AppState.currentState);
   const [homePrompt, setHomePrompt] = useState(() => {
     const today = new Date().toDateString();
@@ -111,8 +119,124 @@ export function TopBar({
     }
   }, [isHome, isFocused]);
 
-  const Bar = (
+  const menuButton = showSlideMenu ? (
+    <TouchableOpacity
+      style={{ padding: 8, backgroundColor: 'transparent' }}
+      onPress={() => { playTapSound(); openMenu?.(); }}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      accessibilityLabel="Menu"
+    >
+      <Ionicons name="menu" size={24} color={colors.primary} />
+    </TouchableOpacity>
+  ) : null;
+
+  /** Só Início: Dinheiro também usa useLogoImage + defer, mas mantém frase no corpo. */
+  const homeDesktopDefer = isWebDesktop && deferFinancePrompt && title === 'Início';
+
+  const homeTrailingActions = (
+    <>
+      {!isWebDesktop && onWhatsApp ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); onWhatsApp(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="logo-whatsapp" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      ) : null}
+      {!isWebDesktop && onChat ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); onChat(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      ) : null}
+      {!isWebDesktop && onCalculadora ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); onCalculadora(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <AppIcon name="calculator-outline" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      ) : null}
+      {!isWebDesktop && onManageCards ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); onManageCards(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <AppIcon name="grid-outline" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      ) : !isWebDesktop && !hideOrganize && onOrganize ? (
+        <TouchableOpacity style={{ padding: 8 }} onPress={() => { playTapSound(); onOrganize?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
+        </TouchableOpacity>
+      ) : null}
+      {showSlideMenu && !isWebDesktop ? menuButton : null}
+    </>
+  );
+
+  const Bar = homeDesktopDefer ? (
+    <View style={[topBarStyles.bar, { backgroundColor: colors.bg, paddingHorizontal: scaleWebDesktop(16, true), paddingVertical: scaleWebDesktop(10, true) }]}>
+      {menuButton ? <View style={{ marginRight: 4 }}>{menuButton}</View> : null}
+      <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        {showHomeAvatar && (
+          <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
+            <Image
+              source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
+              style={{ width: 52, height: 52, borderRadius: 26 }}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        )}
+        <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: scaleWebDesktop(12, true), fontWeight: '600' }} numberOfLines={1}>
+            {getGreeting()}, {profile?.nome || 'você'}!
+          </Text>
+          {headerDate ? (
+            <Text
+              style={{ color: colors.text, fontSize: scaleWebDesktop(10, true), fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
+              numberOfLines={2}
+            >
+              {headerDate}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <View
+        style={{
+          flex: 1.35,
+          minWidth: 0,
+          paddingHorizontal: scaleWebDesktop(10, true),
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+        pointerEvents="none"
+      >
+        <Text
+          style={{
+            color: colors.text,
+            fontSize: scaleWebDesktop(13, true),
+            fontWeight: '600',
+            lineHeight: scaleWebDesktop(18, true),
+            textAlign: 'center',
+          }}
+          numberOfLines={2}
+        >
+          {homePrompt}
+        </Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+        {inlineToggle}
+        {homeTrailingActions}
+      </View>
+    </View>
+  ) : (
     <View style={[topBarStyles.bar, { backgroundColor: colors.bg, paddingHorizontal: isWebDesktop ? scaleWebDesktop(16, true) : 16, paddingVertical: isWebDesktop ? scaleWebDesktop(10, true) : 12 }]}>
+      {isWebDesktop && menuButton ? <View style={{ marginRight: 4 }}>{menuButton}</View> : null}
       <View style={[styles.logoRow, { flex: 1 }]}>
         {isHome ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
@@ -154,65 +278,82 @@ export function TopBar({
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {inlineToggle}
-        {onWhatsApp ? (
-          <TouchableOpacity
-            style={{ padding: 8, backgroundColor: 'transparent' }}
-            onPress={() => { playTapSound(); onWhatsApp(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="logo-whatsapp" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        ) : null}
-        {onChat ? (
-          <TouchableOpacity
-            style={{ padding: 8, backgroundColor: 'transparent' }}
-            onPress={() => { playTapSound(); onChat(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        ) : null}
-        {onCalculadora ? (
-          <TouchableOpacity
-            style={{ padding: 8, backgroundColor: 'transparent' }}
-            onPress={() => { playTapSound(); onCalculadora(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <AppIcon name="calculator-outline" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        ) : null}
-        {onManageCards ? (
-          <TouchableOpacity
-            style={{ padding: 8, backgroundColor: 'transparent' }}
-            onPress={() => { playTapSound(); onManageCards(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <AppIcon name="grid-outline" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        ) : !hideOrganize && onOrganize ? (
-          <TouchableOpacity style={{ padding: 8 }} onPress={() => { playTapSound(); onOrganize?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
-          </TouchableOpacity>
-        ) : null}
-        {showSlideMenu && (
-          <TouchableOpacity
-            style={{ padding: 8, backgroundColor: 'transparent' }}
-            onPress={() => { playTapSound(); openMenu?.(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Menu"
-          >
-            <Ionicons name="menu" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        )}
+        {homeTrailingActions}
       </View>
     </View>
   );
+
+  const railFixedRight = WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT + (WEB_DESKTOP_RAIL_WIDTH - WEB_DESKTOP_ORGANIZE_BTN) / 2;
+  const railBaseTop = insets.top + scaleWebDesktop(10, true) + 8;
+  const showCardsRail = isWebDesktop && onManageCards && Platform.OS === 'web';
+  const showOrganizeRail = isWebDesktop && !hideOrganize && onOrganize && Platform.OS === 'web';
+  const cardsRailTop = showCardsRail ? railBaseTop : null;
+  const organizeRailTop = showOrganizeRail
+    ? railBaseTop + (showCardsRail ? WEB_DESKTOP_ORGANIZE_BTN + WEB_DESKTOP_RAIL_BTN_GAP : 0)
+    : null;
+
+  const railBtnStyle = (top) => ({
+    position: 'fixed',
+    top,
+    right: railFixedRight,
+    width: WEB_DESKTOP_ORGANIZE_BTN,
+    height: WEB_DESKTOP_ORGANIZE_BTN,
+    borderRadius: WEB_DESKTOP_ORGANIZE_BTN / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    zIndex: 2000,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  });
+
+  const manageCardsRailButton =
+    showCardsRail && cardsRailTop != null ? (
+      <TouchableOpacity
+        onPress={() => {
+          playTapSound();
+          onManageCards?.();
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityLabel="Gerenciar cards do Início"
+        style={railBtnStyle(cardsRailTop)}
+      >
+        <Ionicons name="layers-outline" size={22} color={colors.primary} />
+      </TouchableOpacity>
+    ) : null;
+
+  const organizeRailButton =
+    showOrganizeRail && organizeRailTop != null ? (
+      <TouchableOpacity
+        onPress={() => {
+          playTapSound();
+          onOrganize?.();
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityLabel={editMode ? 'Sair do modo organizar' : 'Organizar cards'}
+        style={railBtnStyle(organizeRailTop)}
+      >
+        <AppIcon name="grid-outline" size={22} color={editMode ? colors.primary : colors.textSecondary} />
+      </TouchableOpacity>
+    ) : null;
+
   if (extendToTop) {
     return (
-      <View style={{ paddingTop: insets.top, backgroundColor: colors.bg }}>
-        {Bar}
-      </View>
+      <>
+        {manageCardsRailButton}
+        {organizeRailButton}
+        <View style={{ paddingTop: insets.top, backgroundColor: colors.bg }}>
+          {Bar}
+        </View>
+      </>
     );
   }
-  return Bar;
+  return (
+    <>
+      {manageCardsRailButton}
+      {organizeRailButton}
+      {Bar}
+    </>
+  );
 }

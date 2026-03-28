@@ -26,10 +26,17 @@ export function useIsDesktopLayout() {
   const { width } = useWindowDimensions();
   return useMemo(() => {
     if (!IS_WEB) return false;
+    // Primeiro paint na web pode vir com width === 0; usar innerWidth evita menu desktop invisível.
+    const w =
+      width > 0
+        ? width
+        : typeof window !== 'undefined'
+          ? window.innerWidth
+          : 0;
     // Viewport estreita: sempre layout mobile (tab bar), evita sidebar em janela redimensionada
-    if (width < DESKTOP_BREAKPOINT) return false;
+    if (w < DESKTOP_BREAKPOINT) return false;
     // UA mobile/tablet com largura típica de aparelho: tab bar, não sidebar
-    if (isMobileUserAgent() && width < 1100) return false;
+    if (isMobileUserAgent() && w < 1100) return false;
     return true;
   }, [width]);
 }
@@ -67,3 +74,17 @@ export function scaleWebDesktop(value, isWebDesktop) {
   if (!Number.isFinite(n)) return value;
   return Math.round(n * WEB_DESKTOP_SCALE);
 }
+
+/**
+ * Altura aproximada do TopBar (abaixo do safe top) — seta calculadora no web mobile.
+ */
+export const WEB_APP_HEADER_ESTIMATE = 84;
+
+/**
+ * Offset usado só na rail direita (web desktop): menor que o header real evita centralizar
+ * a ilha “embaixo” demais (84px superestima o bloco com scaleWebDesktop no TopBar).
+ */
+export const WEB_DESKTOP_RAIL_HEADER_OFFSET = 36;
+
+/** Reserva inferior no web mobile (tab bar fixa ~110px). */
+export const WEB_MOBILE_TAB_BAR_RESERVE = 108;
