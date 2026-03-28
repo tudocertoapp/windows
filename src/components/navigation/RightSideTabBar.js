@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -7,7 +7,6 @@ import { usePlan } from '../../contexts/PlanContext';
 import { useMenu } from '../../contexts/MenuContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
-import { WEB_DESKTOP_RAIL_HEADER_OFFSET } from '../../utils/platformLayout';
 
 /**
  * Largura da coluna direita (layout desktop web) — reservada no flex.
@@ -49,7 +48,6 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
   const { showEmpresaFeatures } = usePlan();
   const { openCalculadoraFull, openMensagensWhatsApp } = useMenu();
   const insets = useSafeAreaInsets();
-  const { height: winH } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   if (!isWeb) return null;
 
@@ -87,11 +85,9 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
     });
   }
 
-  /** Centro da ilha ≈ área útil; offset menor que WEB_APP_HEADER_ESTIMATE para não ficar baixo demais. */
-  const padTop = (insets.top || 0) + WEB_DESKTOP_RAIL_HEADER_OFFSET;
+  /** Safe area só; ilha centralizada na altura total da página (viewport), não “só abaixo do cabeçalho”. */
+  const padTop = insets.top || 0;
   const padBottom = Math.max(12, insets.bottom || 0);
-  const colUsable = Math.max(120, (winH || 0) - padTop - padBottom);
-  const railLift = colUsable * 0.25;
 
   return (
     <View
@@ -102,7 +98,6 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
           paddingTop: padTop,
           paddingBottom: padBottom,
           backgroundColor: colors.bg,
-          marginTop: -Math.round(railLift),
         },
       ]}
     >

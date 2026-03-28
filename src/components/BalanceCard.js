@@ -59,6 +59,8 @@ export function BalanceCard({
   onToggleValues,
   lightBackground,
   stackBoxes,
+  /** Remove margens externas (ex.: linha 50/50 no web desktop). */
+  noMargins,
 }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
@@ -80,8 +82,12 @@ export function BalanceCard({
     <GlassCard
       colors={colors}
       solid
-      style={ds.balanceCard}
-      contentStyle={{ padding: 20 }}
+      style={[
+        ds.balanceCard,
+        noMargins && { marginHorizontal: 0, marginTop: 0 },
+        noMargins && { flex: 1, minHeight: 0 },
+      ]}
+      contentStyle={{ padding: 20, ...(noMargins ? { flex: 1, minHeight: 0 } : null) }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, flexShrink: 1, minWidth: 0 }}>

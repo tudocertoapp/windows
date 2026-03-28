@@ -21,6 +21,8 @@ export function ScrollableCardList({
   itemMarginBottom = 4,
   fixedVisibleHeight = false,
   scrollStartsAt = 6,
+  /** Centraliza a mensagem quando a lista está vazia (ex.: web desktop). */
+  centerEmpty = false,
 }) {
   const scrollRef = useRef(null);
   const [fillHeight, setFillHeight] = useState(VISIBLE_HEIGHT);
@@ -42,7 +44,22 @@ export function ScrollableCardList({
   );
 
   if (items.length === 0) {
-    return <Text style={[s.emptyText, { color: colors.textSecondary }]}>{emptyText}</Text>;
+    const textNode = (
+      <Text style={[s.emptyText, { color: colors.textSecondary }, centerEmpty && s.emptyTextCentered]}>{emptyText}</Text>
+    );
+    if (centerEmpty) {
+      return (
+        <View
+          style={[
+            s.emptyWrap,
+            fixedVisibleHeight === 'fill' ? { flex: 1, minHeight: 0 } : { minHeight: 72 },
+          ]}
+        >
+          {textNode}
+        </View>
+      );
+    }
+    return textNode;
   }
 
   return (
@@ -136,7 +153,9 @@ export function ScrollableCardList({
 
 const s = StyleSheet.create({
   container: { overflow: 'hidden' },
+  emptyWrap: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 },
   emptyText: { fontSize: 14, paddingLeft: 4 },
+  emptyTextCentered: { textAlign: 'center', paddingLeft: 0 },
   scrollStrip: { borderRadius: 5, justifyContent: 'flex-start', alignItems: 'center' },
   scrollThumb: { position: 'absolute', width: 6, borderRadius: 3, left: 2 },
   verMaisBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginTop: 12 },

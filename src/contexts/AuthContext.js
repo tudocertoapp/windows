@@ -94,6 +94,18 @@ export function AuthProvider({ children }) {
 
   const enterAsGuest = () => setIsGuest(true);
 
+  /** Web: envia e-mail com link para redefinir senha (Supabase Auth > URL Configuration deve incluir o redirectTo). */
+  const resetPasswordForEmail = async (email) => {
+    const redirectTo =
+      Platform.OS === 'web' && typeof window !== 'undefined' && window.location
+        ? `${window.location.origin}/`
+        : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      ...(redirectTo ? { redirectTo } : {}),
+    });
+    if (error) throw error;
+  };
+
   const signInWithGoogle = async () => {
     if (Platform.OS === 'web') {
       // Usa a origem atual (ex: http://localhost:8081) - deve estar em Supabase > Auth > URL Configuration > Redirect URLs
@@ -190,7 +202,20 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, isGuest, loading, signIn, signUp, signOut, signInWithGoogle, enterAsGuest }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        isGuest,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        signInWithGoogle,
+        enterAsGuest,
+        resetPasswordForEmail,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

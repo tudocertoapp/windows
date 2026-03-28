@@ -47,10 +47,13 @@ import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverl
 import { FloatingCalculatorFab } from '../components/FloatingCalculatorFab';
 import { GlassTabBar } from '../components/navigation/GlassTabBar';
 import { RightSideTabBar } from '../components/navigation/RightSideTabBar';
-import { useIsDesktopLayout, WEB_APP_HEADER_ESTIMATE, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
+import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
+
+/** Altura da faixa da seta (alinhamento vertical com o botão da calculadora). */
+const CALC_EDGE_ROW_H = 52;
 
 function PlaceholderScreen() {
   return <View style={{ flex: 1 }} />;
@@ -194,36 +197,16 @@ export function AppNavigator() {
     [isWebDesktop]
   );
 
-  const calcEdgeFabTop = useMemo(() => {
+  /** Seta + calculadora: mesma linha, centro vertical da tela (viewport), respeitando safe area e tab bar. */
+  const calcEdgeCalcRowTop = useMemo(() => {
     const h = windowHeight > 0 ? windowHeight : Dimensions.get('window').height;
-    const half = 26;
-    if (isWebMobile) {
-      const topU = insets.top + WEB_APP_HEADER_ESTIMATE;
-      const bottomU = h - Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE);
-      const usable = Math.max(0, bottomU - topU);
-      const mid = (topU + bottomU) / 2;
-      const base = Math.max(topU + 4, mid - half);
-      return Math.max(topU + 4, base - usable * 0.25);
-    }
-    const usable = Math.max(0, h - 32);
-    const base = Math.max(16, h / 2 - half);
-    return Math.max(16, base - usable * 0.25);
-  }, [isWebMobile, insets.top, insets.bottom, windowHeight]);
-
-  const calcEdgeMenuTop = useMemo(() => {
-    const h = windowHeight > 0 ? windowHeight : Dimensions.get('window').height;
-    const halfMenu = 36;
-    if (isWebMobile) {
-      const topU = insets.top + WEB_APP_HEADER_ESTIMATE;
-      const bottomU = h - Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE);
-      const usable = Math.max(0, bottomU - topU);
-      const mid = (topU + bottomU) / 2;
-      const base = Math.max(topU + 4, mid - halfMenu);
-      return Math.max(topU + 4, base - usable * 0.25);
-    }
-    const usable = Math.max(0, h - 32);
-    const base = Math.max(16, h / 2 - halfMenu);
-    return Math.max(16, base - usable * 0.25);
+    const bottomReserve = isWebMobile
+      ? Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE)
+      : Math.max(insets.bottom, 100);
+    const ideal = (h - CALC_EDGE_ROW_H) / 2;
+    const minTop = insets.top + 4;
+    const maxTop = h - bottomReserve - CALC_EDGE_ROW_H - 4;
+    return Math.max(minTop, Math.min(ideal, maxTop));
   }, [isWebMobile, insets.top, insets.bottom, windowHeight]);
 
   return (
@@ -329,78 +312,73 @@ export function AppNavigator() {
               </Tab.Navigator>
             </NavigationContainer>
 
-            {/* Mobile nativo: seta na borda direita para mostrar o FAB */}
+            {/* Web mobile + nativo: seta e calculadora na mesma linha horizontal, centro vertical da tela */}
             {(isNativeMobile || isWebMobile) && !calculadoraModal && (
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setShowCalcMenu((v) => !v); }}
-                activeOpacity={0.85}
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: calcEdgeFabTop,
-                  width: 28,
-                  height: 52,
-                  borderTopLeftRadius: 14,
-                  borderBottomLeftRadius: 14,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: 2147483646,
-                }}
-                accessibilityLabel={showCalcMenu ? 'Fechar menu' : 'Abrir menu'}
-              >
-                <Ionicons name={showCalcMenu ? 'chevron-forward' : 'chevron-back'} size={18} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-
-            {/* Mobile + Web mobile: menu lateral aparece ao tocar na seta */}
-            {(isNativeMobile || isWebMobile) && showCalcMenu && !calculadoraModal && (
               <View
                 style={{
                   position: 'absolute',
-                  right: 36,
-                  top: calcEdgeMenuTop,
+                  right: 0,
+                  top: calcEdgeCalcRowTop,
+                  flexDirection: 'row',
+                  alignItems: 'center',
                   zIndex: 2147483646,
                 }}
                 pointerEvents="box-none"
               >
-                <View
-                  style={{
-                    backgroundColor: 'transparent',
-                    padding: 0,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 12,
-                    elevation: 24,
-                  }}
-                  pointerEvents="box-none"
-                >
-                  <TouchableOpacity
-                    onPress={() => {
-                      playTapSound();
-                      setShowCalcMenu(false);
-                      setCalculadoraFloating(false);
-                      setCalculadoraModal(true);
-                    }}
-                    activeOpacity={0.85}
+                {showCalcMenu ? (
+                  <View
                     style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      backgroundColor: colors.card,
-                      borderWidth: 1,
-                      borderColor: colors.border,
+                      marginRight: 8,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 8 },
+                      shadowOpacity: 0.15,
+                      shadowRadius: 12,
+                      elevation: 24,
                     }}
-                    accessibilityLabel="Abrir calculadora"
+                    pointerEvents="box-none"
                   >
-                    <Ionicons name="calculator-outline" size={24} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        playTapSound();
+                        setShowCalcMenu(false);
+                        setCalculadoraFloating(false);
+                        setCalculadoraModal(true);
+                      }}
+                      activeOpacity={0.85}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: colors.card,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                      accessibilityLabel="Abrir calculadora"
+                    >
+                      <Ionicons name="calculator-outline" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); setShowCalcMenu((v) => !v); }}
+                  activeOpacity={0.85}
+                  style={{
+                    width: 28,
+                    height: CALC_EDGE_ROW_H,
+                    borderTopLeftRadius: 14,
+                    borderBottomLeftRadius: 14,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  accessibilityLabel={showCalcMenu ? 'Fechar menu' : 'Abrir menu'}
+                >
+                  <Ionicons name={showCalcMenu ? 'chevron-forward' : 'chevron-back'} size={18} color={colors.primary} />
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -408,6 +386,7 @@ export function AppNavigator() {
             <View
               style={{
                 flexShrink: 0,
+                alignSelf: 'stretch',
                 paddingLeft: 14,
                 paddingRight: 16,
                 backgroundColor: colors.bg,

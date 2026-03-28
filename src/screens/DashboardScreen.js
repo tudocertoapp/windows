@@ -140,9 +140,9 @@ export function DashboardScreen() {
   const WEB_DESKTOP_ROW_GAP = scaleWebDesktop(8, useWebLayout);
   const WEB_CARD_PADDING = useWebLayout ? scaleWebDesktop(12, useWebLayout) : 20;
   const WEB_HEADER_GAP = useWebLayout ? scaleWebDesktop(5, useWebLayout) : 12;
-  const CARD_ACTION_SIZE = useWebLayout ? scaleWebDesktop(32, useWebLayout) : 40;
-  const CARD_ACTION_ICON_SIZE = useWebLayout ? scaleWebDesktop(20, useWebLayout) : 24;
-  const CARD_EXPAND_ICON_SIZE = useWebLayout ? scaleWebDesktop(18, useWebLayout) : 22;
+  const CARD_ACTION_SIZE = useWebLayout ? scaleWebDesktop(26, useWebLayout) : 40;
+  const CARD_ACTION_ICON_SIZE = useWebLayout ? scaleWebDesktop(17, useWebLayout) : 24;
+  const CARD_EXPAND_ICON_SIZE = useWebLayout ? scaleWebDesktop(16, useWebLayout) : 22;
   // Web desktop: cards compactos (tarefas + agendamentos)
   const TRIO_CARD_HEIGHT = useWebLayout ? scaleWebDesktop(210, useWebLayout) : undefined;
   const HEADER_ICON_BOX_SIZE = useWebLayout ? scaleWebDesktop(40, useWebLayout) : 48;
@@ -608,6 +608,9 @@ export function DashboardScreen() {
     const tail = webSectionOrder.slice(2);
     const hasAnotacoes = tail.includes('anotacoes');
     const hasCompras = tail.includes('listacompras');
+    const hasContas = tail.includes('contas');
+    /** Desktop: compras + anotações + faturas em uma linha (25% / 25% / 50%) — não fundir em produtividade. */
+    if (hasAnotacoes && hasCompras && hasContas) return tail;
     if (!hasAnotacoes || !hasCompras) return tail;
     const firstIdx = Math.min(tail.indexOf('anotacoes'), tail.indexOf('listacompras'));
     const filtered = tail.filter((id) => id !== 'anotacoes' && id !== 'listacompras');
@@ -736,7 +739,12 @@ export function DashboardScreen() {
     borderWidth: 1,
     borderColor: colors.primary + '50',
   };
-  const cardHeaderActionsStyle = { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: useWebLayout ? 2 : 0 };
+  const cardHeaderActionsStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: useWebLayout ? 6 : 8,
+    alignSelf: 'flex-start',
+  };
 
   const taskCardBase = (icon, _iconColor, title, subtitle, items, renderItem, emptyText, extraHeaderContent, onVerMais, headerRightActions, extraFooterContent) => (
     <TouchableOpacity
@@ -760,16 +768,30 @@ export function DashboardScreen() {
         ]}
         contentStyle={{ padding: WEB_CARD_PADDING }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 16 }}>
-          <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-            <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
+        {useWebLayout ? (
+          <View style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
+              </View>
+              {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+              {title}
+            </Text>
           </View>
-          <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>{title}</Text>
-            <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 16 }}>
+            <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+              <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{title}</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
+            </View>
+            {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
           </View>
-          {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
-        </View>
+        )}
         {extraHeaderContent}
         <View style={{ flex: 1, minHeight: 0 }}>
           <ScrollableCardList
@@ -778,6 +800,7 @@ export function DashboardScreen() {
             emptyText={emptyText}
             onVerMais={onVerMais}
             fixedVisibleHeight={useWebLayout ? 'fill' : false}
+            centerEmpty={useWebLayout}
             renderItem={(item) => renderItem(item)}
           />
         </View>
@@ -785,6 +808,41 @@ export function DashboardScreen() {
       </GlassCard>
     </TouchableOpacity>
   );
+
+  /** Web desktop: altura mínima do carrossel (coluna esquerda; coluna direita estica ao mesmo tamanho). */
+  const webDesktopCarouselBlockH = useWebLayout ? Math.round(scaleWebDesktop(300, true)) : null;
+  /** Carrossel + frase na mesma linha e aniversariantes na metade inferior da direita (49% + 2% + 49%). */
+  const desktopHomeCarouselQuoteAniv =
+    useWebLayout &&
+    webSectionOrder.includes('carousel') &&
+    webSectionOrder.includes('quote') &&
+    webSectionOrder.includes('aniversariantes');
+
+  /** Altura mínima da linha agenda (combo esquerda + agenda) = mesma fórmula do GRID_H no layout. */
+  const WEB_AGENDA_ROW_MIN_H =
+    useWebLayout && TRIO_CARD_HEIGHT != null ? TRIO_CARD_HEIGHT * 2 + WEB_DESKTOP_ROW_GAP : undefined;
+
+  /**
+   * Larguras úteis W (área entre paddings da página), G = gap entre colunas.
+   * Linha agenda: agendamentos (W−4G)/4 | próximos (W−2G)/4 | gap | agenda (W−G)/2.
+   * Linha compras|anotações|faturas: mesmos três blocos — lista compras = agendamentos, anotações = próximos, faturas = agenda.
+   */
+  const webDesktopHomeGridFlex = useMemo(() => {
+    if (!useWebLayout) {
+      return { agendamentos: 1, proximos: 1, compras: 1, anotacoes: 1, contas: 2 };
+    }
+    const G = WEB_DESKTOP_ROW_GAP;
+    const W = Math.max(200, (winWidth || SW) - 2 * WEB_DESKTOP_PAGE_PAD);
+    const fAg = Math.max(1, W - 4 * G);
+    const fPr = Math.max(1, W - 2 * G);
+    return {
+      agendamentos: fAg,
+      proximos: fPr,
+      compras: fAg,
+      anotacoes: fPr,
+      contas: Math.max(1, 2 * (W - G)),
+    };
+  }, [useWebLayout, winWidth, WEB_DESKTOP_ROW_GAP, WEB_DESKTOP_PAGE_PAD]);
 
   const sectionMap = {
     proximos: (
@@ -807,29 +865,56 @@ export function DashboardScreen() {
           ]}
           contentStyle={{ padding: WEB_CARD_PADDING }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 12 }}>
-            <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>
+          {useWebLayout ? (
+            <View style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                </View>
+                <View style={cardHeaderActionsStyle}>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
+                    <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
                 {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
               </Text>
-              <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
-                {showConcluidasProximos
-                  ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
-                  : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
-              </Text>
             </View>
-            <View style={cardHeaderActionsStyle}>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
-                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
-                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-              </TouchableOpacity>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 12 }}>
+              <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                  {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                  {showConcluidasProximos
+                    ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
+                    : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
+                </Text>
+              </View>
+              <View style={cardHeaderActionsStyle}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
+                  <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
           <View style={{ flex: 1, minHeight: 0 }}>
             <ScrollableCardList
               items={showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas}
@@ -838,6 +923,7 @@ export function DashboardScreen() {
               emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
               onVerMais={() => { playTapSound(); setExpandedCard('proximos'); }}
               fixedVisibleHeight={useWebLayout ? 'fill' : false}
+              centerEmpty={useWebLayout}
               renderItem={(t) => (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 4 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -873,12 +959,6 @@ export function DashboardScreen() {
               </View>
               )}
             />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
-            <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-              <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
-              <Text style={{ fontSize: 12, color: colors.primary || colors.primary, fontWeight: '600' }}>{showConcluidasProximos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
-            </TouchableOpacity>
           </View>
         </GlassCard>
       </TouchableOpacity>
@@ -945,6 +1025,9 @@ export function DashboardScreen() {
       () => { playTapSound(); setExpandedCard('agendamentos'); },
       (
         <View style={cardHeaderActionsStyle}>
+          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={cardActionButtonStyle}>
+            <AppIcon name={showConcluidasAgendamentos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={cardActionButtonStyle}>
             <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
           </TouchableOpacity>
@@ -953,14 +1036,7 @@ export function DashboardScreen() {
           </TouchableOpacity>
         </View>
       ),
-      (
-        <View key="agendamentos-actions" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, flexWrap: 'wrap', gap: 8 }}>
-          <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-            <AppIcon name={showConcluidasAgendamentos ? 'calendar-outline' : 'checkmark-done-outline'} size={16} color={colors.primary || colors.primary} />
-            <Text style={{ fontSize: 12, color: colors.primary || colors.primary, fontWeight: '600' }}>{showConcluidasAgendamentos ? 'Ver pendentes' : 'Ver concluídas'}</Text>
-          </TouchableOpacity>
-        </View>
-      )
+      null
     ),
     // Web desktop: dois cards 50/50 na metade esquerda; altura da linha = card Agenda (stretch, sem ultrapassar).
     leftAgendaCombo: !useWebLayout ? null : (
@@ -977,7 +1053,15 @@ export function DashboardScreen() {
           gap: WEB_DESKTOP_ROW_GAP,
         }}
       >
-        <View style={{ flex: 1, minWidth: 0, minHeight: 0, height: '100%' }}>
+        <View
+          style={{
+            flex: webDesktopHomeGridFlex.agendamentos,
+            flexBasis: 0,
+            minWidth: 0,
+            minHeight: 0,
+            height: '100%',
+          }}
+        >
           <GlassCard
             colors={colors}
             solid
@@ -985,35 +1069,28 @@ export function DashboardScreen() {
             contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
           >
             <View style={{ flex: 1, minHeight: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: WEB_HEADER_GAP, marginBottom: 8 }}>
-                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agendamentos || colors.primary} />
+              <View style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agendamentos || colors.primary} />
+                  </View>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={cardActionButtonStyle}>
+                      <AppIcon name={showConcluidasAgendamentos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={cardActionButtonStyle}>
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('agendamentos'); }} style={cardActionButtonStyle}>
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={2}>
-                    {showConcluidasAgendamentos
-                      ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos')
-                      : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={2}>
-                    {showConcluidasAgendamentos
-                      ? (proximasTarefas.agendasConcluidas.length === 0 ? 'Nenhum' : `${proximasTarefas.agendasConcluidas.length} concluído${proximasTarefas.agendasConcluidas.length !== 1 ? 's' : ''}`)
-                      : (proximasTarefas.agendas.length === 0
-                        ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Seus atendimentos agendados' : 'Seus eventos agendados nos próximos dias')
-                        : `${proximasTarefas.agendas.length} ${(showEmpresaFeatures && viewMode === 'empresa') ? 'atendimento' : 'evento'}${proximasTarefas.agendas.length !== 1 ? 's' : ''} nos próximos dias`)}
-                  </Text>
-                </View>
-                <View style={[cardHeaderActionsStyle, { flexWrap: 'wrap', rowGap: 4, justifyContent: 'flex-end' }]}>
-                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={cardActionButtonStyle}>
-                    <AppIcon name={showConcluidasAgendamentos ? 'list-outline' : 'checkmark-done-outline'} size={scaleWebDesktop(16, useWebLayout)} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={cardActionButtonStyle}>
-                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('agendamentos'); }} style={cardActionButtonStyle}>
-                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {showConcluidasAgendamentos
+                    ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos')
+                    : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')}
+                </Text>
               </View>
               <View style={{ flex: 1, minHeight: 0 }}>
                 <ScrollableCardList
@@ -1021,6 +1098,7 @@ export function DashboardScreen() {
                   colors={colors}
                   accentColor={colors.primary}
                   scrollStartsAt={4}
+                  centerEmpty
                   emptyText={showConcluidasAgendamentos
                     ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento concluído' : 'Nenhum evento concluído')
                     : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento agendado' : 'Nenhum evento agendado')}
@@ -1049,7 +1127,15 @@ export function DashboardScreen() {
           </GlassCard>
         </View>
 
-        <View style={{ flex: 1, minWidth: 0, minHeight: 0, height: '100%' }}>
+        <View
+          style={{
+            flex: webDesktopHomeGridFlex.proximos,
+            flexBasis: 0,
+            minWidth: 0,
+            minHeight: 0,
+            height: '100%',
+          }}
+        >
           <GlassCard
             colors={colors}
             solid
@@ -1057,31 +1143,26 @@ export function DashboardScreen() {
             contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
           >
             <View style={{ flex: 1, minHeight: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: WEB_HEADER_GAP, marginBottom: 8 }}>
-                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+              <View style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                  </View>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
+                      <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={2}>
-                    {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={2}>
-                    {showConcluidasProximos
-                      ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
-                      : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
-                  </Text>
-                </View>
-                <View style={[cardHeaderActionsStyle, { flexWrap: 'wrap', rowGap: 4, justifyContent: 'flex-end' }]}>
-                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
-                    <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={scaleWebDesktop(16, useWebLayout)} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
-                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
-                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
+                </Text>
               </View>
               <View style={{ flex: 1, minHeight: 0 }}>
                 <ScrollableCardList
@@ -1089,6 +1170,7 @@ export function DashboardScreen() {
                   colors={colors}
                   accentColor={colors.primary}
                   scrollStartsAt={4}
+                  centerEmpty
                   emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
                   fixedVisibleHeight="fill"
                   renderItem={(t) => (
@@ -1156,32 +1238,34 @@ export function DashboardScreen() {
           style={[ds.card, { padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }]}
           contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 10 }}>
-            <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }} numberOfLines={1}>Agenda</Text>
-              <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
-                {formatBrShort(agendaCardDate)}
-              </Text>
-            </View>
-            <View style={cardHeaderActionsStyle}>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primaryRgba(0.18), borderWidth: 1, borderColor: colors.primary + '55' }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
-                  {agendaCardEvents.length} agend.
-                </Text>
+          <View style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
               </View>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }} style={cardActionButtonStyle}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Hoje</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { initialDate: formatBrShort(agendaCardDate) }); }} style={cardActionButtonStyle}>
-                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); navigation?.navigate?.('Agenda'); }} style={cardActionButtonStyle}>
-                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-              </TouchableOpacity>
+              <View style={cardHeaderActionsStyle}>
+                <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primaryRgba(0.18), borderWidth: 1, borderColor: colors.primary + '55' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
+                    {agendaCardEvents.length} agend.
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }} style={[cardActionButtonStyle, { width: undefined, minWidth: CARD_ACTION_SIZE, paddingHorizontal: 10 }]}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Hoje</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { initialDate: formatBrShort(agendaCardDate) }); }} style={cardActionButtonStyle}>
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); navigation?.navigate?.('Agenda'); }} style={cardActionButtonStyle}>
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+              Agenda
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
+              {formatBrShort(agendaCardDate)}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -1532,7 +1616,6 @@ export function DashboardScreen() {
             height: undefined,
             minHeight: 0,
             flex: 1,
-            justifyContent: 'space-between',
           },
         ]}
       >
@@ -1542,6 +1625,9 @@ export function DashboardScreen() {
             if (!item) return null;
             const carouselSlideW = useWebLayout ? '100%' : CARD_WIDTH;
             const slideH = useWebLayout ? scaleWebDesktop(208, true) : 165;
+            /** Desktop: altura mínima do card (coluna alinhada à direita). */
+            const carouselCardMinH = useWebLayout ? webDesktopCarouselBlockH : 0;
+            const carouselCardRadius = scaleWebDesktop(20, true);
             const carouselImageStyle = useWebLayout
               ? Platform.OS === 'web'
                 ? {
@@ -1573,29 +1659,55 @@ export function DashboardScreen() {
                         alignSelf: 'stretch',
                         flex: 1,
                         minHeight: 0,
-                        justifyContent: 'center',
                       }
                     : { width: '100%', alignItems: 'center' }),
                 }}
               >
-                <TouchableOpacity onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={useWebLayout ? { width: '100%' } : { alignSelf: 'center' }}>
-                  <ImageBackground
-                    source={item.image}
-                    style={[
-                      ds.carouselItem,
-                      {
-                        width: carouselSlideW,
-                        maxWidth: useWebLayout ? '100%' : undefined,
-                        height: slideH,
-                        padding: 0,
-                        borderColor: (item.color || colors.primary) + '80',
-                        overflow: 'hidden',
-                        ...cardShadowStyle,
-                      },
-                    ]}
-                    imageStyle={carouselImageStyle}
-                    resizeMode="cover"
+                <View
+                  style={
+                    useWebLayout
+                      ? {
+                          flex: 1,
+                          minHeight: carouselCardMinH,
+                          width: '100%',
+                          borderRadius: carouselCardRadius,
+                          overflow: 'hidden',
+                          borderWidth: 1,
+                          borderColor: (item.color || colors.primary) + '80',
+                          ...cardShadowStyle,
+                        }
+                      : { width: '100%', alignItems: 'center' }
+                  }
+                >
+                  <TouchableOpacity
+                    onPress={() => handleCarouselPress(item)}
+                    activeOpacity={0.9}
+                    style={useWebLayout ? { flex: 1, minHeight: 0 } : { alignSelf: 'center' }}
                   >
+                    <ImageBackground
+                      source={item.image}
+                      style={[
+                        !useWebLayout ? ds.carouselItem : null,
+                        useWebLayout
+                          ? {
+                              flex: 1,
+                              width: '100%',
+                              minHeight: 0,
+                              padding: 0,
+                              overflow: 'hidden',
+                            }
+                          : {
+                              width: carouselSlideW,
+                              height: slideH,
+                              padding: 0,
+                              borderColor: (item.color || colors.primary) + '80',
+                              overflow: 'hidden',
+                              ...cardShadowStyle,
+                            },
+                      ]}
+                      imageStyle={carouselImageStyle}
+                      resizeMode="cover"
+                    >
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: scaleWebDesktop(20, useWebLayout), backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
                     {!useWebLayout ? (
                       <View style={{ position: 'absolute', top: iconTop, left: iconLeft, width: iconBox, height: iconBox, borderRadius: iconBox / 2, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
@@ -1679,6 +1791,51 @@ export function DashboardScreen() {
                     ) : null}
                   </ImageBackground>
                 </TouchableOpacity>
+                {useWebLayout && carouselItems.length > 1 ? (
+                  <View
+                    pointerEvents="box-none"
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      paddingTop: scaleWebDesktop(8, true),
+                      paddingBottom: scaleWebDesktop(12, true),
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 8,
+                      zIndex: 8,
+                      backgroundColor: 'rgba(0,0,0,0.28)',
+                      borderBottomLeftRadius: carouselCardRadius,
+                      borderBottomRightRadius: carouselCardRadius,
+                    }}
+                  >
+                    {carouselItems.map((_, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={(e) => {
+                          e?.stopPropagation?.();
+                          playTapSound();
+                          jumpToCarouselIndex(i);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ paddingVertical: 4, paddingHorizontal: 2 }}
+                      >
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor:
+                              i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '60',
+                          }}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+                </View>
 
                 {/* setas/bordas clicáveis */}
                 {carouselItems.length > 1 && (
@@ -1690,7 +1847,7 @@ export function DashboardScreen() {
                             top: 0,
                             left: 0,
                             right: 0,
-                            height: slideH,
+                            bottom: 0,
                             width: '100%',
                           }
                         : {
@@ -1831,26 +1988,28 @@ export function DashboardScreen() {
           )}
         </View>
         )}
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 8,
-            marginTop: useWebLayout ? scaleWebDesktop(6, true) : 12,
-          }}
-        >
-          {carouselItems.map((_, i) => (
-            <TouchableOpacity
-              key={i}
-              onPress={() => { playTapSound(); jumpToCarouselIndex(i); }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ paddingVertical: 4, paddingHorizontal: 2 }}
-            >
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '60' }} />
-            </TouchableOpacity>
-          ))}
-        </View>
+        {!useWebLayout ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 12,
+            }}
+          >
+            {carouselItems.map((_, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => { playTapSound(); jumpToCarouselIndex(i); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ paddingVertical: 4, paddingHorizontal: 2 }}
+              >
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '60' }} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
       </View>
     ),
     quote: (
@@ -1872,12 +2031,12 @@ export function DashboardScreen() {
             {
               padding: useWebLayout ? scaleWebDesktop(10, true) : WEB_CARD_PADDING,
               minHeight: useWebLayout ? 0 : undefined,
-              ...(useWebLayout ? { flex: 1, minHeight: 0 } : { minHeight: scaleWebDesktop(112, true) }),
+              ...(useWebLayout ? { flex: 1, minHeight: 0, overflow: 'hidden' } : { minHeight: scaleWebDesktop(112, true) }),
             },
           ]}
           contentStyle={{
             padding: useWebLayout ? scaleWebDesktop(10, true) : WEB_CARD_PADDING,
-            ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column' } : null),
+            ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column', overflow: 'hidden' } : null),
           }}
         >
           <View
@@ -1885,7 +2044,8 @@ export function DashboardScreen() {
               flex: useWebLayout ? 1 : undefined,
               minHeight: useWebLayout ? 0 : undefined,
               flexDirection: 'column',
-              justifyContent: useWebLayout ? 'space-between' : undefined,
+              justifyContent: useWebLayout && !desktopHomeCarouselQuoteAniv ? 'space-between' : undefined,
+              ...(useWebLayout ? { overflow: 'hidden' } : null),
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? scaleWebDesktop(6, true) : 12 }}>
@@ -1903,7 +2063,7 @@ export function DashboardScreen() {
             <View style={cardHeaderActionsStyle}>
               <TouchableOpacity
                 onPress={(e) => { e.stopPropagation(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
-                style={[cardActionButtonStyle, { width: useWebLayout ? 40 : CARD_ACTION_SIZE, borderRadius: useWebLayout ? 20 : CARD_ACTION_SIZE / 2 }]}
+                style={cardActionButtonStyle}
               >
                 <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
               </TouchableOpacity>
@@ -1915,12 +2075,39 @@ export function DashboardScreen() {
               </TouchableOpacity>
             </View>
             </View>
-            <Text
-              style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 14 : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined }]}
-              numberOfLines={useWebLayout ? 6 : 3}
-            >
-              "{quote}"
-            </Text>
+            {desktopHomeCarouselQuoteAniv ? (
+              <View
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingVertical: scaleWebDesktop(4, true),
+                }}
+              >
+                <Text
+                  style={[
+                    ds.quoteText,
+                    {
+                      color: colors.text,
+                      fontSize: useWebLayout ? 14 : ds.quoteText.fontSize,
+                      textAlign: 'center',
+                      width: '100%',
+                    },
+                  ]}
+                  numberOfLines={4}
+                >
+                  "{quote}"
+                </Text>
+              </View>
+            ) : (
+              <Text
+                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 14 : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined }]}
+                numberOfLines={useWebLayout ? 4 : 3}
+              >
+                "{quote}"
+              </Text>
+            )}
           </View>
         </GlassCard>
       </TouchableOpacity>
@@ -1980,61 +2167,147 @@ export function DashboardScreen() {
       };
       const isEmpresa = showEmpresaFeatures && viewMode === 'empresa';
       return (
-        <View key="aniversariantes" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
-          <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING, minHeight: TRIO_CARD_HEIGHT }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 12 }}>
-              <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: useWebLayout ? 8 : 12 }}>
-                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
-                  <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
-                    {aniversariantesSemana.length > 0
-                      ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''} (empresa)` : `${aniversariantesSemana.length} família e amigos (pessoal)`)
-                      : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              <View style={cardHeaderActionsStyle}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={cardActionButtonStyle}>
-                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={cardActionButtonStyle}>
-                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <ScrollableCardList
-              items={aniversariantesSemana}
-              colors={colors}
-              accentColor={colors.primary}
-              emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
-              onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
-              fixedVisibleHeight={useWebLayout}
-              renderItem={(c) => {
-                const bd = c.birthDate || c.dataNascimento;
-                const diaLabel = getDiaLabel(bd);
-                const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
-                return (
-                  <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
-                      <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+        <View
+          key="aniversariantes"
+          style={{
+            marginHorizontal: WEB_CARD_MARGIN_H,
+            marginTop: desktopHomeCarouselQuoteAniv ? 0 : WEB_CARD_MARGIN_TOP,
+            ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : null),
+          }}
+        >
+          <GlassCard
+            colors={colors}
+            solid
+            style={[
+              ds.card,
+              {
+                padding: WEB_CARD_PADDING,
+                minHeight: desktopHomeCarouselQuoteAniv ? 0 : TRIO_CARD_HEIGHT,
+                ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
+              },
+            ]}
+            contentStyle={{
+              padding: WEB_CARD_PADDING,
+              ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
+            }}
+          >
+            {desktopHomeCarouselQuoteAniv ? (
+              <View style={{ flex: 1, minHeight: 0, flexDirection: 'column' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 8 : 12 }}>
+                  <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: useWebLayout ? 8 : 12 }}>
+                    <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                     </View>
-                    {c.phone?.trim() ? (
-                      <TouchableOpacity
-                        onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
-                        style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
-                      </TouchableOpacity>
-                    ) : null}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
+                      <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                        {aniversariantesSemana.length > 0
+                          ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''} (empresa)` : `${aniversariantesSemana.length} família e amigos (pessoal)`)
+                          : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={cardActionButtonStyle}>
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={cardActionButtonStyle}>
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
                   </View>
-                );
-              }}
-            />
+                </View>
+                <View style={{ flex: 1, minHeight: 0 }}>
+                  <ScrollableCardList
+                    items={aniversariantesSemana}
+                    colors={colors}
+                    accentColor={colors.primary}
+                    emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
+                    onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
+                    fixedVisibleHeight="fill"
+                    centerEmpty={useWebLayout}
+                    renderItem={(c) => {
+                      const bd = c.birthDate || c.dataNascimento;
+                      const diaLabel = getDiaLabel(bd);
+                      const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
+                      return (
+                        <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                            <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                          </View>
+                          {c.phone?.trim() ? (
+                            <TouchableOpacity
+                              onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                              style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      );
+                    }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 10 : 12 }}>
+                  <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: useWebLayout ? 8 : 12 }}>
+                    <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
+                      <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                        {aniversariantesSemana.length > 0
+                          ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''} (empresa)` : `${aniversariantesSemana.length} família e amigos (pessoal)`)
+                          : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={cardActionButtonStyle}>
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={cardActionButtonStyle}>
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <ScrollableCardList
+                  items={aniversariantesSemana}
+                  colors={colors}
+                  accentColor={colors.primary}
+                  emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
+                  onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
+                  fixedVisibleHeight={useWebLayout}
+                  centerEmpty={useWebLayout}
+                  renderItem={(c) => {
+                    const bd = c.birthDate || c.dataNascimento;
+                    const diaLabel = getDiaLabel(bd);
+                    const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
+                    return (
+                      <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                          <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                        </View>
+                        {c.phone?.trim() ? (
+                          <TouchableOpacity
+                            onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                            style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    );
+                  }}
+                />
+              </>
+            )}
           </GlassCard>
         </View>
       );
@@ -2073,56 +2346,96 @@ export function DashboardScreen() {
         key="anotacoes"
         onPress={() => { playTapSound(); openAnotacoes?.(); }}
         activeOpacity={0.9}
-        style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
+        style={{
+          marginHorizontal: WEB_CARD_MARGIN_H,
+          marginTop: WEB_CARD_MARGIN_TOP,
+          ...(useWebLayout ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : null),
+        }}
       >
-        <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name="document-text-outline" size={26} color={cardIconColor} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Minhas anotações</Text>
-              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+        <GlassCard
+          colors={colors}
+          solid
+          style={[ds.card, { padding: WEB_CARD_PADDING }, useWebLayout ? { flex: 1, minHeight: 0 } : null]}
+          contentStyle={{
+            padding: WEB_CARD_PADDING,
+            ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column' } : null),
+          }}
+        >
+          {useWebLayout ? (
+            <View style={{ marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <AppIcon name="document-text-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                </View>
+                <View style={cardHeaderActionsStyle}>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={cardActionButtonStyle}>
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                Minhas anotações
+              </Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
                 {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
               </Text>
             </View>
-            <View style={cardHeaderActionsStyle}>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
-                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={cardActionButtonStyle}>
-                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <ScrollableCardList
-            items={notes}
-            colors={colors}
-            accentColor={colors.primary}
-            emptyText="Nenhuma anotação ainda"
-            onVerMais={() => { playTapSound(); setExpandedCard('anotacoes'); }}
-            renderItem={(n) => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.anotacoes + '40', marginLeft: 4 }}>
-                <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{n.title || 'Sem título'}</Text>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ editNoteId: n.id }); }} style={{ padding: 6 }}>
-                  <Ionicons name="pencil" size={16} color={colors.primary} />
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                <AppIcon name="document-text-outline" size={26} color={cardIconColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Minhas anotações</Text>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                  {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
+                </Text>
+              </View>
+              <View style={cardHeaderActionsStyle}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={(e) => {
-                    e?.stopPropagation?.();
-                    playTapSound();
-                    Alert.alert('Excluir', 'Quer excluir esta anotação?', [
-                      { text: 'Cancelar' },
-                      { text: 'Excluir', style: 'destructive', onPress: () => deleteNote(n.id) },
-                    ]);
-                  }}
-                  style={{ padding: 6 }}
-                >
-                  <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={cardActionButtonStyle}>
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
                 </TouchableOpacity>
               </View>
-            )}
-          />
+            </View>
+          )}
+          <View style={useWebLayout ? { flex: 1, minHeight: 0 } : undefined}>
+            <ScrollableCardList
+              items={notes}
+              colors={colors}
+              accentColor={colors.primary}
+              emptyText="Nenhuma anotação ainda"
+              onVerMais={() => { playTapSound(); setExpandedCard('anotacoes'); }}
+              centerEmpty={useWebLayout}
+              fixedVisibleHeight={useWebLayout ? 'fill' : false}
+              renderItem={(n) => (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.anotacoes + '40', marginLeft: 4 }}>
+                  <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{n.title || 'Sem título'}</Text>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ editNoteId: n.id }); }} style={{ padding: 6 }}>
+                    <Ionicons name="pencil" size={16} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      playTapSound();
+                      Alert.alert('Excluir', 'Quer excluir esta anotação?', [
+                        { text: 'Cancelar' },
+                        { text: 'Excluir', style: 'destructive', onPress: () => deleteNote(n.id) },
+                      ]);
+                    }}
+                    style={{ padding: 6 }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          </View>
         </GlassCard>
       </TouchableOpacity>
     ),
@@ -2141,32 +2454,90 @@ export function DashboardScreen() {
           key="listacompras"
           onPress={() => { playTapSound(); openListaCompras?.(); }}
           activeOpacity={0.9}
-          style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}
+          style={{
+            marginHorizontal: WEB_CARD_MARGIN_H,
+            marginTop: WEB_CARD_MARGIN_TOP,
+            ...(useWebLayout ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : null),
+          }}
         >
-          <GlassCard colors={colors} solid style={[ds.card, { padding: WEB_CARD_PADDING }]} contentStyle={{ padding: WEB_CARD_PADDING }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                <AppIcon name="cart-outline" size={26} color={cardIconColor} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+          <GlassCard
+            colors={colors}
+            solid
+            style={[ds.card, { padding: WEB_CARD_PADDING }, useWebLayout ? { flex: 1, minHeight: 0 } : null]}
+            contentStyle={{
+              padding: WEB_CARD_PADDING,
+              ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column' } : null),
+            }}
+          >
+            {useWebLayout ? (
+              <View style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <AppIcon name="cart-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                  </View>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        playTapSound();
+                        setShowConcluidasListaCompras(!showConcluidasListaCompras);
+                      }}
+                      style={cardActionButtonStyle}
+                    >
+                      <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
                   {showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras'}
                 </Text>
-                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
                   {showConcluidasListaCompras
                     ? (filteredConcluidas.length === 0 ? 'Nenhuma compra concluída' : `${filteredConcluidas.length} concluída${filteredConcluidas.length !== 1 ? 's' : ''}`)
                     : (filteredPendentes.length === 0 ? 'Anote o que precisa comprar' : `${filteredPendentes.length} pendente${filteredPendentes.length !== 1 ? 's' : ''}`)}
                 </Text>
               </View>
-              <View style={cardHeaderActionsStyle}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
-                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
-                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
-                </TouchableOpacity>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <AppIcon name="cart-outline" size={26} color={cardIconColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                    {showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                    {showConcluidasListaCompras
+                      ? (filteredConcluidas.length === 0 ? 'Nenhuma compra concluída' : `${filteredConcluidas.length} concluída${filteredConcluidas.length !== 1 ? 's' : ''}`)
+                      : (filteredPendentes.length === 0 ? 'Anote o que precisa comprar' : `${filteredPendentes.length} pendente${filteredPendentes.length !== 1 ? 's' : ''}`)}
+                  </Text>
+                </View>
+                <View style={cardHeaderActionsStyle}>
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      playTapSound();
+                      setShowConcluidasListaCompras(!showConcluidasListaCompras);
+                    }}
+                    style={cardActionButtonStyle}
+                  >
+                    <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            )}
             <View style={{ width: '100%', marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('todos'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: filtroListaCompras === 'todos' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'todos' ? colors.primary : colors.border }}>
@@ -2185,28 +2556,26 @@ export function DashboardScreen() {
                 )}
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasListaCompras(!showConcluidasListaCompras); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
-                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>{showConcluidasListaCompras ? 'Ver pendentes' : 'Ver compras concluídas'}</Text>
-              </TouchableOpacity>
+            <View style={useWebLayout ? { flex: 1, minHeight: 0 } : undefined}>
+              <ScrollableCardList
+                items={displayItems}
+                colors={colors}
+                accentColor={colors.primary}
+                emptyText={showConcluidasListaCompras ? 'Nenhuma compra concluída' : 'Nenhum item na lista'}
+                onVerMais={() => { playTapSound(); setExpandedCard('listacompras'); }}
+                itemMarginBottom={8}
+                centerEmpty={useWebLayout}
+                fixedVisibleHeight={useWebLayout ? 'fill' : false}
+                renderItem={(i) => (
+                  <TouchableOpacity onPress={(e) => toggleItem(e, i)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      {i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}
+                    </View>
+                    <Text style={{ fontSize: 15, color: colors.text, flex: 1, textDecorationLine: i.checked ? 'line-through' : 'none' }} numberOfLines={1}>{i.title}</Text>
+                  </TouchableOpacity>
+                )}
+              />
             </View>
-            <ScrollableCardList
-              items={displayItems}
-              colors={colors}
-              accentColor={colors.primary}
-              emptyText={showConcluidasListaCompras ? 'Nenhuma compra concluída' : 'Nenhum item na lista'}
-              onVerMais={() => { playTapSound(); setExpandedCard('listacompras'); }}
-              itemMarginBottom={8}
-              renderItem={(i) => (
-                <TouchableOpacity onPress={(e) => toggleItem(e, i)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
-                  <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    {i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}
-                  </View>
-                  <Text style={{ fontSize: 15, color: colors.text, flex: 1, textDecorationLine: i.checked ? 'line-through' : 'none' }} numberOfLines={1}>{i.title}</Text>
-                </TouchableOpacity>
-              )}
-            />
           </GlassCard>
         </TouchableOpacity>
       );
@@ -2251,6 +2620,7 @@ export function DashboardScreen() {
               accentColor={colors.primary}
               emptyText="Nenhuma anotação ainda"
               onVerMais={() => { playTapSound(); openAnotacoes?.(); }}
+              centerEmpty={useWebLayout}
               renderItem={(n) => (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.anotacoes + '40', marginLeft: 4 }}>
                   <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{n.title || 'Sem título'}</Text>
@@ -2280,6 +2650,7 @@ export function DashboardScreen() {
                 accentColor={colors.primary}
                 emptyText={showConcluidasProdCompras ? 'Nenhuma compra concluída' : 'Nenhum item na lista'}
                 onVerMais={() => { playTapSound(); openListaCompras?.(); }}
+                centerEmpty={useWebLayout}
                 renderItem={(i) => (
                   <TouchableOpacity
                     onPress={(e) => {
@@ -2324,7 +2695,7 @@ export function DashboardScreen() {
       </View>
     ),
     contas: (
-      <View key="contas">
+      <View key="contas" style={useWebLayout ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : undefined}>
         <ContasDoMesCard
           contasPagas={contasStatus.pagas}
           contasAVencer={contasStatus.aVencer}
@@ -2334,6 +2705,7 @@ export function DashboardScreen() {
           colors={colors}
           lightBackground={themeMode === 'light'}
           noMargins={useWebLayout}
+          dashboardWebHeader={useWebLayout}
           onOpenFaturas={() => openCadastro?.('boletos')}
           onAddFatura={() => openCadastro?.('boletos')}
           playTapSound={playTapSound}
@@ -2441,6 +2813,8 @@ export function DashboardScreen() {
               if (!quoteContent) {
                 return <View style={{ width: '100%' }}>{carouselContent}</View>;
               }
+              const anivContent = sectionMap.aniversariantes;
+              const rightColumnStackAniv = desktopHomeCarouselQuoteAniv && anivContent;
               return (
                 <View
                   style={{
@@ -2450,8 +2824,18 @@ export function DashboardScreen() {
                     alignItems: 'stretch',
                   }}
                 >
-                  <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{carouselContent}</View>
-                  <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{carouselContent}</View>
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
+                    {rightColumnStackAniv ? (
+                      <>
+                        <View style={{ flex: 49, minHeight: 0 }}>{quoteContent}</View>
+                        <View style={{ flex: 2, minHeight: 0 }} />
+                        <View style={{ flex: 49, minHeight: 0 }}>{anivContent}</View>
+                      </>
+                    ) : (
+                      quoteContent
+                    )}
+                  </View>
                 </View>
               );
             })()}
@@ -2465,14 +2849,21 @@ export function DashboardScreen() {
                   {/* Duas colunas 50/50: esquerda = dois cards; direita Agenda. Mesma altura (stretch) = topo/fundo alinhados. */}
                   {(() => {
                     const GAP = WEB_DESKTOP_ROW_GAP;
-                    const baseH = (TRIO_CARD_HEIGHT || 250);
-                    const GRID_H = baseH * 2 + GAP;
+                    const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
                     return (
                       <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP }}>
-                        <View style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+                        <View
+                          style={{
+                            flex: 1,
+                            flexBasis: 0,
+                            minWidth: 0,
+                            minHeight: WEB_AGENDA_ROW_MIN_H ?? 0,
+                            overflow: 'hidden',
+                          }}
+                        >
                           {sectionMap.leftAgendaCombo}
                         </View>
-                        <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                        <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
                           <View style={{ minHeight: GRID_H, height: '100%' }}>
                             {sectionMap.agenda}
                           </View>
@@ -2480,7 +2871,7 @@ export function DashboardScreen() {
                       </View>
                     );
                   })()}
-                  {webSectionTail.includes('aniversariantes') ? (
+                  {webSectionTail.includes('aniversariantes') && !desktopHomeCarouselQuoteAniv ? (
                     <View style={{ width: '100%' }}>
                       {sectionMap.aniversariantes}
                     </View>
@@ -2490,32 +2881,109 @@ export function DashboardScreen() {
             })()}
             {(() => {
               const CARD_GAP = WEB_DESKTOP_ROW_GAP;
-              const halfW = `calc((100% - ${CARD_GAP}px) / 2)`;
+              const colHalf = { flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 };
+              const baseFilter = (sid) => !['proximos', 'agendamentos', 'agenda', 'aniversariantes', 'meusgastos'].includes(sid);
+              const showDesktopComprasAnotacoesFaturas =
+                webSectionTail.includes('listacompras') &&
+                webSectionTail.includes('anotacoes') &&
+                webSectionTail.includes('contas');
+              const comprasContent = sectionMap.listacompras;
+              const anotacoesContent = sectionMap.anotacoes;
+              const contasContent = sectionMap.contas;
+              const tailForGrid = webSectionTail
+                .filter(baseFilter)
+                .filter((sid) => (showDesktopComprasAnotacoesFaturas ? !['listacompras', 'anotacoes', 'contas'].includes(sid) : true));
+
+              const isFullWidthCard = (sid) => {
+                if (sid === 'meusgastos' || sid === 'produtividade' || sid === 'contas') return true;
+                return false;
+              };
+
+              /** Mesma lógica 50/50 das linhas carrossel e agenda: sem calc() nem flexWrap (evita desvio de subpixel). */
+              const tailRows = [];
+              for (let i = 0; i < tailForGrid.length; i += 1) {
+                const sid = tailForGrid[i];
+                if (isFullWidthCard(sid)) {
+                  tailRows.push({ kind: 'full', sid });
+                  continue;
+                }
+                const next = tailForGrid[i + 1];
+                if (next != null && !isFullWidthCard(next)) {
+                  tailRows.push({ kind: 'pair', left: sid, right: next });
+                  i += 1;
+                } else {
+                  tailRows.push({ kind: 'pair', left: sid, right: null });
+                }
+              }
+
               return (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: CARD_GAP, width: '100%' }}>
-              {webSectionTail
-                .filter((sid) => !['proximos', 'agendamentos', 'agenda', 'aniversariantes', 'meusgastos'].includes(sid))
-                .map((sid) => {
-                const content = sectionMap[sid];
-                if (!content) return null;
-                const isMeusGastos = sid === 'meusgastos';
-                const isProdutividade = sid === 'produtividade';
-                const isMinhasFaturas = sid === 'contas';
-                const isFull = isMeusGastos || isProdutividade || isMinhasFaturas;
-                return (
-                  <View
-                    key={sid}
-                    style={{
-                      width: isFull ? '100%' : halfW,
-                      flexBasis: isFull ? '100%' : halfW,
-                      flexGrow: 0,
-                    }}
-                  >
-                    {content}
-                  </View>
-                );
-              })}
-            </View>
+                <View style={{ width: '100%', gap: CARD_GAP }}>
+                  {showDesktopComprasAnotacoesFaturas && comprasContent && anotacoesContent && contasContent ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        width: '100%',
+                        gap: CARD_GAP,
+                        alignItems: 'stretch',
+                        ...(WEB_AGENDA_ROW_MIN_H != null ? { minHeight: WEB_AGENDA_ROW_MIN_H } : null),
+                      }}
+                    >
+                      <View
+                        style={{
+                          flex: webDesktopHomeGridFlex.compras,
+                          flexBasis: 0,
+                          minWidth: 0,
+                          minHeight: 0,
+                        }}
+                      >
+                        {comprasContent}
+                      </View>
+                      <View
+                        style={{
+                          flex: webDesktopHomeGridFlex.anotacoes,
+                          flexBasis: 0,
+                          minWidth: 0,
+                          minHeight: 0,
+                        }}
+                      >
+                        {anotacoesContent}
+                      </View>
+                      <View
+                        style={{
+                          flex: webDesktopHomeGridFlex.contas,
+                          flexBasis: 0,
+                          minWidth: 0,
+                          minHeight: 0,
+                        }}
+                      >
+                        {contasContent}
+                      </View>
+                    </View>
+                  ) : null}
+                  {tailRows.map((row, rowIdx) => {
+                    if (row.kind === 'full') {
+                      const content = sectionMap[row.sid];
+                      if (!content) return null;
+                      return (
+                        <View key={row.sid} style={{ width: '100%', minWidth: 0 }}>
+                          {content}
+                        </View>
+                      );
+                    }
+                    const leftC = sectionMap[row.left];
+                    if (!leftC) return null;
+                    const rightC = row.right ? sectionMap[row.right] : null;
+                    return (
+                      <View
+                        key={`row-${rowIdx}-${row.left}-${row.right || 'x'}`}
+                        style={{ flexDirection: 'row', width: '100%', gap: CARD_GAP, alignItems: 'stretch', minWidth: 0 }}
+                      >
+                        <View style={colHalf}>{leftC}</View>
+                        <View style={colHalf}>{rightC}</View>
+                      </View>
+                    );
+                  })}
+                </View>
               );
             })()}
           </View>
@@ -2693,10 +3161,9 @@ export function DashboardScreen() {
         ))}
         {expandedCard === 'listacompras' && (
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-              <TouchableOpacity onPress={() => { playTapSound(); setShowConcluidasListaCompras(!showConcluidasListaCompras); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}>
-                <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
-                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>{showConcluidasListaCompras ? 'Ver pendentes' : 'Ver compras concluídas'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 16 }}>
+              <TouchableOpacity onPress={() => { playTapSound(); setShowConcluidasListaCompras(!showConcluidasListaCompras); }} style={cardActionButtonStyle}>
+                <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
               </TouchableOpacity>
             </View>
             {(() => {

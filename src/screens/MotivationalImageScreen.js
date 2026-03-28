@@ -11,6 +11,10 @@ const logoImage = require('../../assets/logo.png');
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
 const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9)); // 9:16 formato Stories Instagram
+/** Visor na tela = 15% do cartão; captura (ViewShot) mantém CARD_* para qualidade ao partilhar. */
+const PREVIEW_SCALE = 0.15;
+const PREVIEW_W = Math.round(CARD_WIDTH * PREVIEW_SCALE);
+const PREVIEW_H = Math.round(CARD_HEIGHT * PREVIEW_SCALE);
 
 const CTA_PHRASE = 'Agenda e finanças em um app. Tudo Certo.';
 
@@ -97,8 +101,33 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
       ) : null}
       <ScrollView showsVerticalScrollIndicator contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}>
         <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', padding: 16 }}>Crie e compartilhe sua imagem.</Text>
-        <View style={{ alignSelf: 'center', transform: [{ scale: 0.77 }], marginVertical: 8 }}>
-          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1, width: CARD_WIDTH, height: CARD_HEIGHT }} style={[mis.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
+        <View
+          style={{
+            alignSelf: 'center',
+            width: PREVIEW_W,
+            height: PREVIEW_H,
+            marginVertical: 8,
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <View
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              width: CARD_WIDTH,
+              height: CARD_HEIGHT,
+              marginLeft: -CARD_WIDTH / 2,
+              marginTop: -CARD_HEIGHT / 2,
+              transform: [{ scale: PREVIEW_SCALE }],
+            }}
+          >
+            <ViewShot
+              ref={viewShotRef}
+              options={{ format: 'png', quality: 1, width: CARD_WIDTH, height: CARD_HEIGHT }}
+              style={[mis.card, { width: CARD_WIDTH, height: CARD_HEIGHT, margin: 0 }]}
+            >
           <LinearGradient colors={bg.colors} style={{ flex: 1, borderRadius: 20, overflow: 'hidden' }}>
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
               <View style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' }} />
@@ -131,7 +160,8 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
               </View>
             )}
           </LinearGradient>
-          </ViewShot>
+            </ViewShot>
+          </View>
         </View>
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Escolha o fundo:</Text>
         <View style={[mis.bgGrid, { paddingTop: 12 }]}>

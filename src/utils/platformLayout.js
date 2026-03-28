@@ -75,16 +75,5 @@ export function scaleWebDesktop(value, isWebDesktop) {
   return Math.round(n * WEB_DESKTOP_SCALE);
 }
 
-/**
- * Altura aproximada do TopBar (abaixo do safe top) — seta calculadora no web mobile.
- */
-export const WEB_APP_HEADER_ESTIMATE = 84;
-
-/**
- * Offset usado só na rail direita (web desktop): menor que o header real evita centralizar
- * a ilha “embaixo” demais (84px superestima o bloco com scaleWebDesktop no TopBar).
- */
-export const WEB_DESKTOP_RAIL_HEADER_OFFSET = 36;
-
 /** Reserva inferior no web mobile (tab bar fixa ~110px). */
 export const WEB_MOBILE_TAB_BAR_RESERVE = 108;

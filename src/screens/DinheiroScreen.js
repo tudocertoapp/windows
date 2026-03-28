@@ -31,7 +31,7 @@ import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CardExpandedModal } from '../components/CardExpandedModal';
 import { DEFAULT_DINHEIRO_SECTIONS, DEFAULT_DINHEIRO_SECTIONS_WEB, DINHEIRO_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
-import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout } from '../utils/platformLayout';
+import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 
 const DINHEIRO_SECTIONS_KEY = '@tudocerto_dinheiro_sections';
 
@@ -120,6 +120,8 @@ export function DinheiroScreen({ route }) {
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
   const useWebLayout = isWeb && isDesktopLayout;
+  const WEB_DESKTOP_PAGE_PAD = scaleWebDesktop(10, useWebLayout);
+  const WEB_DESKTOP_ROW_GAP = scaleWebDesktop(8, useWebLayout);
   const { transactions, boletos, checkListItems, agendaEvents, clients, deleteTransaction } = useFinance();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
@@ -360,7 +362,7 @@ export function DinheiroScreen({ route }) {
 
   const sectionContent = {
     balance: (
-      <View key="balance">
+      <View key="balance" style={useWebLayout ? { flex: 1, minWidth: 0, minHeight: 0 } : undefined}>
         <BalanceCard
           iconColor={CARD_ICON_COLORS.balance}
           balance={balance}
@@ -380,12 +382,13 @@ export function DinheiroScreen({ route }) {
           onFilterPeriodChange={(start, end) => { setPeriodStart(start); setPeriodEnd(end); }}
           showValues={showValues}
           onToggleValues={() => { playTapSound(); toggleValues(); }}
-          stackBoxes={!useWebLayout}
+          stackBoxes
+          noMargins={useWebLayout}
         />
       </View>
     ),
     contas: (
-      <View key="contas">
+      <View key="contas" style={useWebLayout ? { flex: 1, minWidth: 0, minHeight: 0 } : undefined}>
         <ContasDoMesCard
           iconColor={CARD_ICON_COLORS.contas}
           contasPagas={contasStatus.pagas}
@@ -395,6 +398,7 @@ export function DinheiroScreen({ route }) {
           mask={mask}
           colors={colors}
           lightBackground={themeMode === 'light'}
+          noMargins={useWebLayout}
           onOpenFaturas={() => openCadastro?.('boletos')}
           onAddFatura={() => openCadastro?.('boletos')}
           playTapSound={playTapSound}
@@ -589,9 +593,19 @@ export function DinheiroScreen({ route }) {
         </View>
         {useWebLayout ? (
           <>
-            {sectionContent.balance}
-            {sectionContent.contas}
-            <View style={[dns.tabBar, { backgroundColor: colors.border + '40', marginTop: 16, marginHorizontal: 16 }]}>
+            <View
+              style={{
+                flexDirection: 'row',
+                width: '100%',
+                alignItems: 'stretch',
+                gap: WEB_DESKTOP_ROW_GAP,
+                paddingHorizontal: WEB_DESKTOP_PAGE_PAD,
+              }}
+            >
+              {sectionContent.balance}
+              {sectionContent.contas}
+            </View>
+            <View style={[dns.tabBar, { backgroundColor: colors.border + '40', marginTop: 16, marginHorizontal: WEB_DESKTOP_PAGE_PAD }]}>
               {[
                 { id: 'fluxo', label: 'Fluxo de caixa' },
                 { id: 'graficos', label: 'Gráficos' },
