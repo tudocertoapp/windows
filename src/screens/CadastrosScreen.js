@@ -14,6 +14,7 @@ import {
   Platform,
   Modal,
   Switch,
+  useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,6 +61,8 @@ const cs = StyleSheet.create({
   listSub: { fontSize: 12, marginTop: 2 },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 8 },
   emptyText: { fontSize: 15, color: '#6b7280' },
+  gridWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridItem: { borderRadius: 14, borderWidth: 1, padding: 12 },
 });
 
 function useSectionData(section) {
@@ -83,6 +86,8 @@ function useSectionData(section) {
 }
 
 export function CadastrosScreen({ route, initialSection, initialEditItemId, onClose, isModal }) {
+  const { width: winWidth } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && winWidth >= 1024;
   const sectionFromRoute = initialSection || route?.params?.section || 'clientes';
   const [section, setSection] = useState(sectionFromRoute);
   const [showForm, setShowForm] = useState(false);
@@ -660,41 +665,87 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         </View>
       ) : (
         <View style={{ paddingVertical: 8, paddingBottom: 100 }}>
-          {filteredItems.map((item) => (
-            <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }]}>
-              {(section === 'clientes' && item.foto) || (section === 'produtos' && (item.photoUri || item.photoUris?.[0])) ? (
-                <Image source={{ uri: (section === 'clientes' ? item.foto : (item.photoUri || item.photoUris?.[0])) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
-              ) : (
-                <View style={[cs.listIcon, { backgroundColor: 'transparent' }]}>
-                  <Ionicons name={sectionInfo.icon} size={20} color={colors.primary} />
-                </View>
-              )}
-              <View style={cs.listBody}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <Text style={[cs.listTitle, { color: colors.text }]}>{item[titleKey] || '—'}</Text>
-                  {section === 'clientes' && item.nivel && (
-                    <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: (item.nivel === 'fechou' ? '#10b981' : item.nivel === 'lead' ? '#f59e0b' : '#6b7280') + '30' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: item.nivel === 'fechou' ? '#10b981' : item.nivel === 'lead' ? '#f59e0b' : '#6b7280' }}>{item.nivel === 'fechou' ? 'Fechou' : item.nivel === 'lead' ? 'Lead' : 'Orçamento'}</Text>
+          {isDesktopWeb && (section === 'produtos' || section === 'servicos') ? (
+            <View style={[cs.gridWrap, { paddingHorizontal: 16 }]}>
+              {filteredItems.map((item) => {
+                const mediaUri = item.photoUri || item.photoUris?.[0] || item.foto || null;
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      cs.gridItem,
+                      {
+                        width: '32%',
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        opacity: section === 'boletos' && item.paid ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                      {mediaUri ? (
+                        <Image source={{ uri: mediaUri }} style={{ width: 88, height: 88, borderRadius: 14, overflow: 'hidden' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ width: 88, height: 88, borderRadius: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primaryRgba?.(0.1) ?? (colors.primary + '1A') }}>
+                          <Ionicons name={sectionInfo.icon} size={32} color={colors.primary} />
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
-                {subKey && item[subKey] != null && <Text style={[cs.listSub, { color: colors.textSecondary }]}>{typeof item[subKey] === 'number' ? `R$ ${item[subKey].toFixed(2)}` : item[subKey]}</Text>}
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                {section === 'boletos' && (
-                  <TouchableOpacity onPress={() => update(item.id, { paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
-                    <Ionicons name={item.paid ? 'checkmark-done' : 'checkmark-done-outline'} size={18} color={item.paid ? '#10b981' : colors.textSecondary} />
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
-                  <Ionicons name="pencil" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
-                  <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                </TouchableOpacity>
-              </View>
+                    <Text style={[cs.listTitle, { color: colors.text }]} numberOfLines={1}>{item[titleKey] || '—'}</Text>
+                    {subKey && item[subKey] != null && (
+                      <Text style={[cs.listSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {typeof item[subKey] === 'number' ? `R$ ${item[subKey].toFixed(2)}` : item[subKey]}
+                      </Text>
+                    )}
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
+                      <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
+                        <Ionicons name="pencil" size={18} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
+                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-          ))}
+          ) : (
+            filteredItems.map((item) => (
+              <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }]}>
+                {(section === 'clientes' && item.foto) || (section === 'produtos' && (item.photoUri || item.photoUris?.[0])) ? (
+                  <Image source={{ uri: (section === 'clientes' ? item.foto : (item.photoUri || item.photoUris?.[0])) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
+                ) : (
+                  <View style={[cs.listIcon, { backgroundColor: 'transparent' }]}>
+                    <Ionicons name={sectionInfo.icon} size={20} color={colors.primary} />
+                  </View>
+                )}
+                <View style={cs.listBody}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Text style={[cs.listTitle, { color: colors.text }]}>{item[titleKey] || '—'}</Text>
+                    {section === 'clientes' && item.nivel && (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: (item.nivel === 'fechou' ? '#10b981' : item.nivel === 'lead' ? '#f59e0b' : '#6b7280') + '30' }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: item.nivel === 'fechou' ? '#10b981' : item.nivel === 'lead' ? '#f59e0b' : '#6b7280' }}>{item.nivel === 'fechou' ? 'Fechou' : item.nivel === 'lead' ? 'Lead' : 'Orçamento'}</Text>
+                      </View>
+                    )}
+                  </View>
+                  {subKey && item[subKey] != null && <Text style={[cs.listSub, { color: colors.textSecondary }]}>{typeof item[subKey] === 'number' ? `R$ ${item[subKey].toFixed(2)}` : item[subKey]}</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  {section === 'boletos' && (
+                    <TouchableOpacity onPress={() => update(item.id, { paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
+                      <Ionicons name={item.paid ? 'checkmark-done' : 'checkmark-done-outline'} size={18} color={item.paid ? '#10b981' : colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
+                    <Ionicons name="pencil" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       )}
     </SafeAreaView>

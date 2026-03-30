@@ -29,7 +29,7 @@ import {
 } from '../utils/sounds';
 import VoiceRecorder from './VoiceRecorder';
 import { processReceipt } from '../services/receiptOcr/processReceipt';
-import { useIsDesktopLayout } from '../utils/platformLayout';
+import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { WEB_DESKTOP_RAIL_WIDTH } from './navigation/RightSideTabBar';
 
 /** Mesmo gutter do AppNavigator (padding da rail): coluna principal não cobre a rail direita. */
@@ -301,7 +301,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const { openAddModal } = useMenu();
   const insets = useSafeAreaInsets();
   const isDesktopLayout = useIsDesktopLayout();
+  const isWebMobile = Platform.OS === 'web' && !isDesktopLayout;
   const webDesktopFixedInput = Platform.OS === 'web' && isDesktopLayout && !embedded;
+  const mobileBottomDock = !webDesktopFixedInput && (Platform.OS !== 'web' || isWebMobile);
+  const mobileTabbarReserve = mobileBottomDock ? (Platform.OS === 'web' ? WEB_MOBILE_TAB_BAR_RESERVE : 96) : 0;
   const EXAMPLE_PHRASES = [
     'Fui no mercado e gastei 89,90. Gasto pessoal.',
     'Estava na farmácia e paguei 35,50.',
@@ -1022,14 +1025,15 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     );
   };
 
-  const listBottomPad = webDesktopFixedInput ? 120 : 18;
+  const mobileBottomLift = mobileBottomDock ? 40 : 0;
+  const listBottomPad = webDesktopFixedInput ? 120 : 18 + (mobileBottomDock ? (mobileTabbarReserve + 84 + mobileBottomLift) : 0);
   const kavStyle = {
     flex: 1,
     minHeight: 0,
     ...(webDesktopFixedInput ? { overflow: 'hidden' } : {}),
   };
   const inputPadBottom =
-    Platform.OS === 'ios' ? 14 : Platform.OS === 'web' ? Math.max(insets.bottom, 10) : 8;
+    (Platform.OS === 'ios' ? 14 : Platform.OS === 'web' ? Math.max(insets.bottom, 10) : 8) + mobileBottomLift;
 
   const chatMain = (
     <>
@@ -1071,6 +1075,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               borderTopWidth: embedded ? 0 : 1,
               paddingHorizontal: (embedded || transparentBg) ? 20 : 12,
               paddingBottom: webDesktopFixedInput ? Math.max(insets.bottom, 12) : inputPadBottom,
+              marginBottom: mobileBottomDock ? (mobileTabbarReserve + mobileBottomLift) : 0,
             },
             webDesktopFixedInput && {
               position: 'fixed',

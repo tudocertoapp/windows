@@ -122,7 +122,7 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
 
 const TabItemMemo = memo(TabItem);
 
-function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, inactiveColor, isDark, customHandlers = {}, showLabel = false }) {
+function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, inactiveColor, isDark, customHandlers = {}, showLabel = false, hiddenRouteNames = [] }) {
   const insets = useSafeAreaInsets();
   const paddingBottom = Math.max(insets.bottom, 8);
 
@@ -143,7 +143,9 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
           <View style={[StyleSheet.absoluteFill, styles.borderWrap, isDark ? styles.borderDark : styles.borderLight]} />
         </View>
         <View style={styles.tabsRow}>
-          {state.routes.map((route, index) => {
+          {state.routes
+            .filter((route) => !hiddenRouteNames.includes(route.name))
+            .map((route, index) => {
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
             const isAddButton = route.name === 'Adicionar';
@@ -214,6 +216,7 @@ const GlassTabBar = memo(function GlassTabBar(props) {
       isDark={isDark}
       customHandlers={props.customHandlers}
       showLabel={props.showLabel ?? false}
+      hiddenRouteNames={props.hiddenRouteNames ?? []}
     />
   );
 });

@@ -40,7 +40,7 @@ export const AVAILABLE_CARD_TYPES = [
 export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
 
 /** Cards padrão para web – altere aqui para layout diferente da web sem afetar o mobile */
-export const DEFAULT_SECTIONS_WEB = ['proximos', 'agenda', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
+export const DEFAULT_SECTIONS_WEB = ['proximos', 'agenda', 'quote', 'carousel', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
 
 /** Cards da página Dinheiro que podem ser adicionados ao Início via Organize (transações só na Dinheiro) */
 export const DINHEIRO_ADDABLE_CARDS = [];

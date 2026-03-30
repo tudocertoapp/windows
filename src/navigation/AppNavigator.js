@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { View, TouchableOpacity, Modal, SafeAreaView, Platform, Alert, StyleSheet, Dimensions, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
@@ -222,6 +222,65 @@ export function AppNavigator() {
     return Math.max(minTop, Math.min(ideal, maxTop));
   }, [isWebMobile, insets.top, insets.bottom, windowHeight]);
 
+  const closeTopLevelModal = useCallback(() => {
+    if (showCalcMenu) { setShowCalcMenu(false); return true; }
+    if (calculadoraModal) { setCalculadoraModal(false); return true; }
+    if (calculadoraFloating) { setCalculadoraFloating(false); return true; }
+    if (pdvModal) { setPdvModal(false); return true; }
+    if (orcamentosModal) { setOrcamentosModal(false); return true; }
+    if (ordemServicoModal) { setOrdemServicoModal(false); return true; }
+    if (empresaModal) { setEmpresaModal(false); return true; }
+    if (aniversariantesModal) { setAniversariantesModal(false); return true; }
+    if (metasSonhosModal) { setMetasSonhosModal(false); return true; }
+    if (listaComprasModal) { setListaComprasModal(false); return true; }
+    if (receiptScannerModal) { setReceiptScannerModal(false); return true; }
+    if (anotacoesModal) { setAnotacoesModal(false); return true; }
+    if (orcamentoModal) { setOrcamentoModal(false); return true; }
+    if (bancosModal) { setBancosModal(false); return true; }
+    if (termosModal) { setTermosModal(false); return true; }
+    if (temasModal) { setTemasModal(false); return true; }
+    if (imageModal) { setImageModal(false); return true; }
+    if (assistantModal) { setAssistantModal(false); return true; }
+    if (aReceberModal) { setAReceberModal(false); return true; }
+    if (indiqueModal) { setIndiqueModal(false); return true; }
+    if (assinaturaModal) { setAssinaturaModal(false); return true; }
+    if (perfilModal) { setPerfilModal(false); return true; }
+    if (cadastroModal) { setCadastroModal(null); return true; }
+    if (productFormVisible) { setProductFormVisible(false); return true; }
+    if (addModalState?.type) { setAddModalState({ type: null, params: null }); return true; }
+    if (menuModalOpen) { setMenuModalOpen(false); return true; }
+    if (menuOpen) { setMenuOpen(false); return true; }
+    return false;
+  }, [
+    showCalcMenu, calculadoraModal, calculadoraFloating, pdvModal, orcamentosModal, ordemServicoModal,
+    empresaModal, aniversariantesModal, metasSonhosModal, listaComprasModal, receiptScannerModal,
+    anotacoesModal, orcamentoModal, bancosModal, termosModal, temasModal, imageModal, assistantModal,
+    aReceberModal, indiqueModal, assinaturaModal, perfilModal, cadastroModal, productFormVisible,
+    addModalState, menuModalOpen, menuOpen,
+  ]);
+
+  useEffect(() => {
+    if (!isWeb || typeof window === 'undefined') return undefined;
+    const onEsc = (e) => {
+      if (e?.key !== 'Escape') return;
+      const target = e?.target;
+      const isTyping =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable;
+      if (isTyping) return;
+      const localEscEvent = new CustomEvent('tc:escape', { cancelable: true });
+      const dispatched = window.dispatchEvent(localEscEvent);
+      if (!dispatched) return;
+      if (closeTopLevelModal()) return;
+      const nav = navigationRef.current;
+      if (nav?.canGoBack?.()) nav.goBack();
+      else if (window.history.length > 1) window.history.back();
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [isWeb, closeTopLevelModal]);
+
   return (
     <MenuContext.Provider value={menuActions}>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -248,15 +307,20 @@ export function AppNavigator() {
                     : (tabProps) => (
                         <WebMobileTabBarDock
                           {...tabProps}
+                          hiddenRouteNames={isWebMobile ? ['WhatsApp', 'CRM', 'Cadastros'] : []}
                           customHandlers={{
                             Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
                           }}
                         />
                       )
                 }
-                screenOptions={{
+                screenOptions={({ route }) => ({
                   headerShown: false,
                   tabBarShowLabel: false,
+                  // Web mobile: esconder botões WhatsApp/CRM da tabbar.
+                  ...(isWebMobile && ['WhatsApp', 'CRM', 'Cadastros'].includes(route.name)
+                    ? { tabBarButton: () => null }
+                    : {}),
                   tabBarStyle: isDesktopLayout
                     ? { display: 'none' }
                     : isWeb
@@ -282,7 +346,7 @@ export function AppNavigator() {
                           backgroundColor: 'transparent',
                           borderTopWidth: 0,
                         },
-                }}
+                })}
               >
                 <Tab.Screen name="Início" component={DashboardScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="home-outline" size={24} color={color} /> }} />
                 <Tab.Screen name="Dinheiro" component={DinheiroScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="wallet-outline" size={24} color={color} /> }} />
@@ -343,7 +407,7 @@ export function AppNavigator() {
                 style={{
                   position: 'absolute',
                   right: 0,
-                  top: calcEdgeCalcRowTop,
+                  top: Math.max(0, calcEdgeCalcRowTop - 40),
                   flexDirection: 'row',
                   alignItems: 'center',
                   zIndex: 2147483646,
@@ -402,7 +466,7 @@ export function AppNavigator() {
                   }}
                   accessibilityLabel={showCalcMenu ? 'Fechar menu' : 'Abrir menu'}
                 >
-                  <Ionicons name={showCalcMenu ? 'chevron-forward' : 'chevron-back'} size={18} color={colors.primary} />
+                  <Ionicons name={showCalcMenu ? 'chevron-forward' : 'chevron-back'} size={24} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             )}
@@ -547,34 +611,48 @@ export function AppNavigator() {
           </View>
         </Modal>
       ) : (
-        <Modal visible={menuModalOpen} animationType="slide" onRequestClose={() => setMenuModalOpen(false)}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-            <MenuScreen
-              onClose={() => setMenuModalOpen(false)}
-              onNavigateToTab={menuActions.closeAndNavigate}
-              onOpenCadastro={menuActions.openCadastro}
-              onOpenPerfil={menuActions.openPerfil}
-              onOpenTemas={menuActions.openTemas}
-              onOpenTermos={menuActions.openTermos}
-              onOpenAssinatura={menuActions.openAssinatura}
-              onOpenIndique={menuActions.openIndique}
-              onOpenAReceber={menuActions.openAReceber}
-              onOpenClientes={menuActions.openClientes}
-              onOpenBancos={menuActions.openBancos}
-              onOpenOrcamento={menuActions.openOrcamento}
-              onOpenAnotacoes={menuActions.openAnotacoes}
-              onOpenMeusGastos={menuActions.openMeusGastos}
-              onOpenListaCompras={menuActions.openListaCompras}
-              onOpenMetasSonhos={menuActions.openMetasSonhos}
-              onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
-              onOpenEmpresa={menuActions.openEmpresa}
-              onOpenOrdemServico={menuActions.openOrdemServico}
-              onOpenOrcamentos={menuActions.openOrcamentos}
-              onOpenPDV={menuActions.openPDV}
-              onOpenImageGenerator={menuActions.openImageGenerator}
-              onOpenCalculadoraFull={menuActions.openCalculadoraFull}
+        <Modal visible={menuModalOpen} transparent animationType="fade" onRequestClose={() => setMenuModalOpen(false)}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'stretch' }}>
+            <SafeAreaView
+              style={{
+                width: Math.round(Dimensions.get('window').width * 0.75),
+                maxWidth: '100%',
+                backgroundColor: colors.bg,
+              }}
+            >
+              <MenuScreen
+                onClose={() => setMenuModalOpen(false)}
+                onNavigateToTab={menuActions.closeAndNavigate}
+                onOpenCadastro={menuActions.openCadastro}
+                onOpenPerfil={menuActions.openPerfil}
+                onOpenTemas={menuActions.openTemas}
+                onOpenTermos={menuActions.openTermos}
+                onOpenAssinatura={menuActions.openAssinatura}
+                onOpenIndique={menuActions.openIndique}
+                onOpenAReceber={menuActions.openAReceber}
+                onOpenClientes={menuActions.openClientes}
+                onOpenBancos={menuActions.openBancos}
+                onOpenOrcamento={menuActions.openOrcamento}
+                onOpenAnotacoes={menuActions.openAnotacoes}
+                onOpenMeusGastos={menuActions.openMeusGastos}
+                onOpenListaCompras={menuActions.openListaCompras}
+                onOpenMetasSonhos={menuActions.openMetasSonhos}
+                onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+                onOpenEmpresa={menuActions.openEmpresa}
+                onOpenOrdemServico={menuActions.openOrdemServico}
+                onOpenOrcamentos={menuActions.openOrcamentos}
+                onOpenPDV={menuActions.openPDV}
+                onOpenImageGenerator={menuActions.openImageGenerator}
+                onOpenCalculadoraFull={menuActions.openCalculadoraFull}
+              />
+            </SafeAreaView>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
+              activeOpacity={1}
+              onPress={() => setMenuModalOpen(false)}
+              accessibilityLabel="Fechar menu"
             />
-          </SafeAreaView>
+          </View>
         </Modal>
       )}
       <Modal visible={!!cadastroModal} animationType="slide">

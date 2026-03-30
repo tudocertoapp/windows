@@ -58,7 +58,8 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
 
   const islandTransform = useMemo(() => {
     const h = windowHeight > 0 ? windowHeight : 640;
-    return [{ translateY: -(h / 8) }, { translateX: -ISLAND_SHIFT_X }];
+    // Desktop: subir 10px em relação ao ajuste anterior.
+    return [{ translateY: -(h / 8) + BTN + 5 }, { translateX: -ISLAND_SHIFT_X }];
   }, [windowHeight]);
 
   if (!isWeb) return null;

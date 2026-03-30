@@ -75,10 +75,10 @@ export function ScrollableCardList({
           s.container,
           {
             flexDirection: 'row',
-            ...(fixedVisibleHeight === true || showStrip
-              ? { height: VISIBLE_HEIGHT, maxHeight: VISIBLE_HEIGHT }
-              : fixedVisibleHeight === 'fill'
-                ? { flex: 1, minHeight: 0 }
+            ...(fixedVisibleHeight === 'fill'
+              ? { flex: 1, minHeight: 0 }
+              : (fixedVisibleHeight === true || showStrip)
+                ? { height: VISIBLE_HEIGHT, maxHeight: VISIBLE_HEIGHT }
                 : null),
           },
         ]}
@@ -92,12 +92,12 @@ export function ScrollableCardList({
       >
         <ScrollView
           ref={scrollRef}
-          scrollEnabled={showStrip}
+          scrollEnabled={fixedVisibleHeight === 'fill' ? true : showStrip}
           style={
-            (showStrip || fixedVisibleHeight === true)
+            (fixedVisibleHeight === 'fill')
+              ? { flex: 1, minHeight: 0 }
+              : (showStrip || fixedVisibleHeight === true)
               ? { height: VISIBLE_HEIGHT, flex: 1 }
-              : fixedVisibleHeight === 'fill'
-                ? { flex: 1, minHeight: 0 }
                 : { flex: 1 }
           }
           showsVerticalScrollIndicator={false}

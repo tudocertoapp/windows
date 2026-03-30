@@ -607,6 +607,22 @@ export function AgendaScreen() {
     }, 150);
   }, [scrollToWeek]);
 
+  const zoomOutTimeline = useCallback(() => {
+    playTapSound();
+    const next = Math.max(MIN_ZOOM, Number((scale.value - 0.1).toFixed(2)));
+    scale.value = next;
+    savedScale.value = next;
+    pinchPrevScale.value = next;
+  }, [scale, savedScale, pinchPrevScale]);
+
+  const zoomInTimeline = useCallback(() => {
+    playTapSound();
+    const next = Math.min(MAX_ZOOM, Number((scale.value + 0.1).toFixed(2)));
+    scale.value = next;
+    savedScale.value = next;
+    pinchPrevScale.value = next;
+  }, [scale, savedScale, pinchPrevScale]);
+
   const goToPrevDay = useCallback(() => {
     const prev = new Date(selectedDate);
     prev.setDate(prev.getDate() - 1);
@@ -939,8 +955,20 @@ export function AgendaScreen() {
                   <Ionicons name="search" size={18} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={[as.compactIconBtn, { backgroundColor: colors.bg, width: 32, height: 32, borderRadius: 10 }]}
+                  onPress={zoomOutTimeline}
+                >
+                  <Ionicons name="remove" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[as.compactIconBtn, { backgroundColor: colors.bg, width: 32, height: 32, borderRadius: 10 }]}
+                  onPress={zoomInTimeline}
+                >
+                  <Ionicons name="add" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
                   onPress={() => { playTapSound(); scrollToToday(); }}
-                  style={[as.compactIconBtn, { backgroundColor: isToday(selectedDate) ? colors.primaryRgba?.(0.2) ?? colors.primary + '33' : colors.bg, width: 32, height: 32, borderRadius: 10 }]}
+                  style={[as.compactIconBtn, { backgroundColor: 'transparent', width: 32, height: 32, borderRadius: 10 }]}
                 >
                   <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary }}>Hoje</Text>
                 </TouchableOpacity>

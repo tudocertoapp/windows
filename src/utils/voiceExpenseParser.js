@@ -121,6 +121,75 @@ function cleanItemPhrase(phrase) {
     /^(comprando|comprar|comprei|compro|compramos|um|uma|uns|umas|o|a|os|as|de|da|do|dizendo|tipo)\s+/i;
   while (lead.test(p)) p = p.replace(lead, '').trim();
   p = p.replace(/\s+(gasto|gastei|pessoal|empresa|reais|real|despesa)$/i, '').trim();
+  p = p
+    .replace(/\b(?:foi|era|tipo|assim|a[ií]|da[ií]|j[aá]|ent[aã]o|pois)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const normalizeSegment = (seg) => {
+    const stop = new Set([
+      'comprando',
+      'comprar',
+      'gastei',
+      'gasto',
+      'pessoal',
+      'empresa',
+      'reais',
+      'real',
+      'despesa',
+      'na',
+      'no',
+      'em',
+      'com',
+      'foi',
+      'fui',
+      'de',
+      'da',
+      'do',
+      'dos',
+      'das',
+      'pra',
+      'pro',
+      'para',
+      'que',
+      'um',
+      'uma',
+      'uns',
+      'umas',
+      'o',
+      'a',
+      'os',
+      'as',
+      'r',
+    ]);
+    const words = String(seg || '')
+      .split(/\s+/)
+      .map((w) => w.replace(/[.,;:!?()[\]{}"]/g, '').trim())
+      .filter((w) => {
+        const c = w.toLowerCase();
+        if (!c || stop.has(c)) return false;
+        // Evita lixo de fala solto como "r", "d", etc.
+        if (c.length === 1) return false;
+        // Evita números na descrição do produto.
+        if (/^\d+$/.test(c)) return false;
+        return true;
+      });
+    return words.slice(0, 4).join(' ');
+  };
+
+  // Se houver mais de um produto, retorna como "Item 1, Item 2".
+  const parts = p
+    .replace(/\s+e\s+/gi, ', ')
+    .split(',')
+    .map((seg) => normalizeSegment(seg))
+    .filter(Boolean);
+  if (parts.length > 1) {
+    return parts
+      .slice(0, 4)
+      .map((seg) => capitalizeWords(seg))
+      .join(', ');
+  }
+
   const stop = new Set([
     'comprando',
     'comprar',
@@ -140,7 +209,10 @@ function cleanItemPhrase(phrase) {
   ]);
   const words = p.split(/\s+/).filter((w) => {
     const c = w.replace(/[.,]/g, '').toLowerCase();
-    return c && !stop.has(c);
+    if (!c || stop.has(c)) return false;
+    if (c.length === 1) return false;
+    if (/^\d+$/.test(c)) return false;
+    return true;
   });
   if (!words.length) return '';
   return words.slice(0, 6).join(' ');

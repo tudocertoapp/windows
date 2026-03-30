@@ -138,6 +138,7 @@ export function TopBar({
     title === 'WhatsApp e CRM' ||
     title === 'Agenda';
   const homeDesktopDefer = isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
+  const showPromptOutsideHeader = !isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
 
   const homeTrailingActions = (
     <>
@@ -181,7 +182,6 @@ export function TopBar({
           <AppIcon name="grid-outline" size={24} color={editMode ? colors.primary : colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
-      {showSlideMenu && !isWebDesktop ? menuButton : null}
     </>
   );
 
@@ -242,6 +242,7 @@ export function TopBar({
     </View>
   ) : (
     <View style={[topBarStyles.bar, { backgroundColor: colors.bg, paddingHorizontal: isWebDesktop ? scaleWebDesktop(16, true) : 16, paddingVertical: isWebDesktop ? scaleWebDesktop(10, true) : 12 }]}>
+      {!isWebDesktop && menuButton ? <View style={{ marginRight: 6 }}>{menuButton}</View> : null}
       {isWebDesktop && menuButton ? <View style={{ marginRight: 4 }}>{menuButton}</View> : null}
       <View style={[styles.logoRow, { flex: 1 }]}>
         {isHome ? (
@@ -267,7 +268,7 @@ export function TopBar({
                   >
                     {headerDate}
                   </Text>
-                  {unifiedDeferTitles ? (
+                  {isWebDesktop && unifiedDeferTitles ? (
                     <Text
                       style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(13, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: 18, marginTop: 4 }}
                       numberOfLines={2}
@@ -361,6 +362,16 @@ export function TopBar({
         {organizeRailButton}
         <View style={{ paddingTop: insets.top, backgroundColor: colors.bg }}>
           {Bar}
+          {showPromptOutsideHeader ? (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <Text
+                style={{ color: colors.text, fontSize: 14, fontWeight: '600', lineHeight: 18 }}
+                numberOfLines={2}
+              >
+                {homePrompt}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </>
     );
@@ -370,6 +381,16 @@ export function TopBar({
       {manageCardsRailButton}
       {organizeRailButton}
       {Bar}
+      {showPromptOutsideHeader ? (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8, backgroundColor: colors.bg }}>
+          <Text
+            style={{ color: colors.text, fontSize: 14, fontWeight: '600', lineHeight: 18 }}
+            numberOfLines={2}
+          >
+            {homePrompt}
+          </Text>
+        </View>
+      ) : null}
     </>
   );
 }

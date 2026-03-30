@@ -148,12 +148,12 @@ export function DashboardScreen() {
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
   const { notes, deleteNote } = useNotes();
   const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
   const { profile } = useProfile();
   const [editMode, setEditMode] = useState(false);
-  const [quoteType, setQuoteType] = useState('motivacional');
+  const [quoteType, setQuoteType] = useState('verso');
   const carouselRef = useRef(null);
   const [carouselIndex, setCarouselIndex] = useState(0); // display index 0..count-1
   const { width: winWidth } = useWindowDimensions();
@@ -226,6 +226,18 @@ export function DashboardScreen() {
   const [floatingId, setFloatingId] = useState(null);
   const now = new Date();
   const quote = getQuoteOfDay(quoteType);
+  const quoteDesktopWrapped = useMemo(() => {
+    const words = String(quote || '').trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 6) return quote;
+    const lines = [];
+    let idx = 0;
+    while (idx < words.length) {
+      const lineSize = lines.length % 2 === 0 ? 6 : 5; // 5-6 palavras por linha
+      lines.push(words.slice(idx, idx + lineSize).join(' '));
+      idx += lineSize;
+    }
+    return lines.join('\n');
+  }, [quote]);
 
 
   useEffect(() => {
@@ -243,6 +255,18 @@ export function DashboardScreen() {
             : defaultSections;
           filtered = [...new Set(filtered)];
           const base = filtered.length > 0 ? filtered : defaultSections;
+          // Web desktop: garante Frase do dia no lugar do Carrossel
+          // (mesmo para quem já tem ordem salva).
+          if (useWebLayout) {
+            const a = base.indexOf('quote');
+            const b = base.indexOf('carousel');
+            if (a >= 0 && b >= 0 && a !== b) {
+              const next = [...base];
+              [next[a], next[b]] = [next[b], next[a]];
+              // mantém base coerente para o merge de missing
+              base.splice(0, base.length, ...next);
+            }
+          }
           const missing = defaultSections.filter((id) => !base.includes(id));
           setSectionOrder([...base, ...missing]);
         } catch (_) {}
@@ -250,13 +274,39 @@ export function DashboardScreen() {
         setSectionOrder(defaultSections);
       }
     });
-  }, [sectionsStorageKey, defaultSections]);
+  }, [sectionsStorageKey, defaultSections, useWebLayout]);
   useEffect(() => {
     if (route.params?.openCardPicker) {
       setShowCardPicker(true);
       navigation?.setParams?.({ openCardPicker: undefined });
     }
   }, [route.params?.openCardPicker, navigation]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onEsc = (ev) => {
+      if (agendaCardShowMonthPicker) {
+        setAgendaCardShowMonthPicker(false);
+        ev.preventDefault();
+        return;
+      }
+      if (parabensModalClient) {
+        setParabensModalClient(null);
+        ev.preventDefault();
+        return;
+      }
+      if (expandedCard) {
+        setExpandedCard(null);
+        ev.preventDefault();
+        return;
+      }
+      if (showCardPicker) {
+        setShowCardPicker(false);
+        ev.preventDefault();
+      }
+    };
+    window.addEventListener('tc:escape', onEsc);
+    return () => window.removeEventListener('tc:escape', onEsc);
+  }, [agendaCardShowMonthPicker, parabensModalClient, expandedCard, showCardPicker]);
   useEffect(() => {
     const toSave = sectionOrder.filter((id) => id !== 'agenda' && id !== 'tarefas');
     AsyncStorage.setItem(sectionsStorageKey, JSON.stringify(toSave.length > 0 ? toSave : defaultSections));
@@ -284,6 +334,25 @@ export function DashboardScreen() {
     return `${dd}/${mm}/${yyyy}`;
   }, []);
 
+  const normalizeAgendaDateKey = useCallback((str) => {
+    if (!str || !String(str).trim()) return '';
+    const s = String(str).trim();
+    const parts = s.split(/[/\-]/);
+    if (parts.length < 3) return '';
+    let day; let month; let year;
+    if (parts[0].length === 4) {
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10);
+      day = parseInt(parts[2], 10);
+    } else {
+      day = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10);
+      year = parseInt(parts[2], 10);
+    }
+    if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return '';
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  }, []);
+
   const isSameDay = useCallback((a, b) => {
     if (!a || !b) return false;
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -293,13 +362,12 @@ export function DashboardScreen() {
     const base = new Date(agendaCardDate);
     base.setHours(0, 0, 0, 0);
     const day = base.getDay(); // 0..6 (dom..sab)
-    const mon = new Date(base);
-    // semana começando na segunda (Seg=1)
-    const diffToMon = (day === 0 ? -6 : 1 - day);
-    mon.setDate(base.getDate() + diffToMon);
+    const weekStart = new Date(base);
+    // igual à Agenda: semana iniciando no domingo
+    weekStart.setDate(base.getDate() - day);
     return Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + i);
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
       return d;
     });
   }, [agendaCardDate]);
@@ -337,22 +405,15 @@ export function DashboardScreen() {
     return Array.from({ length: last }).map((_, i) => new Date(y, m, i + 1));
   }, [agendaCardDate]);
 
-  const agendaMonthCounts = useMemo(() => {
-    const y = agendaCardDate.getFullYear();
-    const m = agendaCardDate.getMonth();
+  const agendaDayCounts = useMemo(() => {
     const counts = {};
     (agendaEvents || []).forEach((e) => {
-      const key = String(e?.date || '').trim();
+      const key = normalizeAgendaDateKey(e?.date);
       if (!key) return;
-      const parts = key.split(/[\/\-]/).map((x) => parseInt(x, 10));
-      if (parts.length < 3) return;
-      const [dd, mm, yyyy] = parts;
-      if (!Number.isFinite(dd) || !Number.isFinite(mm) || !Number.isFinite(yyyy)) return;
-      if (yyyy !== y || (mm - 1) !== m) return;
       counts[key] = (counts[key] || 0) + 1;
     });
     return counts;
-  }, [agendaEvents, agendaCardDate]);
+  }, [agendaEvents, normalizeAgendaDateKey]);
 
   const handleAgendaCardCalendarDaySelect = useCallback((d) => {
     playTapSound();
@@ -362,14 +423,15 @@ export function DashboardScreen() {
 
   const agendaCardEvents = useMemo(() => {
     const targetKey = formatBrShort(agendaCardDate);
-    const list = (agendaEvents || []).filter((e) => String(e?.date || '').trim() === targetKey);
+    const list = (agendaEvents || []).filter((e) => normalizeAgendaDateKey(e?.date) === targetKey);
     const toMinutes = (t) => {
       if (!t) return 0;
       const [h, m] = String(t).split(':').map((x) => parseInt(x, 10));
       return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
     };
-    return list.sort((a, b) => toMinutes(a.timeStart) - toMinutes(b.timeStart));
-  }, [agendaEvents, agendaCardDate, formatBrShort]);
+    const startOf = (e) => toMinutes(e?.timeStart || e?.time);
+    return list.sort((a, b) => startOf(a) - startOf(b));
+  }, [agendaEvents, agendaCardDate, formatBrShort, normalizeAgendaDateKey]);
 
   const agendaCardTimeline = useMemo(() => {
     const toMinutes = (t) => {
@@ -379,8 +441,8 @@ export function DashboardScreen() {
     };
     const clamp = (n, a, b) => Math.max(a, Math.min(n, b));
     return (agendaCardEvents || []).map((e) => {
-      const startM = clamp(toMinutes(e.timeStart), 0, 24 * 60);
-      const endRaw = e.timeEnd ? toMinutes(e.timeEnd) : (startM + 60);
+      const startM = clamp(toMinutes(e?.timeStart || e?.time), 0, 24 * 60);
+      const endRaw = e?.timeEnd ? toMinutes(e.timeEnd) : (startM + 60);
       const endM = clamp(Math.max(endRaw, startM + 15), 0, 24 * 60); // mínimo 15 min
       return { e, startM, endM, durM: endM - startM };
     });
@@ -561,7 +623,7 @@ export function DashboardScreen() {
 
   const webSectionOrder = useMemo(() => {
     if (!useWebLayout) return sectionOrder;
-    const first = ['carousel', 'quote'];
+    const first = ['quote', 'carousel'];
     const rest = sectionOrder.filter((id) => !first.includes(id));
     return [...first.filter((id) => sectionOrder.includes(id)), ...rest];
   }, [useWebLayout, sectionOrder]);
@@ -718,7 +780,11 @@ export function DashboardScreen() {
       activeOpacity={0.9}
       // No web desktop o layout (grid/colunas) já controla espaçamento.
       // Margens externas aqui fazem o card "vazar" do container com altura fixa e parecer cortado.
-      style={{ marginHorizontal: useWebLayout ? 0 : WEB_CARD_MARGIN_H, marginTop: useWebLayout ? 0 : WEB_CARD_MARGIN_TOP }}
+      style={{
+        marginHorizontal: useWebLayout ? 0 : WEB_CARD_MARGIN_H,
+        marginTop: useWebLayout ? 0 : WEB_CARD_MARGIN_TOP,
+        ...(useWebLayout ? { flex: 1, minHeight: 0, height: '100%' } : null),
+      }}
     >
       <GlassCard
         colors={colors}
@@ -731,19 +797,21 @@ export function DashboardScreen() {
             ...(useWebLayout ? { minHeight: 0, height: '100%' } : null),
           },
         ]}
-        contentStyle={{ padding: WEB_CARD_PADDING }}
+        contentStyle={{ padding: WEB_CARD_PADDING, ...(useWebLayout ? { flex: 1, minHeight: 0 } : null) }}
       >
         {useWebLayout ? (
           <View style={{ marginBottom: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <AppIcon name={icon} size={HEADER_ICON_SIZE} color={cardIconColor} />
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {title}
+                </Text>
               </View>
               {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
             </View>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-              {title}
-            </Text>
           </View>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 16 }}>
@@ -776,14 +844,10 @@ export function DashboardScreen() {
 
   /** Web desktop: altura mínima do carrossel (duas colunas: metade da linha). */
   const webDesktopCarouselBlockH = useWebLayout ? Math.round(scaleWebDesktop(300, true)) : null;
-  /** Três cards no topo (carrossel | frase | aniversariantes): altura total da linha mais baixa. */
+  /** Mantido por compatibilidade de escala visual dos cards superiores. */
   const webDesktopCarouselTrioMinH = useWebLayout ? Math.round(scaleWebDesktop(178, true)) : null;
-  /** Carrossel + frase + aniversariantes na mesma linha (desktop); cada um ~33,33% da largura útil (gap entre colunas). */
-  const desktopHomeCarouselQuoteAniv =
-    useWebLayout &&
-    webSectionOrder.includes('carousel') &&
-    webSectionOrder.includes('quote') &&
-    webSectionOrder.includes('aniversariantes');
+  /** Desktop: carrossel e frase dividem a linha (50/50); aniversariantes desce para linha própria (100%). */
+  const desktopHomeCarouselQuoteAniv = false;
 
   /** Altura mínima da linha agenda (combo esquerda + agenda) = mesma fórmula do GRID_H no layout. */
   const WEB_AGENDA_ROW_MIN_H =
@@ -955,8 +1019,8 @@ export function DashboardScreen() {
             {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
           </View>
           <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
-          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="pencil" size={22} color={colors.primary} />
+          <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="pencil" size={18} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(ev) => {
@@ -969,10 +1033,10 @@ export function DashboardScreen() {
                 updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
               }
             }}
-            style={{ padding: 8 }}
+            style={{ padding: 6 }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="checkmark-done" size={22} color="#10b981" />
+            <Ionicons name="checkmark-done" size={18} color="#10b981" />
           </TouchableOpacity>
           <TouchableOpacity onPress={(ev) => {
             ev?.stopPropagation?.();
@@ -981,8 +1045,8 @@ export function DashboardScreen() {
               { text: 'Cancelar' },
               { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
             ]);
-          }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="trash-outline" size={22} color="#ef4444" />
+          }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="trash-outline" size={18} color="#ef4444" />
           </TouchableOpacity>
         </View>
         );
@@ -1005,7 +1069,7 @@ export function DashboardScreen() {
       ),
       null
     ),
-    // Web desktop: dois cards 50/50 na metade direita (Agendamentos | Próximas tarefas); Agenda à esquerda na mesma linha.
+    // Web desktop: coluna direita do trio (Próximas tarefas). Agenda e Próximos eventos ficam na mesma linha do desktop.
     leftAgendaCombo: !useWebLayout ? null : (
       <View
         key="leftAgendaCombo"
@@ -1015,14 +1079,13 @@ export function DashboardScreen() {
           minHeight: 0,
           height: '100%',
           width: '100%',
-          flexDirection: 'row',
+          flexDirection: 'column',
           alignItems: 'stretch',
-          gap: WEB_DESKTOP_ROW_GAP,
         }}
       >
         <View
           style={{
-            flex: webDesktopHomeGridFlex.agendamentos,
+            flex: 1,
             flexBasis: 0,
             minWidth: 0,
             minHeight: 0,
@@ -1037,121 +1100,14 @@ export function DashboardScreen() {
           >
             <View style={{ flex: 1, minHeight: 0 }}>
               <View style={{ marginBottom: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agendamentos || colors.primary} />
-                  </View>
-                  <View style={cardHeaderActionsStyle}>
-                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={cardActionButtonStyle}>
-                      <AppIcon name={showConcluidasAgendamentos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={cardActionButtonStyle}>
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('agendamentos'); }} style={cardActionButtonStyle}>
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                  {showConcluidasAgendamentos
-                    ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos')
-                    : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')}
-                </Text>
-              </View>
-              <View style={{ flex: 1, minHeight: 0 }}>
-                <ScrollableCardList
-                  items={showConcluidasAgendamentos ? proximasTarefas.agendasConcluidas : proximasTarefas.agendas}
-                  colors={colors}
-                  accentColor={colors.primary}
-                  scrollStartsAt={4}
-                  centerEmpty
-                  emptyText={showConcluidasAgendamentos
-                    ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento concluído' : 'Nenhum evento concluído')
-                    : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Nenhum atendimento agendado' : 'Nenhum evento agendado')}
-                  fixedVisibleHeight="fill"
-                  renderItem={(e) => {
-                    const displayTitle = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
-                    const detailParts = [];
-                    if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
-                    if (e.type === 'venda') detailParts.push('Venda');
-                    else if (e.type === 'orcamento') detailParts.push('Orçamento');
-                    else if (e.type === 'manutencao') detailParts.push('Garantia');
-                    const detailStr = detailParts.length ? detailParts.join(' · ') : null;
-                    const secondLineParts = [e.date, e.time].filter(Boolean);
-                    const secondLineMeta = [secondLineParts.join(' · '), detailStr].filter(Boolean).join(' · ');
-                    return (
-                      <View key={e.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingVertical: 6, paddingLeft: 18, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4 }}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
-                          {secondLineMeta ? (
-                            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
-                              {secondLineMeta}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6, marginTop: 1 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Ionicons name="pencil" size={18} color={colors.primary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(ev) => {
-                            ev?.stopPropagation?.();
-                            playTapSound();
-                            const isEmpresaEvent = showEmpresaFeatures && (e.tipo === 'empresa');
-                            if (isEmpresaEvent && e.status !== 'concluido') {
-                              openAddModal?.('receita', { fromAgendaEvent: e });
-                            } else {
-                              updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
-                            }
-                          }}
-                          style={{ padding: 6, marginTop: 1 }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons name="checkmark-done" size={18} color="#10b981" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={(ev) => {
-                            ev?.stopPropagation?.();
-                            playTapSound();
-                            Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
-                              { text: 'Cancelar' },
-                              { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
-                            ]);
-                          }}
-                          style={{ padding: 6, marginTop: 1 }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  }}
-                />
-              </View>
-            </View>
-          </GlassCard>
-        </View>
-
-        <View
-          style={{
-            flex: webDesktopHomeGridFlex.proximos,
-            flexBasis: 0,
-            minWidth: 0,
-            minHeight: 0,
-            height: '100%',
-          }}
-        >
-          <GlassCard
-            colors={colors}
-            solid
-            style={[ds.card, { padding: WEB_CARD_PADDING, flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }]}
-            contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
-          >
-            <View style={{ flex: 1, minHeight: 0 }}>
-              <View style={{ marginBottom: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                    <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
+                    </Text>
                   </View>
                   <View style={cardHeaderActionsStyle}>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
@@ -1165,9 +1121,6 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                  {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
-                </Text>
               </View>
               <View style={{ flex: 1, minHeight: 0 }}>
                 <ScrollableCardList
@@ -1245,37 +1198,32 @@ export function DashboardScreen() {
         >
           <View style={{ marginBottom: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, gap: 8 }}>
                 <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
+                  <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                 </View>
-                <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
                     Agenda
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
-                    activeOpacity={0.85}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 4,
-                      paddingVertical: 3,
-                      paddingHorizontal: 8,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: colors.border + '80',
-                      backgroundColor: colors.card,
-                      maxWidth: '100%',
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
-                    <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
-                  </TouchableOpacity>
                 </View>
               </View>
               <View style={cardHeaderActionsStyle}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }} style={[cardActionButtonStyle, { width: undefined, minWidth: CARD_ACTION_SIZE, paddingHorizontal: 8 }]}>
+                <TouchableOpacity
+                  onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }}
+                  style={[
+                    cardActionButtonStyle,
+                    {
+                      width: undefined,
+                      minWidth: CARD_ACTION_SIZE,
+                      paddingHorizontal: 2,
+                      borderWidth: 0,
+                      backgroundColor: 'transparent',
+                      shadowOpacity: 0,
+                      elevation: 0,
+                    },
+                  ]}
+                >
                   <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>Hoje</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { initialDate: formatBrShort(agendaCardDate) }); }} style={cardActionButtonStyle}>
@@ -1286,42 +1234,96 @@ export function DashboardScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+            <View style={{ width: '100%', alignItems: 'center', marginBottom: 6 }}>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingVertical: 3,
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border + '80',
+                  backgroundColor: colors.card,
+                  maxWidth: '100%',
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
+                <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ paddingRight: 6 }}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {agendaMonthDays.map((d) => {
-                const selected = isSameDay(d, agendaCardDate);
-                const dayLabel = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][d.getDay()];
-                const num = d.getDate();
-                const dayKey = formatBrShort(d);
-                const count = agendaMonthCounts[dayKey] || 0;
-                const hasAgenda = count > 0;
-                return (
+          <View style={{ marginBottom: 6, overflow: 'visible', paddingRight: 8, paddingLeft: 8 }}>
+            {(() => {
+              // Mesmo padrão visual da AgendaScreen desktop: letra em cima e círculo no dia selecionado.
+              const days = agendaCardWeek;
+              const WD = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minWidth: '100%' }}>
                   <TouchableOpacity
-                    key={d.toISOString()}
-                    onPress={() => { playTapSound(); setAgendaCardDate(d); }}
-                    style={{
-                      width: 38,
-                      paddingVertical: 5,
-                      borderRadius: 10,
-                      alignItems: 'center',
-                      backgroundColor: selected ? (colors.primary + '26') : (colors.card),
-                      borderWidth: 1,
-                      borderColor: selected ? (colors.primary + '80') : (colors.border + '80'),
-                    }}
-                    activeOpacity={0.8}
+                    onPress={() => { playTapSound(); const d = new Date(agendaCardDate); d.setDate(d.getDate() - 7); setAgendaCardDate(d); }}
+                    style={{ width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', marginRight: 8 }}
+                    activeOpacity={0.85}
                   >
-                    <Text style={{ fontSize: 9, fontWeight: '700', color: selected ? colors.primary : colors.textSecondary }}>{dayLabel}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>{num}</Text>
-                    <Text style={{ fontSize: 9, fontWeight: '800', marginTop: 1, color: selected ? (hasAgenda ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)') : (hasAgenda ? colors.primary : colors.textSecondary) }}>
-                      {count}
-                    </Text>
+                    <Ionicons name="chevron-back" size={20} color={colors.primary} />
                   </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
+
+                  <View style={{ flexDirection: 'row', gap: 2, flex: 1, justifyContent: 'space-between' }}>
+                    {days.map((d) => {
+                      const selected = isSameDay(d, agendaCardDate);
+                      const dayLabel = WD[d.getDay()];
+                      const num = d.getDate();
+                      const dayKey = formatBrShort(d);
+                      const count = agendaDayCounts[dayKey] || 0;
+                      const hasAgenda = count > 0;
+                      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                      const dayNumColor = selected ? '#fff' : (isWeekend ? (colors.textSecondary + '99') : colors.text);
+                      const dayLetterColor = isWeekend ? (colors.textSecondary + '99') : colors.textSecondary;
+                      return (
+                        <View key={d.toISOString()} style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: dayLetterColor, marginBottom: 2 }}>{dayLabel}</Text>
+                          <TouchableOpacity
+                            onPress={() => { playTapSound(); setAgendaCardDate(d); }}
+                            style={{
+                              width: 34,
+                              height: 40,
+                              borderRadius: 12,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'transparent',
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
+                              {selected ? (
+                                <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 16, backgroundColor: colors.primary }} />
+                              ) : null}
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: dayNumColor }}>{num}</Text>
+                              <Text style={{ fontSize: 9, fontWeight: '700', marginTop: 1, color: selected ? 'rgba(255,255,255,0.95)' : (hasAgenda ? colors.primary : colors.textSecondary) }}>
+                                {count}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => { playTapSound(); const d = new Date(agendaCardDate); d.setDate(d.getDate() + 7); setAgendaCardDate(d); }}
+                    style={{ width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', marginLeft: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
 
           <Modal visible={agendaCardShowMonthPicker} transparent animationType="fade">
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
@@ -1387,16 +1389,16 @@ export function DashboardScreen() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             marginVertical: 2,
-                            borderRadius: 18,
+                            borderRadius: 12,
                             opacity: cell.empty ? 0.25 : isCurMonth ? 1 : 0.5,
-                            backgroundColor: sel ? colors.primary : 'transparent',
+                            backgroundColor: sel ? (colors.primary + '26') : 'transparent',
                             borderWidth: isTodayCell ? 2 : 0,
                             borderColor: isTodayCell ? (sel ? '#fff' : colors.primary) : 'transparent',
                           }}
                           activeOpacity={0.75}
                           onPress={() => !cell.empty && handleAgendaCardCalendarDaySelect(cell.date)}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? '#fff' : colors.text }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: sel ? colors.primary : colors.text }}>
                             {cell.date.getDate()}
                           </Text>
                         </TouchableOpacity>
@@ -1500,6 +1502,12 @@ export function DashboardScreen() {
                             const height = Math.max(28, (durM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD);
                             const isEmp = showEmpresaFeatures && (e.tipo === 'empresa');
                             const timeStr = [e.timeStart, e.timeEnd ? `- ${e.timeEnd}` : null].filter(Boolean).join(' ');
+                            const descricao = (e.description || '').trim();
+                            const detailParts = [];
+                            if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
+                            if (e.type === 'venda') detailParts.push('Venda');
+                            else if (e.type === 'orcamento') detailParts.push('Orçamento');
+                            else if (e.type === 'manutencao') detailParts.push('Garantia');
                             return (
                               <TouchableOpacity
                                 key={e.id}
@@ -1522,8 +1530,13 @@ export function DashboardScreen() {
                                 <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={1}>
                                   {title}
                                 </Text>
+                                {!!descricao && (
+                                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                                    {descricao}
+                                  </Text>
+                                )}
                                 <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                  {[timeStr, e.amount > 0 ? formatCurrency(e.amount) : null, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ')}
+                                  {[timeStr, ...detailParts, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ')}
                                 </Text>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
                                   <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1634,10 +1647,8 @@ export function DashboardScreen() {
             if (!item) return null;
             const carouselSlideW = useWebLayout ? '100%' : CARD_WIDTH;
             const slideH = useWebLayout ? scaleWebDesktop(208, true) : 165;
-            /** Desktop: altura mínima — menor quando os três cards dividem a linha em terços. */
-            const carouselCardMinH = useWebLayout
-              ? (desktopHomeCarouselQuoteAniv ? webDesktopCarouselTrioMinH : webDesktopCarouselBlockH)
-              : 0;
+            /** Desktop: mantém a altura visual anterior do topo, mesmo com layout 50/50. */
+            const carouselCardMinH = useWebLayout ? webDesktopCarouselTrioMinH : 0;
             /** Altura fixa no desktop: todos os slides com o mesmo tamanho (evita um card “crescer” com o conteúdo). */
             const carouselCardFixedH = useWebLayout ? carouselCardMinH : null;
             const carouselCardRadius = scaleWebDesktop(20, true);
@@ -1648,8 +1659,8 @@ export function DashboardScreen() {
                     opacity: 0.9,
                     width: '100%',
                     height: '100%',
-                    /* Foco um pouco abaixo do centro = mais da parte “útil” da arte, menos topo vazio. */
-                    objectPosition: 'center 58%',
+                    /* Ajuste de foco para enquadrar melhor o conteúdo útil no card sem cortes agressivos. */
+                    objectPosition: 'center 52%',
                   }
                 : {
                     borderRadius: scaleWebDesktop(20, true),
@@ -2071,12 +2082,9 @@ export function DashboardScreen() {
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>
                 {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
-              </Text>
-              <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
-                {quoteType === 'motivacional' ? 'Citação motivacional' : 'Palavra de sabedoria'}
               </Text>
             </View>
             <View style={cardHeaderActionsStyle}>
@@ -2116,15 +2124,15 @@ export function DashboardScreen() {
                   ]}
                   numberOfLines={3}
                 >
-                  "{quote}"
+                  "{useWebLayout ? quoteDesktopWrapped : quote}"
                 </Text>
               </View>
             ) : (
               <Text
-                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 14 : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined }]}
-                numberOfLines={useWebLayout ? 4 : 3}
+                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? (quoteType === 'verso' ? 16 : 14) : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? (quoteType === 'verso' ? 26 : 22) : ds.quoteText.lineHeight }]}
+                numberOfLines={useWebLayout ? 3 : 3}
               >
-                "{quote}"
+                "{useWebLayout ? quoteDesktopWrapped : quote}"
               </Text>
             )}
           </View>
@@ -2382,9 +2390,14 @@ export function DashboardScreen() {
         >
           {useWebLayout ? (
             <View style={{ marginBottom: 8 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                  <AppIcon name="document-text-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <AppIcon name="document-text-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                    Minhas anotações
+                  </Text>
                 </View>
                 <View style={cardHeaderActionsStyle}>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
@@ -2395,9 +2408,6 @@ export function DashboardScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                Minhas anotações
-              </Text>
               <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
                 {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
               </Text>
@@ -2490,9 +2500,14 @@ export function DashboardScreen() {
           >
             {useWebLayout ? (
               <View style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <AppIcon name="cart-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                    <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <AppIcon name="cart-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras'}
+                    </Text>
                   </View>
                   <View style={cardHeaderActionsStyle}>
                     <TouchableOpacity
@@ -2513,9 +2528,6 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                  {showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras'}
-                </Text>
                 <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
                   {showConcluidasListaCompras
                     ? (filteredConcluidas.length === 0 ? 'Nenhuma compra concluída' : `${filteredConcluidas.length} concluída${filteredConcluidas.length !== 1 ? 's' : ''}`)
@@ -2586,12 +2598,40 @@ export function DashboardScreen() {
                 centerEmpty={useWebLayout}
                 fixedVisibleHeight={useWebLayout ? 'fill' : false}
                 renderItem={(i) => (
-                  <TouchableOpacity onPress={(e) => toggleItem(e, i)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
                     <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                       {i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}
                     </View>
                     <Text style={{ fontSize: 15, color: colors.text, flex: 1, textDecorationLine: i.checked ? 'line-through' : 'none' }} numberOfLines={1}>{i.title}</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }}
+                      style={{ padding: 6 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="pencil" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateShoppingItem(i.id, { checked: !i.checked }); }}
+                      style={{ padding: 6 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name={i.checked ? 'arrow-undo' : 'checkmark-done'} size={16} color={i.checked ? colors.textSecondary : '#10b981'} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        playTapSound();
+                        Alert.alert('Excluir', 'Quer excluir este item da lista?', [
+                          { text: 'Cancelar' },
+                          { text: 'Excluir', style: 'destructive', onPress: () => deleteShoppingItem(i.id) },
+                        ]);
+                      }}
+                      style={{ padding: 6 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
                 )}
               />
             </View>
@@ -2813,9 +2853,14 @@ export function DashboardScreen() {
           >
             {useWebLayout ? (
               <View style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="receipt-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.proximasfaturas} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                    <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="receipt-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.proximasfaturas} />
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {showContasPagasProxFaturas ? 'Contas pagas' : 'Próximas faturas'}
+                    </Text>
                   </View>
                   <View style={cardHeaderActionsStyle}>
                     <TouchableOpacity
@@ -2855,9 +2900,6 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                  {showContasPagasProxFaturas ? 'Contas pagas' : 'Próximas faturas'}
-                </Text>
                 <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={2}>
                   {showContasPagasProxFaturas
                     ? (paid.length === 0 ? 'Nenhuma fatura paga no período' : `${paid.length} fatura${paid.length !== 1 ? 's' : ''} paga${paid.length !== 1 ? 's' : ''}`)
@@ -2974,26 +3016,6 @@ export function DashboardScreen() {
               if (!quoteContent) {
                 return <View style={{ width: '100%' }}>{carouselContent}</View>;
               }
-              const anivContent = sectionMap.aniversariantes;
-              const trioTopRow = desktopHomeCarouselQuoteAniv && anivContent;
-              /** Terços iguais: flex 1 + flexBasis 0 + gap 2× entre 3 colunas = ~33,33% cada (descontando espaçamento). */
-              const trioCol = { flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 };
-              if (trioTopRow) {
-                return (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      width: '100%',
-                      gap: WEB_DESKTOP_ROW_GAP,
-                      alignItems: 'stretch',
-                    }}
-                  >
-                    <View style={trioCol}>{carouselContent}</View>
-                    <View style={trioCol}>{quoteContent}</View>
-                    <View style={trioCol}>{anivContent}</View>
-                  </View>
-                );
-              }
               return (
                 <View
                   style={{
@@ -3003,13 +3025,55 @@ export function DashboardScreen() {
                     alignItems: 'stretch',
                   }}
                 >
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{carouselContent}</View>
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
                   <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
-                    {quoteContent}
+                    {carouselContent}
                   </View>
                 </View>
               );
             })()}
+            {useWebLayout ? (
+              <View style={{ width: '100%' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
+                  {[
+                    { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cash-outline', onPress: () => openPDV?.() },
+                    { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos') },
+                    { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos') },
+                    { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes') },
+                    { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores') },
+                    { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.() },
+                    { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.() },
+                    { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.() },
+                  ].map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => { playTapSound(); item.onPress?.(); }}
+                      activeOpacity={0.85}
+                      style={{
+                        flex: 1,
+                        flexBasis: 0,
+                        minWidth: 0,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <AppIcon name={item.icon} size={16} color={colors.primary} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text, textAlign: 'center' }} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
             {(() => {
               const hasAgenda = webSectionTail.includes('agenda');
               if (!hasAgenda) return null;
@@ -3017,7 +3081,7 @@ export function DashboardScreen() {
               if (!webSectionTail.includes('proximos')) return null;
               return (
                 <View style={{ width: '100%', gap: WEB_DESKTOP_ROW_GAP }}>
-                  {/* Duas colunas 50/50: esquerda Agenda; direita Agendamentos + Próximas tarefas. Mesma altura (stretch). */}
+                  {/* Três colunas: esquerda Próximos eventos; meio Agenda; direita Próximas tarefas. Mesma altura (stretch). */}
                   {(() => {
                     const GAP = WEB_DESKTOP_ROW_GAP;
                     const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
@@ -3028,21 +3092,18 @@ export function DashboardScreen() {
                             {sectionMap.agenda}
                           </View>
                         </View>
-                        <View
-                          style={{
-                            flex: 1,
-                            flexBasis: 0,
-                            minWidth: 0,
-                            minHeight: WEB_AGENDA_ROW_MIN_H ?? 0,
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {sectionMap.leftAgendaCombo}
+                        <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column', gap: GAP }}>
+                          <View style={{ flex: 1, minHeight: 0 }}>
+                            {sectionMap.agendamentos}
+                          </View>
+                          <View style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                            {sectionMap.leftAgendaCombo}
+                          </View>
                         </View>
                       </View>
                     );
                   })()}
-                  {webSectionTail.includes('aniversariantes') && !desktopHomeCarouselQuoteAniv ? (
+                  {webSectionTail.includes('aniversariantes') ? (
                     <View style={{ width: '100%' }}>
                       {sectionMap.aniversariantes}
                     </View>
@@ -3101,7 +3162,7 @@ export function DashboardScreen() {
                     >
                       <View
                         style={{
-                          flex: webDesktopHomeGridFlex.compras,
+                          flex: 1,
                           flexBasis: 0,
                           minWidth: 0,
                           minHeight: 0,
@@ -3111,7 +3172,7 @@ export function DashboardScreen() {
                       </View>
                       <View
                         style={{
-                          flex: webDesktopHomeGridFlex.anotacoes,
+                          flex: 1,
                           flexBasis: 0,
                           minWidth: 0,
                           minHeight: 0,
@@ -3121,7 +3182,7 @@ export function DashboardScreen() {
                       </View>
                       <View
                         style={{
-                          flex: webDesktopHomeGridFlex.proximasfaturas,
+                          flex: 1,
                           flexBasis: 0,
                           minWidth: 0,
                           minHeight: 0,
@@ -3343,10 +3404,27 @@ export function DashboardScreen() {
               const base = filtroListaCompras === 'todos' ? shoppingItems : shoppingItems.filter((i) => (i.tipo || 'pessoal') === filtroListaCompras);
               const items = showConcluidasListaCompras ? base.filter((i) => i.checked) : base.filter((i) => !i.checked);
               return items.map((i) => (
-                <TouchableOpacity key={i.id} onPress={() => { playTapSound(); updateShoppingItem(i.id, { checked: !i.checked }); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.card, marginBottom: 8 }}>
+                <View key={i.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.card, marginBottom: 8 }}>
                   <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>{i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}</View>
                   <Text style={{ flex: 1, fontSize: 15, color: colors.text, textDecorationLine: i.checked ? 'line-through' : 'none' }}>{i.title}</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openListaCompras?.(); }}>
+                    <Ionicons name="pencil" size={20} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { playTapSound(); updateShoppingItem(i.id, { checked: !i.checked }); }}>
+                    <Ionicons name={i.checked ? 'arrow-undo' : 'checkmark-done'} size={20} color={i.checked ? colors.textSecondary : '#10b981'} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      playTapSound();
+                      Alert.alert('Excluir', 'Quer excluir este item da lista?', [
+                        { text: 'Cancelar' },
+                        { text: 'Excluir', style: 'destructive', onPress: () => deleteShoppingItem(i.id) },
+                      ]);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
               ));
             })()}
           </>

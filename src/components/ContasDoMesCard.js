@@ -124,18 +124,23 @@ export function ContasDoMesCard({
     >
       {webDesk ? (
         <View style={{ marginBottom: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <View
-              style={{
-                width: headerIconBox,
-                height: headerIconBox,
-                borderRadius: 14,
-                backgroundColor: 'transparent',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <AppIcon name="document-text-outline" size={headerIconSize} color={cardIconC} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <View
+                style={{
+                  width: headerIconBox,
+                  height: headerIconBox,
+                  borderRadius: 14,
+                  backgroundColor: 'transparent',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <AppIcon name="document-text-outline" size={headerIconSize} color={cardIconC} />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors?.text }} numberOfLines={1}>
+                Minhas faturas
+              </Text>
             </View>
             {(onOpenFaturas || onAddFatura) ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -152,9 +157,6 @@ export function ContasDoMesCard({
               </View>
             ) : null}
           </View>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: colors?.text }} numberOfLines={1}>
-            Minhas faturas
-          </Text>
           <Text style={{ fontSize: 11, color: colors?.textSecondary, marginTop: 2 }} numberOfLines={1}>
             Contas a pagar e vencidas
           </Text>
