@@ -12,7 +12,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleLogo } from '../components/GoogleLogo';
 import { useTheme } from '../contexts/ThemeContext';
@@ -23,8 +23,22 @@ import { formatAuthErrorMessage } from '../utils/authErrors';
 
 const logoImage = require('../../assets/logo.png');
 
+/** Web: Alert.alert por vezes não aparece; garantimos mensagem visível. */
+function notifyAuth(title, message, buttons) {
+  const body = String(message || '').trim();
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(body ? `${title}\n\n${body}` : title);
+    const ok = buttons?.find((b) => (b.text || '').toLowerCase() === 'ok' || (b.text || '').toLowerCase() === 'entendi');
+    ok?.onPress?.();
+    return;
+  }
+  if (buttons && buttons.length) Alert.alert(title, message, buttons);
+  else Alert.alert(title, message);
+}
+
 export function LoginScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { signIn, signUp, signInWithGoogle, enterAsGuest, resetPasswordForEmail } = useAuth();
   const isWebDesktop = Platform.OS === 'web' && useIsDesktopLayout();
   const [email, setEmail] = useState('');
@@ -42,7 +56,7 @@ export function LoginScreen() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      Alert.alert('Erro', err.message || 'Não foi possível entrar com Google.');
+      notifyAuth('Erro', err.message || 'Não foi possível entrar com Google.');
     } finally {
       setLoading(false);
     }
@@ -50,16 +64,16 @@ export function LoginScreen() {
 
   const handleAuth = async () => {
     if (!email.trim()) {
-      Alert.alert('Erro', 'Informe o e-mail.');
+      notifyAuth('Atenção', 'Informe o e-mail.');
       return;
     }
     if (!password.trim() || password.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
+      notifyAuth('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
       return;
     }
     if (isSignUp) {
       if (password !== confirmPassword) {
-        Alert.alert('Erro', 'As senhas não conferem.');
+        notifyAuth('Atenção', 'As senhas não conferem.');
         return;
       }
     }
@@ -70,12 +84,15 @@ export function LoginScreen() {
         await signUp(email.trim(), password, {
           nome: nome.trim() || email.split('@')[0],
         });
-        Alert.alert('Sucesso', 'Conta criada! Verifique seu e-mail para confirmar.');
+        notifyAuth(
+          'Conta criada',
+          'Se o projeto exigir confirmação por e-mail, abra a caixa de entrada (e o spam) e clique no link. Depois use «Entrar».\n\nSe não houver confirmação, você já pode entrar com e-mail e senha.'
+        );
       } else {
         await signIn(email.trim(), password);
       }
     } catch (err) {
-      Alert.alert('Erro', formatAuthErrorMessage(err, { isSignUp }));
+      notifyAuth('Não foi possível salvar', formatAuthErrorMessage(err, { isSignUp }));
     } finally {
       setLoading(false);
     }
@@ -84,7 +101,7 @@ export function LoginScreen() {
   const handleForgotPassword = async () => {
     playTapSound();
     if (!email.trim()) {
-      Alert.alert(
+      notifyAuth(
         'E-mail necessário',
         'Digite o e-mail da sua conta no campo acima e toque novamente em «Esqueci a senha» para receber o link de redefinição.'
       );
@@ -93,12 +110,12 @@ export function LoginScreen() {
     setLoading(true);
     try {
       await resetPasswordForEmail(email.trim());
-      Alert.alert(
+      notifyAuth(
         'E-mail enviado',
-        'Se existir conta com este e-mail, você receberá um link para criar uma nova senha. Verifique também o spam.'
+        'Se existir conta com este e-mail, você receberá um link para redefinir a senha. Verifique também o spam.'
       );
     } catch (err) {
-      Alert.alert('Erro', formatAuthErrorMessage(err, { isSignUp: false }));
+      notifyAuth('Erro', formatAuthErrorMessage(err, { isSignUp: false }));
     } finally {
       setLoading(false);
     }
@@ -110,33 +127,39 @@ export function LoginScreen() {
     dw && s.inputDesktop,
     { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
   ];
-  const scrollContentStyle = [s.scrollContent, dw && s.scrollContentDesktop];
+  const scrollBottomPad = Math.max(140, (insets.bottom || 0) + 96);
+  const scrollContentStyle = [
+    s.scrollContent,
+    dw && s.scrollContentDesktop,
+    { flexGrow: 1, paddingBottom: dw ? Math.max(56, (insets.bottom || 0) + 40) : scrollBottomPad },
+  ];
   const eyeSize = dw ? 18 : 22;
 
   if (isSignUp) {
     return (
       <SafeAreaView style={[s.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
-        <View style={[s.header, dw && s.headerDesktop]}>
-          <TouchableOpacity
-            onPress={() => {
-              playTapSound();
-              setIsSignUp(false);
-            }}
-            style={s.backBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="arrow-back" size={dw ? 22 : 24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[s.headerTitle, dw && s.headerTitleDesktop, { color: colors.text }]}>Criar conta</Text>
-          <View style={{ width: dw ? 32 : 40 }} />
-        </View>
+        <KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[s.header, dw && s.headerDesktop]}>
+            <TouchableOpacity
+              onPress={() => {
+                playTapSound();
+                setIsSignUp(false);
+              }}
+              style={s.backBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="arrow-back" size={dw ? 22 : 24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[s.headerTitle, dw && s.headerTitleDesktop, { color: colors.text }]}>Criar conta</Text>
+            <View style={{ width: dw ? 32 : 40 }} />
+          </View>
 
-        <ScrollView
-          style={s.scroll}
-          contentContainerStyle={scrollContentStyle}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+          <ScrollView
+            style={s.scroll}
+            contentContainerStyle={scrollContentStyle}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
           <Text style={[s.instruction, dw && s.instructionDesktop, { color: colors.textSecondary }]}>
             Preencha seus dados para começar.
           </Text>
@@ -218,6 +241,7 @@ export function LoginScreen() {
             <Text style={[s.switchText, dw && s.switchTextDesktop, { color: colors.primary, fontWeight: '700' }]}>Entrar</Text>
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -231,7 +255,7 @@ export function LoginScreen() {
         <ScrollView
           contentContainerStyle={scrollContentStyle}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator
         >
           <View style={[s.logoSection, dw && s.logoSectionDesktop]}>
             <Image source={logoImage} style={[s.logo, dw && s.logoDesktop]} resizeMode="contain" />
@@ -259,10 +283,6 @@ export function LoginScreen() {
             <Text style={[s.dividerText, { color: colors.textSecondary }]}>OU</Text>
             <View style={[s.dividerLine, { backgroundColor: colors.border }]} />
           </View>
-
-          <Text style={[s.fallbackHint, dw && s.fallbackHintDesktop, { color: colors.textSecondary }]}>
-            Conta criada só com Google? Use o botão acima. E-mail e senha são para quem cadastrou senha neste app.
-          </Text>
 
           <Text style={[s.label, dw && s.labelDesktop, { color: colors.text }]}>E-MAIL</Text>
           <TextInput
@@ -312,6 +332,7 @@ export function LoginScreen() {
               s.btnSecondary,
               dw && s.btnSecondaryDesktop,
               { borderColor: colors.primary, backgroundColor: 'transparent' },
+              { marginBottom: 8 },
             ]}
             onPress={() => {
               playTapSound();
@@ -346,11 +367,10 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '700' },
   headerTitleDesktop: { fontSize: 16 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 8 },
   scrollContentDesktop: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 24,
     maxWidth: 400,
     width: '100%',
     alignSelf: 'center',
@@ -447,8 +467,20 @@ const s = StyleSheet.create({
   dividerDesktop: { marginVertical: 14, gap: 10 },
   dividerLine: { flex: 1, height: 1 },
   dividerText: { fontSize: 12, fontWeight: '600' },
-  fallbackHint: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
-  fallbackHintDesktop: { fontSize: 12, marginBottom: 12, lineHeight: 16 },
+  btnSecondary: {
+    borderRadius: 12,
+    borderWidth: 2,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  btnSecondaryDesktop: {
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 2,
+  },
+  btnSecondaryText: { fontSize: 16, fontWeight: '700' },
+  btnSecondaryTextDesktop: { fontSize: 14 },
   guestBtn: { alignItems: 'center', paddingVertical: 12 },
   guestBtnDesktop: { paddingVertical: 8 },
   guestBtnText: { fontSize: 15 },

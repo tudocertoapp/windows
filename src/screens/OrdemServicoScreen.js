@@ -21,6 +21,8 @@ import { MoneyInput } from '../components/MoneyInput';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { playTapSound } from '../utils/sounds';
 import { formatCurrency, parseMoney } from '../utils/format';
+import { useIsDesktopLayout } from '../utils/platformLayout';
+import { ModalFormRow, ModalFormCell } from '../components/ModalFormLayout';
 
 function todayStr() {
   const d = new Date();
@@ -48,6 +50,7 @@ const prioridadeLabel = (p) => ({
 
 export function OrdemServicoScreen({ onClose }) {
   const { colors } = useTheme();
+  const useDesktopModal = Platform.OS === 'web' && useIsDesktopLayout();
   const { ordensServico, colaboradores, addOrdemServico, deleteOrdemServico } = useColaboradoresOrdem();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -135,18 +138,21 @@ export function OrdemServicoScreen({ onClose }) {
     ]);
   };
 
-  const input = (label, key, opts = {}) => (
-    <View key={key} style={s.field}>
-      <Text style={[s.label, { color: colors.textSecondary }]}>{label}</Text>
-      <TextInput
-        style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
-        placeholderTextColor={colors.textSecondary}
-        value={form[key]}
-        onChangeText={(t) => updateForm(key, t)}
-        {...opts}
-      />
-    </View>
-  );
+  const input = (label, key, opts = {}, layout = {}) => {
+    const { style: optStyle, ...restOpts } = opts;
+    return (
+      <View key={key} style={[s.field, layout.noMargin && { marginBottom: 0 }]}>
+        <Text style={[s.label, { color: colors.textSecondary }]}>{label}</Text>
+        <TextInput
+          style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, optStyle]}
+          placeholderTextColor={colors.textSecondary}
+          value={form[key]}
+          onChangeText={(t) => updateForm(key, t)}
+          {...restOpts}
+        />
+      </View>
+    );
+  };
 
   const getStatusColor = (st) => {
     switch (st) {
@@ -211,31 +217,114 @@ export function OrdemServicoScreen({ onClose }) {
       </ScrollView>
 
       <Modal visible={showForm} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalWrap}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[s.modalWrap, useDesktopModal && s.modalWrapDesktop]}
+        >
           <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowForm(false)} />
-          <View style={[s.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View
+            style={[
+              s.modalContent,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              useDesktopModal && s.modalContentDesktop,
+            ]}
+          >
             <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[s.modalTitle, { color: colors.text }]}>Nova Ordem de Serviço</Text>
               <TouchableOpacity onPress={() => setShowForm(false)} style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.15) }]}>
                 <Ionicons name="close" size={22} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={s.modalScroll} contentContainerStyle={s.modalScrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-              <Text style={[s.sectionTitle, { color: colors.primary }]}>Nº DA OS</Text>
-              {input('Número', 'numero', { placeholder: 'Ex: OS001234' })}
+            <ScrollView
+              style={[s.modalScroll, useDesktopModal && s.modalScrollDesktop]}
+              contentContainerStyle={s.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
+              <Text style={[s.sectionTitle, { color: colors.primary }]}>Nº DA OS E ABERTURA</Text>
+              {useDesktopModal ? (
+                <ModalFormRow>
+                  <ModalFormCell flex={1} minWidth={120} maxWidth={200}>
+                    {input('Número', 'numero', { placeholder: 'Ex: OS001234' }, { noMargin: true })}
+                  </ModalFormCell>
+                  <ModalFormCell flex={1} minWidth={140}>
+                    <View style={[s.field, { marginBottom: 0 }]}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>Data de abertura</Text>
+                      <DatePickerInput value={form.dataAbertura} onChange={(v) => updateForm('dataAbertura', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="DD/MM/AAAA" />
+                    </View>
+                  </ModalFormCell>
+                </ModalFormRow>
+              ) : (
+                <>
+                  {input('Número', 'numero', { placeholder: 'Ex: OS001234' })}
+                  <View style={s.field}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>Data de abertura</Text>
+                    <DatePickerInput value={form.dataAbertura} onChange={(v) => updateForm('dataAbertura', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="DD/MM/AAAA" />
+                  </View>
+                </>
+              )}
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>CLIENTE</Text>
-              {input('Nome do cliente *', 'clienteNome', { placeholder: 'Nome completo' })}
-              {input('Telefone', 'clienteTelefone', { placeholder: '(00) 00000-0000', keyboardType: 'phone-pad' })}
-              {input('E-mail', 'clienteEmail', { placeholder: 'email@exemplo.com', keyboardType: 'email-address' })}
-              {input('Endereço', 'clienteEndereco', { placeholder: 'Endereço para retirada/entrega' })}
+              {useDesktopModal ? (
+                <>
+                  <ModalFormRow>
+                    <ModalFormCell flex={2} minWidth={200}>
+                      {input('Nome do cliente *', 'clienteNome', { placeholder: 'Nome completo' }, { noMargin: true })}
+                    </ModalFormCell>
+                    <ModalFormCell flex={1} minWidth={130}>
+                      {input('Telefone', 'clienteTelefone', { placeholder: '(00) 00000-0000', keyboardType: 'phone-pad' }, { noMargin: true })}
+                    </ModalFormCell>
+                  </ModalFormRow>
+                  <ModalFormRow>
+                    <ModalFormCell flex={2} minWidth={180}>
+                      {input('E-mail', 'clienteEmail', { placeholder: 'email@exemplo.com', keyboardType: 'email-address' }, { noMargin: true })}
+                    </ModalFormCell>
+                    <ModalFormCell flex={1} minWidth={100} maxWidth={220}>
+                      {input('Garantia', 'garantia', { placeholder: 'Ex: 90 dias' }, { noMargin: true })}
+                    </ModalFormCell>
+                  </ModalFormRow>
+                  <ModalFormRow>
+                    <ModalFormCell fullWidth>
+                      {input('Endereço', 'clienteEndereco', { placeholder: 'Endereço para retirada/entrega' }, { noMargin: true })}
+                    </ModalFormCell>
+                  </ModalFormRow>
+                </>
+              ) : (
+                <>
+                  {input('Nome do cliente *', 'clienteNome', { placeholder: 'Nome completo' })}
+                  {input('Telefone', 'clienteTelefone', { placeholder: '(00) 00000-0000', keyboardType: 'phone-pad' })}
+                  {input('E-mail', 'clienteEmail', { placeholder: 'email@exemplo.com', keyboardType: 'email-address' })}
+                  {input('Endereço', 'clienteEndereco', { placeholder: 'Endereço para retirada/entrega' })}
+                </>
+              )}
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>EQUIPAMENTO</Text>
-              {input('Equipamento *', 'equipamento', { placeholder: 'Ex: Notebook, Celular, Geladeira' })}
-              {input('Modelo', 'modelo', { placeholder: 'Modelo do equipamento' })}
-              {input('Nº de Série', 'serial', { placeholder: 'Serial ou identificação' })}
-              {input('Defeito relatado', 'defeitoRelatado', { placeholder: 'O que o cliente relatou', multiline: true })}
-              {input('Serviço solicitado', 'servicoSolicitado', { placeholder: 'Descrição do serviço', multiline: true })}
+              {useDesktopModal ? (
+                <>
+                  <ModalFormRow>
+                    <ModalFormCell flex={2} minWidth={160}>
+                      {input('Equipamento *', 'equipamento', { placeholder: 'Ex: Notebook, Celular' }, { noMargin: true })}
+                    </ModalFormCell>
+                    <ModalFormCell flex={1} minWidth={120}>
+                      {input('Modelo', 'modelo', { placeholder: 'Modelo' }, { noMargin: true })}
+                    </ModalFormCell>
+                    <ModalFormCell flex={1} minWidth={100} maxWidth={160}>
+                      {input('Nº de Série', 'serial', { placeholder: 'Serial' }, { noMargin: true })}
+                    </ModalFormCell>
+                  </ModalFormRow>
+                  {input('Defeito relatado', 'defeitoRelatado', { placeholder: 'O que o cliente relatou', multiline: true }, { noMargin: useDesktopModal })}
+                  {input('Serviço solicitado', 'servicoSolicitado', { placeholder: 'Descrição do serviço', multiline: true }, { noMargin: useDesktopModal })}
+                </>
+              ) : (
+                <>
+                  {input('Equipamento *', 'equipamento', { placeholder: 'Ex: Notebook, Celular, Geladeira' })}
+                  {input('Modelo', 'modelo', { placeholder: 'Modelo do equipamento' })}
+                  {input('Nº de Série', 'serial', { placeholder: 'Serial ou identificação' })}
+                  {input('Defeito relatado', 'defeitoRelatado', { placeholder: 'O que o cliente relatou', multiline: true })}
+                  {input('Serviço solicitado', 'servicoSolicitado', { placeholder: 'Descrição do serviço', multiline: true })}
+                </>
+              )}
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>DIAGNÓSTICO E SERVIÇO</Text>
               {input('Diagnóstico', 'diagnostico', { placeholder: 'Problema identificado', multiline: true })}
@@ -243,7 +332,7 @@ export function OrdemServicoScreen({ onClose }) {
               {input('Peças utilizadas', 'pecasUtilizadas', { placeholder: 'Lista de peças e materiais', multiline: true })}
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>RESPONSÁVEL</Text>
-              <View style={s.field}>
+              <View style={[s.field, useDesktopModal && { marginBottom: 10 }]}>
                 <Text style={[s.label, { color: colors.textSecondary }]}>Técnico / Colaborador</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.colabScroll}>
                   <TouchableOpacity
@@ -277,51 +366,105 @@ export function OrdemServicoScreen({ onClose }) {
               </View>
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>PRIORIDADE E STATUS</Text>
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Prioridade</Text>
-                <View style={s.chipRow}>
-                  {PRIORIDADE_OPCOES.map((p) => (
-                    <TouchableOpacity
-                      key={p}
-                      onPress={() => { playTapSound(); updateForm('prioridade', p); }}
-                      style={[s.chip, form.prioridade === p && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
-                    >
-                      <Text style={[s.chipText, { color: form.prioridade === p ? '#fff' : colors.text }]}>{prioridadeLabel(p)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Status</Text>
-                <View style={s.chipRow}>
-                  {STATUS_OPCOES.map((st) => (
-                    <TouchableOpacity
-                      key={st}
-                      onPress={() => { playTapSound(); updateForm('status', st); }}
-                      style={[s.chip, form.status === st && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
-                    >
-                      <Text style={[s.chipText, { color: form.status === st ? '#fff' : colors.text }]}>{statusLabel(st)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+              {useDesktopModal ? (
+                <ModalFormRow>
+                  <ModalFormCell flex={1} minWidth={220}>
+                    <View style={[s.field, { marginBottom: 0 }]}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>Prioridade</Text>
+                      <View style={s.chipRow}>
+                        {PRIORIDADE_OPCOES.map((p) => (
+                          <TouchableOpacity
+                            key={p}
+                            onPress={() => { playTapSound(); updateForm('prioridade', p); }}
+                            style={[s.chip, form.prioridade === p && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
+                          >
+                            <Text style={[s.chipText, { color: form.prioridade === p ? '#fff' : colors.text }]}>{prioridadeLabel(p)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  </ModalFormCell>
+                  <ModalFormCell flex={1} minWidth={220}>
+                    <View style={[s.field, { marginBottom: 0 }]}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>Status</Text>
+                      <View style={s.chipRow}>
+                        {STATUS_OPCOES.map((st) => (
+                          <TouchableOpacity
+                            key={st}
+                            onPress={() => { playTapSound(); updateForm('status', st); }}
+                            style={[s.chip, form.status === st && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
+                          >
+                            <Text style={[s.chipText, { color: form.status === st ? '#fff' : colors.text }]}>{statusLabel(st)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  </ModalFormCell>
+                </ModalFormRow>
+              ) : (
+                <>
+                  <View style={s.field}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>Prioridade</Text>
+                    <View style={s.chipRow}>
+                      {PRIORIDADE_OPCOES.map((p) => (
+                        <TouchableOpacity
+                          key={p}
+                          onPress={() => { playTapSound(); updateForm('prioridade', p); }}
+                          style={[s.chip, form.prioridade === p && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
+                        >
+                          <Text style={[s.chipText, { color: form.prioridade === p ? '#fff' : colors.text }]}>{prioridadeLabel(p)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={s.field}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>Status</Text>
+                    <View style={s.chipRow}>
+                      {STATUS_OPCOES.map((st) => (
+                        <TouchableOpacity
+                          key={st}
+                          onPress={() => { playTapSound(); updateForm('status', st); }}
+                          style={[s.chip, form.status === st && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
+                        >
+                          <Text style={[s.chipText, { color: form.status === st ? '#fff' : colors.text }]}>{statusLabel(st)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              )}
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>DATAS</Text>
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Data de abertura</Text>
-                <DatePickerInput value={form.dataAbertura} onChange={(v) => updateForm('dataAbertura', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="DD/MM/AAAA" />
-              </View>
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Previsão de conclusão</Text>
-                <DatePickerInput value={form.dataPrevisao} onChange={(v) => updateForm('dataPrevisao', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="Opcional" />
-              </View>
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Data de conclusão</Text>
-                <DatePickerInput value={form.dataConclusao} onChange={(v) => updateForm('dataConclusao', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="Quando finalizado" />
-              </View>
+              {useDesktopModal ? (
+                <ModalFormRow>
+                  <ModalFormCell flex={1} minWidth={140}>
+                    <View style={[s.field, { marginBottom: 0 }]}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>Previsão de conclusão</Text>
+                      <DatePickerInput value={form.dataPrevisao} onChange={(v) => updateForm('dataPrevisao', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="Opcional" />
+                    </View>
+                  </ModalFormCell>
+                  <ModalFormCell flex={1} minWidth={140}>
+                    <View style={[s.field, { marginBottom: 0 }]}>
+                      <Text style={[s.label, { color: colors.textSecondary }]}>Data de conclusão</Text>
+                      <DatePickerInput value={form.dataConclusao} onChange={(v) => updateForm('dataConclusao', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="Quando finalizado" />
+                    </View>
+                  </ModalFormCell>
+                </ModalFormRow>
+              ) : (
+                <>
+                  <View style={s.field}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>Previsão de conclusão</Text>
+                    <DatePickerInput value={form.dataPrevisao} onChange={(v) => updateForm('dataPrevisao', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="Opcional" />
+                  </View>
+                  <View style={s.field}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>Data de conclusão</Text>
+                    <DatePickerInput value={form.dataConclusao} onChange={(v) => updateForm('dataConclusao', v)} colors={colors} style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border }]} placeholder="Quando finalizado" />
+                  </View>
+                </>
+              )}
 
               <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>OUTROS</Text>
-              {input('Garantia', 'garantia', { placeholder: 'Ex: 90 dias' })}
+              {!useDesktopModal ? input('Garantia', 'garantia', { placeholder: 'Ex: 90 dias' }) : null}
               {input('Observações', 'observacoes', { placeholder: 'Informações adicionais', multiline: true, style: [s.textArea, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }] })}
             </ScrollView>
             <TouchableOpacity onPress={handleSave} style={[s.saveBtn, { backgroundColor: colors.primary }]}>
@@ -373,12 +516,25 @@ const s = StyleSheet.create({
   colabChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginRight: 8 },
   colabChipText: { fontSize: 12, fontWeight: '600' },
   modalWrap: { flex: 1, justifyContent: 'flex-end' },
+  modalWrapDesktop: { justifyContent: 'center', paddingVertical: 20 },
   modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { maxHeight: '92%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, overflow: 'hidden' },
+  modalContentDesktop: {
+    maxWidth: 900,
+    width: '94%',
+    alignSelf: 'center',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    maxHeight: '88%',
+    minHeight: 280,
+  },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1 },
   modalTitle: { fontSize: 18, fontWeight: '700' },
   closeBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   modalScroll: { maxHeight: 480 },
+  modalScrollDesktop: { maxHeight: 580, flexGrow: 0 },
   modalScrollContent: { padding: 20, paddingBottom: 24 },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, marginHorizontal: 20, marginBottom: 24, borderRadius: 14 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },

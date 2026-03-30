@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -10,13 +10,15 @@ import { playTapSound } from '../../utils/sounds';
 
 /**
  * Largura da coluna direita (layout desktop web) — reservada no flex.
+ * Mantém a rail fina; a “pílula” só envolve os ícones (não estica a altura da viewport).
  */
-export const WEB_DESKTOP_RAIL_WIDTH = 72;
+export const WEB_DESKTOP_RAIL_WIDTH = 64;
 
-const ISLAND_RADIUS = 22;
-const BTN = 44;
-const ICON_SIZE = 22;
-const ADD_ICON_SIZE = 26;
+const ISLAND_RADIUS = 28;
+const BTN = 42;
+const ADD_BTN = 50;
+const ICON_SIZE = 21;
+const ADD_ICON_SIZE = 28;
 
 function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
   return (
@@ -43,12 +45,22 @@ function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
   );
 }
 
-export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGastos }) {
+/** Deslocamento da pílula (desktop web): sobe 1/8 da altura útil e puxa um pouco para a esquerda. */
+const ISLAND_SHIFT_X = 12;
+
+export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
-  const { openCalculadoraFull, openMensagensWhatsApp } = useMenu();
+  const { openCalculadoraFull } = useMenu();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
+
+  const islandTransform = useMemo(() => {
+    const h = windowHeight > 0 ? windowHeight : 640;
+    return [{ translateY: -(h / 8) }, { translateX: -ISLAND_SHIFT_X }];
+  }, [windowHeight]);
+
   if (!isWeb) return null;
 
   const tabItems = [
@@ -66,7 +78,7 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
       key: 'MeusGastos',
       label: 'Meus gastos',
       icon: 'chatbubbles-outline',
-      onPress: () => onMeusGastos?.(),
+      onPress: () => onNavigate?.('MeusGastos'),
     },
     {
       key: 'calc',
@@ -78,16 +90,31 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
 
   if (showEmpresaFeatures) {
     tabItems.push({
-      key: 'whatsapp',
+      key: 'WhatsApp',
       label: 'WhatsApp',
       ionIcon: 'logo-whatsapp',
-      onPress: () => openMensagensWhatsApp?.(),
+      onPress: () => onNavigate?.('WhatsApp'),
     });
   }
 
-  /** Safe area só; ilha centralizada na altura total da página (viewport), não “só abaixo do cabeçalho”. */
+  /** Safe area; altura útil = viewport entre paddings. O + fica no centro vertical dessa área. */
   const padTop = insets.top || 0;
   const padBottom = Math.max(12, insets.bottom || 0);
+
+  const renderRailEntry = (it) => {
+    const active = activeRouteName === it.key;
+    return (
+      <RailItem
+        key={it.key}
+        icon={it.icon}
+        ionIcon={it.ionIcon}
+        label={it.label}
+        onPress={it.onPress}
+        active={active}
+        colors={colors}
+      />
+    );
+  };
 
   return (
     <View
@@ -107,45 +134,35 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
           {
             backgroundColor: colors.card,
             borderColor: colors.border,
+            transform: islandTransform,
             ...(Platform.OS === 'web'
               ? {
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.08)',
                 }
               : {}),
           },
         ]}
       >
-        <View style={s.btnColumn}>
+        <View style={s.islandInner}>
           {tabItems.map((it) => {
-            const active = !it.isAdd && activeRouteName === it.key;
             if (it.isAdd) {
               return (
                 <TouchableOpacity
-                  key={it.key}
+                  key="Adicionar"
                   activeOpacity={0.85}
                   onPress={() => {
                     playTapSound();
                     it.onPress?.();
                   }}
                   style={[s.addRound, { backgroundColor: colors.primary }]}
-                  accessibilityLabel={it.label}
+                  accessibilityLabel="Adicionar"
                   accessibilityRole="button"
                 >
                   <Ionicons name="add" size={ADD_ICON_SIZE} color="#fff" />
                 </TouchableOpacity>
               );
             }
-            return (
-              <RailItem
-                key={it.key}
-                icon={it.icon}
-                ionIcon={it.ionIcon}
-                label={it.label}
-                onPress={it.onPress}
-                active={active}
-                colors={colors}
-              />
-            );
+            return renderRailEntry(it);
           })}
         </View>
       </View>
@@ -153,33 +170,37 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMeusGast
   );
 }
 
+const GAP = 10;
+
 const s = StyleSheet.create({
   wrap: {
     flex: 1,
     alignSelf: 'stretch',
     maxWidth: WEB_DESKTOP_RAIL_WIDTH,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
+    paddingHorizontal: 6,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 0,
   },
+  /** Pílula compacta: altura = ícones + espaçamento (não preenche a viewport). */
   island: {
+    flexShrink: 0,
     alignSelf: 'center',
-    flexShrink: 1,
-    maxHeight: '100%',
     borderRadius: ISLAND_RADIUS,
     borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    overflow: 'hidden',
+    paddingVertical: 12,
+    paddingHorizontal: 7,
+    overflow: 'visible',
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
   },
-  btnColumn: {
+  islandInner: {
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 8,
+    gap: GAP,
   },
   roundBtn: {
     width: BTN,
@@ -190,15 +211,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   addRound: {
-    width: BTN,
-    height: BTN,
-    borderRadius: BTN / 2,
+    width: ADD_BTN,
+    height: ADD_BTN,
+    borderRadius: ADD_BTN / 2,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
   },
 });

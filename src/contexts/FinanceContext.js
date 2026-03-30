@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { useBanks } from './BanksContext';
 
 const AGENDA_CACHE_KEY = 'tudocerto_agenda_cache';
 
@@ -144,6 +145,7 @@ const INITIAL_TRANSACTIONS = [
 
 export function FinanceProvider({ children }) {
   const { user } = useAuth();
+  const { banks, cards, deductFromBank, addToBank, deductFromCardBalance, addToCardBalance } = useBanks();
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
   const [budgets, setBudgets] = useState([]);
   const [orcamentos, setOrcamentos] = useState([]);
@@ -261,13 +263,33 @@ export function FinanceProvider({ children }) {
     loadAll();
   }, [loadAll]);
 
-  const addTransaction = async (t) => {
-    if (!user) {
-      const n = { ...t, id: Date.now().toString(), createdAt: t.createdAt || new Date().toISOString() };
-      setTransactions((prev) => [...prev, n]);
-      return;
+  const syncBankForAutoExpense = (tx, reverse) => {
+    if (!tx) return;
+    const isExpense = tx.type === 'expense' || tx.type === 'despesa';
+    if (!isExpense) return;
+    const amt = Math.max(0, Number(tx.amount) || 0);
+    if (amt <= 0) return;
+    const tipo = tx.tipoVenda || 'pessoal';
+    const firstBank = (banks || []).find((b) => (b.tipo || 'pessoal') === tipo);
+    const firstCard = firstBank ? (cards || []).find((c) => c.bankId === firstBank.id) : null;
+    const fp = tx.formaPagamento || 'pix';
+    if (reverse) {
+      if ((fp === 'debito' || fp === 'pix' || fp === 'transferencia') && firstBank) addToBank(firstBank.id, amt);
+      else if (fp === 'credito' && firstCard) deductFromCardBalance(firstCard.id, amt);
+    } else {
+      if ((fp === 'debito' || fp === 'pix' || fp === 'transferencia') && firstBank) deductFromBank(firstBank.id, amt);
+      else if (fp === 'credito' && firstCard) addToCardBalance(firstCard.id, amt);
     }
+  };
+
+  const addTransaction = async (t) => {
     const txType = t.type === 'receita' ? 'income' : (t.type === 'despesa' ? 'expense' : (t.type || 'income'));
+    if (!user) {
+      const nid = Date.now().toString();
+      const n = { ...t, id: nid, type: txType, createdAt: t.createdAt || new Date().toISOString() };
+      setTransactions((prev) => [...prev, n]);
+      return nid;
+    }
     const { data, error } = await supabase.from('transactions').insert({
       user_id: user.id,
       type: txType,
@@ -279,8 +301,16 @@ export function FinanceProvider({ children }) {
       tipo_venda: t.tipoVenda,
       desconto: t.desconto || 0,
     }).select('*').single();
-    if (error) return showDbError(error, 'cadastrar transação');
-    if (data) setTransactions((prev) => [toTransaction(data), ...prev]);
+    if (error) {
+      showDbError(error, 'cadastrar transação');
+      return null;
+    }
+    if (data) {
+      const row = toTransaction(data);
+      setTransactions((prev) => [row, ...prev]);
+      return row.id;
+    }
+    return null;
   };
   const updateTransaction = async (id, data) => {
     if (!user) return setTransactions((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
@@ -625,23 +655,114 @@ export function FinanceProvider({ children }) {
   };
 
   const addBoleto = async (b) => {
+    const base = { ...b };
+    delete base.id;
+    delete base.paidTransactionId;
+    const amount = Number(base.amount) || 0;
+    const dateVal = new Date().toISOString().slice(0, 10);
+
     if (!user) {
-      setBoletos((prev) => [...prev, { ...b, id: Date.now().toString() }]);
+      const nid = Date.now().toString();
+      let item = { ...base, id: nid };
+      if (base.paid && amount > 0) {
+        const txId = await addTransaction({
+          type: 'despesa',
+          amount,
+          description: `Conta: ${base.name || 'Fatura'}`,
+          date: dateVal,
+          category: 'Contas',
+          tipoVenda: base.tipo || 'pessoal',
+          formaPagamento: 'pix',
+        });
+        if (txId) {
+          syncBankForAutoExpense({ type: 'expense', amount, formaPagamento: 'pix', tipoVenda: base.tipo || 'pessoal' }, false);
+          item = { ...item, paidTransactionId: txId };
+        }
+      }
+      setBoletos((prev) => [...prev, item]);
       return;
     }
-    const { data, error } = await supabase.from('boletos').insert({ user_id: user.id, data: b }).select('*').single();
+    const { data, error } = await supabase.from('boletos').insert({ user_id: user.id, data: base }).select('*').single();
     if (error) return showDbError(error, 'cadastrar boleto');
-    if (data) setBoletos((prev) => [...prev, { id: data.id, ...data.data }]);
+    if (!data) return;
+    let item = { id: data.id, ...(data.data || {}) };
+    if (item.paid && amount > 0) {
+      const txId = await addTransaction({
+        type: 'despesa',
+        amount,
+        description: `Conta: ${item.name || 'Fatura'}`,
+        date: dateVal,
+        category: 'Contas',
+        tipoVenda: item.tipo || 'pessoal',
+        formaPagamento: 'pix',
+      });
+      if (txId) {
+        syncBankForAutoExpense({ type: 'expense', amount, formaPagamento: 'pix', tipoVenda: item.tipo || 'pessoal' }, false);
+        item = { ...item, paidTransactionId: txId };
+        const { id: _rid, ...dataOnly } = item;
+        const { error: upErr } = await supabase.from('boletos').update({ data: dataOnly }).eq('id', data.id);
+        if (upErr) showDbError(upErr, 'atualizar boleto');
+      }
+    }
+    setBoletos((prev) => [...prev, item]);
   };
-  const updateBoleto = async (id, data) => {
-    if (!user) return setBoletos((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
-    await supabase.from('boletos').update({ data }).eq('id', id);
-    setBoletos((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
+
+  const updateBoleto = async (id, patch) => {
+    const prev = boletos.find((x) => x.id === id);
+    if (!prev) return;
+
+    let next = { ...prev, ...patch };
+    const rowId = prev.id;
+    const wasPaid = !!prev.paid;
+    const nowPaid = !!next.paid;
+    const amount = Number(next.amount) || 0;
+    const dateVal = new Date().toISOString().slice(0, 10);
+
+    if (!wasPaid && nowPaid && amount > 0) {
+      const txId = await addTransaction({
+        type: 'despesa',
+        amount,
+        description: `Conta: ${next.name || 'Fatura'}`,
+        date: dateVal,
+        category: 'Contas',
+        tipoVenda: next.tipo || 'pessoal',
+        formaPagamento: 'pix',
+      });
+      if (txId) {
+        syncBankForAutoExpense({ type: 'expense', amount, formaPagamento: 'pix', tipoVenda: next.tipo || 'pessoal' }, false);
+        next = { ...next, paidTransactionId: txId };
+      }
+    } else if (wasPaid && !nowPaid && prev.paidTransactionId) {
+      const tx = transactions.find((t) => t.id === prev.paidTransactionId);
+      if (tx) syncBankForAutoExpense(tx, true);
+      await deleteTransaction(prev.paidTransactionId);
+      const { paidTransactionId: _pt, ...rest } = next;
+      next = { ...rest, paid: false };
+    }
+
+    const { id: _omit, ...dataForDb } = next;
+    if (!user) {
+      setBoletos((p) => p.map((x) => (x.id === rowId ? next : x)));
+      return;
+    }
+    const { error } = await supabase.from('boletos').update({ data: dataForDb }).eq('id', rowId);
+    if (error) return showDbError(error, 'atualizar boleto');
+    setBoletos((p) => p.map((x) => (x.id === rowId ? next : x)));
   };
+
   const deleteBoleto = async (id) => {
-    if (!user) return setBoletos((prev) => prev.filter((x) => x.id !== id));
+    const prev = boletos.find((x) => x.id === id);
+    if (prev?.paidTransactionId) {
+      const tx = transactions.find((t) => t.id === prev.paidTransactionId);
+      if (tx) syncBankForAutoExpense(tx, true);
+      await deleteTransaction(prev.paidTransactionId);
+    }
+    if (!user) {
+      setBoletos((p) => p.filter((x) => x.id !== id));
+      return;
+    }
     await supabase.from('boletos').delete().eq('id', id);
-    setBoletos((prev) => prev.filter((x) => x.id !== id));
+    setBoletos((p) => p.filter((x) => x.id !== id));
   };
 
   const addAReceber = async (r) => {

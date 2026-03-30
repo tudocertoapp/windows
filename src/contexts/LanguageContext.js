@@ -3,10 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = '@tudocerto_language';
 
+/** currencyCode: ISO 4217 para Excel (formato contábil) e Intl */
 export const LANGUAGES = {
-  pt: { code: 'pt', label: 'Português', currency: 'R$', decimalSep: ',', thousandsSep: '.' },
-  en: { code: 'en', label: 'English', currency: '$', decimalSep: '.', thousandsSep: ',' },
-  es: { code: 'es', label: 'Español', currency: '$', decimalSep: ',', thousandsSep: '.' },
+  pt: { code: 'pt', label: 'Português', currency: 'R$', currencyCode: 'BRL', decimalSep: ',', thousandsSep: '.' },
+  en: { code: 'en', label: 'English', currency: '$', currencyCode: 'USD', decimalSep: '.', thousandsSep: ',' },
+  es: { code: 'es', label: 'Español', currency: '$', currencyCode: 'EUR', decimalSep: ',', thousandsSep: '.' },
 };
 
 const LanguageContext = createContext(undefined);

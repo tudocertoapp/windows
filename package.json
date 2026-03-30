@@ -6,6 +6,10 @@
     "ios": "expo run:ios",
     "web": "expo start --web --port 8081",
     "web:build": "expo export --platform web && node scripts/patch-web-index.js",
+    "electron:icon": "node scripts/gen-electron-icon.js",
+    "electron:dev": "cross-env ELECTRON_DEV=1 electron electron/main.js",
+    "electron:dev:all": "concurrently -k \"npm run web\" \"wait-on tcp:8081 && npm run electron:dev\"",
+    "electron:pack:win": "npm run electron:icon && npm run web:build && electron-builder --win --x64",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -62,10 +66,15 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~19.1.10",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.5",
+    "electron-builder": "^25.1.8",
     "jimp": "^1.6.0",
     "patch-package": "^8.0.0",
     "sharp": "^0.34.5",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "wait-on": "^8.0.1"
   },
   "expo": {
     "doctor": {
@@ -81,5 +90,31 @@
   },
   "private": true,
   "name": "tudo-certo",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "build": {
+    "appId": "com.tudocerto.desktop",
+    "productName": "Tudo Certo",
+    "copyright": "Copyright © Tudo Certo",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/main.js",
+      "electron/icon-256.png"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "electron/icon-256.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
 }

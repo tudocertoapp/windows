@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -28,6 +29,11 @@ import {
 } from '../utils/sounds';
 import VoiceRecorder from './VoiceRecorder';
 import { processReceipt } from '../services/receiptOcr/processReceipt';
+import { useIsDesktopLayout } from '../utils/platformLayout';
+import { WEB_DESKTOP_RAIL_WIDTH } from './navigation/RightSideTabBar';
+
+/** Mesmo gutter do AppNavigator (padding da rail): coluna principal não cobre a rail direita. */
+const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_WIDTH + 16;
 
 function nowIso() {
   return new Date().toISOString();
@@ -293,6 +299,9 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const { colors } = useTheme();
   const { transactions, addTransaction } = useFinance();
   const { openAddModal } = useMenu();
+  const insets = useSafeAreaInsets();
+  const isDesktopLayout = useIsDesktopLayout();
+  const webDesktopFixedInput = Platform.OS === 'web' && isDesktopLayout && !embedded;
   const EXAMPLE_PHRASES = [
     'Fui no mercado e gastei 89,90. Gasto pessoal.',
     'Estava na farmácia e paguei 35,50.',
@@ -1013,14 +1022,22 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     );
   };
 
-  return (
-    <View style={[s.container, embedded && s.embeddedContainer]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0} style={{ flex: 1 }}>
+  const listBottomPad = webDesktopFixedInput ? 120 : 18;
+  const kavStyle = {
+    flex: 1,
+    minHeight: 0,
+    ...(webDesktopFixedInput ? { overflow: 'hidden' } : {}),
+  };
+  const inputPadBottom =
+    Platform.OS === 'ios' ? 14 : Platform.OS === 'web' ? Math.max(insets.bottom, 10) : 8;
+
+  const chatMain = (
+    <>
         {embedded ? (
           <ScrollView
             ref={listRef}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 12, paddingBottom: 18 }}
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{ padding: 12, paddingBottom: listBottomPad }}
             showsVerticalScrollIndicator
             persistentScrollbar
             nestedScrollEnabled
@@ -1037,10 +1054,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             data={orderedMessages}
             keyExtractor={(m) => m.id}
             renderItem={renderMsg}
-            contentContainerStyle={{ padding: 12, paddingBottom: 18 }}
+            contentContainerStyle={{ padding: 12, paddingBottom: listBottomPad }}
             showsVerticalScrollIndicator
             nestedScrollEnabled
-            style={{ flex: 1 }}
+            style={{ flex: 1, minHeight: 0 }}
             onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
           />
         )}
@@ -1053,6 +1070,17 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               backgroundColor: (embedded || transparentBg) ? 'transparent' : colors.bg,
               borderTopWidth: embedded ? 0 : 1,
               paddingHorizontal: (embedded || transparentBg) ? 20 : 12,
+              paddingBottom: webDesktopFixedInput ? Math.max(insets.bottom, 12) : inputPadBottom,
+            },
+            webDesktopFixedInput && {
+              position: 'fixed',
+              left: 0,
+              right: WEB_DESKTOP_RIGHT_GUTTER,
+              bottom: Math.max(insets.bottom, 12),
+              zIndex: 100,
+              ...(Platform.OS === 'web'
+                ? { boxShadow: '0 -10px 28px rgba(0,0,0,0.22)' }
+                : {}),
             },
           ]}
         >
@@ -1164,7 +1192,22 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+    </>
+  );
+
+  return (
+    <View style={[s.container, embedded && s.embeddedContainer]}>
+      {Platform.OS === 'web' ? (
+        <View style={kavStyle}>{chatMain}</View>
+      ) : (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          style={kavStyle}
+        >
+          {chatMain}
+        </KeyboardAvoidingView>
+      )}
 
       <Modal visible={cameraChoiceVisible} transparent animationType="fade">
         <View style={s.cameraChoiceOverlay}>
@@ -1221,7 +1264,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, minHeight: 0, minWidth: 0 },
   embeddedContainer: { minHeight: 0 },
   msgRow: { flexDirection: 'row', marginVertical: 4 },
   msgBubble: {
@@ -1247,8 +1290,8 @@ const s = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 14 : 8,
     borderTopWidth: 1,
+    flexShrink: 0,
   },
   voiceStatusBadge: {
     width: '100%',

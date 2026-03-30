@@ -1,6 +1,7 @@
 {
   "name": "tudocerto-web",
-  "buildCommand": "npm install --legacy-peer-deps && npm run web:build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "npm run web:build",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [

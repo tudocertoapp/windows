@@ -63,13 +63,30 @@ export function AuthProvider({ children }) {
   };
 
   const signUp = async (email, password, metadata = {}) => {
+    const emailTrim = String(email || '').trim();
+    const nomeRaw = String(metadata?.nome ?? metadata?.full_name ?? '').trim().slice(0, 240);
+    const nome = nomeRaw || emailTrim.split('@')[0] || 'Usuário';
+    const userMeta = { nome, full_name: nome };
+
+    const emailRedirectTo =
+      Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin
+        ? `${window.location.origin.replace(/\/$/, '')}/`
+        : undefined;
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: emailTrim,
       password,
-      options: { data: metadata },
+      options: {
+        data: userMeta,
+        ...(emailRedirectTo ? { emailRedirectTo } : {}),
+      },
     });
     if (error) {
       const msg = (error.message || '').toLowerCase();
+      const st = error.status;
+      if (st >= 500 || msg.includes('internal server error') || msg.includes('unexpected_failure')) {
+        throw new Error('AUTH_SIGNUP_SERVER');
+      }
       if (msg.includes('already registered') || msg.includes('user already registered') || msg.includes('already been registered')) {
         throw new Error('E-mail já cadastrado. Use "Entrar" para acessar sua conta.');
       }

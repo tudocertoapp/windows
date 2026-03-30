@@ -24,6 +24,9 @@ import { GlassCard } from '../../components/GlassCard';
 import { DatePickerInput } from '../../components/DatePickerInput';
 import { playTapSound } from '../../utils/sounds';
 import { formatCurrency } from '../../utils/format';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { buildEmpresaRelatorioWorkbook } from '../../utils/empresaRelatorioXlsx';
+import { canUseWebDocument, printHtmlInBrowser, downloadXlsxInBrowser } from '../../utils/webRelatorioExport';
 
 function parseDateStr(str) {
   if (!str || !String(str).trim()) return null;
@@ -68,6 +71,7 @@ function escapeHtml(s) {
 
 export function EmpresaRelatorioScreen({ onClose }) {
   const { colors } = useTheme();
+  const { lang } = useLanguage();
   const { profile } = useProfile();
   const { fluxo, vendas } = useEmpresa();
   const { transactions, agendaEvents, products, services, clients } = useFinance();
@@ -296,8 +300,20 @@ export function EmpresaRelatorioScreen({ onClose }) {
 
   const exportPdf = async (tipo) => {
     if (!tipo) return;
-    if (Platform.OS === 'web') {
-      Alert.alert('Aviso', 'Exportar PDF está disponível apenas no app (Android/iOS). Use o app no celular para exportar.');
+    if (canUseWebDocument()) {
+      setExporting(true);
+      try {
+        const html = buildHtmlRelatorio(tipo);
+        printHtmlInBrowser(html);
+        Alert.alert(
+          'Guardar em PDF',
+          'Na janela de impressão, escolha Guardar como PDF, Microsoft Print to PDF ou Salvar como PDF como destino.',
+        );
+      } catch (e) {
+        const msg = e?.message || String(e);
+        Alert.alert('Erro', 'Não foi possível abrir a impressão.' + (msg ? ` (${msg})` : ''));
+      }
+      setExporting(false);
       return;
     }
     setExporting(true);
@@ -316,37 +332,97 @@ export function EmpresaRelatorioScreen({ onClose }) {
 
   const exportXlsx = async (tipo) => {
     if (!tipo) return;
-    if (Platform.OS === 'web') {
-      Alert.alert('Aviso', 'Exportar Excel está disponível apenas no app (Android/iOS). Use o app no celular para exportar.');
-      return;
-    }
     setExporting(true);
     try {
       const clientsList = clients || [];
-      let data = [];
+      const currencyCode = lang?.currencyCode || 'BRL';
+      let wb;
       let sheetName = 'Relatório';
+      const periodStr = filterLabel || `${formatDate(dateDe)} a ${formatDate(dateAte)}`;
+
       if (tipo === 'fluxo') {
-        data = [['Data', 'Tipo', 'Descrição', 'Valor'], ...fluxoCompleto.map((i) => [i.data, i.tipo, i.descricao, i.valor])];
         sheetName = 'Fluxo de Caixa';
+        const headers = ['Data', 'Tipo', 'Descrição', 'Valor'];
+        const tableRows = fluxoCompleto.map((i) => [i.data, i.tipo, i.descricao, Number(i.valor) || 0]);
+        wb = buildEmpresaRelatorioWorkbook({
+          currencyCode,
+          profile,
+          filterLabel: periodStr,
+          reportTitle: `Fluxo de caixa (${formatDate(dateDe)} a ${formatDate(dateAte)})`,
+          sheetName,
+          tableHeaders: headers,
+          tableRows,
+          moneyColumnIndexes: [3],
+          footerSummaryRows: [
+            ['', '', 'Total entradas', totalEntradas],
+            ['', '', 'Total saídas', totalSaidas],
+            ['', '', 'Saldo do período', saldoFluxo],
+          ],
+          moneyColumnIndexesInFooter: [3],
+        });
       } else if (tipo === 'produtosVendem') {
-        data = [['Produto', 'Quantidade', 'Valor Total'], ...produtosMaisVendem.map((p) => [p.nome, p.quantidade, p.valorTotal])];
         sheetName = 'Produtos mais vendidos';
+        const headers = ['Produto', 'Quantidade', 'Valor total'];
+        const tableRows = produtosMaisVendem.map((p) => [p.nome, Number(p.quantidade) || 0, Number(p.valorTotal) || 0]);
+        wb = buildEmpresaRelatorioWorkbook({
+          currencyCode,
+          profile,
+          filterLabel: periodStr,
+          reportTitle: `Produtos que mais vendem (${formatDate(dateDe)} a ${formatDate(dateAte)})`,
+          sheetName,
+          tableHeaders: headers,
+          tableRows,
+          moneyColumnIndexes: [2],
+        });
       } else if (tipo === 'servicos') {
-        data = [['Data', 'Serviço', 'Cliente', 'Valor'], ...servicosRealizados.map((s) => [s.date, s.title || '—', clientsList.find((c) => c.id === s.clientId)?.name || '—', s.amount || 0])];
         sheetName = 'Serviços realizados';
+        const headers = ['Data', 'Serviço', 'Cliente', 'Valor'];
+        const tableRows = servicosRealizados.map((s) => [
+          s.date,
+          s.title || '—',
+          clientsList.find((c) => c.id === s.clientId)?.name || '—',
+          Number(s.amount) || 0,
+        ]);
+        wb = buildEmpresaRelatorioWorkbook({
+          currencyCode,
+          profile,
+          filterLabel: periodStr,
+          reportTitle: `Serviços realizados (${formatDate(dateDe)} a ${formatDate(dateAte)})`,
+          sheetName,
+          tableHeaders: headers,
+          tableRows,
+          moneyColumnIndexes: [3],
+        });
       } else {
-        data = [['Nome', 'Preço', 'Estoque', 'Código'], ...productsFiltered.map((p) => [p.name || '—', p.price || 0, p.stock ?? '—', p.code || '—'])];
         sheetName = 'Produtos';
+        const headers = ['Nome', 'Preço', 'Estoque', 'Código'];
+        const tableRows = productsFiltered.map((p) => [p.name || '—', Number(p.price) || 0, p.stock ?? '—', p.code || '—']);
+        wb = buildEmpresaRelatorioWorkbook({
+          currencyCode,
+          profile,
+          filterLabel: periodStr,
+          reportTitle: 'Cadastro de produtos',
+          sheetName,
+          tableHeaders: headers,
+          tableRows,
+          moneyColumnIndexes: [1],
+        });
       }
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-      const path = FileSystem.cacheDirectory + `relatorio_${tipo}_${Date.now()}.xlsx`;
-      await FileSystem.writeAsStringAsync(path, wbout, { encoding: 'base64' });
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) await Sharing.shareAsync(path, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle: 'Exportar Excel' });
-      else Alert.alert('Pronto', 'Arquivo salvo. Abra pelo app de arquivos.');
+
+      const fname = `relatorio_${tipo}_${Date.now()}.xlsx`;
+
+      if (canUseWebDocument()) {
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        downloadXlsxInBrowser(wbout, fname);
+        Alert.alert('Pronto', 'O arquivo Excel foi baixado (pasta de downloads do navegador).');
+      } else {
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        const path = FileSystem.cacheDirectory + fname;
+        await FileSystem.writeAsStringAsync(path, wbout, { encoding: 'base64' });
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) await Sharing.shareAsync(path, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle: 'Exportar Excel' });
+        else Alert.alert('Pronto', 'Arquivo salvo. Abra pelo app de arquivos.');
+      }
     } catch (e) {
       const msg = e?.message || String(e);
       Alert.alert('Erro', 'Não foi possível exportar.' + (msg ? ` (${msg})` : ''));
@@ -356,8 +432,16 @@ export function EmpresaRelatorioScreen({ onClose }) {
 
   const imprimir = async (tipo) => {
     if (!tipo) return;
-    if (Platform.OS === 'web') {
-      Alert.alert('Aviso', 'Imprimir está disponível apenas no app (Android/iOS).');
+    if (canUseWebDocument()) {
+      setExporting(true);
+      try {
+        const html = buildHtmlRelatorio(tipo);
+        printHtmlInBrowser(html);
+      } catch (e) {
+        const msg = e?.message || String(e);
+        Alert.alert('Erro', 'Não foi possível imprimir.' + (msg ? ` (${msg})` : ''));
+      }
+      setExporting(false);
       return;
     }
     setExporting(true);

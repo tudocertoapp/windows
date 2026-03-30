@@ -20,7 +20,7 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 const logoImage = require('../../assets/logo.png');
 const heroImage = require('../../assets/landing-hero.png');
 
-/** Gradiente um pouco mais forte no topo para texto sem “card”, após subir o bloco. */
+/** Gradiente: mais escuro em baixo para leitura do bloco no rodapé (mobile). */
 const GRADIENT_COLORS = ['rgba(0,0,0,0.32)', 'rgba(0,0,0,0.42)', 'rgba(0,0,0,0.68)'];
 const GRADIENT_LOCATIONS = [0, 0.5, 1];
 
@@ -36,10 +36,10 @@ export function LandingScreen({ onStart }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const isWebDesktop = Platform.OS === 'web' && useIsDesktopLayout();
 
-  const padBottom = Math.max(28, (insets.bottom || 0) + 20);
+  const padBottom = Math.max(28, (insets.bottom || 0) + 24);
   const padTopSafe = Math.max(8, (insets.top || 0) + 4);
-  /** Mobile (web estreito + nativo): conteúdo mais acima para não cortar o CTA. */
-  const padTopMobile = Math.max(padTopSafe, 28, Math.round(winH * 0.06));
+  /** Mobile: bloco no rodapé; pouco padding no topo (só safe area + scroll). */
+  const padTopMobile = padTopSafe;
   const padH = Math.min(32, Math.max(20, winW * 0.06));
   const padHDesktop = Math.max(padH, 40);
 
@@ -71,8 +71,15 @@ export function LandingScreen({ onStart }) {
                 paddingHorizontal: isWebDesktop ? padHDesktop : padH,
                 paddingTop: isWebDesktop ? padTopSafe : padTopMobile,
                 paddingBottom: padBottom,
-                minHeight: Math.max(winH - ((insets.top || 0) + (insets.bottom || 0)), 380),
-                justifyContent: isWebDesktop ? 'center' : 'flex-start',
+                ...(isWebDesktop
+                  ? {
+                      minHeight: Math.max(winH - ((insets.top || 0) + (insets.bottom || 0)), 400),
+                      justifyContent: 'center',
+                    }
+                  : {
+                      /* Sem minHeight = à altura do ecrã: evita “buraco” em cima e botão fora da vista. */
+                      justifyContent: 'flex-end',
+                    }),
                 alignItems: 'flex-start',
               },
             ]}

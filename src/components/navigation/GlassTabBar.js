@@ -18,6 +18,7 @@ const ICON_MAP = {
   Dinheiro: 'wallet-outline',
   Agenda: 'calendar-outline',
   MeusGastos: 'chatbubbles-outline',
+  WhatsApp: 'logo-whatsapp',
   Menu: 'menu-outline',
   Clientes: 'people-outline',
   Vendas: 'cart-outline',

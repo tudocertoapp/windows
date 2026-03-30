@@ -9,9 +9,25 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Na web, detecta o hash #access_token no retorno do OAuth para restaurar a sessão
 const isWeb = Platform.OS === 'web';
 
+/** Web: localStorage direto evita falhas de sessão/PKCE com AsyncStorage em alguns browsers. */
+const webAuthStorage =
+  isWeb && typeof window !== 'undefined'
+    ? {
+        getItem: (key) => Promise.resolve(window.localStorage.getItem(key)),
+        setItem: (key, value) => {
+          window.localStorage.setItem(key, value);
+          return Promise.resolve();
+        },
+        removeItem: (key) => {
+          window.localStorage.removeItem(key);
+          return Promise.resolve();
+        },
+      }
+    : null;
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    storage: webAuthStorage || AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: isWeb,

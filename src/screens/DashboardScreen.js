@@ -13,9 +13,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotes } from '../contexts/NotesContext';
 import { useShoppingList } from '../contexts/ShoppingListContext';
 import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
-import { TopBar, getStableHomePrompt } from '../components/TopBar';
+import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
-import { ContasDoMesCard } from '../components/ContasDoMesCard';
 import { GlassCard } from '../components/GlassCard';
 import { MeusGastosChat } from '../components/MeusGastosChat';
 import { DraggableCard } from '../components/DraggableCard';
@@ -66,11 +65,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 const ds = StyleSheet.create({
   headerLogo: { alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20 },
-  pagePromptBanner: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginHorizontal: 0,
-  },
   logoLarge: { width: 100, height: 100 },
   appTitle: { fontSize: 22, fontWeight: '700', marginTop: 8 },
   monthText: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
@@ -144,12 +138,12 @@ export function DashboardScreen() {
   const CARD_ACTION_ICON_SIZE = useWebLayout ? scaleWebDesktop(17, useWebLayout) : 24;
   const CARD_EXPAND_ICON_SIZE = useWebLayout ? scaleWebDesktop(16, useWebLayout) : 22;
   // Web desktop: cards compactos (tarefas + agendamentos)
-  const TRIO_CARD_HEIGHT = useWebLayout ? scaleWebDesktop(210, useWebLayout) : undefined;
+  const TRIO_CARD_HEIGHT = useWebLayout ? scaleWebDesktop(178, useWebLayout) : undefined;
   const HEADER_ICON_BOX_SIZE = useWebLayout ? scaleWebDesktop(40, useWebLayout) : 48;
   const HEADER_ICON_SIZE = useWebLayout ? scaleWebDesktop(22, useWebLayout) : 26;
   const route = useRoute();
   const navigation = useNavigation();
-  const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction } = useFinance();
+  const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction, updateBoleto, deleteBoleto } = useFinance();
   const { banks, cards, addToBank, deductFromBank, addToCardBalance, deductFromCardBalance, getBankById } = useBanks();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
@@ -216,6 +210,8 @@ export function DashboardScreen() {
   const [showConcluidasProximos, setShowConcluidasProximos] = useState(false);
   const [showConcluidasAgendamentos, setShowConcluidasAgendamentos] = useState(false);
   const [showConcluidasListaCompras, setShowConcluidasListaCompras] = useState(false);
+  /** Card Próximas faturas: alternar pendentes (por vencimento) / contas pagas */
+  const [showContasPagasProxFaturas, setShowContasPagasProxFaturas] = useState(false);
   const [parabensModalClient, setParabensModalClient] = useState(null);
   const [parabensFrase, setParabensFrase] = useState('');
   const [expandedCard, setExpandedCard] = useState(null);
@@ -240,6 +236,8 @@ export function DashboardScreen() {
           const allowedSections = new Set(ALL_INICIO_IDS);
           let filtered = Array.isArray(parsed)
             ? parsed
+                .map((id) => (id === 'contas' ? 'proximasfaturas' : id))
+                .filter((id) => id !== 'contas')
                 .filter((id) => id !== 'agenda' && allowedSections.has(id === 'tarefas' ? 'proximos' : id))
                 .map((id) => (id === 'tarefas' ? 'proximos' : id))
             : defaultSections;
@@ -433,60 +431,27 @@ export function DashboardScreen() {
     setBalanceFilterDate(d);
   };
 
-  const [faturasFiltroTipo, setFaturasFiltroTipo] = useState('todos'); // 'todos' | 'pessoal' | 'empresa'
-
-  const contasStatus = useMemo(() => {
-    const ref = balanceFilterDate;
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    let pagas = { qty: 0, valor: 0 };
-    let aVencer = { qty: 0, valor: 0 };
-    let vencidas = { qty: 0, valor: 0 };
-    let list = showEmpresaFeatures ? (boletos || []) : (boletos || []);
-    // filtro de tipo de fatura: todos, pessoal, empresa
-    list = list.filter((b) => {
-      const tipo = (b.tipo || 'pessoal');
-      if (faturasFiltroTipo === 'todos') return true;
-      return tipo === faturasFiltroTipo;
-    });
-    list = list.filter((b) => {
-      const d = parseBoletoDate(b.dueDate);
-      if (!d) return false;
-      if (balanceFilter === 'periodo') {
-        const start = parseDateStr(periodStart);
-        const end = parseDateStr(periodEnd);
-        if (!start || !end) return true;
-        d.setHours(0, 0, 0, 0);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(0, 0, 0, 0);
-        return d >= start && d <= end;
-      }
-      if (balanceFilter === 'dia') {
-        return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-      }
-      if (balanceFilter === 'mes') {
-        return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-      }
-      return d.getFullYear() === ref.getFullYear();
-    });
-    list.forEach((b) => {
-      const d = parseBoletoDate(b.dueDate);
-      const amt = Number(b.amount) || 0;
-      if (b.paid) {
-        pagas.qty++;
-        pagas.valor += amt;
-      } else if (d) {
-        if (d >= hoje) {
-          aVencer.qty++;
-          aVencer.valor += amt;
-        } else {
-          vencidas.qty++;
-          vencidas.valor += amt;
-        }
-      }
-    });
-    return { pagas, aVencer, vencidas };
-  }, [boletos, showEmpresaFeatures, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr, faturasFiltroTipo]);
+  /** Faturas para o card Início: pendentes por vencimento; pagas por data desc. */
+  const proximasFaturasLists = useMemo(() => {
+    let list = boletos || [];
+    if (canToggleView) list = list.filter((b) => (b.tipo || 'pessoal') === viewMode);
+    const unpaid = list
+      .filter((b) => !b.paid)
+      .map((b) => ({ ...b, _due: parseBoletoDate(b.dueDate) }))
+      .sort((a, b) => {
+        const ta = a._due ? a._due.getTime() : 9e15;
+        const tb = b._due ? b._due.getTime() : 9e15;
+        return ta - tb;
+      });
+    const paid = list
+      .filter((b) => b.paid)
+      .sort((a, b) => {
+        const da = parseBoletoDate(a.dueDate) || new Date(0);
+        const db = parseBoletoDate(b.dueDate) || new Date(0);
+        return db - da;
+      });
+    return { unpaid, paid };
+  }, [boletos, canToggleView, viewMode]);
 
   const fmt = formatCurrency;
   const mask = (v) => (showValues ? v : '••••••');
@@ -608,9 +573,9 @@ export function DashboardScreen() {
     const tail = webSectionOrder.slice(2);
     const hasAnotacoes = tail.includes('anotacoes');
     const hasCompras = tail.includes('listacompras');
-    const hasContas = tail.includes('contas');
-    /** Desktop: compras + anotações + faturas em uma linha (25% / 25% / 50%) — não fundir em produtividade. */
-    if (hasAnotacoes && hasCompras && hasContas) return tail;
+    const hasProximasFaturas = tail.includes('proximasfaturas');
+    /** Desktop: compras + anotações + próximas faturas em uma linha — não fundir em produtividade. */
+    if (hasAnotacoes && hasCompras && hasProximasFaturas) return tail;
     if (!hasAnotacoes || !hasCompras) return tail;
     const firstIdx = Math.min(tail.indexOf('anotacoes'), tail.indexOf('listacompras'));
     const filtered = tail.filter((id) => id !== 'anotacoes' && id !== 'listacompras');
@@ -809,9 +774,11 @@ export function DashboardScreen() {
     </TouchableOpacity>
   );
 
-  /** Web desktop: altura mínima do carrossel (coluna esquerda; coluna direita estica ao mesmo tamanho). */
+  /** Web desktop: altura mínima do carrossel (duas colunas: metade da linha). */
   const webDesktopCarouselBlockH = useWebLayout ? Math.round(scaleWebDesktop(300, true)) : null;
-  /** Carrossel + frase na mesma linha e aniversariantes na metade inferior da direita (49% + 2% + 49%). */
+  /** Três cards no topo (carrossel | frase | aniversariantes): altura total da linha mais baixa. */
+  const webDesktopCarouselTrioMinH = useWebLayout ? Math.round(scaleWebDesktop(178, true)) : null;
+  /** Carrossel + frase + aniversariantes na mesma linha (desktop); cada um ~33,33% da largura útil (gap entre colunas). */
   const desktopHomeCarouselQuoteAniv =
     useWebLayout &&
     webSectionOrder.includes('carousel') &&
@@ -824,12 +791,12 @@ export function DashboardScreen() {
 
   /**
    * Larguras úteis W (área entre paddings da página), G = gap entre colunas.
-   * Linha agenda: agendamentos (W−4G)/4 | próximos (W−2G)/4 | gap | agenda (W−G)/2.
-   * Linha compras|anotações|faturas: mesmos três blocos — lista compras = agendamentos, anotações = próximos, faturas = agenda.
+   * Linha agenda: agenda (W−G)/2 | gap | agendamentos (W−4G)/4 | próximos (W−2G)/4 (combo à direita).
+   * Linha compras|anotações|faturas: larguras iguais aos blocos da linha de cima (compras/anotações/faturas).
    */
   const webDesktopHomeGridFlex = useMemo(() => {
     if (!useWebLayout) {
-      return { agendamentos: 1, proximos: 1, compras: 1, anotacoes: 1, contas: 2 };
+      return { agendamentos: 1, proximos: 1, compras: 1, anotacoes: 1, proximasfaturas: 2 };
     }
     const G = WEB_DESKTOP_ROW_GAP;
     const W = Math.max(200, (winWidth || SW) - 2 * WEB_DESKTOP_PAGE_PAD);
@@ -840,7 +807,7 @@ export function DashboardScreen() {
       proximos: fPr,
       compras: fAg,
       anotacoes: fPr,
-      contas: Math.max(1, 2 * (W - G)),
+      proximasfaturas: Math.max(1, 2 * (W - G)),
     };
   }, [useWebLayout, winWidth, WEB_DESKTOP_ROW_GAP, WEB_DESKTOP_PAGE_PAD]);
 
@@ -1038,7 +1005,7 @@ export function DashboardScreen() {
       ),
       null
     ),
-    // Web desktop: dois cards 50/50 na metade esquerda; altura da linha = card Agenda (stretch, sem ultrapassar).
+    // Web desktop: dois cards 50/50 na metade direita (Agendamentos | Próximas tarefas); Agenda à esquerda na mesma linha.
     leftAgendaCombo: !useWebLayout ? null : (
       <View
         key="leftAgendaCombo"
@@ -1069,8 +1036,8 @@ export function DashboardScreen() {
             contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
           >
             <View style={{ flex: 1, minHeight: 0 }}>
-              <View style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                     <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agendamentos || colors.primary} />
                   </View>
@@ -1086,7 +1053,7 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
                   {showConcluidasAgendamentos
                     ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos')
                     : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')}
@@ -1111,13 +1078,51 @@ export function DashboardScreen() {
                     else if (e.type === 'orcamento') detailParts.push('Orçamento');
                     else if (e.type === 'manutencao') detailParts.push('Garantia');
                     const detailStr = detailParts.length ? detailParts.join(' · ') : null;
+                    const secondLineParts = [e.date, e.time].filter(Boolean);
+                    const secondLineMeta = [secondLineParts.join(' · '), detailStr].filter(Boolean).join(' · ');
                     return (
-                      <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 18, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4 }}>
+                      <View key={e.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingVertical: 6, paddingLeft: 18, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4 }}>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
-                          {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
+                          {secondLineMeta ? (
+                            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                              {secondLineMeta}
+                            </Text>
+                          ) : null}
                         </View>
-                        <Text style={{ fontSize: 11, color: colors.textSecondary }}>{e.date}</Text>
+                        <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6, marginTop: 1 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Ionicons name="pencil" size={18} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={(ev) => {
+                            ev?.stopPropagation?.();
+                            playTapSound();
+                            const isEmpresaEvent = showEmpresaFeatures && (e.tipo === 'empresa');
+                            if (isEmpresaEvent && e.status !== 'concluido') {
+                              openAddModal?.('receita', { fromAgendaEvent: e });
+                            } else {
+                              updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
+                            }
+                          }}
+                          style={{ padding: 6, marginTop: 1 }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="checkmark-done" size={18} color="#10b981" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={(ev) => {
+                            ev?.stopPropagation?.();
+                            playTapSound();
+                            Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+                              { text: 'Cancelar' },
+                              { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+                            ]);
+                          }}
+                          style={{ padding: 6, marginTop: 1 }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                        </TouchableOpacity>
                       </View>
                     );
                   }}
@@ -1143,8 +1148,8 @@ export function DashboardScreen() {
             contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
           >
             <View style={{ flex: 1, minHeight: 0 }}>
-              <View style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                     <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                   </View>
@@ -1160,7 +1165,7 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
                   {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
                 </Text>
               </View>
@@ -1238,19 +1243,40 @@ export function DashboardScreen() {
           style={[ds.card, { padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }]}
           contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
         >
-          <View style={{ marginBottom: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
+          <View style={{ marginBottom: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.agenda || colors.primary} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                    Agenda
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
+                    activeOpacity={0.85}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      paddingVertical: 3,
+                      paddingHorizontal: 8,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: colors.border + '80',
+                      backgroundColor: colors.card,
+                      maxWidth: '100%',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
+                    <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
               </View>
               <View style={cardHeaderActionsStyle}>
-                <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primaryRgba(0.18), borderWidth: 1, borderColor: colors.primary + '55' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
-                    {agendaCardEvents.length} agend.
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }} style={[cardActionButtonStyle, { width: undefined, minWidth: CARD_ACTION_SIZE, paddingHorizontal: 10 }]}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Hoje</Text>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }} style={[cardActionButtonStyle, { width: undefined, minWidth: CARD_ACTION_SIZE, paddingHorizontal: 8 }]}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>Hoje</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { initialDate: formatBrShort(agendaCardDate) }); }} style={cardActionButtonStyle}>
                   <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
@@ -1260,26 +1286,9 @@ export function DashboardScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-              Agenda
-            </Text>
-            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
-              {formatBrShort(agendaCardDate)}
-            </Text>
           </View>
 
-          <TouchableOpacity
-            onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
-            activeOpacity={0.85}
-            style={{ alignSelf: 'center', marginBottom: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border + '80', backgroundColor: colors.card }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
-              <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-            </View>
-          </TouchableOpacity>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ paddingRight: 6 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }} contentContainerStyle={{ paddingRight: 6 }}>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {agendaMonthDays.map((d) => {
                 const selected = isSameDay(d, agendaCardDate);
@@ -1293,9 +1302,9 @@ export function DashboardScreen() {
                     key={d.toISOString()}
                     onPress={() => { playTapSound(); setAgendaCardDate(d); }}
                     style={{
-                      width: 48,
-                      paddingVertical: 8,
-                      borderRadius: 12,
+                      width: 38,
+                      paddingVertical: 5,
+                      borderRadius: 10,
                       alignItems: 'center',
                       backgroundColor: selected ? (colors.primary + '26') : (colors.card),
                       borderWidth: 1,
@@ -1303,9 +1312,9 @@ export function DashboardScreen() {
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: selected ? colors.primary : colors.textSecondary }}>{dayLabel}</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text }}>{num}</Text>
-                    <Text style={{ fontSize: 10, fontWeight: '800', marginTop: 2, color: selected ? (hasAgenda ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)') : (hasAgenda ? colors.primary : colors.textSecondary) }}>
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: selected ? colors.primary : colors.textSecondary }}>{dayLabel}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>{num}</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '800', marginTop: 1, color: selected ? (hasAgenda ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)') : (hasAgenda ? colors.primary : colors.textSecondary) }}>
                       {count}
                     </Text>
                   </TouchableOpacity>
@@ -1625,8 +1634,12 @@ export function DashboardScreen() {
             if (!item) return null;
             const carouselSlideW = useWebLayout ? '100%' : CARD_WIDTH;
             const slideH = useWebLayout ? scaleWebDesktop(208, true) : 165;
-            /** Desktop: altura mínima do card (coluna alinhada à direita). */
-            const carouselCardMinH = useWebLayout ? webDesktopCarouselBlockH : 0;
+            /** Desktop: altura mínima — menor quando os três cards dividem a linha em terços. */
+            const carouselCardMinH = useWebLayout
+              ? (desktopHomeCarouselQuoteAniv ? webDesktopCarouselTrioMinH : webDesktopCarouselBlockH)
+              : 0;
+            /** Altura fixa no desktop: todos os slides com o mesmo tamanho (evita um card “crescer” com o conteúdo). */
+            const carouselCardFixedH = useWebLayout ? carouselCardMinH : null;
             const carouselCardRadius = scaleWebDesktop(20, true);
             const carouselImageStyle = useWebLayout
               ? Platform.OS === 'web'
@@ -1667,9 +1680,10 @@ export function DashboardScreen() {
                   style={
                     useWebLayout
                       ? {
-                          flex: 1,
-                          minHeight: carouselCardMinH,
                           width: '100%',
+                          height: carouselCardFixedH,
+                          minHeight: carouselCardFixedH,
+                          maxHeight: carouselCardFixedH,
                           borderRadius: carouselCardRadius,
                           overflow: 'hidden',
                           borderWidth: 1,
@@ -1682,7 +1696,11 @@ export function DashboardScreen() {
                   <TouchableOpacity
                     onPress={() => handleCarouselPress(item)}
                     activeOpacity={0.9}
-                    style={useWebLayout ? { flex: 1, minHeight: 0 } : { alignSelf: 'center' }}
+                    style={
+                      useWebLayout
+                        ? { width: '100%', height: carouselCardFixedH, minHeight: carouselCardFixedH, maxHeight: carouselCardFixedH }
+                        : { alignSelf: 'center' }
+                    }
                   >
                     <ImageBackground
                       source={item.image}
@@ -1690,9 +1708,10 @@ export function DashboardScreen() {
                         !useWebLayout ? ds.carouselItem : null,
                         useWebLayout
                           ? {
-                              flex: 1,
                               width: '100%',
-                              minHeight: 0,
+                              height: carouselCardFixedH,
+                              minHeight: carouselCardFixedH,
+                              maxHeight: carouselCardFixedH,
                               padding: 0,
                               overflow: 'hidden',
                             }
@@ -1729,7 +1748,7 @@ export function DashboardScreen() {
                         padding: useWebLayout ? scaleWebDesktop(20, true) : 20,
                         justifyContent: useWebLayout ? 'center' : 'flex-end',
                         alignItems: useWebLayout ? 'center' : 'stretch',
-                        overflow: 'visible',
+                        overflow: useWebLayout ? 'hidden' : 'visible',
                       }}
                     >
                       {useWebLayout ? (
@@ -2029,13 +2048,13 @@ export function DashboardScreen() {
           style={[
             ds.card,
             {
-              padding: useWebLayout ? scaleWebDesktop(10, true) : WEB_CARD_PADDING,
+              padding: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true)) : WEB_CARD_PADDING,
               minHeight: useWebLayout ? 0 : undefined,
               ...(useWebLayout ? { flex: 1, minHeight: 0, overflow: 'hidden' } : { minHeight: scaleWebDesktop(112, true) }),
             },
           ]}
           contentStyle={{
-            padding: useWebLayout ? scaleWebDesktop(10, true) : WEB_CARD_PADDING,
+            padding: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true)) : WEB_CARD_PADDING,
             ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column', overflow: 'hidden' } : null),
           }}
         >
@@ -2048,7 +2067,7 @@ export function DashboardScreen() {
               ...(useWebLayout ? { overflow: 'hidden' } : null),
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? scaleWebDesktop(6, true) : 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true)) : 12 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
@@ -2082,7 +2101,7 @@ export function DashboardScreen() {
                   minHeight: 0,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  paddingVertical: scaleWebDesktop(4, true),
+                  paddingVertical: scaleWebDesktop(2, true),
                 }}
               >
                 <Text
@@ -2090,12 +2109,12 @@ export function DashboardScreen() {
                     ds.quoteText,
                     {
                       color: colors.text,
-                      fontSize: useWebLayout ? 14 : ds.quoteText.fontSize,
+                      fontSize: useWebLayout ? scaleWebDesktop(12, true) : ds.quoteText.fontSize,
                       textAlign: 'center',
                       width: '100%',
                     },
                   ]}
-                  numberOfLines={4}
+                  numberOfLines={3}
                 >
                   "{quote}"
                 </Text>
@@ -2181,19 +2200,19 @@ export function DashboardScreen() {
             style={[
               ds.card,
               {
-                padding: WEB_CARD_PADDING,
+                padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : WEB_CARD_PADDING,
                 minHeight: desktopHomeCarouselQuoteAniv ? 0 : TRIO_CARD_HEIGHT,
                 ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
               },
             ]}
             contentStyle={{
-              padding: WEB_CARD_PADDING,
+              padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : WEB_CARD_PADDING,
               ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
             }}
           >
             {desktopHomeCarouselQuoteAniv ? (
               <View style={{ flex: 1, minHeight: 0, flexDirection: 'column' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? 8 : 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? scaleWebDesktop(4, true) : 12 }}>
                   <TouchableOpacity onPress={() => { playTapSound(); openAniversariantes?.(); }} activeOpacity={0.9} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: useWebLayout ? 8 : 12 }}>
                     <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                       <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
@@ -2230,18 +2249,18 @@ export function DashboardScreen() {
                       const diaLabel = getDiaLabel(bd);
                       const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
                       return (
-                        <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
+                        <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, paddingLeft: 4 }}>
                           <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
-                            <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                            <Text style={{ fontSize: 10, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
                           </View>
                           {c.phone?.trim() ? (
                             <TouchableOpacity
                               onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
-                              style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
+                              style={{ padding: 6, backgroundColor: 'transparent', borderRadius: 10 }}
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
-                              <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
+                              <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
                             </TouchableOpacity>
                           ) : null}
                         </View>
@@ -2694,57 +2713,216 @@ export function DashboardScreen() {
         </GlassCard>
       </View>
     ),
-    contas: (
-      <View key="contas" style={useWebLayout ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : undefined}>
-        <ContasDoMesCard
-          contasPagas={contasStatus.pagas}
-          contasAVencer={contasStatus.aVencer}
-          contasVencidas={contasStatus.vencidas}
-          formatCurrency={fmt}
-          mask={mask}
-          colors={colors}
-          lightBackground={themeMode === 'light'}
-          noMargins={useWebLayout}
-          dashboardWebHeader={useWebLayout}
-          onOpenFaturas={() => openCadastro?.('boletos')}
-          onAddFatura={() => openCadastro?.('boletos')}
-          playTapSound={playTapSound}
-          filter={balanceFilter}
-          filterLabel={balanceFilterLabel}
-          filterStartDate={periodStart}
-          filterEndDate={periodEnd}
-          onFilterChange={(f) => { playTapSound(); setBalanceFilter(f); setBalanceFilterDate(new Date()); }}
-          onFilterDatePrev={() => adjustBalanceFilterDate(-1)}
-          onFilterDateNext={() => adjustBalanceFilterDate(1)}
-          onFilterPeriodChange={(start, end) => { setPeriodStart(start); setPeriodEnd(end); }}
-          headerActions={(
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setFaturasFiltroTipo('todos'); }}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'todos' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'todos' ? colors.primary : colors.border }}
-              >
-                <Ionicons name="list" size={14} color={faturasFiltroTipo === 'todos' ? colors.primary : colors.textSecondary} />
-                <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'todos' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Todos</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setFaturasFiltroTipo('pessoal'); }}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'pessoal' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'pessoal' ? colors.primary : colors.border }}
-              >
-                <Ionicons name="person-outline" size={14} color={faturasFiltroTipo === 'pessoal' ? colors.primary : colors.textSecondary} />
-                <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'pessoal' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Pessoal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setFaturasFiltroTipo('empresa'); }}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'empresa' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'empresa' ? colors.primary : colors.border }}
-              >
-                <Ionicons name="business-outline" size={14} color={faturasFiltroTipo === 'empresa' ? colors.primary : colors.textSecondary} />
-                <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'empresa' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Empresa</Text>
-              </TouchableOpacity>
+    proximasfaturas: (() => {
+      const { unpaid, paid } = proximasFaturasLists;
+      const displayItems = showContasPagasProxFaturas ? paid : unpaid;
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const renderRow = (b) => {
+        const due = parseBoletoDate(b.dueDate);
+        const vencida = !b.paid && due && due < hoje;
+        const title = (b.name || '').trim() || 'Fatura';
+        return (
+          <View
+            key={b.id}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              paddingVertical: 6,
+              paddingLeft: 18,
+              borderLeftWidth: 3,
+              borderLeftColor: `${CARD_ICON_COLORS.proximasfaturas}40`,
+              marginLeft: 4,
+              marginBottom: 4,
+            }}
+          >
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 14, color: colors.text }} numberOfLines={1}>{title}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                {fmt(Number(b.amount) || 0)} · Venc. {b.dueDate || '—'}
+              </Text>
+              {vencida ? (
+                <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '800', marginTop: 2 }}>Vencida</Text>
+              ) : null}
+              {b.paid ? (
+                <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '700', marginTop: 2 }}>Paga</Text>
+              ) : null}
             </View>
-          )}
-        />
-      </View>
-    ),
+            {!b.paid ? (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  playTapSound();
+                  updateBoleto(b.id, { paid: true });
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Marcar como paga"
+              >
+                <Ionicons name="checkmark-circle" size={22} color="#10b981" />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                playTapSound();
+                setExpandedCard(null);
+                openCadastro?.('boletos', { editItemId: b.id });
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Editar"
+            >
+              <Ionicons name="pencil" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                playTapSound();
+                Alert.alert('Excluir fatura', 'Excluir este registro?', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Excluir', style: 'destructive', onPress: () => deleteBoleto(b.id) },
+                ]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Excluir"
+            >
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+        );
+      };
+      return (
+        <TouchableOpacity
+          key="proximasfaturas"
+          onPress={() => { playTapSound(); openCadastro?.('boletos'); }}
+          activeOpacity={0.9}
+          style={{
+            marginHorizontal: WEB_CARD_MARGIN_H,
+            marginTop: WEB_CARD_MARGIN_TOP,
+            ...(useWebLayout ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : null),
+          }}
+        >
+          <GlassCard
+            colors={colors}
+            solid
+            style={[ds.card, { padding: WEB_CARD_PADDING }, useWebLayout ? { flex: 1, minHeight: 0 } : null]}
+            contentStyle={{
+              padding: WEB_CARD_PADDING,
+              ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column' } : null),
+            }}
+          >
+            {useWebLayout ? (
+              <View style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="receipt-outline" size={HEADER_ICON_SIZE} color={CARD_ICON_COLORS.proximasfaturas} />
+                  </View>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        playTapSound();
+                        setShowContasPagasProxFaturas(!showContasPagasProxFaturas);
+                      }}
+                      style={cardActionButtonStyle}
+                      accessibilityLabel={showContasPagasProxFaturas ? 'Ver pendentes' : 'Ver contas pagas'}
+                    >
+                      <AppIcon
+                        name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'}
+                        size={CARD_ACTION_ICON_SIZE}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        playTapSound();
+                        openCadastro?.('boletos');
+                      }}
+                      style={cardActionButtonStyle}
+                    >
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        playTapSound();
+                        setExpandedCard('proximasfaturas');
+                      }}
+                      style={cardActionButtonStyle}
+                    >
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {showContasPagasProxFaturas ? 'Contas pagas' : 'Próximas faturas'}
+                </Text>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={2}>
+                  {showContasPagasProxFaturas
+                    ? (paid.length === 0 ? 'Nenhuma fatura paga no período' : `${paid.length} fatura${paid.length !== 1 ? 's' : ''} paga${paid.length !== 1 ? 's' : ''}`)
+                    : (unpaid.length === 0
+                      ? 'Nenhuma fatura pendente'
+                      : (() => {
+                          const nv = unpaid.filter((x) => x._due && x._due < hoje).length;
+                          return nv > 0
+                            ? `${unpaid.length} pendente${unpaid.length !== 1 ? 's' : ''} · ${nv} vencida${nv !== 1 ? 's' : ''}`
+                            : `${unpaid.length} pendente${unpaid.length !== 1 ? 's' : ''} · por vencimento`;
+                        })())}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="receipt-outline" size={26} color={CARD_ICON_COLORS.proximasfaturas} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                    {showContasPagasProxFaturas ? 'Contas pagas' : 'Próximas faturas'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={2}>
+                    {showContasPagasProxFaturas
+                      ? (paid.length === 0 ? 'Nenhuma fatura paga' : `${paid.length} paga${paid.length !== 1 ? 's' : ''}`)
+                      : (unpaid.length === 0 ? 'Cadastre suas contas a pagar' : `${unpaid.length} pendente${unpaid.length !== 1 ? 's' : ''}`)}
+                  </Text>
+                </View>
+                <View style={cardHeaderActionsStyle}>
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      playTapSound();
+                      setShowContasPagasProxFaturas(!showContasPagasProxFaturas);
+                    }}
+                    style={cardActionButtonStyle}
+                  >
+                    <AppIcon name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('boletos'); }} style={cardActionButtonStyle}>
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximasfaturas'); }} style={cardActionButtonStyle}>
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            <View style={useWebLayout ? { flex: 1, minHeight: 0 } : undefined}>
+              <ScrollableCardList
+                items={displayItems}
+                colors={colors}
+                accentColor={CARD_ICON_COLORS.proximasfaturas}
+                emptyText={showContasPagasProxFaturas ? 'Nenhuma fatura paga' : 'Nenhuma fatura pendente'}
+                onVerMais={() => { playTapSound(); setExpandedCard('proximasfaturas'); }}
+                itemMarginBottom={8}
+                centerEmpty={useWebLayout}
+                fixedVisibleHeight={useWebLayout ? 'fill' : false}
+                renderItem={(b) => renderRow(b)}
+              />
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+      );
+    })(),
   };
 
   return (
@@ -2778,23 +2956,6 @@ export function DashboardScreen() {
         </View>
       )}
       <ScrollView showsVerticalScrollIndicator={false} scrollEnabled nestedScrollEnabled={isWebMobile}>
-        {!useWebLayout ? (
-          <View
-            style={[
-              ds.pagePromptBanner,
-              {
-                backgroundColor: colors.bg,
-                borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: colors.border + '99',
-              },
-            ]}
-          >
-            <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center', lineHeight: 22 }}>
-              {getStableHomePrompt()}
-            </Text>
-          </View>
-        ) : null}
-
         {useWebLayout ? (
           <View
             style={{
@@ -2814,7 +2975,25 @@ export function DashboardScreen() {
                 return <View style={{ width: '100%' }}>{carouselContent}</View>;
               }
               const anivContent = sectionMap.aniversariantes;
-              const rightColumnStackAniv = desktopHomeCarouselQuoteAniv && anivContent;
+              const trioTopRow = desktopHomeCarouselQuoteAniv && anivContent;
+              /** Terços iguais: flex 1 + flexBasis 0 + gap 2× entre 3 colunas = ~33,33% cada (descontando espaçamento). */
+              const trioCol = { flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 };
+              if (trioTopRow) {
+                return (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      width: '100%',
+                      gap: WEB_DESKTOP_ROW_GAP,
+                      alignItems: 'stretch',
+                    }}
+                  >
+                    <View style={trioCol}>{carouselContent}</View>
+                    <View style={trioCol}>{quoteContent}</View>
+                    <View style={trioCol}>{anivContent}</View>
+                  </View>
+                );
+              }
               return (
                 <View
                   style={{
@@ -2826,15 +3005,7 @@ export function DashboardScreen() {
                 >
                   <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{carouselContent}</View>
                   <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
-                    {rightColumnStackAniv ? (
-                      <>
-                        <View style={{ flex: 49, minHeight: 0 }}>{quoteContent}</View>
-                        <View style={{ flex: 2, minHeight: 0 }} />
-                        <View style={{ flex: 49, minHeight: 0 }}>{anivContent}</View>
-                      </>
-                    ) : (
-                      quoteContent
-                    )}
+                    {quoteContent}
                   </View>
                 </View>
               );
@@ -2842,16 +3013,21 @@ export function DashboardScreen() {
             {(() => {
               const hasAgenda = webSectionTail.includes('agenda');
               if (!hasAgenda) return null;
-              // Layout pedido: 1 card grande (Atendimentos + Agenda) e Próximas tarefas embaixo.
+              // Layout: Agenda (esq.) + coluna direita com Agendamentos e Próximas tarefas.
               if (!webSectionTail.includes('proximos')) return null;
               return (
                 <View style={{ width: '100%', gap: WEB_DESKTOP_ROW_GAP }}>
-                  {/* Duas colunas 50/50: esquerda = dois cards; direita Agenda. Mesma altura (stretch) = topo/fundo alinhados. */}
+                  {/* Duas colunas 50/50: esquerda Agenda; direita Agendamentos + Próximas tarefas. Mesma altura (stretch). */}
                   {(() => {
                     const GAP = WEB_DESKTOP_ROW_GAP;
                     const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
                     return (
                       <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP }}>
+                        <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
+                          <View style={{ minHeight: GRID_H, height: '100%' }}>
+                            {sectionMap.agenda}
+                          </View>
+                        </View>
                         <View
                           style={{
                             flex: 1,
@@ -2862,11 +3038,6 @@ export function DashboardScreen() {
                           }}
                         >
                           {sectionMap.leftAgendaCombo}
-                        </View>
-                        <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
-                          <View style={{ minHeight: GRID_H, height: '100%' }}>
-                            {sectionMap.agenda}
-                          </View>
                         </View>
                       </View>
                     );
@@ -2886,16 +3057,16 @@ export function DashboardScreen() {
               const showDesktopComprasAnotacoesFaturas =
                 webSectionTail.includes('listacompras') &&
                 webSectionTail.includes('anotacoes') &&
-                webSectionTail.includes('contas');
+                webSectionTail.includes('proximasfaturas');
               const comprasContent = sectionMap.listacompras;
               const anotacoesContent = sectionMap.anotacoes;
-              const contasContent = sectionMap.contas;
+              const proximasFaturasContent = sectionMap.proximasfaturas;
               const tailForGrid = webSectionTail
                 .filter(baseFilter)
-                .filter((sid) => (showDesktopComprasAnotacoesFaturas ? !['listacompras', 'anotacoes', 'contas'].includes(sid) : true));
+                .filter((sid) => (showDesktopComprasAnotacoesFaturas ? !['listacompras', 'anotacoes', 'proximasfaturas'].includes(sid) : true));
 
               const isFullWidthCard = (sid) => {
-                if (sid === 'meusgastos' || sid === 'produtividade' || sid === 'contas') return true;
+                if (sid === 'meusgastos' || sid === 'produtividade' || sid === 'proximasfaturas') return true;
                 return false;
               };
 
@@ -2918,7 +3089,7 @@ export function DashboardScreen() {
 
               return (
                 <View style={{ width: '100%', gap: CARD_GAP }}>
-                  {showDesktopComprasAnotacoesFaturas && comprasContent && anotacoesContent && contasContent ? (
+                  {showDesktopComprasAnotacoesFaturas && comprasContent && anotacoesContent && proximasFaturasContent ? (
                     <View
                       style={{
                         flexDirection: 'row',
@@ -2950,13 +3121,13 @@ export function DashboardScreen() {
                       </View>
                       <View
                         style={{
-                          flex: webDesktopHomeGridFlex.contas,
+                          flex: webDesktopHomeGridFlex.proximasfaturas,
                           flexBasis: 0,
                           minWidth: 0,
                           minHeight: 0,
                         }}
                       >
-                        {contasContent}
+                        {proximasFaturasContent}
                       </View>
                     </View>
                   ) : null}
@@ -3083,12 +3254,13 @@ export function DashboardScreen() {
         visible={!!expandedCard}
         onClose={() => { playTapSound(); setExpandedCard(null); }}
         headerRight={
-          (expandedCard === 'proximos' || expandedCard === 'agendamentos') ? (
+          (expandedCard === 'proximos' || expandedCard === 'agendamentos' || expandedCard === 'proximasfaturas') ? (
             <TouchableOpacity
               onPress={() => {
                 playTapSound();
                 if (expandedCard === 'proximos') openAddModal?.('tarefa', null);
                 if (expandedCard === 'agendamentos') openAddModal?.('agenda', null);
+                if (expandedCard === 'proximasfaturas') openCadastro?.('boletos');
               }}
               style={{
                 width: Platform.OS === 'web' ? 32 : 40,
@@ -3108,6 +3280,7 @@ export function DashboardScreen() {
         title={
           expandedCard === 'proximos' ? (showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas') :
           expandedCard === 'agendamentos' ? (showConcluidasAgendamentos ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos') : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')) :
+          expandedCard === 'proximasfaturas' ? (showContasPagasProxFaturas ? 'Contas pagas' : 'Próximas faturas') :
           expandedCard === 'anotacoes' ? 'Minhas anotações' :
           expandedCard === 'listacompras' ? (showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras') : ''
         }
@@ -3176,6 +3349,62 @@ export function DashboardScreen() {
                 </TouchableOpacity>
               ));
             })()}
+          </>
+        )}
+        {expandedCard === 'proximasfaturas' && (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 16 }}>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setShowContasPagasProxFaturas(!showContasPagasProxFaturas); }}
+                style={cardActionButtonStyle}
+              >
+                <AppIcon
+                  name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'}
+                  size={CARD_ACTION_ICON_SIZE}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
+            {(showContasPagasProxFaturas ? proximasFaturasLists.paid : proximasFaturasLists.unpaid).map((b) => {
+              const due = parseBoletoDate(b.dueDate);
+              const hojeM = new Date();
+              hojeM.setHours(0, 0, 0, 0);
+              const vencida = !b.paid && due && due < hojeM;
+              const title = (b.name || '').trim() || 'Fatura';
+              return (
+                <GlassCard key={b.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: `${CARD_ICON_COLORS.proximasfaturas}40` }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{title}</Text>
+                      <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                        {fmt(Number(b.amount) || 0)} · Venc. {b.dueDate || '—'}
+                      </Text>
+                      {vencida ? <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '800', marginTop: 2 }}>Vencida</Text> : null}
+                      {b.paid ? <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '700', marginTop: 2 }}>Paga</Text> : null}
+                    </View>
+                    {!b.paid ? (
+                      <TouchableOpacity onPress={() => { playTapSound(); updateBoleto(b.id, { paid: true }); }}>
+                        <Ionicons name="checkmark-circle" size={22} color="#10b981" />
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('boletos', { editItemId: b.id }); }}>
+                      <Ionicons name="pencil" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        playTapSound();
+                        Alert.alert('Excluir fatura', 'Excluir este registro?', [
+                          { text: 'Cancelar', style: 'cancel' },
+                          { text: 'Excluir', style: 'destructive', onPress: () => deleteBoleto(b.id) },
+                        ]);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </GlassCard>
+              );
+            })}
           </>
         )}
       </CardExpandedModal>

@@ -76,31 +76,31 @@ function AppContent() {
   }
 
   return (
-    <FinanceProvider>
-      <BudgetProvider>
-        <NotesProvider>
-        <ColaboradoresOrdemProvider>
-        <ShoppingListProvider>
-        <GoalsProvider>
-        <BanksProvider>
-          <PlanProvider>
-            <ProfileProvider>
-              <ThemeSync>
-                <EmpresaProvider>
-                  <ValuesVisibilityProvider>
-                    <AppWithReminders />
-                  </ValuesVisibilityProvider>
-                </EmpresaProvider>
-              </ThemeSync>
-            </ProfileProvider>
-          </PlanProvider>
-        </BanksProvider>
-        </GoalsProvider>
-        </ShoppingListProvider>
-        </ColaboradoresOrdemProvider>
-        </NotesProvider>
-      </BudgetProvider>
-    </FinanceProvider>
+    <BanksProvider>
+      <FinanceProvider>
+        <BudgetProvider>
+          <NotesProvider>
+          <ColaboradoresOrdemProvider>
+          <ShoppingListProvider>
+          <GoalsProvider>
+            <PlanProvider>
+              <ProfileProvider>
+                <ThemeSync>
+                  <EmpresaProvider>
+                    <ValuesVisibilityProvider>
+                      <AppWithReminders />
+                    </ValuesVisibilityProvider>
+                  </EmpresaProvider>
+                </ThemeSync>
+              </ProfileProvider>
+            </PlanProvider>
+          </GoalsProvider>
+          </ShoppingListProvider>
+          </ColaboradoresOrdemProvider>
+          </NotesProvider>
+        </BudgetProvider>
+      </FinanceProvider>
+    </BanksProvider>
   );
 }
 

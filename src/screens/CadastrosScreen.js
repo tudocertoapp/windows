@@ -85,13 +85,28 @@ function useSectionData(section) {
 export function CadastrosScreen({ route, initialSection, initialEditItemId, onClose, isModal }) {
   const sectionFromRoute = initialSection || route?.params?.section || 'clientes';
   const [section, setSection] = useState(sectionFromRoute);
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [formData, setFormData] = useState({});
+  const [boletosTipo, setBoletosTipo] = useState('todos');
+  const now = new Date();
+  const [boletosMes, setBoletosMes] = useState(now.getMonth() + 1);
+  const [boletosAno, setBoletosAno] = useState(now.getFullYear());
+  const [boletosFiltroMesAno, setBoletosFiltroMesAno] = useState(true);
+
+  const { colors } = useTheme();
+  const { showEmpresaFeatures } = usePlan();
+  const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
+
   useEffect(() => {
     if (initialSection) setSection(initialSection);
     else if (route?.params?.section) setSection(route.params.section);
   }, [initialSection, route?.params?.section]);
+
   useEffect(() => {
     if (initialEditItemId && section === 'tarefas') {
-      const item = (items || []).find((i) => i.id === initialEditItemId);
+      const list = items || [];
+      const item = list.find((i) => i.id === initialEditItemId);
       if (item) {
         setEditingItem(item);
         setFormData({
@@ -108,22 +123,12 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       }
     }
   }, [initialEditItemId, section, items]);
+
   useEffect(() => {
     if (!showEmpresaFeatures && ['clientes', 'fornecedores'].includes(section)) {
       setSection('produtos');
     }
-  }, [showEmpresaFeatures]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [formData, setFormData] = useState({});
-  const [boletosTipo, setBoletosTipo] = useState('todos');
-  const now = new Date();
-  const [boletosMes, setBoletosMes] = useState(now.getMonth() + 1);
-  const [boletosAno, setBoletosAno] = useState(now.getFullYear());
-  const [boletosFiltroMesAno, setBoletosFiltroMesAno] = useState(true);
-  const { colors } = useTheme();
-  const { showEmpresaFeatures } = usePlan();
-  const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
+  }, [showEmpresaFeatures, section]);
   const parseBoletoDate = (str) => {
     if (!str || !String(str).trim()) return null;
     const parts = String(str).trim().split(/[/\-.]/);
@@ -677,7 +682,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
               </View>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 {section === 'boletos' && (
-                  <TouchableOpacity onPress={() => update(item.id, { ...item, paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
+                  <TouchableOpacity onPress={() => update(item.id, { paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
                     <Ionicons name={item.paid ? 'checkmark-done' : 'checkmark-done-outline'} size={18} color={item.paid ? '#10b981' : colors.textSecondary} />
                   </TouchableOpacity>
                 )}

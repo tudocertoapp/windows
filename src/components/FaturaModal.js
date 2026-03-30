@@ -67,7 +67,6 @@ export function FaturaModal({ visible, fatura, onSave, onClose }) {
       tipo: showEmpresaFeatures ? tipo : 'pessoal',
       paid,
     });
-    onClose();
   };
 
   if (!visible) return null;

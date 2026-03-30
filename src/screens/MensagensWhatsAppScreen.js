@@ -30,6 +30,11 @@ import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
 import { CatalogoScreen } from './CatalogoScreen';
 import { playTapSound } from '../utils/sounds';
 import { formatCurrency } from '../utils/format';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TopBar } from '../components/TopBar';
+import { ViewModeToggle } from '../components/ViewModeToggle';
+import { useMenu } from '../contexts/MenuContext';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const TEMPLATES_KEY = '@tudocerto_msg_templates';
 const CADASTRO_LINK_KEY = '@tudocerto_cadastro_link_url';
@@ -52,11 +57,15 @@ const NIVEL_OPTIONS = [
   { id: 'fechou', label: 'Fechou', color: '#10b981' },
 ];
 
-export function MensagensWhatsAppScreen({ onClose, isModal }) {
+export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
   const { colors } = useTheme();
   const { clients, addClient, updateClient, deleteClient, agendaEvents, services, products } = useFinance();
-  const { showEmpresaFeatures, viewMode } = usePlan();
+  const { showEmpresaFeatures, viewMode, setViewMode, canToggleView } = usePlan();
   const { user } = useAuth();
+  const { openCalculadoraFull, openMeusGastos } = useMenu();
+  const isDesktopLayout = useIsDesktopLayout();
+  const useWebLayout = Platform.OS === 'web' && isDesktopLayout;
+  const headerDate = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
   const [tab, setTab] = useState('crm');
   const [nivelFilter, setNivelFilter] = useState(null);
   const [contacts, setContacts] = useState([]);
@@ -330,44 +339,34 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
     return list;
   }, [clientesComAgenda, nivelFilter, tipoFiltro]);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>WhatsApp e CRM</Text>
-          {isModal && onClose && (
-              <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => { playTapSound(); onClose(); }}>
-                <Ionicons name="close" size={22} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'stretch', borderRadius: 10, backgroundColor: colors.primaryRgba?.(0.08), padding: 4 }}>
-        <TouchableOpacity
-          style={[s.tabEqual, tab === 'crm' && { backgroundColor: colors.primary }]}
-          onPress={() => { playTapSound(); setTab('crm'); }}
-        >
-          <Ionicons name="briefcase-outline" size={18} color={tab === 'crm' ? '#fff' : colors.primary} />
-          <Text style={[s.tabText, { color: tab === 'crm' ? '#fff' : colors.text }]} numberOfLines={1}>Clientes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.tabEqual, tab === 'conversar' && { backgroundColor: colors.primary }]}
-          onPress={() => { playTapSound(); setTab('conversar'); }}
-        >
-          <Ionicons name="logo-whatsapp" size={20} color={tab === 'conversar' ? '#fff' : colors.primary} />
-          <Text style={[s.tabText, { color: tab === 'conversar' ? '#fff' : colors.text }]} numberOfLines={1}>Mensagens</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.tabEqual, tab === 'contatos' && { backgroundColor: colors.primary }]}
-          onPress={() => { playTapSound(); setTab('contatos'); }}
-        >
-          {loadingContacts ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Ionicons name="call-outline" size={18} color={tab === 'contatos' ? '#fff' : colors.primary} />
-          )}
-          <Text style={[s.tabText, { color: tab === 'contatos' ? '#fff' : colors.text }]} numberOfLines={1}>Contatos</Text>
-        </TouchableOpacity>
-        {showEmpresaFeatures && (
+  const crmTabs = (
+    <View style={{ flexDirection: 'row', alignItems: 'stretch', borderRadius: 10, backgroundColor: colors.primaryRgba?.(0.08), padding: 4 }}>
+      <TouchableOpacity
+        style={[s.tabEqual, tab === 'crm' && { backgroundColor: colors.primary }]}
+        onPress={() => { playTapSound(); setTab('crm'); }}
+      >
+        <Ionicons name="briefcase-outline" size={18} color={tab === 'crm' ? '#fff' : colors.primary} />
+        <Text style={[s.tabText, { color: tab === 'crm' ? '#fff' : colors.text }]} numberOfLines={1}>Clientes</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.tabEqual, tab === 'conversar' && { backgroundColor: colors.primary }]}
+        onPress={() => { playTapSound(); setTab('conversar'); }}
+      >
+        <Ionicons name="logo-whatsapp" size={20} color={tab === 'conversar' ? '#fff' : colors.primary} />
+        <Text style={[s.tabText, { color: tab === 'conversar' ? '#fff' : colors.text }]} numberOfLines={1}>Mensagens</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.tabEqual, tab === 'contatos' && { backgroundColor: colors.primary }]}
+        onPress={() => { playTapSound(); setTab('contatos'); }}
+      >
+        {loadingContacts ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Ionicons name="call-outline" size={18} color={tab === 'contatos' ? '#fff' : colors.primary} />
+        )}
+        <Text style={[s.tabText, { color: tab === 'contatos' ? '#fff' : colors.text }]} numberOfLines={1}>Contatos</Text>
+      </TouchableOpacity>
+      {showEmpresaFeatures && (
         <TouchableOpacity
           style={[s.tabEqual, tab === 'catalogo' && { backgroundColor: colors.primary }]}
           onPress={() => { playTapSound(); setTab('catalogo'); }}
@@ -375,9 +374,45 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
           <Ionicons name="grid-outline" size={18} color={tab === 'catalogo' ? '#fff' : colors.primary} />
           <Text style={[s.tabText, { color: tab === 'catalogo' ? '#fff' : colors.text }]} numberOfLines={1}>Catálogo</Text>
         </TouchableOpacity>
-        )}
+      )}
+    </View>
+  );
+
+  const rootBg = { flex: 1, backgroundColor: colors.bg };
+
+  const screenBody = (
+    <>
+      {isModal ? (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>WhatsApp e CRM</Text>
+            {onClose ? (
+              <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => { playTapSound(); onClose(); }}>
+                <Ionicons name="close" size={22} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {crmTabs}
         </View>
-      </View>
+      ) : (
+        <>
+          <TopBar
+            title="WhatsApp e CRM"
+            colors={colors}
+            useLogoImage
+            hideOrganize
+            headerDate={headerDate}
+            deferFinancePrompt
+            inlineToggle={useWebLayout && canToggleView ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
+            onCalculadora={useWebLayout ? openCalculadoraFull : undefined}
+            onChat={openMeusGastos}
+          />
+          {!(useWebLayout && canToggleView) && canToggleView && (
+            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />
+          )}
+          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>{crmTabs}</View>
+        </>
+      )}
 
       {tab === 'catalogo' ? (
         <CatalogoScreen isModal={false} />
@@ -882,7 +917,15 @@ export function MensagensWhatsAppScreen({ onClose, isModal }) {
         }}
         onClose={() => setNewClientFromContact(null)}
       />
-    </View>
+    </>
+  );
+
+  return isModal ? (
+    <View style={rootBg}>{screenBody}</View>
+  ) : (
+    <SafeAreaView style={rootBg} edges={['left', 'right', 'bottom']}>
+      {screenBody}
+    </SafeAreaView>
   );
 }
 

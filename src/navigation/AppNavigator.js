@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePlan } from '../contexts/PlanContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { MenuContext } from '../contexts/MenuContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
@@ -108,11 +109,9 @@ export function AppNavigator() {
   const [bancosModal, setBancosModal] = useState(false);
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [anotacoesModal, setAnotacoesModal] = useState(false);
-  const [meusGastosModal, setMeusGastosModal] = useState(false);
   const [receiptScannerModal, setReceiptScannerModal] = useState(false);
   const [listaComprasModal, setListaComprasModal] = useState(false);
   const [metasSonhosModal, setMetasSonhosModal] = useState(false);
-  const [mensagensWhatsAppModal, setMensagensWhatsAppModal] = useState(false);
   const [aniversariantesModal, setAniversariantesModal] = useState(false);
   const [empresaModal, setEmpresaModal] = useState(false);
   const [ordemServicoModal, setOrdemServicoModal] = useState(false);
@@ -125,6 +124,7 @@ export function AppNavigator() {
   const [calculatorResult, setCalculatorResult] = useState(null);
   const [calculatorHistory, setCalculatorHistory] = useState([]);
   const { colors, primaryColor } = useTheme();
+  const { showEmpresaFeatures } = usePlan();
   const { addProduct } = useFinance();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -157,15 +157,28 @@ export function AppNavigator() {
       openAssinatura: () => { setMenuModalOpen(false); setAssinaturaModal(true); },
       openIndique: () => { setMenuModalOpen(false); setIndiqueModal(true); },
       openAReceber: () => { setMenuModalOpen(false); setAReceberModal(true); },
-      openClientes: () => { setMenuModalOpen(false); setMensagensWhatsAppModal(true); },
+      openClientes: () => {
+        setMenuModalOpen(false);
+        setTimeout(() => {
+          if (showEmpresaFeatures) navigationRef.current?.navigate('WhatsApp');
+        }, 200);
+      },
       openBancos: () => { setMenuModalOpen(false); setBancosModal(true); },
       openOrcamento: () => { setMenuModalOpen(false); setOrcamentoModal(true); },
       openAnotacoes: (params) => { setMenuModalOpen(false); setAnotacoesModal(params || true); },
-      openMeusGastos: () => { setMenuModalOpen(false); setMeusGastosModal(true); },
+      openMeusGastos: () => {
+        setMenuModalOpen(false);
+        setTimeout(() => navigationRef.current?.navigate('MeusGastos'), 200);
+      },
       openReceiptScanner: () => { setMenuModalOpen(false); setReceiptScannerModal(true); },
       openListaCompras: () => { setMenuModalOpen(false); setListaComprasModal(true); },
       openMetasSonhos: () => { setMenuModalOpen(false); setMetasSonhosModal(true); },
-      openMensagensWhatsApp: () => { setMenuModalOpen(false); setMensagensWhatsAppModal(true); },
+      openMensagensWhatsApp: () => {
+        setMenuModalOpen(false);
+        setTimeout(() => {
+          if (showEmpresaFeatures) navigationRef.current?.navigate('WhatsApp');
+        }, 200);
+      },
       openAniversariantes: () => { setMenuModalOpen(false); setAniversariantesModal(true); },
       openEmpresa: () => { setMenuModalOpen(false); setEmpresaModal(true); },
       openOrdemServico: () => { setMenuModalOpen(false); setOrdemServicoModal(true); },
@@ -194,7 +207,7 @@ export function AppNavigator() {
         setCalculadoraModal(true);
       },
     }),
-    [isWebDesktop]
+    [isWebDesktop, showEmpresaFeatures]
   );
 
   /** Seta + calculadora: mesma linha, centro vertical da tela (viewport), respeitando safe area e tab bar. */
@@ -213,7 +226,7 @@ export function AppNavigator() {
     <MenuContext.Provider value={menuActions}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={{ flex: 1, flexDirection: isWebDesktop ? 'row' : 'column' }}>
-          <View style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          <View style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
             <NavigationContainer
               ref={navigationRef}
               onReady={() => {
@@ -225,8 +238,10 @@ export function AppNavigator() {
                 if (n) setDesktopTabRoute(n);
               }}
             >
+              <View style={{ flex: 1, minHeight: 0 }}>
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
               <Tab.Navigator
+                sceneContainerStyle={{ flex: 1, minHeight: 0 }}
                 tabBar={
                   isDesktopLayout
                     ? () => null
@@ -235,7 +250,6 @@ export function AppNavigator() {
                           {...tabProps}
                           customHandlers={{
                             Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
-                            MeusGastos: () => { playTapSound(); setMeusGastosModal(true); },
                           }}
                         />
                       )
@@ -303,13 +317,24 @@ export function AppNavigator() {
                 <Tab.Screen name="Agenda" component={AgendaScreen} options={{ tabBarIcon: ({ color }) => <AppIcon name="calendar-outline" size={24} color={color} /> }} />
                 <Tab.Screen
                   name="MeusGastos"
-                  component={PlaceholderScreen}
+                  component={MeusGastosScreen}
                   options={{
                     tabBarLabel: 'Meus gastos',
                     tabBarIcon: ({ color }) => <AppIcon name="chatbubbles-outline" size={24} color={color} />,
                   }}
                 />
+                {showEmpresaFeatures ? (
+                  <Tab.Screen
+                    name="WhatsApp"
+                    component={MensagensWhatsAppScreen}
+                    options={{
+                      tabBarLabel: 'WhatsApp',
+                      tabBarIcon: ({ color }) => <Ionicons name="logo-whatsapp" size={24} color={color} />,
+                    }}
+                  />
+                ) : null}
               </Tab.Navigator>
+              </View>
             </NavigationContainer>
 
             {/* Web mobile + nativo: seta e calculadora na mesma linha horizontal, centro vertical da tela */}
@@ -387,6 +412,7 @@ export function AppNavigator() {
               style={{
                 flexShrink: 0,
                 alignSelf: 'stretch',
+                minHeight: 0,
                 paddingLeft: 14,
                 paddingRight: 16,
                 backgroundColor: colors.bg,
@@ -396,7 +422,6 @@ export function AppNavigator() {
                 activeRouteName={desktopTabRoute}
                 onNavigate={(name) => navigationRef.current?.navigate?.(name)}
                 onAdd={() => { setMenuOpen(!menuOpen); }}
-                onMeusGastos={() => { setMeusGastosModal(true); }}
               />
             </View>
           ) : null}
@@ -612,11 +637,6 @@ export function AppNavigator() {
           <MetasESonhosScreen onClose={() => setMetasSonhosModal(false)} isModal />
         </SafeAreaView>
       </Modal>
-      <Modal visible={mensagensWhatsAppModal} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <MensagensWhatsAppScreen onClose={() => setMensagensWhatsAppModal(false)} isModal />
-        </SafeAreaView>
-      </Modal>
       <Modal visible={aniversariantesModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <AniversariantesScreen onClose={() => setAniversariantesModal(false)} isModal />
@@ -647,11 +667,6 @@ export function AppNavigator() {
       <Modal visible={listaComprasModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <ListaComprasScreen onClose={() => setListaComprasModal(false)} isModal />
-        </SafeAreaView>
-      </Modal>
-      <Modal visible={meusGastosModal} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <MeusGastosScreen onClose={() => setMeusGastosModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={receiptScannerModal} animationType="slide">

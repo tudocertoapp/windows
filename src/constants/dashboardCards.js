@@ -8,7 +8,8 @@ export const CARD_ICON_COLORS = {
   anotacoes: '#eab308',      // âmbar
   listacompras: '#f97316',   // laranja
   quote: '#06b6d4',          // ciano
-  contas: '#dc2626',         // vermelho
+  contas: '#dc2626',         // vermelho (Minhas faturas — só Dinheiro)
+  proximasfaturas: '#dc2626', // próximas faturas no Início
   balance: '#059669',        // verde escuro
   bancos: '#4f46e5',         // índigo
   gastos: '#a855f7',         // roxo
@@ -25,7 +26,8 @@ export const AVAILABLE_CARD_TYPES = [
   { id: 'quote', label: 'Frase do dia', icon: 'chatbubble-outline', screen: 'Início' },
   { id: 'meusgastos', label: 'Meus gastos', icon: 'chatbubbles-outline', screen: 'Início' },
   { id: 'balance', label: 'Saldo disponível', icon: 'wallet-outline', screen: 'Dinheiro' },
-  { id: 'contas', label: 'Minhas Faturas', icon: 'document-text-outline', screen: 'Início, Dinheiro' },
+  { id: 'proximasfaturas', label: 'Próximas faturas', icon: 'receipt-outline', screen: 'Início' },
+  { id: 'contas', label: 'Minhas Faturas', icon: 'document-text-outline', screen: 'Dinheiro' },
   { id: 'gastos', label: 'Gastos por categoria', icon: 'pie-chart-outline', screen: 'Dinheiro' },
   { id: 'transacoes', label: 'Últimas transações', icon: 'swap-horizontal-outline', screen: 'Dinheiro' },
   { id: 'graficos', label: 'Resumo do mês', icon: 'stats-chart-outline', screen: 'Dinheiro' },
@@ -35,10 +37,10 @@ export const AVAILABLE_CARD_TYPES = [
 ];
 
 /** Cards padrão do Início (saldo e gastos ficam só na página Dinheiro) */
-export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'contas'];
+export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
 
 /** Cards padrão para web – altere aqui para layout diferente da web sem afetar o mobile */
-export const DEFAULT_SECTIONS_WEB = ['proximos', 'agenda', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'contas'];
+export const DEFAULT_SECTIONS_WEB = ['proximos', 'agenda', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
 
 /** Cards da página Dinheiro que podem ser adicionados ao Início via Organize (transações só na Dinheiro) */
 export const DINHEIRO_ADDABLE_CARDS = [];

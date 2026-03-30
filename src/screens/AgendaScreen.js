@@ -28,6 +28,8 @@ import { usePlan } from '../contexts/PlanContext';
 import { AgendaFormModal } from '../components/AgendaFormModal';
 import { playTapSound } from '../utils/sounds';
 import { formatCurrency } from '../utils/format';
+import { useIsDesktopLayout } from '../utils/platformLayout';
+import { TopBar } from '../components/TopBar';
 
 const { width: SW } = Dimensions.get('window');
 const WEEK_CAROUSEL_PADDING_H = 12;
@@ -369,7 +371,7 @@ export function AgendaScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
-  const { openAddModal } = useMenu();
+  const { openAddModal, openCalculadoraFull, openMeusGastos, openMensagensWhatsApp } = useMenu();
   const { showEmpresaFeatures } = usePlan();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [displayedMonthDate, setDisplayedMonthDate] = useState(() => new Date());
@@ -380,6 +382,33 @@ export function AgendaScreen() {
   const [openEventActionsId, setOpenEventActionsId] = useState(null);
   const { width: winWidth } = useWindowDimensions();
   const screenW = Math.max(320, winWidth || SW);
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
+  /** Web desktop: setas laterais — largura útil só para os 7 dias (sem carrossel de semanas). */
+  const DESKTOP_WEEK_ARROW_SLOT = 40;
+
+  const weekLayout = useMemo(() => {
+    const padH = isDesktopWeb ? 8 : WEEK_CAROUSEL_PADDING_H;
+    const arrowSlots = isDesktopWeb ? DESKTOP_WEEK_ARROW_SLOT * 2 + 16 : 0;
+    const avail = screenW - 2 * padH - arrowSlots;
+    const dayItemWidth = avail / 7;
+    const dayMargin = isDesktopWeb ? 2 : DAY_MARGIN;
+    const dayWidth = Math.max(isDesktopWeb ? 30 : 40, dayItemWidth - dayMargin * 2);
+    const weekItemWidth = 7 * dayItemWidth;
+    return {
+      weekItemWidth,
+      weekPaddingH: (screenW - weekItemWidth) / 2,
+      dayItemWidth,
+      dayWidth,
+      dayMargin,
+      innerCircleMax: isDesktopWeb ? 36 : 50,
+      dayNumFont: isDesktopWeb ? 14 : 16,
+      dayCountFont: isDesktopWeb ? 9 : 11,
+      weekdayLetterFont: isDesktopWeb ? 10 : 12,
+      dayItemPadV: isDesktopWeb ? 4 : 10,
+      carouselPadTop: isDesktopWeb ? 2 : 6,
+      carouselPadBottom: isDesktopWeb ? 4 : 8,
+    };
+  }, [screenW, isDesktopWeb]);
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
   const [pickerMonth, setPickerMonth] = useState(() => new Date().getMonth());
   const [isPinching, setIsPinching] = useState(false);
@@ -389,12 +418,15 @@ export function AgendaScreen() {
   const prevFocusedRef = useRef(false);
   const needsInitialWeekScroll = useRef(false);
 
-  const weekItemWidth = 7 * DAY_ITEM_WIDTH;
-  const scrollToWeek = useCallback((weekIndex, animated = false) => {
-    const clamped = Math.max(0, Math.min(weekIndex, ALL_WEEKS.length - 1));
-    const scrollX = clamped * weekItemWidth;
-    weekScrollRef.current?.scrollToOffset?.({ offset: scrollX, animated });
-  }, [weekItemWidth]);
+  const scrollToWeek = useCallback(
+    (weekIndex, animated = false) => {
+      if (isDesktopWeb) return;
+      const clamped = Math.max(0, Math.min(weekIndex, ALL_WEEKS.length - 1));
+      const scrollX = clamped * weekLayout.weekItemWidth;
+      weekScrollRef.current?.scrollToOffset?.({ offset: scrollX, animated });
+    },
+    [weekLayout.weekItemWidth, isDesktopWeb]
+  );
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -558,8 +590,6 @@ export function AgendaScreen() {
   const currentMonthName = MONTHS[currentMonthIdx];
   const currentDay = now.getDate();
 
-  const weekPaddingH = (screenW - weekItemWidth) / 2;
-
   const scrollToToday = useCallback(() => {
     playTapSound();
     const today = new Date();
@@ -597,6 +627,42 @@ export function AgendaScreen() {
     scrollToWeek(getWeekIndexForDate(next));
   }, [selectedDate, scrollToWeek]);
 
+  const goToPrevWeek = useCallback(() => {
+    playTapSound();
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 7);
+    slideDirectionRef.current = -1;
+    timelineSlideX.value = -screenW;
+    setSelectedDate(d);
+    const idx = getWeekIndexForDate(d);
+    const week = ALL_WEEKS[idx];
+    if (week?.length) {
+      const mid = getDisplayMonthForWeek(week, isToday);
+      if (mid) setDisplayedMonthDate(new Date(mid));
+    }
+  }, [selectedDate, screenW, isToday]);
+
+  const goToNextWeek = useCallback(() => {
+    playTapSound();
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + 7);
+    slideDirectionRef.current = 1;
+    timelineSlideX.value = screenW;
+    setSelectedDate(d);
+    const idx = getWeekIndexForDate(d);
+    const week = ALL_WEEKS[idx];
+    if (week?.length) {
+      const mid = getDisplayMonthForWeek(week, isToday);
+      if (mid) setDisplayedMonthDate(new Date(mid));
+    }
+  }, [selectedDate, screenW, isToday]);
+
+  const desktopWeekDays = useMemo(() => {
+    if (!isDesktopWeb) return null;
+    const idx = getWeekIndexForDate(selectedDate);
+    return ALL_WEEKS[idx] || [];
+  }, [isDesktopWeb, selectedDate]);
+
   const handleDayPress = useCallback((d) => {
     playTapSound();
     const newD = new Date(d);
@@ -606,6 +672,52 @@ export function AgendaScreen() {
     setSelectedDate(newD);
     setDisplayedMonthDate(newD);
   }, [selectedDate, screenW]);
+
+  const renderAgendaDayCell = useCallback(
+    (d) => {
+      const key = formatDayKey(d);
+      const selected = key === selectedKey;
+      const count = (eventsByDay[key] || []).length;
+      const hasAgenda = count > 0;
+      const dayIsToday = isToday(d);
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const dayNumColor = selected ? '#fff' : (dayIsToday ? colors.primary : (isWeekend ? (colors.textSecondary + '99') : colors.text));
+      const dayLetterColor = isWeekend ? (colors.textSecondary + '99') : colors.textSecondary;
+      const dw = weekLayout.dayWidth;
+      const dm = weekLayout.dayMargin;
+      const mc = weekLayout.innerCircleMax;
+      const inner = Math.min(mc, dw + 6);
+      const br = Math.min(inner / 2, (dw + 6) / 2);
+      const colStyle = isDesktopWeb ? { flex: 1, minWidth: 0, alignItems: 'center' } : { width: weekLayout.dayItemWidth, alignItems: 'center' };
+      return (
+        <View key={d.getTime()} style={colStyle}>
+          <Text style={[as.weekdayHeaderText, { color: dayLetterColor, fontSize: weekLayout.weekdayLetterFont }]}>{WEEKDAY_LETTERS[d.getDay()]}</Text>
+          <TouchableOpacity
+            style={[
+              as.dayItem,
+              {
+                width: dw,
+                marginHorizontal: dm,
+                paddingVertical: weekLayout.dayItemPadV,
+                backgroundColor: selected ? 'transparent' : colors.bg,
+              },
+            ]}
+            onPress={() => handleDayPress(d)}
+            activeOpacity={0.7}
+          >
+            <View style={{ width: inner, height: inner, alignItems: 'center', justifyContent: 'center' }}>
+              {selected && (
+                <View style={[StyleSheet.absoluteFillObject, { borderRadius: br, backgroundColor: isWeekend ? '#dc2626' : colors.primary }]} />
+              )}
+              <Text style={[as.dayNum, { color: dayNumColor, fontSize: weekLayout.dayNumFont }]}>{d.getDate()}</Text>
+              <Text style={[as.dayCount, { color: selected ? 'rgba(255,255,255,0.95)' : (hasAgenda ? colors.primary : colors.textSecondary), fontSize: weekLayout.dayCountFont }]}>{count}</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      );
+    },
+    [selectedKey, eventsByDay, isToday, colors, weekLayout, isDesktopWeb, handleDayPress]
+  );
 
   const updateSelectionForWeek = useCallback(
     (weekIndex) => {
@@ -637,22 +749,22 @@ export function AgendaScreen() {
   const handleWeekScroll = useCallback(
     (e) => {
       const offset = e.nativeEvent.contentOffset.x;
-      const weekIndex = Math.round(offset / weekItemWidth);
+      const weekIndex = Math.round(offset / weekLayout.weekItemWidth);
       if (weekIndex !== lastScrollWeekRef.current && weekIndex >= 0 && weekIndex < ALL_WEEKS.length) {
         lastScrollWeekRef.current = weekIndex;
         updateSelectionForWeek(weekIndex);
       }
     },
-    [updateSelectionForWeek]
+    [updateSelectionForWeek, weekLayout.weekItemWidth]
   );
 
   const handleWeekScrollEnd = useCallback(
     (e) => {
       const offset = e.nativeEvent.contentOffset.x;
-      const weekIndex = Math.round(offset / weekItemWidth);
+      const weekIndex = Math.round(offset / weekLayout.weekItemWidth);
       updateSelectionForWeek(weekIndex);
     },
-    [updateSelectionForWeek]
+    [updateSelectionForWeek, weekLayout.weekItemWidth]
   );
 
   const handleCalendarDaySelect = useCallback((d) => {
@@ -712,6 +824,12 @@ export function AgendaScreen() {
   }, [showMonthPicker]);
 
   const isTodaySelected = isToday(selectedDate);
+
+  const agendaHeaderDate = useMemo(
+    () =>
+      selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase(),
+    [selectedDate]
+  );
 
   const animatedTimelineStyle = useAnimatedStyle(() => ({
     height: BASE_TIMELINE_HEIGHT * scale.value,
@@ -785,104 +903,178 @@ export function AgendaScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <View style={{ flex: 1, paddingTop: insets.top || 0 }}>
+      {isDesktopWeb ? (
+        <TopBar
+          title="Agenda"
+          colors={colors}
+          useLogoImage
+          hideOrganize
+          headerDate={agendaHeaderDate}
+          deferFinancePrompt
+          onCalculadora={openCalculadoraFull}
+          onChat={openMeusGastos}
+          onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
+        />
+      ) : null}
+      <View style={{ flex: 1, paddingTop: isDesktopWeb ? 0 : insets.top || 0 }}>
         <View ref={containerRef} style={{ flex: 1 }} collapsable={false}>
-          <View style={[as.compactHeader, { backgroundColor: colors.bg }]}>
-          <TouchableOpacity
-            style={as.compactMonthBtn}
-            onPress={() => { playTapSound(); setShowMonthPicker(true); }}
-          >
-            <Text style={[as.compactMonthText, { color: colors.text }]} numberOfLines={1}>
-              {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase()} {displayedMonthDate.getFullYear()}
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={colors.text} />
-          </TouchableOpacity>
-          <View style={{ flex: 1, minWidth: 0 }} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <TouchableOpacity
-              style={[as.compactIconBtn, { backgroundColor: colors.bg }]}
-              onPress={() => { playTapSound(); setSearchQuery(''); setShowSearchModal(true); }}
-            >
-              <Ionicons name="search" size={22} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { playTapSound(); scrollToToday(); }}
-              style={[as.compactIconBtn, { backgroundColor: isToday(selectedDate) ? colors.primaryRgba?.(0.2) ?? colors.primary + '33' : colors.bg }]}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Hoje</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[as.compactAddBtn, { backgroundColor: colors.bg }]}
-              onPress={() => { playTapSound(); handleAddPress(); }}
-            >
-              <Ionicons name="add" size={24} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
+          {isDesktopWeb ? (
+            <View style={[as.compactHeader, { backgroundColor: colors.bg, paddingVertical: 4, paddingHorizontal: 10, gap: 6 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                <TouchableOpacity
+                  style={[as.compactMonthBtn, { flexShrink: 1, minWidth: 0 }]}
+                  onPress={() => { playTapSound(); setShowMonthPicker(true); }}
+                >
+                  <Text style={[as.compactMonthText, { color: colors.text, fontSize: 13, fontWeight: '600' }]} numberOfLines={1}>
+                    {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase()} {displayedMonthDate.getFullYear()}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <TouchableOpacity
+                  style={[as.compactIconBtn, { backgroundColor: colors.bg, width: 32, height: 32, borderRadius: 10 }]}
+                  onPress={() => { playTapSound(); setSearchQuery(''); setShowSearchModal(true); }}
+                >
+                  <Ionicons name="search" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); scrollToToday(); }}
+                  style={[as.compactIconBtn, { backgroundColor: isToday(selectedDate) ? colors.primaryRgba?.(0.2) ?? colors.primary + '33' : colors.bg, width: 32, height: 32, borderRadius: 10 }]}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary }}>Hoje</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[as.compactAddBtn, { backgroundColor: colors.bg, width: 36, height: 36, borderRadius: 18 }]}
+                  onPress={() => { playTapSound(); handleAddPress(); }}
+                >
+                  <Ionicons name="add" size={22} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={[as.compactHeader, { backgroundColor: colors.bg }]}>
+              <TouchableOpacity
+                style={as.compactMonthBtn}
+                onPress={() => { playTapSound(); setShowMonthPicker(true); }}
+              >
+                <Text style={[as.compactMonthText, { color: colors.text }]} numberOfLines={1}>
+                  {currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1).toLowerCase()} {displayedMonthDate.getFullYear()}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.text} />
+              </TouchableOpacity>
+              <View style={{ flex: 1, minWidth: 0 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity
+                  style={[as.compactIconBtn, { backgroundColor: colors.bg }]}
+                  onPress={() => { playTapSound(); setSearchQuery(''); setShowSearchModal(true); }}
+                >
+                  <Ionicons name="search" size={22} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); scrollToToday(); }}
+                  style={[as.compactIconBtn, { backgroundColor: isToday(selectedDate) ? colors.primaryRgba?.(0.2) ?? colors.primary + '33' : colors.bg }]}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Hoje</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[as.compactAddBtn, { backgroundColor: colors.bg }]}
+                  onPress={() => { playTapSound(); handleAddPress(); }}
+                >
+                  <Ionicons name="add" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
         <View style={{ backgroundColor: colors.bg }}>
-          <FlatList
-            ref={weekScrollRef}
-            data={ALL_WEEKS}
-            keyExtractor={(week) => String(week[0]?.getTime() ?? 0)}
-            horizontal
-            snapToInterval={weekItemWidth}
-            snapToAlignment="center"
-            decelerationRate="normal"
-            bounces={false}
-            overScrollMode="never"
-            showsHorizontalScrollIndicator={false}
-            onScroll={handleWeekScroll}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={handleWeekScrollEnd}
-            onScrollEndDrag={handleWeekScrollEnd}
-            contentContainerStyle={[as.dayCarousel, { paddingHorizontal: weekPaddingH }]}
-            initialScrollIndex={Math.min(getWeekIndexForDate(new Date()), Math.max(0, ALL_WEEKS.length - 1))}
-            getItemLayout={(_, index) => ({ length: weekItemWidth, offset: weekPaddingH + index * weekItemWidth, index })}
-            initialNumToRender={5}
-            maxToRenderPerBatch={3}
-            windowSize={7}
-            removeClippedSubviews={Platform.OS === 'android'}
-            renderItem={({ item: week }) => (
-              <View style={{ width: weekItemWidth, flexDirection: 'row', marginBottom: 4 }}>
-                {week.map((d) => {
-                  const key = formatDayKey(d);
-                  const selected = key === selectedKey;
-                  const count = (eventsByDay[key] || []).length;
-                  const hasAgenda = count > 0;
-                  const dayIsToday = isToday(d);
-                  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                  const dayNumColor = selected ? '#fff' : (dayIsToday ? colors.primary : (isWeekend ? (colors.textSecondary + '99') : colors.text));
-                  const dayLetterColor = isWeekend ? (colors.textSecondary + '99') : colors.textSecondary;
-                  return (
-                    <View key={d.getTime()} style={{ width: DAY_ITEM_WIDTH, alignItems: 'center' }}>
-                      <Text style={[as.weekdayHeaderText, { color: dayLetterColor, fontSize: 12 }]}>{WEEKDAY_LETTERS[d.getDay()]}</Text>
-                      <TouchableOpacity
-                        style={[
-                          as.dayItem,
-                          {
-                            width: DAY_WIDTH,
-                            marginHorizontal: DAY_MARGIN,
-                            backgroundColor: selected ? 'transparent' : colors.bg,
-                          },
-                        ]}
-                        onPress={() => handleDayPress(d)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={{ width: Math.min(50, DAY_WIDTH + 6), height: Math.min(50, DAY_WIDTH + 6), alignItems: 'center', justifyContent: 'center' }}>
-                          {selected && (
-                            <View style={[StyleSheet.absoluteFillObject, { borderRadius: Math.min(25, (DAY_WIDTH + 6) / 2), backgroundColor: isWeekend ? '#dc2626' : colors.primary }]} />
-                          )}
-                          <Text style={[as.dayNum, { color: dayNumColor }]}>{d.getDate()}</Text>
-                          <Text style={[as.dayCount, { color: selected ? 'rgba(255,255,255,0.95)' : (hasAgenda ? colors.primary : colors.textSecondary) }]}>{count}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          />
+          {isDesktopWeb && desktopWeekDays?.length === 7 ? (
+            <View
+              style={[
+                as.dayCarousel,
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 8,
+                  paddingTop: weekLayout.carouselPadTop,
+                  paddingBottom: weekLayout.carouselPadBottom,
+                  marginBottom: 2,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={goToPrevWeek}
+                accessibilityRole="button"
+                accessibilityLabel="Semana anterior"
+                style={{
+                  width: DESKTOP_WEEK_ARROW_SLOT,
+                  height: DESKTOP_WEEK_ARROW_SLOT,
+                  borderRadius: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: colors.bg,
+                }}
+              >
+                <Ionicons name="chevron-back" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>{desktopWeekDays.map((d) => renderAgendaDayCell(d))}</View>
+              <TouchableOpacity
+                onPress={goToNextWeek}
+                accessibilityRole="button"
+                accessibilityLabel="Próxima semana"
+                style={{
+                  width: DESKTOP_WEEK_ARROW_SLOT,
+                  height: DESKTOP_WEEK_ARROW_SLOT,
+                  borderRadius: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: colors.bg,
+                }}
+              >
+                <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              ref={weekScrollRef}
+              data={ALL_WEEKS}
+              keyExtractor={(week) => String(week[0]?.getTime() ?? 0)}
+              horizontal
+              snapToInterval={weekLayout.weekItemWidth}
+              snapToAlignment="center"
+              decelerationRate="normal"
+              bounces={false}
+              overScrollMode="never"
+              showsHorizontalScrollIndicator={false}
+              onScroll={handleWeekScroll}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={handleWeekScrollEnd}
+              onScrollEndDrag={handleWeekScrollEnd}
+              contentContainerStyle={[
+                as.dayCarousel,
+                {
+                  paddingHorizontal: weekLayout.weekPaddingH,
+                  paddingTop: weekLayout.carouselPadTop,
+                  paddingBottom: weekLayout.carouselPadBottom,
+                },
+              ]}
+              initialScrollIndex={Math.min(getWeekIndexForDate(new Date()), Math.max(0, ALL_WEEKS.length - 1))}
+              getItemLayout={(_, index) => ({
+                length: weekLayout.weekItemWidth,
+                offset: weekLayout.weekPaddingH + index * weekLayout.weekItemWidth,
+                index,
+              })}
+              initialNumToRender={5}
+              maxToRenderPerBatch={3}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
+              renderItem={({ item: week }) => (
+                <View style={{ width: weekLayout.weekItemWidth, flexDirection: 'row', marginBottom: isDesktopWeb ? 2 : 4 }}>
+                  {week.map((d) => renderAgendaDayCell(d))}
+                </View>
+              )}
+            />
+          )}
         </View>
 
         <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: (colors.border || '#e5e7eb') + 'E6', backgroundColor: colors.bg, paddingLeft: TIMELINE_PADDING }}>

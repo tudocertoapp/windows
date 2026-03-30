@@ -20,7 +20,7 @@ const WEB_DESKTOP_RAIL_BTN_GAP = 8;
 let headerPromptCache = { prompt: null, dateKey: null };
 let cameFromBackground = false;
 
-/** Mesma frase do dia que o TopBar usa (sincroniza cache). Para exibir no corpo da página (Início / Dinheiro). */
+/** Mesma frase do dia que o TopBar usa (sincroniza cache). Útil se precisar da mesma string fora do cabeçalho. */
 export function getStableHomePrompt() {
   const today = new Date().toDateString();
   if (headerPromptCache.dateKey === today && headerPromptCache.prompt) {
@@ -68,7 +68,7 @@ export function TopBar({
   inlineToggle,
   /** Data longa (ex.: TERÇA-FEIRA, 24 DE MARÇO) — cabeçalho compacto. */
   headerDate,
-  /** Se true, a frase motivacional não fica no topo; mostre no corpo com getStableHomePrompt(). */
+  /** Se true, data + frase financeira no cabeçalho (Início, Dinheiro, Meus gastos, WhatsApp e CRM, Agenda). */
   deferFinancePrompt,
 }) {
   const { openMenu, openPerfil } = useMenu();
@@ -130,8 +130,14 @@ export function TopBar({
     </TouchableOpacity>
   ) : null;
 
-  /** Só Início: Dinheiro também usa useLogoImage + defer, mas mantém frase no corpo. */
-  const homeDesktopDefer = isWebDesktop && deferFinancePrompt && title === 'Início';
+  /** Web desktop: frase financeira no cabeçalho (mesmo layout para Início, Dinheiro, Meus gastos, WhatsApp/CRM, Agenda). */
+  const unifiedDeferTitles =
+    title === 'Início' ||
+    title === 'Dinheiro' ||
+    title === 'Meus gastos' ||
+    title === 'WhatsApp e CRM' ||
+    title === 'Agenda';
+  const homeDesktopDefer = isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
 
   const homeTrailingActions = (
     <>
@@ -254,12 +260,22 @@ export function TopBar({
                 {getGreeting()}, {profile?.nome || 'você'}!
               </Text>
               {deferFinancePrompt && headerDate ? (
-                <Text
-                  style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(10, true) : 11, fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
-                  numberOfLines={2}
-                >
-                  {headerDate}
-                </Text>
+                <>
+                  <Text
+                    style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(10, true) : 11, fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
+                    numberOfLines={2}
+                  >
+                    {headerDate}
+                  </Text>
+                  {unifiedDeferTitles ? (
+                    <Text
+                      style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(13, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: 18, marginTop: 4 }}
+                      numberOfLines={2}
+                    >
+                      {homePrompt}
+                    </Text>
+                  ) : null}
+                </>
               ) : !deferFinancePrompt ? (
                 <Text style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(13, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
                   {homePrompt}
