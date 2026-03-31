@@ -311,7 +311,7 @@ export function AppNavigator() {
                     : (tabProps) => (
                         <WebMobileTabBarDock
                           {...tabProps}
-                          hiddenRouteNames={isWebMobile ? ['WhatsApp', 'CRM', 'Cadastros'] : []}
+                          hiddenRouteNames={!isDesktopLayout ? ['WhatsApp', 'CRM', 'Cadastros'] : []}
                           customHandlers={{
                             Adicionar: () => { playTapSound(); setMenuOpen(!menuOpen); },
                           }}
@@ -346,7 +346,7 @@ export function AppNavigator() {
                           right: 0,
                           bottom: 0,
                           minHeight: 100,
-                          elevation: 0,
+                          elevation: 10000,
                           backgroundColor: 'transparent',
                           borderTopWidth: 0,
                           zIndex: 10000,

@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     ...(Platform.OS === 'web'
       ? { zIndex: 10000, elevation: 10000 }
-      : {}),
+      : { zIndex: 10000, elevation: 10000 }),
   },
   glass: {
     width: '100%',
@@ -337,7 +337,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -32,
+    // Menos agressivo no nativo para reduzir risco de recorte pelo conteúdo acima.
+    marginTop: Platform.OS === 'web' ? -32 : -26,
   },
   addButton: {
     width: 56,
