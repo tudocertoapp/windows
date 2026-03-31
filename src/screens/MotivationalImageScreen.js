@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ViewShot from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 
-const logoImage = require('../../assets/logo.png');
+const logoImage = require('../../assets/logo-pages.png');
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
 const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9)); // 9:16 formato Stories Instagram
@@ -32,7 +32,7 @@ const mis = StyleSheet.create({
   quoteArea: { flex: 1, justifyContent: 'center', padding: 24, alignItems: 'center' },
   quoteText: { fontSize: 20, fontWeight: '600', fontStyle: 'italic', textAlign: 'center', lineHeight: 30 },
   logoArea: { padding: 16, alignItems: 'center' },
-  logo: { width: 48, height: 48 },
+  logo: { width: 180, height: 52 },
   cta: { fontSize: 12, marginTop: 8, fontWeight: '600', letterSpacing: 0.5 },
   bgGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 16, justifyContent: 'center' },
   bgOption: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden' },

@@ -72,6 +72,7 @@
     "electron-builder": "^25.1.8",
     "jimp": "^1.6.0",
     "patch-package": "^8.0.0",
+    "png-to-ico": "^3.0.1",
     "sharp": "^0.34.5",
     "typescript": "~5.9.2",
     "wait-on": "^8.0.1"
@@ -101,7 +102,8 @@
     "files": [
       "dist/**/*",
       "electron/main.js",
-      "electron/icon-256.png"
+      "electron/icon-256.png",
+      "electron/icon.ico"
     ],
     "extraMetadata": {
       "main": "electron/main.js"
@@ -110,11 +112,16 @@
       "target": [
         "nsis"
       ],
-      "icon": "electron/icon-256.png"
+      "icon": "electron/icon.ico"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "guid": "6a87a150-9f77-4dd8-b149-8d9be5f1f0d3",
+      "installerIcon": "electron/icon.ico",
+      "uninstallerIcon": "electron/icon.ico",
+      "installerHeaderIcon": "electron/icon.ico",
+      "runAfterFinish": true
     }
   }
 }

@@ -36,5 +36,9 @@ export function formatAuthErrorMessage(error, { isSignUp = false } = {}) {
     }
   }
 
-  return raw || 'Não foi possível concluir. Tente de novo.';
+  // Nunca expor URLs/tokens/erros crus ao usuário no fluxo de login.
+  if (/https?:\/\/|supabase\.co|auth\/v1|anon|apikey|jwt/i.test(raw)) {
+    return 'Não foi possível concluir agora. Tente novamente em instantes.';
+  }
+  return 'Não foi possível concluir. Tente de novo.';
 }

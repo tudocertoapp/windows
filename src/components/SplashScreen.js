@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
 import { useNativeDriverSafe } from '../utils/platformLayout';
 
-const logoImage = require('../../assets/logo.png');
+const logoImage = require('../../assets/logo-splash.png');
 
 /**
  * Splash screen reutilizável com logo animado (aumenta e diminui fluidamente).
@@ -53,13 +53,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   logoWrap: {
-    width: 120,
-    height: 120,
+    width: 320,
+    height: 96,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 320,
+    height: 96,
   },
 });
