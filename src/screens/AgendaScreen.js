@@ -43,6 +43,10 @@ const MIN_ZOOM = 0.84;
 const MAX_ZOOM = 3;
 const CARD_GAP_PERCENT = 0.5;
 const TIMELINE_PADDING = 8;
+/** Faixa da barra de rolagem customizada (card) + afastamento padrão dos botões +/- na timeline */
+const AGENDA_TIMELINE_SCROLLBAR_W = 10;
+const AGENDA_TIMELINE_ZOOM_GAP = 8;
+const AGENDA_TIMELINE_ZOOM_RIGHT = AGENDA_TIMELINE_SCROLLBAR_W + AGENDA_TIMELINE_ZOOM_GAP;
 const SHOW_EVENT_MENU = false;
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -955,18 +959,6 @@ export function AgendaScreen() {
                   <Ionicons name="search" size={18} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[as.compactIconBtn, { backgroundColor: colors.bg, width: 32, height: 32, borderRadius: 10 }]}
-                  onPress={zoomOutTimeline}
-                >
-                  <Ionicons name="remove" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[as.compactIconBtn, { backgroundColor: colors.bg, width: 32, height: 32, borderRadius: 10 }]}
-                  onPress={zoomInTimeline}
-                >
-                  <Ionicons name="add" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
                   onPress={() => { playTapSound(); scrollToToday(); }}
                   style={[as.compactIconBtn, { backgroundColor: 'transparent', width: 32, height: 32, borderRadius: 10 }]}
                 >
@@ -1114,7 +1106,7 @@ export function AgendaScreen() {
         <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.bg }} collapsable={false}>
         <GestureDetector gesture={pinchGesture}>
         <View
-          style={{ flex: 1, backgroundColor: colors.bg }}
+          style={{ flex: 1, backgroundColor: colors.bg, position: 'relative' }}
           onLayout={(e) => {
             const { height } = e.nativeEvent.layout;
             viewHeight.value = height;
@@ -1431,6 +1423,35 @@ export function AgendaScreen() {
 
           <View style={{ height: 80 }} />
         </AnimatedScrollView>
+        {isDesktopWeb ? (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: AGENDA_TIMELINE_ZOOM_RIGHT,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              zIndex: 20,
+            }}
+          >
+            <TouchableOpacity
+              style={[as.compactIconBtn, { backgroundColor: colors.card, width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: (colors.border || '#e5e7eb') + 'CC' }]}
+              onPress={zoomOutTimeline}
+              accessibilityLabel="Diminuir zoom da agenda"
+            >
+              <Ionicons name="remove" size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[as.compactIconBtn, { backgroundColor: colors.card, width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: (colors.border || '#e5e7eb') + 'CC' }]}
+              onPress={zoomInTimeline}
+              accessibilityLabel="Aumentar zoom da agenda"
+            >
+              <Ionicons name="add" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
         </View>
         </GestureDetector>
         </View>

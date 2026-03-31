@@ -3,7 +3,7 @@
  * Produção: carrega export estático Expo em dist/index.html.
  * Desenvolvimento: ELECTRON_DEV=1 + app web em http://127.0.0.1:8081 (npm run web).
  */
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, session, systemPreferences } = require('electron');
 const path = require('path');
 
 const isDev = process.env.ELECTRON_DEV === '1' || process.env.ELECTRON_DEV === 'true';
@@ -53,6 +53,29 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  const ses = session.defaultSession;
+  if (ses) {
+    const allowMicPermissions = new Set(['media', 'microphone', 'audioCapture']);
+
+    // Permite captura de áudio no app empacotado (.exe) e no dev.
+    ses.setPermissionCheckHandler((_webContents, permission) => {
+      if (allowMicPermissions.has(permission)) return true;
+      return false;
+    });
+
+    ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+      if (allowMicPermissions.has(permission)) {
+        callback(true);
+        return;
+      }
+      callback(false);
+    });
+  }
+
+  if (process.platform === 'darwin' && systemPreferences?.askForMediaAccess) {
+    systemPreferences.askForMediaAccess('microphone').catch(() => {});
+  }
+
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

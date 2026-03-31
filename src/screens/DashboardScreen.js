@@ -58,6 +58,10 @@ const FRASES_PARABENS = [
 ];
 const { width: SW } = Dimensions.get('window');
 const CARD_SUBTITLE_MARGIN_TOP = 2;
+/** Alinhado à AgendaScreen: faixa da barra + afastamento dos botões +/- na timeline */
+const AGENDA_TIMELINE_SCROLLBAR_W = 10;
+const AGENDA_TIMELINE_ZOOM_GAP = 8;
+const AGENDA_TIMELINE_ZOOM_RIGHT = AGENDA_TIMELINE_SCROLLBAR_W + AGENDA_TIMELINE_ZOOM_GAP;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -143,7 +147,22 @@ export function DashboardScreen() {
   const HEADER_ICON_SIZE = useWebLayout ? scaleWebDesktop(22, useWebLayout) : 26;
   const route = useRoute();
   const navigation = useNavigation();
-  const { transactions, checkListItems, agendaEvents, boletos, clients, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction, updateBoleto, deleteBoleto } = useFinance();
+  const { transactions, checkListItems, agendaEvents, boletos, clients, services, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction, updateBoleto, deleteBoleto } = useFinance();
+
+  const agendaClientFor = useCallback(
+    (e) => {
+      if (!e?.clientId || !clients?.length) return null;
+      return clients.find((c) => String(c.id) === String(e.clientId)) || null;
+    },
+    [clients],
+  );
+  const agendaServiceFor = useCallback(
+    (e) => {
+      if (!e?.serviceId || !services?.length) return null;
+      return services.find((s) => String(s.id) === String(e.serviceId)) || null;
+    },
+    [services],
+  );
   const { banks, cards, addToBank, deductFromBank, addToCardBalance, deductFromCardBalance, getBankById } = useBanks();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
@@ -698,10 +717,24 @@ export function DashboardScreen() {
 
   const proximasTarefas = useMemo(() => {
     const prOrd = (p) => ({ urgente: 4, alta: 3, media: 2, baixa: 1 }[p] || 2);
+    const isCheckedTask = (task) => {
+      const status = String(task?.status || '').trim().toLowerCase();
+      if (status === 'concluido' || status === 'concluído' || status === 'done') return true;
+      if (status === 'pendente' || status === 'todo' || status === 'a_fazer') return false;
+      const raw = task?.checked;
+      if (typeof raw === 'boolean') return raw;
+      if (typeof raw === 'number') return raw === 1;
+      if (typeof raw === 'string') {
+        const v = raw.trim().toLowerCase();
+        if (['true', '1', 'sim', 'yes'].includes(v)) return true;
+        if (['false', '0', 'nao', 'não', 'no', ''].includes(v)) return false;
+      }
+      return Boolean(raw);
+    };
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const pendentes = checkListItems
-      .filter((t) => !t.checked)
+      .filter((t) => !isCheckedTask(t))
       .sort((a, b) => {
         const oa = a.sortOrder ?? 999;
         const ob = b.sortOrder ?? 999;
@@ -711,7 +744,7 @@ export function DashboardScreen() {
         if (da.getTime() !== db.getTime()) return da - db;
         return prOrd(b.priority) - prOrd(a.priority);
       });
-    const concluidas = checkListItems.filter((t) => t.checked).sort((a, b) => {
+    const concluidas = checkListItems.filter((t) => isCheckedTask(t)).sort((a, b) => {
       const da = parseTaskDate(a.date) || new Date(0);
       const db = parseTaskDate(b.date) || new Date(0);
       return db - da;
@@ -877,10 +910,8 @@ export function DashboardScreen() {
 
   const sectionMap = {
     proximos: (
-      <TouchableOpacity
+      <View
         key="proximos"
-        onPress={() => navigation?.navigate?.('Agenda')}
-        activeOpacity={0.9}
         style={{ marginHorizontal: useWebLayout ? 0 : WEB_CARD_MARGIN_H, marginTop: useWebLayout ? 0 : WEB_CARD_MARGIN_TOP }}
       >
         <GlassCard
@@ -894,13 +925,47 @@ export function DashboardScreen() {
               ...(useWebLayout ? { minHeight: 0, height: '100%' } : null),
             },
           ]}
-          contentStyle={{ padding: WEB_CARD_PADDING }}
+          contentStyle={{ padding: WEB_CARD_PADDING, ...(useWebLayout ? { flex: 1, minHeight: 0 } : null) }}
         >
           {useWebLayout ? (
-            <View style={{ marginBottom: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <TouchableOpacity activeOpacity={0.9} onPress={() => navigation?.navigate?.('Agenda')}>
+              <View style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                  </View>
+                  <View style={cardHeaderActionsStyle}>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
+                      <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity activeOpacity={0.9} onPress={() => navigation?.navigate?.('Agenda')}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 12 }}>
                 <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                   <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                    {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                    {showConcluidasProximos
+                      ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
+                      : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
+                  </Text>
                 </View>
                 <View style={cardHeaderActionsStyle}>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
@@ -914,43 +979,15 @@ export function DashboardScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
-              </Text>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 12 }}>
-              <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                <AppIcon name="checkmark-done-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
-                  {showConcluidasProximos ? 'Tarefas concluídas' : 'Próximas tarefas'}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
-                  {showConcluidasProximos
-                    ? (proximasTarefas.concluidas.length === 0 ? 'Nenhuma' : `${proximasTarefas.concluidas.length} concluída${proximasTarefas.concluidas.length !== 1 ? 's' : ''}`)
-                    : (proximasTarefas.tarefas.length === 0 ? 'Nada pendente' : `${proximasTarefas.tarefas.length} pendente${proximasTarefas.tarefas.length !== 1 ? 's' : ''}`)}
-                </Text>
-              </View>
-              <View style={cardHeaderActionsStyle}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
-                  <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
-                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
-                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
+            </TouchableOpacity>
           )}
           <View style={{ flex: 1, minHeight: 0 }}>
             <ScrollableCardList
               items={showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas}
               colors={colors}
               accentColor={colors.primary}
+              scrollStartsAt={3}
+              scrollStripSide="right"
               emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
               onVerMais={() => { playTapSound(); setExpandedCard('proximos'); }}
               fixedVisibleHeight={useWebLayout ? 'fill' : false}
@@ -958,7 +995,7 @@ export function DashboardScreen() {
               renderItem={(t) => (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 4 }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title}</Text>
+                  <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title || t.name || t.description || 'Tarefa sem título'}</Text>
                   {(t.date || t.timeStart) && (
                     <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
                       {[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}
@@ -992,7 +1029,7 @@ export function DashboardScreen() {
             />
           </View>
         </GlassCard>
-      </TouchableOpacity>
+      </View>
     ),
     agendamentos: taskCardBase(
       'calendar-outline',
@@ -1005,17 +1042,23 @@ export function DashboardScreen() {
           : `${proximasTarefas.agendas.length} ${(showEmpresaFeatures && viewMode === 'empresa') ? 'atendimento' : 'evento'}${proximasTarefas.agendas.length !== 1 ? 's' : ''} nos próximos dias`),
       showConcluidasAgendamentos ? proximasTarefas.agendasConcluidas : proximasTarefas.agendas,
       (e) => {
-        const displayTitle = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+        const cli = agendaClientFor(e);
+        const displayTitle = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
         const detailParts = [];
         if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
         if (e.type === 'venda') detailParts.push('Venda');
         else if (e.type === 'orcamento') detailParts.push('Orçamento');
         else if (e.type === 'manutencao') detailParts.push('Garantia');
         const detailStr = detailParts.length ? detailParts.join(' · ') : null;
+        const desc = (e.description || '').trim();
+        const svc = agendaServiceFor(e);
         return (
         <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
+            {cli?.phone ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{cli.phone}</Text> : null}
+            {svc?.name ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{svc.name}</Text> : null}
+            {desc ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>{desc}</Text> : null}
             {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
           </View>
           <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
@@ -1127,14 +1170,15 @@ export function DashboardScreen() {
                   items={showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas}
                   colors={colors}
                   accentColor={colors.primary}
-                  scrollStartsAt={4}
+                  scrollStartsAt={3}
+                  scrollStripSide="right"
                   centerEmpty
                   emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
                   fixedVisibleHeight="fill"
                   renderItem={(t) => (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 2 }}>
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={{ fontSize: 14, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title}</Text>
+                        <Text style={{ fontSize: 14, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title || t.name || t.description || 'Tarefa sem título'}</Text>
                         {(t.date || t.timeStart) && (
                           <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
                             {[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}
@@ -1432,6 +1476,7 @@ export function DashboardScreen() {
             const timelineThumbTop = showTimelineStrip
               ? Math.max(0, Math.min((agendaCardTimelineScrollY / maxTimelineScroll) * timelineThumbMaxTop, timelineThumbMaxTop))
               : 0;
+            const timelineZoomRight = showTimelineStrip ? AGENDA_TIMELINE_ZOOM_RIGHT : 12;
             const accent = CARD_ICON_COLORS.agenda || colors.primary;
             const nowObj = new Date();
             const showNowLine = isSameDay(nowObj, agendaCardDate);
@@ -1444,7 +1489,10 @@ export function DashboardScreen() {
                   <View style={{ position: 'relative' }}>
                   <ScrollView
                     // Deixa a timeline flexível; o grid controla a altura externa do card.
-                    style={{ height: timelineViewportHeight, paddingRight: showTimelineStrip ? 14 : 0 }}
+                    style={{
+                      height: timelineViewportHeight,
+                      paddingRight: showTimelineStrip ? Math.max(14, AGENDA_TIMELINE_ZOOM_RIGHT + 4) : 0,
+                    }}
                     contentContainerStyle={{ paddingRight: 6 }}
                     showsVerticalScrollIndicator={false}
                     onScroll={(ev) => setAgendaCardTimelineScrollY(ev?.nativeEvent?.contentOffset?.y || 0)}
@@ -1497,17 +1545,22 @@ export function DashboardScreen() {
                           ) : null}
 
                           {agendaCardTimeline.map(({ e, startM, durM }) => {
-                            const title = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+                            const cli = agendaClientFor(e);
+                            const svc = agendaServiceFor(e);
+                            const title = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
                             const top = (startM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
-                            const height = Math.max(28, (durM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD);
+                            const rawH = (durM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
+                            const height = Math.max(useWebLayout ? 76 : 28, rawH);
                             const isEmp = showEmpresaFeatures && (e.tipo === 'empresa');
-                            const timeStr = [e.timeStart, e.timeEnd ? `- ${e.timeEnd}` : null].filter(Boolean).join(' ');
+                            const t0 = e.time || e.timeStart;
+                            const timeStr = `${t0 || '--:--'}${e.timeEnd ? ` - ${e.timeEnd}` : ''}`;
                             const descricao = (e.description || '').trim();
                             const detailParts = [];
                             if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
                             if (e.type === 'venda') detailParts.push('Venda');
                             else if (e.type === 'orcamento') detailParts.push('Orçamento');
                             else if (e.type === 'manutencao') detailParts.push('Garantia');
+                            const metaLine = [timeStr, ...detailParts, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ');
                             return (
                               <TouchableOpacity
                                 key={e.id}
@@ -1519,27 +1572,53 @@ export function DashboardScreen() {
                                   right: 0,
                                   top,
                                   height,
-                                  padding: 10,
+                                  paddingVertical: 8,
+                                  paddingLeft: 10,
+                                  paddingRight: 44,
                                   borderRadius: 14,
                                   backgroundColor: accent + '1F',
                                   borderWidth: 1,
                                   borderColor: accent + '66',
+                                  borderLeftWidth: 4,
+                                  borderLeftColor: accent,
                                   overflow: 'hidden',
                                 }}
                               >
-                                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={1}>
-                                  {title}
-                                </Text>
-                                {!!descricao && (
-                                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                    {descricao}
+                                <View style={{ flex: 1, minHeight: 0, justifyContent: 'flex-start' }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={2}>
+                                    {title}
                                   </Text>
-                                )}
-                                <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                  {[timeStr, ...detailParts, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ')}
-                                </Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                                  <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                  {cli?.phone ? (
+                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                                      {cli.phone}
+                                    </Text>
+                                  ) : null}
+                                  {svc?.name ? (
+                                    <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2 }} numberOfLines={1}>
+                                      {svc.name}
+                                    </Text>
+                                  ) : null}
+                                  {!!descricao && (
+                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                                      {descricao}
+                                    </Text>
+                                  )}
+                                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                                    {metaLine}
+                                  </Text>
+                                </View>
+                                <View
+                                  style={{
+                                    position: 'absolute',
+                                    right: 4,
+                                    top: 6,
+                                    bottom: 6,
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
+                                  <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 4 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                     <Ionicons name="pencil" size={18} color={colors.primary} />
                                   </TouchableOpacity>
                                   <TouchableOpacity
@@ -1549,7 +1628,7 @@ export function DashboardScreen() {
                                       if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e });
                                       else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
                                     }}
-                                    style={{ padding: 6 }}
+                                    style={{ padding: 4 }}
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                   >
                                     <Ionicons name="checkmark-done" size={18} color="#10b981" />
@@ -1561,7 +1640,7 @@ export function DashboardScreen() {
                                       { text: 'Cancelar' },
                                       { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
                                     ]);
-                                  }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                  }} style={{ padding: 4 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                     <Ionicons name="trash-outline" size={18} color="#ef4444" />
                                   </TouchableOpacity>
                                 </View>
@@ -1578,7 +1657,7 @@ export function DashboardScreen() {
                         position: 'absolute',
                         top: 0,
                         right: 0,
-                        width: 10,
+                        width: AGENDA_TIMELINE_SCROLLBAR_W,
                         height: timelineViewportHeight,
                         borderRadius: 5,
                         backgroundColor: colors.border + '25',
@@ -1598,8 +1677,8 @@ export function DashboardScreen() {
                       />
                     </View>
                   )}
-                  {/* zoom dentro da timeline */}
-                  <View style={{ position: 'absolute', top: 10, right: 10, flexDirection: 'row', gap: 8 }} pointerEvents="box-none">
+                  {/* zoom dentro da timeline (mesmo insete da página Agenda desktop) */}
+                  <View style={{ position: 'absolute', top: 10, right: timelineZoomRight, flexDirection: 'row', gap: 8 }} pointerEvents="box-none">
                     <TouchableOpacity
                       onPress={() => { playTapSound(); setAgendaCardZoom((z) => Math.max(0.6, Number((z - 0.1).toFixed(2)))); }}
                       style={[cardActionButtonStyle, { backgroundColor: colors.card, borderColor: colors.border + '80' }]}
@@ -3036,7 +3115,7 @@ export function DashboardScreen() {
               <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
                   {[
-                    { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cash-outline', onPress: () => openPDV?.() },
+                    { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.() },
                     { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos') },
                     { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos') },
                     { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes') },
@@ -3086,9 +3165,9 @@ export function DashboardScreen() {
                     const GAP = WEB_DESKTOP_ROW_GAP;
                     const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
                     return (
-                      <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP, minHeight: GRID_H, height: GRID_H }}>
                         <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
-                          <View style={{ minHeight: GRID_H, height: '100%' }}>
+                          <View style={{ minHeight: GRID_H, height: GRID_H }}>
                             {sectionMap.agenda}
                           </View>
                         </View>
@@ -3096,7 +3175,7 @@ export function DashboardScreen() {
                           <View style={{ flex: 1, minHeight: 0 }}>
                             {sectionMap.agendamentos}
                           </View>
-                          <View style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                          <View style={{ flex: 1, minHeight: 0, ...(Platform.OS === 'web' ? { overflow: 'visible' } : { overflow: 'hidden' }) }}>
                             {sectionMap.leftAgendaCombo}
                           </View>
                         </View>
@@ -3364,18 +3443,24 @@ export function DashboardScreen() {
           </GlassCard>
         ))}
         {expandedCard === 'agendamentos' && (showConcluidasAgendamentos ? proximasTarefas.agendasConcluidas : proximasTarefas.agendas).map((e) => {
-          const displayTitle = ((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+          const cli = agendaClientFor(e);
+          const svc = agendaServiceFor(e);
+          const displayTitle = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
           const detailParts = [];
           if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
           if (e.type === 'venda') detailParts.push('Venda');
           else if (e.type === 'orcamento') detailParts.push('Orçamento');
           else if (e.type === 'manutencao') detailParts.push('Garantia');
           const detailStr = detailParts.length ? detailParts.join(' · ') : null;
+          const desc = (e.description || '').trim();
           return (
             <GlassCard key={e.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40' }}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
+                  {cli?.phone ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{cli.phone}</Text> : null}
+                  {svc?.name ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{svc.name}</Text> : null}
+                  {desc ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={3}>{desc}</Text> : null}
                   {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
                 </View>
                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>

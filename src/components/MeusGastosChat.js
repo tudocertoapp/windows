@@ -302,9 +302,14 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const insets = useSafeAreaInsets();
   const isDesktopLayout = useIsDesktopLayout();
   const isWebMobile = Platform.OS === 'web' && !isDesktopLayout;
+  /** Card Início no web mobile: manter input + botões na mesma linha no rodapé */
+  const embeddedMobileStackInputs = false;
   const webDesktopFixedInput = Platform.OS === 'web' && isDesktopLayout && !embedded;
   const mobileBottomDock = !webDesktopFixedInput && (Platform.OS !== 'web' || isWebMobile);
-  const mobileTabbarReserve = mobileBottomDock ? (Platform.OS === 'web' ? WEB_MOBILE_TAB_BAR_RESERVE : 96) : 0;
+  // No card embutido (Meus gastos), não reservamos área da tabbar global para não "subir" o input.
+  const mobileTabbarReserve = mobileBottomDock && !embedded
+    ? (Platform.OS === 'web' ? WEB_MOBILE_TAB_BAR_RESERVE : 96)
+    : 0;
   const EXAMPLE_PHRASES = [
     'Fui no mercado e gastei 89,90. Gasto pessoal.',
     'Estava na farmácia e paguei 35,50.',
@@ -1025,7 +1030,9 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     );
   };
 
-  const mobileBottomLift = mobileBottomDock ? 40 : 0;
+  // No nativo (Expo Go), não empurre o input para cima: a própria tab bar já ocupa espaço.
+  // Mantemos lift apenas no web mobile (dock fixo).
+  const mobileBottomLift = mobileBottomDock && !embedded && Platform.OS === 'web' ? 40 : 0;
   const listBottomPad = webDesktopFixedInput ? 120 : 18 + (mobileBottomDock ? (mobileTabbarReserve + 84 + mobileBottomLift) : 0);
   const kavStyle = {
     flex: 1,
@@ -1036,7 +1043,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     (Platform.OS === 'ios' ? 14 : Platform.OS === 'web' ? Math.max(insets.bottom, 10) : 8) + mobileBottomLift;
 
   const chatMain = (
-    <>
+    <View style={s.chatMainColumn}>
         {embedded ? (
           <ScrollView
             ref={listRef}
@@ -1069,6 +1076,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
         <View
           style={[
             s.inputRow,
+            embeddedMobileStackInputs && s.inputRowEmbeddedMobile,
             {
               borderTopColor: colors.border,
               backgroundColor: (embedded || transparentBg) ? 'transparent' : colors.bg,
@@ -1133,12 +1141,12 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               return null;
             }}
           </VoiceRecorder>
-          <View style={s.inputWithActionsRow}>
+          <View style={[s.inputWithActionsRow, embeddedMobileStackInputs && s.inputWithActionsRowEmbeddedMobile]}>
             <TextInput
               ref={inputRef}
               style={[
                 s.input,
-                s.inputInRow,
+                embeddedMobileStackInputs ? s.inputEmbeddedMobile : s.inputInRow,
                 (embedded || transparentBg)
                   ? { backgroundColor: 'transparent', borderWidth: 0, color: colors.text, borderRadius: 0 }
                   : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
@@ -1161,7 +1169,13 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
               onSubmitEditing={handleUnifiedSend}
               returnKeyType="send"
             />
-            <View style={s.inputActionsRow}>
+            <View
+              style={[
+                s.inputActionsRow,
+                embeddedMobileStackInputs && s.inputActionsRowEmbeddedMobile,
+                embeddedMobileStackInputs && { borderTopColor: colors.border },
+              ]}
+            >
               <TouchableOpacity
                 onPress={openCameraChoice}
                 style={[
@@ -1197,7 +1211,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             </View>
           </View>
         </View>
-    </>
+    </View>
   );
 
   return (
@@ -1271,6 +1285,8 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
 const s = StyleSheet.create({
   container: { flex: 1, minHeight: 0, minWidth: 0 },
   embeddedContainer: { minHeight: 0 },
+  /** Lista + faixa de entrada em coluna (fixa botões na base no card mobile) */
+  chatMainColumn: { flex: 1, minHeight: 0, minWidth: 0, flexDirection: 'column' },
   msgRow: { flexDirection: 'row', marginVertical: 4 },
   msgBubble: {
     maxWidth: '82%',
@@ -1297,6 +1313,12 @@ const s = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: 1,
     flexShrink: 0,
+  },
+  inputRowEmbeddedMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    flexWrap: 'nowrap',
+    justifyContent: 'flex-end',
   },
   voiceStatusBadge: {
     width: '100%',
@@ -1340,8 +1362,19 @@ const s = StyleSheet.create({
     gap: 6,
     minHeight: 44,
   },
+  inputWithActionsRowEmbeddedMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
+    minHeight: 0,
+  },
   inputInRow: {
     flex: 1,
+    minWidth: 0,
+  },
+  inputEmbeddedMobile: {
+    width: '100%',
+    flex: 0,
     minWidth: 0,
   },
   inputActionsRow: {
@@ -1349,6 +1382,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flexShrink: 0,
+  },
+  inputActionsRowEmbeddedMobile: {
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    width: '100%',
   },
   actionIconBtn: {
     width: 44,

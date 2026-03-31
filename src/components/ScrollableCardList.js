@@ -1,5 +1,5 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React, { useRef, useState, useCallback, useMemo } from 'react';
+import { View, ScrollView, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { AppIcon } from './AppIcon';
 
 const ITEM_HEIGHT_EST = 52;
@@ -21,6 +21,7 @@ export function ScrollableCardList({
   itemMarginBottom = 4,
   fixedVisibleHeight = false,
   scrollStartsAt = 6,
+  scrollStripSide = 'right',
   /** Centraliza a mensagem quando a lista está vazia (ex.: web desktop). */
   centerEmpty = false,
 }) {
@@ -28,7 +29,12 @@ export function ScrollableCardList({
   const [fillHeight, setFillHeight] = useState(VISIBLE_HEIGHT);
   const visibleHeight = fixedVisibleHeight === 'fill' ? fillHeight : VISIBLE_HEIGHT;
   const contentHeight = items.length * (ITEM_HEIGHT_EST + itemMarginBottom);
-  const showStrip = items.length >= Math.max(1, Number(scrollStartsAt) || 6);
+  const minScrollItems = Math.max(1, Number(scrollStartsAt) || 6);
+  const overflowByHeight = contentHeight > visibleHeight + 2;
+  const showStrip =
+    fixedVisibleHeight === 'fill'
+      ? overflowByHeight || items.length >= minScrollItems
+      : items.length >= minScrollItems;
   const maxScroll = Math.max(0, contentHeight - visibleHeight);
   const thumbHeight = maxScroll > 0 ? Math.max(20, (visibleHeight / contentHeight) * visibleHeight) : visibleHeight;
   const thumbMaxTop = visibleHeight - thumbHeight;
@@ -36,12 +42,28 @@ export function ScrollableCardList({
 
   const handleScroll = useCallback(
     (ev) => {
-      if (!showStrip || maxScroll <= 0) return;
+      if (maxScroll <= 0) return;
       const y = ev.nativeEvent.contentOffset.y;
-      setThumbPos((y / maxScroll) * thumbMaxTop);
+      setThumbPos(Math.max(0, Math.min((y / maxScroll) * thumbMaxTop, thumbMaxTop)));
     },
-    [showStrip, maxScroll, thumbMaxTop]
+    [maxScroll, thumbMaxTop]
   );
+
+  const scrollViewStyle = useMemo(() => {
+    if (fixedVisibleHeight === 'fill') {
+      const base = { flex: 1, minHeight: 0 };
+      // Web desktop: não dependa de altura medida (pode ficar 0 no grid);
+      // deixe o flex controlar e habilite overflow para scroll.
+      if (Platform.OS === 'web') {
+        return { ...base, overflow: 'auto' };
+      }
+      return base;
+    }
+    if (showStrip || fixedVisibleHeight === true) {
+      return { height: VISIBLE_HEIGHT, flex: 1 };
+    }
+    return { flex: 1 };
+  }, [fixedVisibleHeight, fillHeight, showStrip]);
 
   if (items.length === 0) {
     const textNode = (
@@ -63,7 +85,7 @@ export function ScrollableCardList({
   }
 
   return (
-    <View>
+    <View style={fixedVisibleHeight === 'fill' ? { flex: 1, minHeight: 0 } : null}>
       {/*
         fixedVisibleHeight:
         - false: altura natural
@@ -73,6 +95,7 @@ export function ScrollableCardList({
       <View
         style={[
           s.container,
+          fixedVisibleHeight === 'fill' && Platform.OS === 'web' ? s.containerWebFill : null,
           {
             flexDirection: 'row',
             ...(fixedVisibleHeight === 'fill'
@@ -90,21 +113,41 @@ export function ScrollableCardList({
           }
         }}
       >
+        {showStrip && scrollStripSide === 'left' && (
+          <View
+            style={[
+              s.scrollStrip,
+              {
+                width: SCROLL_STRIP_WIDTH,
+                height: visibleHeight,
+                backgroundColor: colors.border + '25',
+                marginRight: 8,
+              },
+              { pointerEvents: 'none' },
+            ]}
+          >
+            <View
+              style={[
+                s.scrollThumb,
+                {
+                  top: thumbPos,
+                  height: thumbHeight,
+                  backgroundColor: (accentColor || colors.primary) + '80',
+                },
+              ]}
+            />
+          </View>
+        )}
         <ScrollView
           ref={scrollRef}
-          scrollEnabled={fixedVisibleHeight === 'fill' ? true : showStrip}
-          style={
-            (fixedVisibleHeight === 'fill')
-              ? { flex: 1, minHeight: 0 }
-              : (showStrip || fixedVisibleHeight === true)
-              ? { height: VISIBLE_HEIGHT, flex: 1 }
-                : { flex: 1 }
-          }
-          showsVerticalScrollIndicator={false}
+          scrollEnabled={fixedVisibleHeight === 'fill' || showStrip}
+          style={scrollViewStyle}
+          showsVerticalScrollIndicator={Platform.OS !== 'web'}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           nestedScrollEnabled
-          contentContainerStyle={{ paddingBottom: 8 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 8, flexGrow: 0 }}
         >
           {items.map((item, idx) => (
             <View key={item?.id ?? idx} style={{ marginBottom: itemMarginBottom }}>
@@ -112,7 +155,7 @@ export function ScrollableCardList({
             </View>
           ))}
         </ScrollView>
-        {showStrip && (
+        {showStrip && scrollStripSide !== 'left' && (
           <View
             style={[
               s.scrollStrip,
@@ -153,6 +196,8 @@ export function ScrollableCardList({
 
 const s = StyleSheet.create({
   container: { overflow: 'hidden' },
+  /** Web: overflow hidden no pai quebra wheel/touch scroll em listas flex aninhadas. */
+  containerWebFill: { overflow: 'visible' },
   emptyWrap: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 },
   emptyText: { fontSize: 14, paddingLeft: 4 },
   emptyTextCentered: { textAlign: 'center', paddingLeft: 0 },

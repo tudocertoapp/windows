@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 import { useBanks } from './BanksContext';
 
 const AGENDA_CACHE_KEY = 'tudocerto_agenda_cache';
+const COLABORADORES_CACHE_KEY = 'tudocerto_colaboradores_cache';
 
 function showDbError(error, context = 'salvar') {
   const msg = error?.message || String(error) || 'Erro desconhecido';
@@ -107,6 +108,34 @@ function toAReceber(r) {
   if (!r) return null;
   return { id: r.id, description: r.description, amount: Number(r.amount), dueDate: r.due_date, parcel: r.parcel, total: r.total, status: r.status };
 }
+function toCollaborator(r) {
+  if (!r) return null;
+  const data = r.data || r;
+  return {
+    id: r.id || data.id,
+    nome: data.nome || data.name || '',
+    funcao: data.funcao || data.role || 'Vendedor',
+    salarioBase: Number(data.salarioBase ?? data.salaryBase ?? 0),
+    comissaoPercent: Number(data.comissaoPercent ?? data.commissionPercent ?? 0),
+    ativo: data.ativo !== false,
+    pagamentos: Array.isArray(data.pagamentos) ? data.pagamentos : [],
+    createdAt: r.created_at || data.createdAt || null,
+    cpf: data.cpf || '',
+    rg: data.rg || '',
+    estadoCivil: data.estadoCivil || '',
+    telefone: data.telefone || data.phone || '',
+    email: data.email || '',
+    endereco: data.endereco || data.address || '',
+    cidade: data.cidade || '',
+    cep: data.cep || '',
+    complemento: data.complemento || '',
+    dataNascimento: data.dataNascimento || '',
+    habilitado: data.habilitado !== false,
+    descricao: data.descricao || '',
+    curriculoExperiencias: data.curriculoExperiencias || data.experiencias || '',
+    observacoes: data.observacoes || '',
+  };
+}
 function toOrcamento(r) {
   if (!r) return null;
   let items = [];
@@ -154,6 +183,7 @@ export function FinanceProvider({ children }) {
   const [compositeProducts, setCompositeProducts] = useState([]);
   const [services, setServices] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [collaborators, setCollaborators] = useState([]);
   const [boletos, setBoletos] = useState([]);
   const [aReceber, setAReceber] = useState([]);
   const [agendaEvents, setAgendaEvents] = useState([]);
@@ -169,6 +199,7 @@ export function FinanceProvider({ children }) {
       setCompositeProducts([]);
       setServices([]);
       setSuppliers([]);
+      setCollaborators([]);
       setBoletos([]);
       setAReceber([]);
       setAgendaEvents([]);
@@ -178,6 +209,7 @@ export function FinanceProvider({ children }) {
       return;
     }
     const cacheKey = `${AGENDA_CACHE_KEY}_${user.id}`;
+    const collabCacheKey = `${COLABORADORES_CACHE_KEY}_${user.id}`;
     try {
       const cached = await AsyncStorage.getItem(cacheKey);
       if (cached) {
@@ -235,6 +267,20 @@ export function FinanceProvider({ children }) {
       setCompositeProducts((compData || []).map((r) => ({ id: r.id, ...r.data })));
       setServices((svData || []).map(toService));
       setSuppliers((suData || []).map(toSupplier));
+      try {
+        const collaboratorsRemote = await safeQuery(supabase.from('collaborators').select('*').eq('user_id', user.id).order('created_at', { ascending: false }), 'collaborators');
+        if (Array.isArray(collaboratorsRemote) && collaboratorsRemote.length) {
+          const parsed = collaboratorsRemote.map(toCollaborator).filter(Boolean);
+          setCollaborators(parsed);
+          AsyncStorage.setItem(collabCacheKey, JSON.stringify(parsed)).catch(() => {});
+        } else {
+          const cachedCollabs = await AsyncStorage.getItem(collabCacheKey);
+          setCollaborators(cachedCollabs ? (JSON.parse(cachedCollabs) || []) : []);
+        }
+      } catch {
+        const cachedCollabs = await AsyncStorage.getItem(collabCacheKey);
+        setCollaborators(cachedCollabs ? (JSON.parse(cachedCollabs) || []) : []);
+      }
       setAReceber((arData || []).map(toAReceber));
       setOrcamentos((orcData || []).map(toOrcamento));
       setBoletos((blData || []).map((r) => ({ id: r.id, ...r.data })));
@@ -654,6 +700,97 @@ export function FinanceProvider({ children }) {
     setSuppliers((prev) => prev.filter((x) => x.id !== id));
   };
 
+  const saveCollaboratorsCache = async (nextList) => {
+    const key = `${COLABORADORES_CACHE_KEY}_${user?.id || 'guest'}`;
+    try { await AsyncStorage.setItem(key, JSON.stringify(nextList || [])); } catch {}
+  };
+
+  const addCollaborator = async (c) => {
+    const collaborator = {
+      id: Date.now().toString(),
+      nome: c.nome || '',
+      funcao: c.funcao || 'Vendedor',
+      salarioBase: Number(c.salarioBase || 0),
+      comissaoPercent: Number(c.comissaoPercent || 0),
+      ativo: c.ativo !== false,
+      pagamentos: Array.isArray(c.pagamentos) ? c.pagamentos : [],
+      createdAt: new Date().toISOString(),
+      cpf: c.cpf || '',
+      rg: c.rg || '',
+      estadoCivil: c.estadoCivil || '',
+      telefone: c.telefone || '',
+      email: c.email || '',
+      endereco: c.endereco || '',
+      cidade: c.cidade || '',
+      cep: c.cep || '',
+      complemento: c.complemento || '',
+      dataNascimento: c.dataNascimento || '',
+      habilitado: c.habilitado !== false,
+      descricao: c.descricao || '',
+      curriculoExperiencias: c.curriculoExperiencias || '',
+      observacoes: c.observacoes || '',
+    };
+    if (!user) {
+      const next = [...collaborators, collaborator];
+      setCollaborators(next);
+      saveCollaboratorsCache(next);
+      return collaborator.id;
+    }
+    const { data, error } = await supabase.from('collaborators').insert({
+      user_id: user.id,
+      data: collaborator,
+    }).select('*').single();
+    if (error && !isMissingTableError(error)) return showDbError(error, 'cadastrar colaborador');
+    const saved = data ? toCollaborator(data) : collaborator;
+    const next = [...collaborators, saved];
+    setCollaborators(next);
+    saveCollaboratorsCache(next);
+    return saved.id;
+  };
+
+  const updateCollaborator = async (id, patch) => {
+    const next = collaborators.map((x) => (x.id === id ? { ...x, ...patch } : x));
+    setCollaborators(next);
+    saveCollaboratorsCache(next);
+    if (!user) return;
+    const target = next.find((x) => x.id === id);
+    if (!target) return;
+    const { error } = await supabase.from('collaborators').update({ data: target }).eq('id', id);
+    if (error && !isMissingTableError(error)) showDbError(error, 'atualizar colaborador');
+  };
+
+  const deleteCollaborator = async (id) => {
+    const next = collaborators.filter((x) => x.id !== id);
+    setCollaborators(next);
+    saveCollaboratorsCache(next);
+    if (!user) return;
+    const { error } = await supabase.from('collaborators').delete().eq('id', id);
+    if (error && !isMissingTableError(error)) showDbError(error, 'excluir colaborador');
+  };
+
+  const addCollaboratorPayment = async (collaboratorId, payment) => {
+    const normalized = {
+      id: Date.now().toString(),
+      tipo: payment?.tipo || 'salario',
+      valor: Number(payment?.valor || 0),
+      data: payment?.data || new Date().toISOString().slice(0, 10),
+      observacao: payment?.observacao || '',
+      pago: payment?.pago !== false,
+    };
+    const next = collaborators.map((x) =>
+      x.id === collaboratorId
+        ? { ...x, pagamentos: [...(x.pagamentos || []), normalized] }
+        : x
+    );
+    setCollaborators(next);
+    saveCollaboratorsCache(next);
+    if (!user) return;
+    const target = next.find((x) => x.id === collaboratorId);
+    if (!target) return;
+    const { error } = await supabase.from('collaborators').update({ data: target }).eq('id', collaboratorId);
+    if (error && !isMissingTableError(error)) showDbError(error, 'registrar pagamento');
+  };
+
   const addBoleto = async (b) => {
     const base = { ...b };
     delete base.id;
@@ -883,6 +1020,7 @@ export function FinanceProvider({ children }) {
         deleteCompositeProduct,
         services,
         suppliers,
+        collaborators,
         boletos,
         aReceber,
         agendaEvents,
@@ -909,6 +1047,10 @@ export function FinanceProvider({ children }) {
         addSupplier,
         updateSupplier,
         deleteSupplier,
+        addCollaborator,
+        updateCollaborator,
+        deleteCollaborator,
+        addCollaboratorPayment,
         addBoleto,
         updateBoleto,
         deleteBoleto,

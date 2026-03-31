@@ -33,8 +33,8 @@ const ms = StyleSheet.create({
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, compact }) {
-  const { clients, products, services, boletos, checkListItems, suppliers } = useFinance();
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, onOpenColaboradores, compact }) {
+  const { clients, products, services, boletos, checkListItems, suppliers, collaborators } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures, planLabel, planId } = usePlan();
   const { signOut } = useAuth();
@@ -183,16 +183,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-        {!isWebDesktop && (
-          <>
-            <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: sectionPadH, paddingTop: isCompact ? 10 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 9 : 11 } ]}>NAVEGAÇÃO</Text>
-            <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: cardMargin, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
-              <MenuItem icon="home-outline" label="Início" subtitle="Painel principal" onPress={() => goTo('Início')} />
-              <MenuItem icon="wallet-outline" label="Dinheiro" subtitle="Fluxo de caixa e faturas" onPress={() => goTo('Dinheiro')} />
-              <MenuItem icon="calendar-outline" label="Agenda" subtitle="Eventos e tarefas" onPress={() => goTo('Agenda')} />
-            </GlassCard>
-          </>
-        )}
+        {/* Navegação oculta no menu (web mobile e nativo). */}
         {showEmpresaFeatures && (
           <>
             <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: sectionPadH, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>EMPRESA</Text>
@@ -218,6 +209,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
                   <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />
                   <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('produtos'); }} />
                   <MenuItem icon="construct-outline" label="Serviços" subtitle="Gerenciar serviços" badge={`${services.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('servicos'); }} />
+                  <MenuItem icon="people-outline" label="Colaboradores" subtitle="Equipe, funções, salário e comissão" badge={`${collaborators?.length ?? 0}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenColaboradores?.(); }} />
                   <MenuItem icon="business-outline" label="Fornecedores" subtitle="Gerenciar fornecedores" badge={`${suppliers?.length ?? 0}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('fornecedores'); }} />
                   <MenuItem icon="wallet-outline" label="Vendas a prazo" subtitle="Vendas a prazo e parcelas" onPress={() => { setEmpresaDropdownOpen(false); onOpenAReceber?.(); }} />
                   <MenuItem icon="stats-chart-outline" label="Relatórios" subtitle="Relatórios da empresa" onPress={() => { setEmpresaDropdownOpen(false); onOpenEmpresa?.(); }} />

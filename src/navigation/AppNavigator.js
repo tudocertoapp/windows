@@ -36,6 +36,7 @@ import { EmpresaRelatorioScreen } from '../screens/empresa/EmpresaRelatorioScree
 import { OrdemServicoScreen } from '../screens/OrdemServicoScreen';
 import { OrcamentosMainScreen } from '../screens/orcamentos/OrcamentosMainScreen';
 import { PDVScreen } from '../screens/PDVScreen';
+import { ColaboradoresScreen } from '../screens/ColaboradoresScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
@@ -114,6 +115,7 @@ export function AppNavigator() {
   const [metasSonhosModal, setMetasSonhosModal] = useState(false);
   const [aniversariantesModal, setAniversariantesModal] = useState(false);
   const [empresaModal, setEmpresaModal] = useState(false);
+  const [colaboradoresModal, setColaboradoresModal] = useState(false);
   const [ordemServicoModal, setOrdemServicoModal] = useState(false);
   const [orcamentosModal, setOrcamentosModal] = useState(false);
   const [pdvModal, setPdvModal] = useState(false);
@@ -181,6 +183,7 @@ export function AppNavigator() {
       },
       openAniversariantes: () => { setMenuModalOpen(false); setAniversariantesModal(true); },
       openEmpresa: () => { setMenuModalOpen(false); setEmpresaModal(true); },
+      openColaboradores: () => { setMenuModalOpen(false); setColaboradoresModal(true); },
       openOrdemServico: () => { setMenuModalOpen(false); setOrdemServicoModal(true); },
       openOrcamentos: () => { setMenuModalOpen(false); setOrcamentosModal(true); },
       openPDV: () => { setMenuModalOpen(false); setPdvModal(true); },
@@ -230,6 +233,7 @@ export function AppNavigator() {
     if (orcamentosModal) { setOrcamentosModal(false); return true; }
     if (ordemServicoModal) { setOrdemServicoModal(false); return true; }
     if (empresaModal) { setEmpresaModal(false); return true; }
+    if (colaboradoresModal) { setColaboradoresModal(false); return true; }
     if (aniversariantesModal) { setAniversariantesModal(false); return true; }
     if (metasSonhosModal) { setMetasSonhosModal(false); return true; }
     if (listaComprasModal) { setListaComprasModal(false); return true; }
@@ -253,7 +257,7 @@ export function AppNavigator() {
     return false;
   }, [
     showCalcMenu, calculadoraModal, calculadoraFloating, pdvModal, orcamentosModal, ordemServicoModal,
-    empresaModal, aniversariantesModal, metasSonhosModal, listaComprasModal, receiptScannerModal,
+    empresaModal, colaboradoresModal, aniversariantesModal, metasSonhosModal, listaComprasModal, receiptScannerModal,
     anotacoesModal, orcamentoModal, bancosModal, termosModal, temasModal, imageModal, assistantModal,
     aReceberModal, indiqueModal, assinaturaModal, perfilModal, cadastroModal, productFormVisible,
     addModalState, menuModalOpen, menuOpen,
@@ -341,10 +345,12 @@ export function AppNavigator() {
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          height: 0,
+                          minHeight: 100,
                           elevation: 0,
                           backgroundColor: 'transparent',
                           borderTopWidth: 0,
+                          zIndex: 10000,
+                          overflow: 'visible',
                         },
                 })}
               >
@@ -594,6 +600,7 @@ export function AppNavigator() {
                 onOpenMetasSonhos={menuActions.openMetasSonhos}
                 onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
                 onOpenEmpresa={menuActions.openEmpresa}
+                onOpenColaboradores={menuActions.openColaboradores}
                 onOpenOrdemServico={menuActions.openOrdemServico}
                 onOpenOrcamentos={menuActions.openOrcamentos}
                 onOpenPDV={menuActions.openPDV}
@@ -639,6 +646,7 @@ export function AppNavigator() {
                 onOpenMetasSonhos={menuActions.openMetasSonhos}
                 onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
                 onOpenEmpresa={menuActions.openEmpresa}
+                onOpenColaboradores={menuActions.openColaboradores}
                 onOpenOrdemServico={menuActions.openOrdemServico}
                 onOpenOrcamentos={menuActions.openOrcamentos}
                 onOpenPDV={menuActions.openPDV}
@@ -723,6 +731,11 @@ export function AppNavigator() {
       <Modal visible={empresaModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <EmpresaRelatorioScreen onClose={() => setEmpresaModal(false)} />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={colaboradoresModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <ColaboradoresScreen onClose={() => setColaboradoresModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={ordemServicoModal} animationType="slide">

@@ -238,7 +238,8 @@ const styles = StyleSheet.create({
   glass: {
     width: '100%',
     borderRadius: 26,
-    overflow: Platform.OS === 'android' ? 'hidden' : 'visible',
+    // Android: manter visível para o botão "+" flutuante não ser recortado.
+    overflow: 'visible',
     backgroundColor: 'transparent',
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }

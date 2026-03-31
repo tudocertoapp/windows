@@ -1,284 +1,323 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  SafeAreaView,
   TouchableOpacity,
-  TextInput,
   StyleSheet,
+  ScrollView,
+  TextInput,
   Modal,
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
+  Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { useColaboradoresOrdem } from '../contexts/ColaboradoresOrdemContext';
-import { GlassCard } from '../components/GlassCard';
-import { MoneyInput } from '../components/MoneyInput';
+import { useFinance } from '../contexts/FinanceContext';
+import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
-import { formatCurrency, parseMoney } from '../utils/format';
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+const FUNCOES = ['Vendedor', 'Gerente', 'Serviços gerais', 'Atendimento', 'Administrativo', 'Caixa', 'Outro'];
+const ESTADO_CIVIL = ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)', 'Outro'];
+
+const s = StyleSheet.create({
+  card: { borderWidth: 1, borderRadius: 14, padding: 14, marginHorizontal: 16, marginTop: 10 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, marginBottom: 6 },
+  sectionTitle: { fontSize: 12, fontWeight: '800', marginTop: 14, marginBottom: 8 },
+});
+
+function toMoney(v) {
+  const n = Number(v || 0);
+  return `R$ ${n.toFixed(2).replace('.', ',')}`;
 }
 
-const STATUS_OPCOES = ['ativo', 'afastado', 'ferias', 'demitido'];
-const DEPARTAMENTOS = ['Administrativo', 'Operacional', 'Técnico', 'Comercial', 'Atendimento', 'Financeiro', 'Outro'];
+const emptyForm = () => ({
+  nome: '',
+  funcao: 'Vendedor',
+  salarioBase: '',
+  comissaoPercent: '',
+  cpf: '',
+  rg: '',
+  estadoCivil: '',
+  telefone: '',
+  email: '',
+  endereco: '',
+  cidade: '',
+  cep: '',
+  complemento: '',
+  dataNascimento: '',
+  habilitado: true,
+  descricao: '',
+  curriculoExperiencias: '',
+  observacoes: '',
+});
 
-export function ColaboradoresScreen({ onClose }) {
+export function ColaboradoresScreen({ onClose, isModal }) {
   const { colors } = useTheme();
-  const { colaboradores, addColaborador, deleteColaborador } = useColaboradoresOrdem();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    nome: '',
-    cargo: '',
-    cpf: '',
-    rg: '',
-    dataNascimento: '',
-    telefone: '',
-    email: '',
-    endereco: '',
-    cidade: '',
-    cep: '',
-    departamento: '',
-    salario: '',
-    dataAdmissao: todayStr(),
-    dataDemissao: '',
-    status: 'ativo',
-    observacoes: '',
-  });
+  const { collaborators, addCollaborator, updateCollaborator, deleteCollaborator, addCollaboratorPayment } = useFinance();
+  const [formOpen, setFormOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [payTipo, setPayTipo] = useState('salario');
+  const [payValor, setPayValor] = useState('');
+  const [payObs, setPayObs] = useState('');
 
-  const handleBack = () => {
+  const setF = useCallback((key, val) => setForm((p) => ({ ...p, [key]: val })), []);
+
+  const ordered = useMemo(() => [...(collaborators || [])].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''))), [collaborators]);
+
+  const openCreate = () => {
     playTapSound();
-    onClose?.();
+    setEditing(null);
+    setForm(emptyForm());
+    setFormOpen(true);
   };
 
-  const openAdd = () => {
+  const openEdit = (c) => {
     playTapSound();
+    setEditing(c);
     setForm({
-      nome: '',
-      cargo: '',
-      cpf: '',
-      rg: '',
-      dataNascimento: '',
-      telefone: '',
-      email: '',
-      endereco: '',
-      cidade: '',
-      cep: '',
-      departamento: '',
-      salario: '',
-      dataAdmissao: todayStr(),
-      dataDemissao: '',
-      status: 'ativo',
-      observacoes: '',
+      nome: c.nome || '',
+      funcao: c.funcao || 'Vendedor',
+      salarioBase: String(c.salarioBase ?? ''),
+      comissaoPercent: String(c.comissaoPercent ?? ''),
+      cpf: c.cpf || '',
+      rg: c.rg || '',
+      estadoCivil: c.estadoCivil || '',
+      telefone: c.telefone || '',
+      email: c.email || '',
+      endereco: c.endereco || '',
+      cidade: c.cidade || '',
+      cep: c.cep || '',
+      complemento: c.complemento || '',
+      dataNascimento: c.dataNascimento || '',
+      habilitado: c.habilitado !== false,
+      descricao: c.descricao || '',
+      curriculoExperiencias: c.curriculoExperiencias || '',
+      observacoes: c.observacoes || '',
     });
-    setShowForm(true);
+    setFormOpen(true);
   };
 
-  const updateForm = (key, val) => setForm((p) => ({ ...p, [key]: val }));
+  const save = async () => {
+    if (!form.nome.trim()) return Alert.alert('Atenção', 'Informe o nome do colaborador.');
+    const payload = {
+      nome: form.nome.trim(),
+      funcao: form.funcao || 'Vendedor',
+      salarioBase: Number(String(form.salarioBase).replace(',', '.')) || 0,
+      comissaoPercent: Number(String(form.comissaoPercent).replace(',', '.')) || 0,
+      cpf: form.cpf.trim(),
+      rg: form.rg.trim(),
+      estadoCivil: form.estadoCivil,
+      telefone: form.telefone.trim(),
+      email: form.email.trim(),
+      endereco: form.endereco.trim(),
+      cidade: form.cidade.trim(),
+      cep: form.cep.trim(),
+      complemento: form.complemento.trim(),
+      dataNascimento: form.dataNascimento.trim(),
+      habilitado: form.habilitado,
+      descricao: form.descricao.trim(),
+      curriculoExperiencias: form.curriculoExperiencias.trim(),
+      observacoes: form.observacoes.trim(),
+    };
+    if (editing?.id) await updateCollaborator(editing.id, payload);
+    else await addCollaborator(payload);
+    setFormOpen(false);
+  };
 
-  const handleSave = async () => {
-    if (!form.nome?.trim()) return Alert.alert('Erro', 'Preencha o nome do colaborador.');
-    const sal = parseMoney(form.salario) || 0;
-    Keyboard.dismiss();
-    await addColaborador({
-      ...form,
-      salario: sal,
+  const openPayment = (c) => {
+    playTapSound();
+    setSelected(c);
+    setPayTipo('salario');
+    setPayValor('');
+    setPayObs('');
+    setPayOpen(true);
+  };
+
+  const savePayment = async () => {
+    if (!selected?.id) return;
+    const valor = Number(String(payValor).replace(',', '.')) || 0;
+    if (valor <= 0) return Alert.alert('Atenção', 'Informe um valor válido.');
+    await addCollaboratorPayment(selected.id, {
+      tipo: payTipo,
+      valor,
+      data: new Date().toISOString().slice(0, 10),
+      observacao: payObs || '',
+      pago: true,
     });
-    setShowForm(false);
+    setPayOpen(false);
   };
 
-  const handleDelete = (c) => {
-    Alert.alert('Excluir', `Remover ${c.nome}?`, [
-      { text: 'Cancelar' },
-      { text: 'Excluir', style: 'destructive', onPress: () => { playTapSound(); deleteColaborador(c.id); } },
-    ]);
-  };
-
-  const statusLabel = (s) => ({ ativo: 'Ativo', afastado: 'Afastado', ferias: 'Férias', demitido: 'Demitido' }[s] || s);
-
-  const input = (label, key, opts = {}) => (
-    <View key={key} style={s.field}>
-      <Text style={[s.label, { color: colors.textSecondary }]}>{label}</Text>
-      <TextInput
-        style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
-        placeholderTextColor={colors.textSecondary}
-        value={form[key]}
-        onChangeText={(t) => updateForm(key, t)}
-        {...opts}
-      />
+  const header = isModal ? (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Colaboradores</Text>
+      <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }}><Ionicons name="close" size={24} color={colors.primary} /></TouchableOpacity>
     </View>
+  ) : (
+    <TopBar title="Colaboradores" colors={colors} hideOrganize />
   );
 
+  const inputStyle = [s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }];
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      <View style={[s.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={handleBack} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
-        </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: colors.text }]}>Colaboradores</Text>
-        <TouchableOpacity onPress={openAdd} style={[s.addBtn, { backgroundColor: colors.primary }]}>
-          <Ionicons name="add" size={22} color="#fff" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      {header}
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <TouchableOpacity onPress={openCreate} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary + '70', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+          <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>Cadastrar colaborador</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        {colaboradores.length === 0 ? (
-          <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
-            <View style={s.emptyIconWrap}>
-              <Ionicons name="people-outline" size={56} color={colors.primary} />
-            </View>
-            <Text style={[s.emptyTitle, { color: colors.text }]}>Nenhum colaborador</Text>
-            <Text style={[s.emptySub, { color: colors.textSecondary }]}>Cadastre funcionários para vincular às ordens de serviço</Text>
-            <TouchableOpacity onPress={openAdd} style={[s.emptyBtn, { backgroundColor: colors.primary }]}>
-              <Ionicons name="person-add-outline" size={20} color="#fff" />
-              <Text style={s.emptyBtnText}>Cadastrar colaborador</Text>
-            </TouchableOpacity>
-          </GlassCard>
-        ) : (
-          colaboradores.map((c) => (
-            <GlassCard key={c.id} colors={colors} style={[s.item, { borderColor: colors.border }]}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[s.itemTitle, { color: colors.text }]}>{c.nome || '—'}</Text>
-                <Text style={[s.itemSub, { color: colors.textSecondary }]}>{c.cargo || '—'} · {c.departamento || '—'}</Text>
-                {c.telefone ? <Text style={[s.itemInfo, { color: colors.textSecondary }]}>{c.telefone}</Text> : null}
-                {c.email ? <Text style={[s.itemInfo, { color: colors.textSecondary }]}>{c.email}</Text> : null}
-                <View style={[s.rowMeta, { marginTop: 8 }]}>
-                  <Text style={[s.itemSalario, { color: colors.primary }]}>{formatCurrency(c.salario ?? 0)}</Text>
-                  <View style={[s.statusBadge, { backgroundColor: (c.status === 'ativo' ? '#10b981' : c.status === 'demitido' ? '#ef4444' : colors.primary) + '25' }]}>
-                    <Text style={[s.statusText, { color: c.status === 'ativo' ? '#10b981' : c.status === 'demitido' ? '#ef4444' : colors.primary }]}>{statusLabel(c.status)}</Text>
-                  </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
+        {ordered.length === 0 ? (
+          <View style={{ paddingTop: 40, alignItems: 'center' }}>
+            <Text style={{ color: colors.textSecondary }}>Nenhum colaborador cadastrado</Text>
+          </View>
+        ) : ordered.map((c) => {
+          const pagos = (c.pagamentos || []).reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+          return (
+            <View key={c.id} style={[s.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>{c.nome}</Text>
+                  <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{c.funcao}{c.habilitado === false ? ' · Sem habilitação' : ''}</Text>
+                  {c.telefone ? <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{c.telefone}</Text> : null}
+                  <Text style={{ color: colors.textSecondary, marginTop: 2 }}>Salário: {toMoney(c.salarioBase)} · Comissão: {Number(c.comissaoPercent || 0)}%</Text>
+                  <Text style={{ color: colors.primary, marginTop: 4, fontWeight: '600' }}>Pagamentos registrados: {toMoney(pagos)}</Text>
                 </View>
-                <Text style={[s.itemData, { color: colors.textSecondary }]}>Admissão: {c.dataAdmissao || '—'}</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={() => openEdit(c)}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+                  <TouchableOpacity onPress={() => openPayment(c)}><Ionicons name="cash-outline" size={20} color="#10b981" /></TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
+                    playTapSound();
+                    Alert.alert('Excluir', 'Excluir colaborador?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteCollaborator(c.id) }]);
+                  }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+                </View>
               </View>
-              <TouchableOpacity onPress={() => handleDelete(c)} style={s.actionBtn}>
-                <Ionicons name="trash-outline" size={20} color="#ef4444" />
-              </TouchableOpacity>
-            </GlassCard>
-          ))
-        )}
+            </View>
+          );
+        })}
       </ScrollView>
 
-      <Modal visible={showForm} transparent animationType="slide">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.modalWrap}>
-          <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowForm(false)} />
-          <View style={[s.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[s.modalTitle, { color: colors.text }]}>Novo Colaborador</Text>
-              <TouchableOpacity onPress={() => setShowForm(false)} style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.15) }]}>
-                <Ionicons name="close" size={22} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={s.modalScroll} contentContainerStyle={s.modalScrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-              <Text style={[s.sectionTitle, { color: colors.primary }]}>DADOS PESSOAIS</Text>
-              {input('Nome completo *', 'nome', { placeholder: 'Ex: João Silva' })}
-              {input('CPF', 'cpf', { placeholder: '000.000.000-00', keyboardType: 'numeric' })}
-              {input('RG', 'rg', { placeholder: 'Número do RG' })}
-              {input('Data de nascimento', 'dataNascimento', { placeholder: 'DD/MM/AAAA' })}
-              {input('Telefone', 'telefone', { placeholder: '(00) 00000-0000', keyboardType: 'phone-pad' })}
-              {input('E-mail', 'email', { placeholder: 'email@exemplo.com', keyboardType: 'email-address' })}
+      <Modal visible={formOpen} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 12 }}>
+            <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, maxHeight: '92%' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{editing ? 'Editar colaborador' : 'Novo colaborador'}</Text>
+                <TouchableOpacity onPress={() => setFormOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 14, paddingBottom: 28 }} showsVerticalScrollIndicator>
+                <Text style={[s.label, { color: colors.textSecondary }]}>Nome completo *</Text>
+                <TextInput value={form.nome} onChangeText={(t) => setF('nome', t)} placeholder="Nome" placeholderTextColor={colors.textSecondary} style={inputStyle} />
 
-              <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>ENDEREÇO</Text>
-              {input('Endereço', 'endereco', { placeholder: 'Rua, número, complemento' })}
-              <View style={s.row2}>
-                <View style={{ flex: 1 }}>{input('Cidade', 'cidade', { placeholder: 'Cidade' })}</View>
-                <View style={{ flex: 0.6 }}>{input('CEP', 'cep', { placeholder: '00000-000', keyboardType: 'numeric' })}</View>
-              </View>
-
-              <Text style={[s.sectionTitle, { color: colors.primary, marginTop: 16 }]}>DADOS PROFISSIONAIS</Text>
-              {input('Cargo', 'cargo', { placeholder: 'Ex: Técnico, Atendente' })}
-              {input('Departamento', 'departamento', { placeholder: 'Ou selecione abaixo' })}
-              <View style={s.chipRow}>
-                {DEPARTAMENTOS.map((d) => (
-                  <TouchableOpacity
-                    key={d}
-                    onPress={() => { playTapSound(); updateForm('departamento', d); }}
-                    style={[s.chip, form.departamento === d && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
-                  >
-                    <Text style={[s.chipText, { color: form.departamento === d ? '#fff' : colors.text }]}>{d}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Salário (R$)</Text>
-                <MoneyInput value={form.salario} onChange={(v) => updateForm('salario', v)} colors={colors} containerStyle={[s.moneyWrap, { backgroundColor: colors.bg, borderColor: colors.border }]} />
-              </View>
-              {input('Data de admissão', 'dataAdmissao', { placeholder: 'AAAA-MM-DD' })}
-              {input('Data de demissão', 'dataDemissao', { placeholder: 'Opcional' })}
-              <View style={s.field}>
-                <Text style={[s.label, { color: colors.textSecondary }]}>Status</Text>
-                <View style={s.statusRow}>
-                  {STATUS_OPCOES.map((st) => (
-                    <TouchableOpacity
-                      key={st}
-                      onPress={() => { playTapSound(); updateForm('status', st); }}
-                      style={[s.statusBtn, form.status === st && { backgroundColor: colors.primary }, { borderColor: colors.border }]}
-                    >
-                      <Text style={[s.statusBtnText, { color: form.status === st ? '#fff' : colors.text }]}>{statusLabel(st)}</Text>
+                <Text style={[s.sectionTitle, { color: colors.primary }]}>Documentos e contato</Text>
+                <Text style={[s.label, { color: colors.textSecondary }]}>CPF</Text>
+                <TextInput value={form.cpf} onChangeText={(t) => setF('cpf', t)} placeholder="000.000.000-00" placeholderTextColor={colors.textSecondary} style={inputStyle} keyboardType="numbers-and-punctuation" />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>RG</Text>
+                <TextInput value={form.rg} onChangeText={(t) => setF('rg', t)} placeholder="Número do RG" placeholderTextColor={colors.textSecondary} style={inputStyle} />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Estado civil</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                  {ESTADO_CIVIL.map((ec) => (
+                    <TouchableOpacity key={ec} onPress={() => setF('estadoCivil', ec)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: form.estadoCivil === ec ? colors.primary : colors.border, backgroundColor: form.estadoCivil === ec ? colors.primary + '22' : 'transparent' }}>
+                      <Text style={{ color: form.estadoCivil === ec ? colors.primary : colors.textSecondary, fontWeight: '600', fontSize: 12 }}>{ec}</Text>
                     </TouchableOpacity>
                   ))}
+                </ScrollView>
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Telefone / WhatsApp</Text>
+                <TextInput value={form.telefone} onChangeText={(t) => setF('telefone', t)} placeholder="(00) 00000-0000" placeholderTextColor={colors.textSecondary} style={inputStyle} keyboardType="phone-pad" />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>E-mail</Text>
+                <TextInput value={form.email} onChangeText={(t) => setF('email', t)} placeholder="email@exemplo.com" placeholderTextColor={colors.textSecondary} style={inputStyle} keyboardType="email-address" autoCapitalize="none" />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Data de nascimento</Text>
+                <TextInput value={form.dataNascimento} onChangeText={(t) => setF('dataNascimento', t)} placeholder="DD/MM/AAAA ou AAAA-MM-DD" placeholderTextColor={colors.textSecondary} style={inputStyle} />
+
+                <Text style={[s.sectionTitle, { color: colors.primary }]}>Endereço</Text>
+                <Text style={[s.label, { color: colors.textSecondary }]}>Logradouro</Text>
+                <TextInput value={form.endereco} onChangeText={(t) => setF('endereco', t)} placeholder="Rua, número, bairro" placeholderTextColor={colors.textSecondary} style={inputStyle} />
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>Cidade</Text>
+                    <TextInput value={form.cidade} onChangeText={(t) => setF('cidade', t)} placeholder="Cidade" placeholderTextColor={colors.textSecondary} style={inputStyle} />
+                  </View>
+                  <View style={{ width: 120 }}>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>CEP</Text>
+                    <TextInput value={form.cep} onChangeText={(t) => setF('cep', t)} placeholder="00000-000" placeholderTextColor={colors.textSecondary} style={inputStyle} keyboardType="numeric" />
+                  </View>
                 </View>
-              </View>
-              {input('Observações', 'observacoes', { placeholder: 'Informações adicionais', multiline, numberOfLines: 3, style: [s.textArea, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }] })}
-            </ScrollView>
-            <TouchableOpacity onPress={handleSave} style={[s.saveBtn, { backgroundColor: colors.primary }]}>
-              <Ionicons name="checkmark-circle-outline" size={22} color="#fff" />
-              <Text style={s.saveBtnText}>Cadastrar colaborador</Text>
-            </TouchableOpacity>
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Complemento</Text>
+                <TextInput value={form.complemento} onChangeText={(t) => setF('complemento', t)} placeholder="Apto, bloco..." placeholderTextColor={colors.textSecondary} style={inputStyle} />
+
+                <Text style={[s.sectionTitle, { color: colors.primary }]}>Função e remuneração</Text>
+                <Text style={[s.label, { color: colors.textSecondary }]}>Função na empresa</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                  {FUNCOES.map((f) => (
+                    <TouchableOpacity key={f} onPress={() => setF('funcao', f)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: form.funcao === f ? colors.primary : colors.border, backgroundColor: form.funcao === f ? colors.primary + '22' : 'transparent' }}>
+                      <Text style={{ color: form.funcao === f ? colors.primary : colors.textSecondary, fontWeight: '600', fontSize: 12 }}>{f}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Salário base (R$)</Text>
+                <TextInput value={form.salarioBase} onChangeText={(t) => setF('salarioBase', t)} placeholder="0,00" keyboardType="decimal-pad" placeholderTextColor={colors.textSecondary} style={inputStyle} />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Comissão (%)</Text>
+                <TextInput value={form.comissaoPercent} onChangeText={(t) => setF('comissaoPercent', t)} placeholder="0" keyboardType="decimal-pad" placeholderTextColor={colors.textSecondary} style={inputStyle} />
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingVertical: 8 }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>Habilitado / credenciado</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Marque se possui habilitação ou registro profissional exigido.</Text>
+                  </View>
+                  <Switch value={form.habilitado} onValueChange={(v) => setF('habilitado', v)} trackColor={{ false: colors.border, true: colors.primary + '88' }} thumbColor={form.habilitado ? colors.primary : '#f4f4f5'} />
+                </View>
+
+                <Text style={[s.sectionTitle, { color: colors.primary }]}>Apresentação e experiência</Text>
+                <Text style={[s.label, { color: colors.textSecondary }]}>Descrição / resumo profissional</Text>
+                <TextInput value={form.descricao} onChangeText={(t) => setF('descricao', t)} placeholder="Breve resumo do perfil" placeholderTextColor={colors.textSecondary} style={[inputStyle, { minHeight: 72, textAlignVertical: 'top' }]} multiline />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Currículo e experiências</Text>
+                <TextInput value={form.curriculoExperiencias} onChangeText={(t) => setF('curriculoExperiencias', t)} placeholder="Experiências anteriores, cursos, certificações..." placeholderTextColor={colors.textSecondary} style={[inputStyle, { minHeight: 120, textAlignVertical: 'top' }]} multiline />
+                <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Observações internas</Text>
+                <TextInput value={form.observacoes} onChangeText={(t) => setF('observacoes', t)} placeholder="Anotações da empresa (opcional)" placeholderTextColor={colors.textSecondary} style={[inputStyle, { minHeight: 64, textAlignVertical: 'top' }]} multiline />
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                  <TouchableOpacity onPress={() => setFormOpen(false)} style={{ flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 12, backgroundColor: colors.border }}>
+                    <Text style={{ color: colors.text, fontWeight: '600' }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={save} style={{ flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 12, backgroundColor: colors.primary }}>
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={payOpen} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 18 }}>
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 10 }}>
+            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>Pagamento de salário/comissão</Text>
+            <Text style={{ color: colors.textSecondary }}>{selected?.nome || ''}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => setPayTipo('salario')} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: payTipo === 'salario' ? colors.primary : colors.border, backgroundColor: payTipo === 'salario' ? colors.primary + '26' : 'transparent', alignItems: 'center' }}><Text style={{ color: payTipo === 'salario' ? colors.primary : colors.textSecondary }}>Salário</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setPayTipo('comissao')} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: payTipo === 'comissao' ? colors.primary : colors.border, backgroundColor: payTipo === 'comissao' ? colors.primary + '26' : 'transparent', alignItems: 'center' }}><Text style={{ color: payTipo === 'comissao' ? colors.primary : colors.textSecondary }}>Comissão</Text></TouchableOpacity>
+            </View>
+            <TextInput value={payValor} onChangeText={setPayValor} placeholder="Valor (R$)" keyboardType="decimal-pad" placeholderTextColor={colors.textSecondary} style={[s.input, { borderColor: colors.border, color: colors.text }]} />
+            <TextInput value={payObs} onChangeText={setPayObs} placeholder="Observação (opcional)" placeholderTextColor={colors.textSecondary} style={[s.input, { borderColor: colors.border, color: colors.text }]} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity onPress={() => setPayOpen(false)} style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: colors.border }}><Text style={{ color: colors.text }}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={savePayment} style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: colors.primary }}><Text style={{ color: '#fff', fontWeight: '700' }}>Registrar</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
 }
-
-const s = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
-  backBtn: { marginRight: 12 },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700' },
-  addBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { padding: 16, paddingBottom: 120 },
-  card: { padding: 28, alignItems: 'center' },
-  emptyIconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: 'rgba(34,197,94,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
-  emptySub: { fontSize: 13, marginBottom: 20, textAlign: 'center' },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
-  emptyBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  item: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, marginBottom: 12 },
-  itemTitle: { fontSize: 16, fontWeight: '600' },
-  itemSub: { fontSize: 13, marginTop: 2 },
-  itemInfo: { fontSize: 12, marginTop: 2 },
-  itemSalario: { fontSize: 14, fontWeight: '700' },
-  itemData: { fontSize: 11, marginTop: 4 },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  actionBtn: { padding: 8 },
-  field: { marginBottom: 12 },
-  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  textArea: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, minHeight: 80, textAlignVertical: 'top' },
-  row2: { flexDirection: 'row', gap: 12 },
-  moneyWrap: { borderWidth: 1, borderRadius: 12 },
-  sectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 12 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
-  chipText: { fontSize: 12, fontWeight: '600' },
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statusBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
-  statusBtnText: { fontSize: 12, fontWeight: '600' },
-  modalWrap: { flex: 1, justifyContent: 'flex-end' },
-  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { maxHeight: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, overflow: 'hidden' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1 },
-  modalTitle: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  modalScroll: { maxHeight: 420 },
-  modalScrollContent: { padding: 20, paddingBottom: 24 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, marginHorizontal: 20, marginBottom: 24, borderRadius: 14 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-});
