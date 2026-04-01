@@ -51,8 +51,10 @@ const config = {
     ios: {
       supportsTablet: true,
       infoPlist: {
-        NSSpeechRecognitionUsageDescription: 'Allow $(PRODUCT_NAME) to use speech recognition.',
-        NSMicrophoneUsageDescription: 'Allow $(PRODUCT_NAME) to use the microphone.',
+        NSSpeechRecognitionUsageDescription:
+          'O Tudo Certo usa reconhecimento de voz para registrar gastos e comandos pelo microfone.',
+        NSMicrophoneUsageDescription:
+          'O Tudo Certo precisa do microfone para transcrever o que você fala em Meus gastos e no assistente.',
         NSFaceIDUsageDescription: 'Use Face ID para revelar valores financeiros.',
         NSCameraUsageDescription: 'Fotografar comprovantes para registrar gastos.',
         NSPhotoLibraryUsageDescription: 'Escolher fotos de comprovantes na galeria.',

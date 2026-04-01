@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, PermissionsAndroid, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { PermissionsAndroid, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 
 let NativeVoice: any = null;
@@ -34,11 +35,30 @@ let useSpeechRecognitionEvent: any = () => {};
 try {
   const sr = require('expo-speech-recognition');
   const mod = sr?.ExpoSpeechRecognitionModule;
-  if (mod && typeof mod.isRecognitionAvailable === 'function' && mod.isRecognitionAvailable()) {
+  /** Não exigir isRecognitionAvailable() aqui — no iOS pode ser falso até haver permissões. */
+  if (mod) {
     ExpoSpeechRecognitionModule = mod;
-    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
+    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent ?? (() => {});
   }
 } catch (_) {}
+
+/** iOS: microfone + reconhecimento de fala (SFSpeechRecognizer) antes de @react-native-voice. */
+async function requestIosVoicePermissions(): Promise<boolean> {
+  try {
+    const sr = require('expo-speech-recognition');
+    const mod = sr?.ExpoSpeechRecognitionModule;
+    if (mod && typeof mod.requestPermissionsAsync === 'function') {
+      const res = await mod.requestPermissionsAsync();
+      if (res?.granted) return true;
+    }
+  } catch (_) {}
+  try {
+    const { status } = await Audio.requestPermissionsAsync();
+    return status === 'granted';
+  } catch (_) {
+    return false;
+  }
+}
 
 export default function VoiceRecorder({
   locale = 'pt-BR',
@@ -68,18 +88,29 @@ export default function VoiceRecorder({
   };
 
   const startExpoRecognition = async () => {
-    if (!ExpoSpeechRecognitionModule) return false;
+    let mod = ExpoSpeechRecognitionModule;
+    if (!mod) {
+      try {
+        const sr = require('expo-speech-recognition');
+        mod = sr?.ExpoSpeechRecognitionModule;
+        if (mod) ExpoSpeechRecognitionModule = mod;
+      } catch (_) {}
+    }
+    if (!mod) return false;
     try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync?.();
+      const permission = await mod.requestPermissionsAsync?.();
       if (!permission?.granted) {
         emitError('Permissão de microfone negada.');
+        return false;
+      }
+      if (typeof mod.isRecognitionAvailable === 'function' && !mod.isRecognitionAvailable()) {
         return false;
       }
       engineRef.current = 'expo';
       setEngine('expo');
       setError(null);
       clearTranscript();
-      ExpoSpeechRecognitionModule.start?.({ lang: locale, interimResults: true, continuous: false });
+      mod.start?.({ lang: locale, interimResults: true, continuous: false });
       setIsListening(true);
       onListeningChange?.(true);
       return true;
@@ -169,6 +200,7 @@ export default function VoiceRecorder({
 
     // Android: SpeechRecognizer | iOS: SFSpeechRecognizer (via @react-native-voice/voice)
     if (NativeVoice && isNativeMobile) {
+      let startedNative = false;
       try {
         if (Platform.OS === 'android') {
           const granted = await PermissionsAndroid.request(
@@ -181,26 +213,43 @@ export default function VoiceRecorder({
           );
           if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
             emitError('Permissão de microfone negada.');
-            return;
+          } else {
+            const isNativeAvailable =
+              typeof NativeVoice.isAvailable === 'function'
+                ? await NativeVoice.isAvailable()
+                : true;
+            if (isNativeAvailable) {
+              engineRef.current = 'native';
+              setEngine('native');
+              await NativeVoice.start(locale);
+              setIsListening(true);
+              onListeningChange?.(true);
+              startedNative = true;
+            }
+          }
+        } else if (Platform.OS === 'ios') {
+          const permOk = await requestIosVoicePermissions();
+          if (!permOk) {
+            emitError('Permissão de microfone ou reconhecimento de voz negada.');
+          } else {
+            const isNativeAvailable =
+              typeof NativeVoice.isAvailable === 'function'
+                ? await NativeVoice.isAvailable()
+                : true;
+            if (isNativeAvailable) {
+              engineRef.current = 'native';
+              setEngine('native');
+              await NativeVoice.start(locale);
+              setIsListening(true);
+              onListeningChange?.(true);
+              startedNative = true;
+            }
           }
         }
-        const isNativeAvailable = typeof NativeVoice.isAvailable === 'function'
-          ? await NativeVoice.isAvailable()
-          : true;
-        if (isNativeAvailable) {
-          engineRef.current = 'native';
-          setEngine('native');
-          await NativeVoice.start(locale);
-          setIsListening(true);
-          onListeningChange?.(true);
-          return;
-        }
-        emitError('Reconhecimento de voz nativo indisponível neste aparelho.');
-        return;
       } catch (_) {
         emitError('Não foi possível iniciar o microfone (voz nativa).');
-        return;
       }
+      if (startedNative) return;
     }
 
     const expoStarted = await startExpoRecognition();

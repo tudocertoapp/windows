@@ -26,9 +26,9 @@ let useSpeechRecognitionEvent = () => {};
 try {
   const sr = require('expo-speech-recognition');
   const mod = sr?.ExpoSpeechRecognitionModule;
-  if (mod && typeof mod.isRecognitionAvailable === 'function' && mod.isRecognitionAvailable()) {
+  if (mod) {
     ExpoSpeechRecognitionModule = mod;
-    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent;
+    useSpeechRecognitionEvent = sr.useSpeechRecognitionEvent || (() => {});
   }
 } catch (_) {}
 

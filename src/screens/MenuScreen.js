@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, SafeAreaView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import { GlassCard } from '../components/GlassCard';
@@ -261,15 +261,22 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             label="Sair da conta"
             subtitle="Deslogar do aplicativo"
             onPress={() => {
-              if (typeof window !== 'undefined') {
-                const ok = window.confirm('Deseja sair da sua conta?');
-                if (ok) {
-                  onClose?.();
-                  signOut();
-                }
+              const doSignOut = () => {
+                onClose?.();
+                signOut();
+              };
+              if (
+                Platform.OS === 'web' &&
+                typeof window !== 'undefined' &&
+                typeof window.confirm === 'function'
+              ) {
+                if (window.confirm('Deseja sair da sua conta?')) doSignOut();
                 return;
               }
-              Alert.alert('Sair', 'Deseja sair da sua conta?', [{ text: 'Cancelar' }, { text: 'Sair', style: 'destructive', onPress: () => { onClose?.(); signOut(); } }]);
+              Alert.alert('Sair', 'Deseja sair da sua conta?', [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Sair', style: 'destructive', onPress: doSignOut },
+              ]);
             }}
           />
         </GlassCard>

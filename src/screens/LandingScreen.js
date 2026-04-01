@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Image,
   ImageBackground,
@@ -12,31 +11,39 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { playTapSound } from '../utils/sounds';
 import { useIsDesktopLayout } from '../utils/platformLayout';
+import {
+  AUTH_LOGO_SOURCE,
+  AUTH_HERO_MOBILE,
+  AUTH_HERO_MOBILE_IMAGE_STYLE,
+  AUTH_DESKTOP_LOGO,
+  AUTH_DESKTOP_LOGO_TOP,
+  AUTH_LOGO_SECTION,
+  AUTH_LOGO_SECTION_DESKTOP,
+  getAuthMobileLogo,
+  getAuthMobileScrollPaddingTop,
+  AUTH_MOBILE_LOGIN_CONTENT_EXTRA_TOP,
+  AUTH_MOBILE_FIXED_CTA_SCROLL_RESERVE_1,
+  AUTH_MOBILE_FIXED_CTA_MAX_WIDTH,
+} from '../shared/authUi';
+import { AuthPrimaryButton } from '../shared/AuthPrimaryButton';
+import { AuthLogoMobile } from '../shared/AuthLogoMobile';
+import { AuthMobileFixedCtaBar } from '../shared/AuthMobileFixedCtaBar';
 
-/** Logomarca completa (texto + ícone), igual às outras páginas. */
-const brandLogo = require('../../assets/logo-pages.png');
-const heroImage = require('../../assets/landing-desktop-hq-preview.png');
+/** Logomarca completa (texto + ÃƒÂ­cone), igual ÃƒÂ s outras pÃƒÂ¡ginas. */
+const brandLogo = AUTH_LOGO_SOURCE;
+const heroDesktop = require('../../assets/landing-desktop-hq-preview.png');
 
-/** Gradiente: mais escuro em baixo para leitura do bloco no rodapé (mobile). */
+/** Gradiente: mais escuro em baixo para leitura do bloco no rodapÃƒÂ© (mobile). */
 const GRADIENT_COLORS = ['rgba(0,0,0,0.32)', 'rgba(0,0,0,0.42)', 'rgba(0,0,0,0.68)'];
 const GRADIENT_LOCATIONS = [0, 0.5, 1];
 
 /**
- * Altura aproximada do bloco no Login (mobile compact) entre o subtítulo e o botão Entrar:
- * Google + OU + rótulo/e-mail + linha senha + campo senha (+ margens).
- * Com ScrollView centrado, um View antes do CTA só desloca o botão metade da própria altura — usamos 2× esse valor.
- */
-const LOGIN_MOBILE_STACK_BEFORE_ENTRAR_PX = 268;
-const LANDING_CTA_ALIGNMENT_SPACER = LOGIN_MOBILE_STACK_BEFORE_ENTRAR_PX * 2;
-
-/**
- * Login web desktop: espaço entre subtítulo e Entrar (Google + OU + campos), menos o bloco
- * de texto extra na Começar (headline + descrição vs slogan + Bem-vindo). Com ScrollView
- * centrado, altura efetiva = 2× este valor — afinado para alinhar ao Entrar.
+ * Login web desktop: espaÃƒÂ§o entre subtÃƒÂ­tulo e Entrar (Google + OU + campos), menos o bloco
+ * de texto extra na ComeÃƒÂ§ar (headline + descriÃƒÂ§ÃƒÂ£o vs slogan + Bem-vindo). Com ScrollView
+ * centrado, altura efetiva = 2Ãƒâ€” este valor Ã¢â‚¬â€ afinado para alinhar ao Entrar.
  */
 const LOGIN_DESKTOP_STACK_BEFORE_ENTRAR_PX = 108;
 const LANDING_CTA_ALIGNMENT_SPACER_DESKTOP = LOGIN_DESKTOP_STACK_BEFORE_ENTRAR_PX * 2;
@@ -46,6 +53,9 @@ const TEXT_SHADOW = {
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 10,
 };
+
+/** «Vamos começar» — U+00E7 explícito (evita mojibake no web). */
+const LANDING_PRIMARY_CTA_LABEL = ['Vamos ', 'come', String.fromCodePoint(0x00e7), 'ar'].join('');
 
 export function LandingScreen({ onStart }) {
   const { colors } = useTheme();
@@ -63,21 +73,89 @@ export function LandingScreen({ onStart }) {
     return { headline, desc };
   }, [winW]);
 
-  /** Mesmas dimensões da logomarca em LoginScreen (logo-pages.png, proporção ~3,35:1). */
+  /** Mesmas dimensÃƒÂµes da logomarca em LoginScreen (logo-pages.png, proporÃƒÂ§ÃƒÂ£o ~3,35:1). */
   const brandLogoStyle = useMemo(() => {
     if (isWebDesktop) {
-      return { width: 353, height: 106, marginBottom: 4 };
+      return { ...AUTH_DESKTOP_LOGO, marginBottom: 4 };
     }
-    const w = Math.min(300, Math.max(240, winW * 0.82));
-    return { width: w, height: Math.round(w / 3.35), marginBottom: 4 };
+    return { ...getAuthMobileLogo(winW), marginBottom: 4 };
   }, [isWebDesktop, winW]);
+
+  const heroSource = isWebDesktop ? heroDesktop : AUTH_HERO_MOBILE;
+
+  /** Altura mínima do conteúdo do scroll = viewport útil (para centrar texto entre logo e CTA). */
+  const mobileScrollMinHeight = Math.max(
+    winH - ((insets.top || 0) + (insets.bottom || 0)),
+    0,
+  );
+
+  const landingCopy = (
+    <View
+      style={[
+        s.descriptionBlock,
+        isMobileLike && s.descriptionBlockMobile,
+        isMobileLike && s.descriptionBlockMobileCentered,
+      ]}
+    >
+      <Text
+        style={[
+          s.headline,
+          isWebDesktop && s.headlineDesktopCentered,
+          isWebDesktop && s.landingInfoDesktopOffset,
+          TEXT_SHADOW,
+          isMobileLike && s.headlineMobile,
+          s.textWhite,
+          { fontSize: isWebDesktop ? 22 : type.headline, lineHeight: (isWebDesktop ? 22 : type.headline) + 8 },
+        ]}
+      >
+        <Text style={s.textWhite}>Pessoal ou </Text>
+        <Text style={[s.headlineAccent, { color: colors.primary }]}>Empresa</Text>
+        <Text style={s.textWhite}>:</Text>
+      </Text>
+      <Text
+        style={[
+          s.description,
+          s.descriptionSecondLine,
+          isWebDesktop && s.descriptionDesktopCentered,
+          TEXT_SHADOW,
+          isMobileLike && s.descriptionMobile,
+          { fontSize: isWebDesktop ? 14 : type.desc, lineHeight: (isWebDesktop ? 14 : type.desc) + 8 },
+        ]}
+      >
+        {'Agenda e finan\u00e7as de um jeito simples'}
+        {'\n'}
+        para ficar tudo certo.
+      </Text>
+    </View>
+  );
+
+  const fixedBtnStyle = { maxWidth: AUTH_MOBILE_FIXED_CTA_MAX_WIDTH, width: '100%', alignSelf: 'center' };
+
+  /** Começar: texto do CTA; ação continua a abrir o ecrã de login (onStart). */
+  const ctaEntrar = (
+    <AuthPrimaryButton
+      label={LANDING_PRIMARY_CTA_LABEL}
+      onPress={() => {
+        playTapSound();
+        onStart?.();
+      }}
+      desktopFixedTop={isWebDesktop}
+      marginTop={isMobileLike ? 0 : undefined}
+      marginBottom={isMobileLike ? 0 : undefined}
+      containerStyle={isMobileLike ? fixedBtnStyle : undefined}
+    />
+  );
 
   return (
     <View style={s.root}>
       <ImageBackground
-        source={heroImage}
+        source={heroSource}
         style={s.fullBleed}
-        imageStyle={s.heroImageStyle}
+        imageStyle={[
+          s.heroImageStyle,
+          isWebDesktop && s.heroImageDesktopMirrored,
+          isMobileLike && AUTH_HERO_MOBILE_IMAGE_STYLE,
+        ]}
         resizeMode="cover"
         accessibilityLabel="Pessoa organizando a rotina no celular"
       >
@@ -87,35 +165,49 @@ export function LandingScreen({ onStart }) {
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-          <ScrollView
-            style={s.scroll}
-            contentContainerStyle={[
-              s.scrollInner,
-              isWebDesktop && s.scrollContentDesktop,
-              {
-                paddingHorizontal: isWebDesktop ? undefined : padHMobile,
-                paddingTop: isWebDesktop ? undefined : 16,
-                paddingBottom: isWebDesktop
-                  ? Math.max(56, (insets.bottom || 0) + 40)
-                  : Math.max(24, (insets.bottom || 0) + 20),
-                minHeight: Math.max(winH - ((insets.top || 0) + (insets.bottom || 0)), 0),
-                justifyContent: 'center',
-                /** Web desktop: igual LoginScreen (coluna alinhada à esquerda dentro do bloco centrado). */
-                alignItems: isWebDesktop ? 'flex-start' : 'center',
-              },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces
-          >
-            <View style={[s.heroContent, isWebDesktop && s.heroContentDesktop, isMobileLike && s.heroContentMobile]}>
-              <View
-                style={[
-                  s.brandMark,
-                  isWebDesktop && s.brandMarkDesktop,
-                  isMobileLike && s.brandMarkMobile,
+          {isMobileLike ? (
+            <>
+              <AuthLogoMobile winW={winW} />
+              <ScrollView
+                style={s.mobileBodyScroll}
+                contentContainerStyle={[
+                  {
+                    flexGrow: 1,
+                    minHeight: mobileScrollMinHeight,
+                    paddingTop:
+                      getAuthMobileScrollPaddingTop(winW) + AUTH_MOBILE_LOGIN_CONTENT_EXTRA_TOP,
+                    paddingHorizontal: padHMobile,
+                    paddingBottom:
+                      AUTH_MOBILE_FIXED_CTA_SCROLL_RESERVE_1 +
+                      Math.max(12, (insets.bottom || 0) + 8),
+                    alignItems: 'center',
+                  },
                 ]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                bounces
               >
+                <View style={s.landingMobileCopyWrap}>{landingCopy}</View>
+              </ScrollView>
+            </>
+          ) : (
+            <ScrollView
+              style={s.scroll}
+              contentContainerStyle={[
+                s.scrollInner,
+                s.scrollContentDesktop,
+                {
+                  paddingBottom: Math.max(56, (insets.bottom || 0) + 40),
+                  minHeight: Math.max(winH - ((insets.top || 0) + (insets.bottom || 0)), 0),
+                  justifyContent: 'center',
+                  alignItems: 'flex-end',
+                },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces
+            >
+              <View style={[s.brandMark, s.brandMarkDesktop]}>
                 <Image
                   source={brandLogo}
                   style={brandLogoStyle}
@@ -123,78 +215,22 @@ export function LandingScreen({ onStart }) {
                   accessibilityLabel="Tudo Certo"
                 />
               </View>
-
-              <Text
-                style={[
-                  s.headline,
-                  TEXT_SHADOW,
-                  isMobileLike && s.headlineMobile,
-                  { fontSize: isWebDesktop ? 22 : type.headline, lineHeight: (isWebDesktop ? 22 : type.headline) + 8 },
-                ]}
-              >
-                <Text style={s.textWhite}>Sua vida, </Text>
-                <Text style={[s.headlineAccent, { color: colors.primary }]}>organizada.</Text>
-              </Text>
-
-              <View style={[s.descriptionBlock, isMobileLike && s.descriptionBlockMobile]}>
-                <Text
-                  style={[
-                    s.description,
-                    TEXT_SHADOW,
-                    isMobileLike && s.descriptionMobile,
-                    { fontSize: isWebDesktop ? 14 : type.desc, lineHeight: (isWebDesktop ? 14 : type.desc) + 8 },
-                  ]}
-                >
-                  Pessoal ou empresa:
-                </Text>
-                <Text
-                  style={[
-                    s.description,
-                    s.descriptionSecondLine,
-                    TEXT_SHADOW,
-                    isMobileLike && s.descriptionMobile,
-                    { fontSize: isWebDesktop ? 14 : type.desc, lineHeight: (isWebDesktop ? 14 : type.desc) + 8 },
-                  ]}
-                >
-                  Agenda e finanças de um jeito simples para ficar tudo certo.
-                </Text>
-              </View>
-
-              {isMobileLike ? (
-                <View
-                  style={s.ctaVerticalAlignSpacer}
-                  pointerEvents="none"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                />
-              ) : isWebDesktop ? (
-                <View
-                  style={s.ctaVerticalAlignSpacerDesktop}
-                  pointerEvents="none"
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                />
-              ) : null}
-
-              <TouchableOpacity
-                style={[
-                  s.ctaBtn,
-                  isWebDesktop && s.ctaBtnDesktop,
-                  isMobileLike && s.ctaBtnMobile,
-                  { backgroundColor: colors.primary },
-                ]}
-                onPress={() => {
-                  playTapSound();
-                  onStart?.();
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={[s.ctaText, isWebDesktop && s.ctaTextDesktop]}>Vamos começar</Text>
-                <Ionicons name="arrow-forward" size={isWebDesktop ? 18 : 20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+              {landingCopy}
+              <View
+                style={s.ctaVerticalAlignSpacerDesktop}
+                pointerEvents="none"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
+              {ctaEntrar}
+            </ScrollView>
+          )}
         </SafeAreaView>
+        {isMobileLike ? (
+          <AuthMobileFixedCtaBar insetsBottom={insets.bottom} isWebMobile={Platform.OS === 'web'}>
+            {ctaEntrar}
+          </AuthMobileFixedCtaBar>
+        ) : null}
       </ImageBackground>
     </View>
   );
@@ -206,12 +242,32 @@ const s = StyleSheet.create({
     flex: 1,
     width: '100%',
     minHeight: '100%',
+    overflow: 'hidden',
   },
   heroImageStyle: {
     width: '100%',
     height: '100%',
   },
+  heroImageDesktopMirrored: {
+    transform: [{ scaleX: -1 }],
+  },
   safe: { flex: 1, backgroundColor: 'transparent' },
+  /** Mobile: RN Web — flexBasis 0 evita ScrollView a empurrar o conteúdo para fora da vista. */
+  mobileBodyScroll: {
+    flex: 1,
+    flexBasis: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+    backgroundColor: 'transparent',
+  },
+  /** Ocupa o espaço entre paddingTop (logo) e paddingBottom (CTA fixo); centra o texto em altura. */
+  landingMobileCopyWrap: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    justifyContent: 'center',
+  },
   scroll: { flex: 1, backgroundColor: 'transparent' },
   scrollInner: {
     flexGrow: 1,
@@ -222,10 +278,12 @@ const s = StyleSheet.create({
     paddingTop: 6,
     maxWidth: 353,
     width: '100%',
-    alignSelf: 'center',
+    alignSelf: 'flex-end',
+    marginRight: 36,
+    transform: [{ translateX: -80 }],
   },
 
-  /** Sem fundo: só texto e botão sobre a foto (web + mobile nativo). */
+  /** Sem fundo: sÃƒÂ³ texto e botÃƒÂ£o sobre a foto (web + mobile nativo). */
   heroContent: {
     maxWidth: 440,
     width: '100%',
@@ -234,7 +292,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     paddingRight: 8,
   },
-  /** Largura herdada do scroll (353px); só ajuste vertical. */
+  /** Largura herdada do scroll (353px); sÃƒÂ³ ajuste vertical. */
   heroContentDesktop: {
     maxWidth: 353,
     width: '100%',
@@ -248,23 +306,15 @@ const s = StyleSheet.create({
     maxWidth: 400,
   },
 
-  /** Espaçamentos iguais a logoSection no LoginScreen */
-  brandMark: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 6,
-    maxWidth: '100%',
-  },
+  /** Desktop: logo no scroll com posiÃ§Ã£o fixa (igual Login). */
+  brandMark: { ...AUTH_LOGO_SECTION, maxWidth: '100%' },
   brandMarkDesktop: {
     alignSelf: 'flex-start',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  brandMarkMobile: {
-    alignSelf: 'center',
-    marginTop: 4,
-    marginBottom: 12,
+    ...AUTH_LOGO_SECTION_DESKTOP,
+    position: 'absolute',
+    top: AUTH_DESKTOP_LOGO_TOP,
+    left: 0,
+    right: 0,
   },
   headline: {
     fontSize: 26,
@@ -273,6 +323,11 @@ const s = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'left',
   },
+  headlineDesktopCentered: {
+    textAlign: 'center',
+  },
+  /** Offset desktop do bloco textual abaixo da logomarca. */
+  landingInfoDesktopOffset: { marginTop: 230 },
   headlineMobile: {
     textAlign: 'center',
   },
@@ -286,6 +341,9 @@ const s = StyleSheet.create({
     alignSelf: 'stretch',
     width: '100%',
   },
+  descriptionBlockMobileCentered: {
+    marginBottom: 0,
+  },
   description: {
     color: 'rgba(255,255,255,0.95)',
     fontSize: 16,
@@ -295,49 +353,18 @@ const s = StyleSheet.create({
   descriptionMobile: {
     textAlign: 'center',
   },
+  descriptionDesktopCentered: {
+    textAlign: 'center',
+  },
   descriptionSecondLine: {
     marginTop: 6,
-  },
-  /** Ver constante LANDING_CTA_ALIGNMENT_SPACER (alinhamento ao Entrar no login mobile). */
-  ctaVerticalAlignSpacer: {
-    height: LANDING_CTA_ALIGNMENT_SPACER,
-    width: '100%',
-    maxWidth: 400,
   },
   ctaVerticalAlignSpacerDesktop: {
     height: LANDING_CTA_ALIGNMENT_SPACER_DESKTOP,
     width: '100%',
     alignSelf: 'stretch',
   },
-  /** btnPrimary + btnPrimaryCompact / btnPrimaryDesktop do LoginScreen */
-  ctaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 10,
-    alignSelf: 'stretch',
-    width: '100%',
-    maxWidth: 400,
-  },
-  ctaBtnMobile: {
-    alignSelf: 'center',
-  },
-  ctaBtnDesktop: {
-    borderRadius: 7,
-    paddingVertical: 28,
-    paddingHorizontal: 36,
-    minHeight: 64,
-    marginTop: 3,
-    marginBottom: 6,
-    maxWidth: 353,
-    width: '100%',
-    alignSelf: 'stretch',
-  },
-  ctaText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  ctaTextDesktop: { fontSize: 15, fontWeight: '700' },
 });
+
+
+

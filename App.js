@@ -72,7 +72,7 @@ function AppContent() {
     if (!showLogin) {
       return <LandingScreen onStart={() => setShowLogin(true)} />;
     }
-    return <LoginScreen />;
+    return <LoginScreen onBackToLanding={() => setShowLogin(false)} />;
   }
 
   return (
