@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan, PLANS } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
+import { supabase } from '../lib/supabase';
+import { handleSubscribe, getUserSubscription, hasActiveBusinessSubscription } from '../lib/subscription';
 
 const CATEGORIAS = [
   { id: 'pessoal', label: 'Pessoal', icon: 'person-outline' },
@@ -68,6 +70,8 @@ const as = StyleSheet.create({
 export function AssinaturaScreen({ onClose, isModal }) {
   const { colors } = useTheme();
   const { planId, setPlanId, plan } = usePlan();
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [businessSub, setBusinessSub] = useState(null);
   const [categoriaAtiva, setCategoriaAtiva] = useState(plan === PLANS.empresa ? 'empresa' : plan === PLANS.pessoal_empresa ? 'pessoal_empresa' : 'pessoal');
 
   const planosCategoria = PLANOS[categoriaAtiva];
@@ -80,9 +84,39 @@ export function AssinaturaScreen({ onClose, isModal }) {
     else if (['pessoal', 'pessoal_plus', 'pessoal_premium'].includes(planId)) setCategoriaAtiva('pessoal');
   }, [planId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const row = await getUserSubscription(supabase, user.id);
+      if (!cancelled) setBusinessSub(row);
+    })();
+    return () => { cancelled = true; };
+  }, [planId]);
+
   const handleSelecionar = (planoId) => {
     playTapSound();
+    if (planoId === 'pe_business' && !hasActiveBusinessSubscription(businessSub)) return;
     if (MAP_ID_TO_PLAN[planoId]) setPlanId(planoId);
+  };
+
+  const handleBusinessSubscribe = async () => {
+    playTapSound();
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    try {
+      await handleSubscribe(supabase);
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Checkout', msg);
+      }
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   return (
@@ -129,7 +163,10 @@ export function AssinaturaScreen({ onClose, isModal }) {
 
         {planosCategoria.map((p) => {
           const isGratis = p.preco === 'Grátis';
-          const isSelected = planId === p.id;
+          const isSelected =
+            p.id === 'pe_business'
+              ? planId === 'pe_business' && hasActiveBusinessSubscription(businessSub)
+              : planId === p.id;
           return (
             <TouchableOpacity
               key={p.id}
@@ -159,11 +196,22 @@ export function AssinaturaScreen({ onClose, isModal }) {
               ))}
               <TouchableOpacity
                 style={[as.ctaBtn, { backgroundColor: isSelected ? colors.border : (isGratis ? colors.border : colors.primary) }]}
-                onPress={() => handleSelecionar(p.id)}
+                disabled={checkoutLoading && p.id === 'pe_business'}
+                onPress={() => {
+                  if (p.id === 'pe_business' && !isSelected && !isGratis) {
+                    handleBusinessSubscribe();
+                    return;
+                  }
+                  handleSelecionar(p.id);
+                }}
               >
-                <Text style={{ fontSize: 15, fontWeight: '700', color: isSelected ? colors.textSecondary : (isGratis ? colors.textSecondary : '#fff') }}>
-                  {isSelected ? 'Plano atual' : (isGratis ? p.cta : 'Selecionar plano')}
-                </Text>
+                {checkoutLoading && p.id === 'pe_business' && !isSelected && !isGratis ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: isSelected ? colors.textSecondary : (isGratis ? colors.textSecondary : '#fff') }}>
+                    {isSelected ? 'Plano atual' : (isGratis ? p.cta : 'Selecionar plano')}
+                  </Text>
+                )}
               </TouchableOpacity>
             </TouchableOpacity>
           );

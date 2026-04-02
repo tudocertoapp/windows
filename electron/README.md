@@ -7,15 +7,18 @@ Empacota o **export web** do Expo (`dist/`) numa janela de secretária no Window
 - Node.js 20+
 - Windows: para gerar o instalador `.exe`, execute os comandos **no Windows** (ou CI Windows).
 
-## Ícone 256×256
+## Ícones (janela + instalador Windows)
 
-O Windows usa `electron/icon-256.png` (256×256) para a janela e para o `electron-builder`.
+- **`electron/icon-256.png`** — ícone da janela (`BrowserWindow`).
+- **`electron/icon.ico`** — **obrigatório** para o `.exe` e para o instalador NSIS. Se faltar ou estiver corrompido, o Windows mostra o ícone genérico do Electron.
 
 ```bash
 npm run electron:icon
 ```
 
-Isto redimensiona `assets/icon.png` (ou `adaptive-icon.png` / `logo.png`) com `sharp`. Se não houver fonte, coloque manualmente um PNG 256×256 em `electron/icon-256.png`.
+O script gera **sempre** os dois ficheiros (multi-resolução no `.ico`). Usa, por ordem: `assets/icon.png`, `adaptive-icon.png`, `logo.png`, `favicon.png`, `logo-pages.png`, `splash.png`. Sem nenhum deles, cria um placeholder verde (substitua por `assets/icon.png` para a marca real).
+
+`npm run electron:pack:win` já corre `electron:icon` antes do build.
 
 ## Desenvolvimento
 

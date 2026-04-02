@@ -54,6 +54,14 @@ function AppContent() {
     } else hadUserRef.current = false;
   }, [user, isGuest, showLogin]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+    if (path === '/sucesso' || path === '/cancelado') {
+      window.history.replaceState({}, '', '/');
+    }
+  }, [user?.id]);
+
   const isWeb = Platform.OS === 'web';
   const showSplash = loading || !splashDone || postLoginSplash;
   const splashDuration = isWeb ? 1500 : 4000;

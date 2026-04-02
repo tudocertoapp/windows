@@ -5,9 +5,15 @@
 const fs = require('fs');
 const path = require('path');
 const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
-if (fs.existsSync(indexPath)) {
+  if (fs.existsSync(indexPath)) {
   let html = fs.readFileSync(indexPath, 'utf8');
   let changed = false;
+
+  // Garante que /assets e @font-face usem a raiz do app (evita resolução relativa ao path do bundle).
+  if (!html.includes('<base ')) {
+    html = html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}\n    <base href="/" />`);
+    changed = true;
+  }
   const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
   let logoDataUri = '';
   if (fs.existsSync(logoPath)) {
