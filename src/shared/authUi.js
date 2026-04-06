@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 export const AUTH_LOGO_SOURCE = require('../../assets/logo-pages.png');
 
 /** Hero de fundo: mobile web e app nativo (Começar, Login, Criar conta). */
-export const AUTH_HERO_MOBILE = require('../../assets/auth-hero-mobile.png');
+export const AUTH_HERO_MOBILE = require('../../assets/mobile-hero-shared.png');
 /** Hero de fundo: web desktop (Começar, Login, Criar conta). */
 export const AUTH_HERO_DESKTOP = require('../../assets/landing-desktop-hq-preview.png');
 
