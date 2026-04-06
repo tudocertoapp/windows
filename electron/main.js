@@ -3,7 +3,7 @@
  * Produção: carrega export estático Expo em dist/index.html.
  * Desenvolvimento: ELECTRON_DEV=1 + app web em http://127.0.0.1:8081 (npm run web).
  */
-const { app, BrowserWindow, shell, session, systemPreferences, Menu } = require('electron');
+const { app, BrowserWindow, shell, session, systemPreferences, Menu, nativeImage } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -18,12 +18,68 @@ function appIconPath() {
   return fs.existsSync(ico) ? ico : undefined;
 }
 
-function distIndexPath() {
-  return path.join(__dirname, '..', 'dist', 'index.html');
+function windowIcon() {
+  const p = appIconPath();
+  if (!p) return undefined;
+  try {
+    const img = nativeImage.createFromPath(p);
+    return img.isEmpty() ? undefined : img;
+  } catch (_) {
+    return undefined;
+  }
 }
 
-function distDir() {
-  return path.join(__dirname, '..', 'dist');
+/** Pastas dist em produção: asar + asar.unpacked (só assets desempacotados → index.html fica no asar). */
+function getDistRoots() {
+  const asarDist = path.join(__dirname, '..', 'dist');
+  if (!app.isPackaged) return [asarDist];
+  const unpacked = path.join(process.resourcesPath, 'app.asar.unpacked', 'dist');
+  return [unpacked, asarDist];
+}
+
+function parseSafeRelSegments(urlPath) {
+  const trimmed = (urlPath || '/').replace(/\\/g, '/').replace(/^\/+/, '');
+  const rel = trimmed || 'index.html';
+  const segments = rel.split('/').filter(Boolean);
+  if (segments.some((s) => s === '..')) return null;
+  return segments;
+}
+
+function isFileInsideRoot(absFile, rootDir) {
+  const abs = path.resolve(absFile);
+  const base = path.resolve(rootDir);
+  if (process.platform === 'win32') {
+    const a = abs.toLowerCase();
+    const b = base.toLowerCase();
+    return a === b || a.startsWith(b + path.sep);
+  }
+  return abs === base || abs.startsWith(base + path.sep);
+}
+
+function resolveDistFile(segments) {
+  for (const root of getDistRoots()) {
+    const abs = path.resolve(path.join(root, ...segments));
+    if (!isFileInsideRoot(abs, root)) continue;
+    try {
+      const st = fs.statSync(abs);
+      if (st.isFile()) return abs;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function assertDistIndexPresent() {
+  const roots = getDistRoots();
+  const ok = roots.some((r) => {
+    try {
+      return fs.existsSync(path.join(r, 'index.html'));
+    } catch (_) {
+      return false;
+    }
+  });
+  if (!ok) {
+    throw new Error('dist/index.html não encontrado. Execute: npm run web:build');
+  }
 }
 
 function contentTypeFor(filePath) {
@@ -71,34 +127,41 @@ function contentTypeFor(filePath) {
  * Em file:// isso quebra; em http://localhost funciona.
  */
 function startDistServer() {
-  const root = distDir();
-  if (!fs.existsSync(root)) {
-    throw new Error('dist/ não encontrado. Execute: npm run web:build');
-  }
+  assertDistIndexPresent();
 
   const server = http.createServer((req, res) => {
     try {
       const rawUrl = req.url || '/';
-      const urlPath = decodeURIComponent(rawUrl.split('?')[0] || '/');
-      const rel = urlPath === '/' ? '/index.html' : urlPath;
-      const safeRel = rel.replace(/\\/g, '/');
-
-      const abs = path.join(root, safeRel);
-      const rootResolved = path.resolve(root);
-      const absResolved = path.resolve(abs);
-      if (!absResolved.startsWith(rootResolved)) {
+      let urlPath = rawUrl.split('?')[0] || '/';
+      try {
+        urlPath = decodeURIComponent(urlPath);
+      } catch (_) {}
+      const segments = parseSafeRelSegments(urlPath);
+      if (!segments) {
         res.writeHead(403);
         res.end('Forbidden');
         return;
       }
 
-      if (!fs.existsSync(absResolved) || fs.statSync(absResolved).isDirectory()) {
+      const absResolved = resolveDistFile(segments);
+      if (!absResolved) {
         res.writeHead(404);
         res.end('Not found');
         return;
       }
 
+      // Content-Length evita Transfer-Encoding: chunked; sem isto o Chromium/Electron costuma falhar @font-face (.ttf).
+      let size;
+      try {
+        size = fs.statSync(absResolved).size;
+      } catch (_) {
+        res.writeHead(500);
+        res.end('Internal error');
+        return;
+      }
+
       res.setHeader('Content-Type', contentTypeFor(absResolved));
+      res.setHeader('Content-Length', size);
       res.setHeader('Cache-Control', 'no-cache');
       const extLower = path.extname(absResolved).toLowerCase();
       if (['.ttf', '.otf', '.woff', '.woff2'].includes(extLower)) {
@@ -128,12 +191,15 @@ function createWindow() {
     minHeight: 560,
     show: false,
     backgroundColor: '#111827',
-    icon: appIconPath(),
+    icon: windowIcon(),
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true,
+      // Sandbox pode impedir carregamento fiável de fontes TTF (Ionicons) no Windows empacotado.
+      sandbox: !app.isPackaged,
+      // Empacotado: mesma origem loopback + @font-face (Ionicons); webSecurity off evita bloqueios de fonte no Chromium.
+      webSecurity: !app.isPackaged,
     },
   });
 
@@ -141,7 +207,15 @@ function createWindow() {
   win.setMenu(null);
   win.setMenuBarVisibility(false);
 
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    win.show();
+    if (process.platform === 'win32') {
+      try {
+        win.moveTop();
+        win.focus();
+      } catch (_) {}
+    }
+  });
 
   if (isDev) {
     const url = process.env.ELECTRON_START_URL || 'http://127.0.0.1:8081';
@@ -166,6 +240,12 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    try {
+      app.setAppUserModelId('com.tudocerto.desktop');
+    } catch (_) {}
+  }
+
   // Remover menu padrão do Electron.
   try {
     Menu.setApplicationMenu(null);

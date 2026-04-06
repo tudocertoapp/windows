@@ -25,6 +25,7 @@ import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SplashScreen } from './src/components/SplashScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { Ionicons } from '@expo/vector-icons';
 
 function AppWithReminders() {
   const { agendaEvents, aReceber, checkListItems, updateCheckListItem } = useFinance();
@@ -122,9 +123,32 @@ function AppContent() {
 
 export default function App() {
   const isWeb = Platform.OS === 'web';
+  const [ioniconsReady, setIoniconsReady] = useState(Platform.OS !== 'web');
   const rootStyle = isWeb
     ? { flex: 1, width: '100%', minWidth: '100%', minHeight: '100vh', maxWidth: '100%', zoom: 1.12 }
     : { flex: 1 };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const p = Ionicons.loadFont?.();
+        if (p && typeof p.then === 'function') await p;
+      } catch (e) {
+        console.warn('[App] Ionicons.loadFont falhou:', e?.message || e);
+      }
+      try {
+        if (typeof document !== 'undefined' && document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      } catch (_) {}
+      if (alive) setIoniconsReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'android' && NavigationBar) {
@@ -165,6 +189,10 @@ export default function App() {
   }, []);
 
   const RootView = isWeb ? View : GestureHandlerRootView;
+
+  if (isWeb && !ioniconsReady) {
+    return <View style={{ flex: 1, backgroundColor: '#111827' }} />;
+  }
 
   return (
     <ErrorBoundary>

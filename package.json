@@ -119,6 +119,9 @@
       "electron/icon.icns",
       "electron/icons/**/*"
     ],
+    "asarUnpack": [
+      "dist/assets/**/*"
+    ],
     "extraMetadata": {
       "main": "electron/main.js"
     },
@@ -126,8 +129,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "electron/icon.ico",
-      "signAndEditExecutable": false
+      "icon": "electron/icon.ico"
     },
     "mac": {
       "icon": "electron/icon.icns"

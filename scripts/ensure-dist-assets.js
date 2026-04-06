@@ -17,6 +17,9 @@ function collectRefs(js) {
     /'(\/assets\/[^']+)'/g,
     /uri:"(\/assets\/[^"]+)"/g,
     /uri:'(\/assets\/[^']+)'/g,
+    // Metro: m.exports="/assets/node_modules/.../Font.ttf"
+    /m\.exports="(\/assets\/[^"]+)"/g,
+    /m\.exports='(\/assets\/[^']+)'/g,
   ];
   for (const re of patterns) {
     let m;

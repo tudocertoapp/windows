@@ -22,18 +22,22 @@ const outIcns = path.join(outDir, 'icon.icns');
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
 const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 
+/* logo-original / Generated_image: export “master” com fundo branco → chaveamos no script. */
 const CANDIDATES = [
+  'assets/logo-desktop-oficial.png',
+  'assets/logo-original.png',
+  'assets/Generated_image.png',
+  'assets/logo.png',
+  'assets/icon.png',
+  'assets/adaptive-icon.png',
+  'assets/logo-pages.png',
+  'assets/favicon.png',
+  'assets/logo-app.svg',
+  'assets/splash.png',
   'I:/Meu Drive/logo svg.svg',
   'i:/Meu Drive/logo svg.svg',
   'H:/Meu Drive/logo svg.svg',
   'h:/Meu Drive/logo svg.svg',
-  'assets/logo-app.svg',
-  'assets/icon.png',
-  'assets/adaptive-icon.png',
-  'assets/logo.png',
-  'assets/favicon.png',
-  'assets/logo-pages.png',
-  'assets/splash.png',
 ];
 
 function ensureDirs() {
@@ -50,9 +54,53 @@ function resolveSource() {
 }
 
 /**
+ * Remove placa preta/cinza escura típica de adaptive-icon (RGB baixo, sem verde do check).
+ */
+async function keyOutDarkPlate(sharpMod, pipeline) {
+  const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const max = r > g ? (r > b ? r : b) : g > b ? g : b;
+    const isDark = max < 52;
+    const looksGreenGlyph = g > r + 25 && g > b + 25;
+    if (isDark && !looksGreenGlyph) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 0;
+    }
+  }
+  return sharpMod(Buffer.from(data), { raw: info });
+}
+
+/**
+ * Remove fundo branco/cinza-claro de renders 3D (mantém verdes e reflexos com contraste).
+ */
+async function keyOutLightStudioBackground(sharpMod, pipeline) {
+  const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const avg = (r + g + b) / 3;
+    const spread = Math.max(r, g, b) - Math.min(r, g, b);
+    const looksGreenBrand = g > r + 20 && g > b + 18;
+    const lightNeutral = avg > 236 && spread < 38;
+    if (lightNeutral && !looksGreenBrand) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 0;
+    }
+  }
+  return sharpMod(Buffer.from(data), { raw: info });
+}
+
+/**
  * Fundo transparente, logo inteira (sem cortar traços).
- * 1) Rasteriza grande → 2) trim só margens transparentes → 3) encaixa em 1024 com contain
- * para o glifo ocupar o máximo do quadrado (visual próximo de ícones “de mercado” na barra).
+ * 1) Rasteriza grande → 2) opcional: chavear preto/branco → 3) trim → 4) 1024 contain
  */
 async function transparentFromSource(sharp, srcPath) {
   const base = () =>
@@ -60,15 +108,36 @@ async function transparentFromSource(sharp, srcPath) {
       .ensureAlpha()
       .resize(2048, 2048, { fit: 'inside', background: BG, kernel: 'lanczos3' });
 
+  const lower = srcPath.replace(/\\/g, '/').toLowerCase();
+  const useDarkKey = lower.includes('adaptive-icon');
+  const useLightKey =
+    lower.includes('logo-desktop-oficial') ||
+    lower.includes('logo-original') ||
+    lower.includes('generated_image');
+
   try {
-    const buf = await base()
+    let pipe = sharp(await base().toBuffer());
+    if (useLightKey) {
+      pipe = await keyOutLightStudioBackground(sharp, pipe);
+    }
+    if (useDarkKey) {
+      pipe = await keyOutDarkPlate(sharp, pipe);
+    }
+    const buf = await pipe
       .trim({ threshold: 3 })
       .resize(1024, 1024, { fit: 'contain', background: BG, kernel: 'lanczos3' })
       .png({ compressionLevel: 9, effort: 10 })
       .toBuffer();
     return sharp(buf).ensureAlpha();
   } catch (_) {
-    const buf = await base()
+    let pipe = sharp(await base().toBuffer());
+    if (useLightKey) {
+      pipe = await keyOutLightStudioBackground(sharp, pipe);
+    }
+    if (useDarkKey) {
+      pipe = await keyOutDarkPlate(sharp, pipe);
+    }
+    const buf = await pipe
       .resize(1024, 1024, { fit: 'contain', background: BG, kernel: 'lanczos3' })
       .png({ compressionLevel: 9, effort: 10 })
       .toBuffer();

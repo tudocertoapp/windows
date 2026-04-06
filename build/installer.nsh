@@ -1,10 +1,19 @@
 ; UTF-8 — NSIS Unicode (electron-builder)
+; MUI2 já define Function .onGUIInit — usar apenas função personalizada (Modern UI 2).
+; Só no instalador: na passagem BUILD_UNINSTALLER a função não existe (bloco !ifndef abaixo).
+!ifndef BUILD_UNINSTALLER
+!define MUI_CUSTOMFUNCTION_GUIINIT tcInstallerBringToFront
+!endif
 ; Requer package.json nsis.perMachine: true (instalação para todos, sem escolha).
 ; customInit: após initMultiUser — deteta instalação anterior; em modo silencioso desinstala já.
 ; Atualizar/Cancelar: diálogo nativo (PowerShell + WinForms) em .onInit, logo após o UAC — antes de qualquer página (incl. pasta).
 ; Código gravado em $TEMP e executado com -STA; exit 6 = Atualizar, 7 = Cancelar.
 ; Chaves de registo: usar APP_GUID e UNINSTALL_APP_KEY (-D do electron-builder), não GUID fixo —
 ; UNINSTALL_REGISTRY_KEY usa UNINSTALL_APP_KEY (pode diferir de APP_GUID em casos raros).
+
+!macro customHeader
+  ManifestDPIAware true
+!macroend
 
 !macro preInit
   nsExec::ExecToLog 'cmd.exe /c taskkill /F /IM "${PRODUCT_FILENAME}.exe" /T >nul 2>&1 & exit /b 0'
@@ -213,7 +222,10 @@ Function tcPromptUpdateAfterUac
   FileOpen $R8 "$TEMP\TudoCerto_update_ui.ps1" w
   IfErrors tcPU_err_open
   FileWrite $R8 "Add-Type -AssemblyName System.Drawing, System.Windows.Forms$\r$\n"
+  FileWrite $R8 "[System.Windows.Forms.Application]::EnableVisualStyles()$\r$\n"
+  FileWrite $R8 "[System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($$false)$\r$\n"
   FileWrite $R8 "$$g = New-Object System.Windows.Forms.Form$\r$\n"
+  FileWrite $R8 "$$g.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi$\r$\n"
   FileWrite $R8 "$$g.Text = 'Instalacao do Tudo Certo'$\r$\n"
   FileWrite $R8 "$$g.ClientSize = New-Object System.Drawing.Size(380, 120)$\r$\n"
   FileWrite $R8 "$$g.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog$\r$\n"
@@ -224,6 +236,8 @@ Function tcPromptUpdateAfterUac
   FileWrite $R8 "$$t.Text = 'O Tudo Certo ja esta instalado.'$\r$\n"
   FileWrite $R8 "$$t.Location = New-Object System.Drawing.Point(16, 16)$\r$\n"
   FileWrite $R8 "$$t.AutoSize = $$true$\r$\n"
+  FileWrite $R8 "$$uiFont = New-Object System.Drawing.Font('Segoe UI', 10.0, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)$\r$\n"
+  FileWrite $R8 "$$g.Font = $$uiFont$\r$\n"
   FileWrite $R8 "$$a = New-Object System.Windows.Forms.Button$\r$\n"
   FileWrite $R8 "$$a.Text = 'Atualizar'$\r$\n"
   FileWrite $R8 "$$a.Location = New-Object System.Drawing.Point(16, 58)$\r$\n"
@@ -298,5 +312,10 @@ FunctionEnd
   Goto _tcKillLoop
   _tcProcDead:
 !macroend
+
+Function tcInstallerBringToFront
+  System::Call 'user32::ShowWindow(i $HWNDPARENT i 9)'
+  System::Call 'user32::SetForegroundWindow(i $HWNDPARENT)'
+FunctionEnd
 
 !endif
