@@ -302,7 +302,8 @@ export default function VoiceRecorder({
           }
         }
       } catch (_) {
-        emitError('Não foi possível iniciar o microfone (voz nativa).');
+        // Não emitir erro aqui: o reconhecimento nativo pode falhar e o fallback (expo) ainda assim
+        // inicia com sucesso — mostrar mensagem nesse caso confunde o utilizador.
       }
       if (startedNative) return;
     }

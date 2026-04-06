@@ -4,6 +4,7 @@ import {
   FlatList,
   Image,
   InteractionManager,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -341,6 +342,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const [previewImageUri, setPreviewImageUri] = useState(null);
   const [cameraChoiceVisible, setCameraChoiceVisible] = useState(false);
   const listeningPrevRef = useRef(false);
+  const isListeningRef = useRef(false);
   const handleUserContentRef = useRef(null);
   const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
   const listRef = useRef(null);
@@ -919,9 +921,17 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     setCameraChoiceVisible(true);
   };
 
+  const dismissInputKeyboard = () => {
+    try {
+      inputRef.current?.blur?.();
+      Keyboard.dismiss();
+    } catch (_) {}
+  };
+
   const handleMicPress = async () => {
     if (processingVoice) return;
     if (pendingVoiceText) {
+      dismissInputKeyboard();
       setPendingVoiceText('');
       setInputText('');
       await voiceActionsRef.current.startListening?.();
@@ -929,6 +939,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
     }
     if (isListening) await voiceActionsRef.current.stopListening?.();
     else {
+      dismissInputKeyboard();
       setPendingVoiceText('');
       setInputText('');
       await voiceActionsRef.current.startListening?.();
@@ -938,6 +949,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   const handleListeningChange = (v) => {
     const prev = listeningPrevRef.current;
     listeningPrevRef.current = v;
+    isListeningRef.current = v;
     if (v && !prev) playVoiceRecordingStartSound();
     else if (!v && prev) playVoiceRecordingStopSound();
     setIsListening(v);
@@ -1123,6 +1135,8 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             onEngineChange={setVoiceEngine}
             onError={(message) => {
               if (!message) return;
+              // Nativo: erros transitórios enquanto o microfone já está a gravar/transcrever não devem aparecer no chat.
+              if (Platform.OS !== 'web' && isListeningRef.current) return;
               appendMessage({
                 id: `assistant-voice-error-${Date.now()}`,
                 from: 'assistant',
@@ -1130,7 +1144,6 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
                 text: `${message} Toque na caixa de texto abaixo e tente novamente.`,
                 createdAt: nowIso(),
               });
-              setTimeout(() => inputRef.current?.focus(), 300);
             }}
           >
             {(voice) => {
@@ -1152,15 +1165,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
                   : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
               ]}
               placeholder={
-                processingImage
-                  ? 'Lendo imagem...'
-                  : processingVoice
-                    ? 'Analisando fala...'
-                    : isListening
-                      ? 'Ouvindo... fale agora'
-                      : pendingVoiceText
-                        ? 'Revise o texto e envie, ou toque no microfone para gravar de novo.'
-                        : 'Digite aqui. Ex: fui no mercado e gastei 89,90'
+                processingImage ? 'Lendo imagem...' : processingVoice ? 'Analisando fala...' : 'Digite aqui'
               }
               placeholderTextColor={colors.textSecondary}
               value={inputText}

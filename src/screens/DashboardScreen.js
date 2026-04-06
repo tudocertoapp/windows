@@ -258,6 +258,47 @@ export function DashboardScreen() {
     return lines.join('\n');
   }, [quote]);
 
+  const webDesktopQuickButtons = useMemo(
+    () => [
+      { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
+      { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
+      { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
+      { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes'), color: CARD_ICON_COLORS.aniversariantes },
+      { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores'), color: CARD_ICON_COLORS.anotacoes },
+      { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.(), color: CARD_ICON_COLORS.listacompras },
+      { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
+      { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
+    ],
+    [openAReceber, openCadastro, openEmpresa, openOrcamento, openPDV],
+  );
+
+  useEffect(() => {
+    if (!(isWeb && useWebLayout)) return undefined;
+    if (typeof window === 'undefined') return undefined;
+    const isTypingTarget = (target) => {
+      const tag = target?.tagName?.toLowerCase?.();
+      return (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable
+      );
+    };
+    const onKeyDown = (event) => {
+      if (isTypingTarget(event?.target)) return;
+      const keyRaw = String(event?.key || event?.code || '').toUpperCase();
+      const match = keyRaw.match(/^F(\d{1,2})$/);
+      if (!match) return;
+      const fnNumber = Number(match[1]);
+      if (!Number.isFinite(fnNumber) || fnNumber < 1 || fnNumber > webDesktopQuickButtons.length) return;
+      event.preventDefault();
+      playTapSound();
+      webDesktopQuickButtons[fnNumber - 1]?.onPress?.();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isWeb, useWebLayout, webDesktopQuickButtons]);
+
 
   useEffect(() => {
     AsyncStorage.getItem(sectionsStorageKey).then((raw) => {
@@ -3114,26 +3155,18 @@ export function DashboardScreen() {
             {useWebLayout ? (
               <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
-                  {[
-                    { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
-                    { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
-                    { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
-                    { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes'), color: CARD_ICON_COLORS.aniversariantes },
-                    { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores'), color: CARD_ICON_COLORS.anotacoes },
-                    { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.(), color: CARD_ICON_COLORS.listacompras },
-                    { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
-                    { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
-                  ].map((item) => (
+                  {webDesktopQuickButtons.map((item, index) => (
                     <TouchableOpacity
                       key={item.id}
                       onPress={() => { playTapSound(); item.onPress?.(); }}
                       activeOpacity={0.85}
+                      accessibilityLabel={`${item.label} (F${index + 1})`}
                       style={{
                         flex: 1,
                         flexBasis: 0,
                         minWidth: 0,
                         paddingVertical: 10,
-                        paddingHorizontal: 12,
+                        paddingHorizontal: 10,
                         borderRadius: 14,
                         borderWidth: 1,
                         borderColor: item.color + '55',
@@ -3142,8 +3175,25 @@ export function DashboardScreen() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 6,
+                        position: 'relative',
                       }}
                     >
+                      <View
+                        pointerEvents="none"
+                        style={{
+                          position: 'absolute',
+                          top: -5,
+                          right: 6,
+                          borderRadius: 7,
+                          paddingHorizontal: 6,
+                          paddingVertical: 1,
+                          backgroundColor: colors.bg,
+                          borderWidth: 1,
+                          borderColor: item.color,
+                        }}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: item.color }}>{`F${index + 1}`}</Text>
+                      </View>
                       <AppIcon name={item.icon} size={16} color={item.color} />
                       <Text style={{ fontSize: 12, fontWeight: '700', color: item.color, textAlign: 'center' }} numberOfLines={1}>
                         {item.label}
