@@ -60,6 +60,31 @@ async function requestIosVoicePermissions(): Promise<boolean> {
   }
 }
 
+function normalizeVoiceErrorCode(evt: any): string {
+  const raw = String(
+    evt?.error?.code
+      || evt?.error?.message
+      || evt?.code
+      || evt?.message
+      || evt?.error
+      || ''
+  )
+    .toLowerCase()
+    .trim();
+  return raw;
+}
+
+function isIgnorableVoiceError(code: string): boolean {
+  // Android SpeechRecognizer: "7" costuma mapear para NO_MATCH/no-speech.
+  return (
+    code.includes('no-speech')
+    || code.includes('aborted')
+    || code === '7'
+    || code.includes('no match')
+    || code.includes('speech timeout')
+  );
+}
+
 export default function VoiceRecorder({
   locale = 'pt-BR',
   onTranscriptChange,
@@ -198,11 +223,27 @@ export default function VoiceRecorder({
 
     const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
 
+    // Ajuste de modo de áudio ajuda em aparelhos onde o microfone não inicia na 1a tentativa.
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+    } catch (_) {}
+
     // Android: SpeechRecognizer | iOS: SFSpeechRecognizer (via @react-native-voice/voice)
     if (NativeVoice && isNativeMobile) {
       let startedNative = false;
       try {
         if (Platform.OS === 'android') {
+          try {
+            const audioPerm = await Audio.requestPermissionsAsync();
+            if (audioPerm?.status !== 'granted') {
+              emitError('Permissão de microfone negada.');
+              return;
+            }
+          } catch (_) {}
           const granted = await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
             {
@@ -294,7 +335,11 @@ export default function VoiceRecorder({
 
   useSpeechRecognitionEvent('result', (event: any) => {
     if (engineRef.current !== 'expo') return;
-    const txt = event?.results?.[0]?.[0]?.transcript ?? '';
+    const txt =
+      event?.results?.[0]?.[0]?.transcript
+      || event?.results?.[0]?.transcript
+      || event?.result
+      || '';
     if (!txt) return;
     lastTranscriptRef.current = txt;
     setTranscript(txt);
@@ -309,10 +354,12 @@ export default function VoiceRecorder({
     if (finalText) onFinalTranscript?.(finalText);
   });
 
-  useSpeechRecognitionEvent('error', () => {
+  useSpeechRecognitionEvent('error', (evt: any) => {
     if (engineRef.current !== 'expo') return;
     setIsListening(false);
     onListeningChange?.(false);
+    const code = normalizeVoiceErrorCode(evt);
+    if (isIgnorableVoiceError(code)) return;
     emitError('Erro ao reconhecer sua voz.');
   });
 
@@ -347,10 +394,12 @@ export default function VoiceRecorder({
       onTranscriptChange?.(txt);
     };
 
-    NativeVoice.onSpeechError = () => {
+    NativeVoice.onSpeechError = (evt: any) => {
       if (engineRef.current !== 'native') return;
       setIsListening(false);
       onListeningChange?.(false);
+      const code = normalizeVoiceErrorCode(evt);
+      if (isIgnorableVoiceError(code)) return;
       emitError('Erro ao reconhecer sua voz.');
     };
 

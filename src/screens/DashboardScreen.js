@@ -2159,10 +2159,10 @@ export function DashboardScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true)) : 12 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
+              <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={colors.primary} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.primary }}>
                 {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
               </Text>
             </View>
@@ -2195,7 +2195,7 @@ export function DashboardScreen() {
                   style={[
                     ds.quoteText,
                     {
-                      color: colors.text,
+                      color: colors.primary,
                       fontSize: useWebLayout ? scaleWebDesktop(12, true) : ds.quoteText.fontSize,
                       textAlign: 'center',
                       width: '100%',
@@ -2208,7 +2208,7 @@ export function DashboardScreen() {
               </View>
             ) : (
               <Text
-                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? (quoteType === 'verso' ? 16 : 14) : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? (quoteType === 'verso' ? 26 : 22) : ds.quoteText.lineHeight }]}
+                style={[ds.quoteText, { color: colors.primary, fontSize: useWebLayout ? (quoteType === 'verso' ? 16 : 14) : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? (quoteType === 'verso' ? 26 : 22) : ds.quoteText.lineHeight }]}
                 numberOfLines={useWebLayout ? 3 : 3}
               >
                 "{useWebLayout ? quoteDesktopWrapped : quote}"
@@ -3115,14 +3115,14 @@ export function DashboardScreen() {
               <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
                   {[
-                    { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.() },
-                    { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos') },
-                    { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos') },
-                    { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes') },
-                    { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores') },
-                    { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.() },
-                    { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.() },
-                    { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.() },
+                    { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
+                    { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
+                    { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
+                    { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes'), color: CARD_ICON_COLORS.aniversariantes },
+                    { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores'), color: CARD_ICON_COLORS.anotacoes },
+                    { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.(), color: CARD_ICON_COLORS.listacompras },
+                    { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
+                    { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
                   ].map((item) => (
                     <TouchableOpacity
                       key={item.id}
@@ -3136,16 +3136,16 @@ export function DashboardScreen() {
                         paddingHorizontal: 12,
                         borderRadius: 14,
                         borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
+                        borderColor: item.color + '55',
+                        backgroundColor: item.color + '16',
                         flexDirection: 'row',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 6,
                       }}
                     >
-                      <AppIcon name={item.icon} size={16} color={colors.primary} />
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text, textAlign: 'center' }} numberOfLines={1}>
+                      <AppIcon name={item.icon} size={16} color={item.color} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: item.color, textAlign: 'center' }} numberOfLines={1}>
                         {item.label}
                       </Text>
                     </TouchableOpacity>

@@ -1,12 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { View, PanResponder, Dimensions, StyleSheet, Animated, Platform } from 'react-native';
+import { View, PanResponder, StyleSheet, Animated, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { playTapSound } from '../utils/sounds';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useIsDesktopLayout } from '../utils/platformLayout';
 
-const STORAGE_KEY = '@tudocerto_calc_overlay_pos';
 const OVERLAY_WIDTH = 212;
 const OVERLAY_HEIGHT = 316;
 /** Cabeçalho absoluto (histórico / expandir / fechar) */
@@ -48,57 +45,40 @@ export function FloatingCalculatorOverlay({
 }) {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const isWebDesktop = isWeb && useIsDesktopLayout();
-  const persistPosition = !isWeb || isWebDesktop;
 
   const [position, setPosition] = useState(null);
   const animPos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const dragStartRef = useRef({ x: 0, y: 0 });
 
-  const { width: W, height: H } = Dimensions.get('window');
-  const safeTop = insets.top || 44;
+  const { width: W, height: H } = useWindowDimensions();
+  const safeTop = insets.top || 0;
+  const safeBottom = insets.bottom || 0;
 
   const clampPos = (p) => {
     const x = Number(p?.x) || 0;
     const y = Number(p?.y) || 0;
     const minX = 12;
-    const minY = Math.max(12, safeTop);
+    const minY = Math.max(12, safeTop + 12);
     const maxX = Math.max(minX, W - OVERLAY_WIDTH - 12);
-    const maxY = Math.max(minY, H - OVERLAY_HEIGHT - 12);
+    const maxY = Math.max(minY, H - OVERLAY_HEIGHT - (safeBottom + 12));
     return { x: Math.max(minX, Math.min(x, maxX)), y: Math.max(minY, Math.min(y, maxY)) };
   };
 
   useEffect(() => {
-    if (!visible) return;
-    const def = { x: W - OVERLAY_WIDTH - 16, y: safeTop + 40 };
-    if (!persistPosition) {
-      const pos = clampPos(def);
-      setPosition(pos);
-      animPos.setValue(pos);
+    if (!visible) {
+      // Ao fechar: zera estado/posição para reabrir sempre centralizada.
+      setPosition(null);
+      animPos.setValue({ x: 0, y: 0 });
       return;
     }
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      let pos;
-      if (raw) {
-        try {
-          const { x, y } = JSON.parse(raw);
-          pos = clampPos({ x: Number.isFinite(x) ? x : def.x, y: Number.isFinite(y) ? y : def.y });
-        } catch (_) {
-          pos = clampPos(def);
-        }
-      } else {
-        pos = clampPos(def);
-      }
-      setPosition(pos);
-      animPos.setValue(pos);
-    });
-  }, [visible, W, H, safeTop, persistPosition, animPos]);
-
-  useEffect(() => {
-    if (position && visible && persistPosition) {
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(position)).catch(() => {});
-    }
-  }, [position, visible, persistPosition]);
+    const centered = {
+      x: (W - OVERLAY_WIDTH) / 2,
+      y: (H - OVERLAY_HEIGHT) / 2,
+    };
+    const pos = clampPos(centered);
+    setPosition(pos);
+    animPos.setValue(pos);
+  }, [visible, W, H, safeTop, safeBottom, animPos]);
 
   const panResponder = useMemo(
     () =>
@@ -122,16 +102,20 @@ export function FloatingCalculatorOverlay({
           animPos.flattenOffset();
           const x = animPos.x.__getValue();
           const y = animPos.y.__getValue();
-          setPosition({ x, y });
+          const clamped = clampPos({ x, y });
+          animPos.setValue(clamped);
+          setPosition(clamped);
         },
         onPanResponderTerminate: () => {
           animPos.flattenOffset();
           const x = animPos.x.__getValue();
           const y = animPos.y.__getValue();
-          setPosition({ x, y });
+          const clamped = clampPos({ x, y });
+          animPos.setValue(clamped);
+          setPosition(clamped);
         },
       }),
-    [animPos]
+    [animPos, W, H, safeTop, safeBottom]
   );
 
   if (!visible || position === null) return null;

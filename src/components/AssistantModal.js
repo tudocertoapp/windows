@@ -78,7 +78,10 @@ export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListening
 
   useEffect(() => {
     if (!visible || !autoStartListeningKey) return;
-    handleMic();
+    const t = setTimeout(() => {
+      handleMic();
+    }, 220);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, autoStartListeningKey]);
 
@@ -123,11 +126,9 @@ export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListening
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <VoiceRecorder
               onTranscriptChange={(t) => {
-                setListening(true);
                 setText(t);
               }}
               onFinalTranscript={(t) => {
-                setListening(false);
                 setText(t);
                 const parsed = parseVoiceIntent(t);
                 if (parsed?.type) {
@@ -135,6 +136,11 @@ export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListening
                   onClose();
                   setText('');
                 }
+              }}
+              onListeningChange={setListening}
+              onError={(message) => {
+                if (!message) return;
+                Alert.alert('Microfone', message);
               }}
             >
               {(voice) => {
