@@ -85,6 +85,16 @@ function isIgnorableVoiceError(code: string): boolean {
   );
 }
 
+function isRetryableVoiceError(code: string): boolean {
+  return (
+    code.includes('network')
+    || code.includes('timeout')
+    || code.includes('busy')
+    || code === '5'
+    || code === '6'
+  );
+}
+
 export default function VoiceRecorder({
   locale = 'pt-BR',
   onTranscriptChange,
@@ -101,6 +111,8 @@ export default function VoiceRecorder({
   const lastTranscriptRef = useRef('');
   const engineRef = useRef<'native' | 'expo' | null>(null);
   const webRecognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
+  const shouldKeepListeningRef = useRef(false);
+  const manualStopRef = useRef(false);
 
   const clearTranscript = () => {
     setTranscript('');
@@ -135,7 +147,7 @@ export default function VoiceRecorder({
       setEngine('expo');
       setError(null);
       clearTranscript();
-      mod.start?.({ lang: locale, interimResults: true, continuous: false });
+      mod.start?.({ lang: locale, interimResults: true, continuous: true });
       setIsListening(true);
       onListeningChange?.(true);
       return true;
@@ -206,6 +218,8 @@ export default function VoiceRecorder({
   };
 
   const startListening = async () => {
+    manualStopRef.current = false;
+    shouldKeepListeningRef.current = true;
     setError(null);
     clearTranscript();
 
@@ -297,6 +311,7 @@ export default function VoiceRecorder({
     if (expoStarted) return;
 
     engineRef.current = null;
+    shouldKeepListeningRef.current = false;
     setEngine(null);
     setIsListening(false);
     onListeningChange?.(false);
@@ -304,6 +319,8 @@ export default function VoiceRecorder({
   };
 
   const stopListening = async () => {
+    manualStopRef.current = true;
+    shouldKeepListeningRef.current = false;
     try {
       if (Platform.OS === 'web' && webRecognitionRef.current) {
         try {
@@ -318,6 +335,8 @@ export default function VoiceRecorder({
     } finally {
       setIsListening(false);
       onListeningChange?.(false);
+      const finalText = (lastTranscriptRef.current || '').trim();
+      if (finalText) onFinalTranscript?.(finalText);
     }
   };
 
@@ -348,18 +367,37 @@ export default function VoiceRecorder({
 
   useSpeechRecognitionEvent('end', () => {
     if (engineRef.current !== 'expo') return;
+    if (!manualStopRef.current && shouldKeepListeningRef.current && ExpoSpeechRecognitionModule) {
+      try {
+        ExpoSpeechRecognitionModule.start?.({ lang: locale, interimResults: true, continuous: true });
+        setIsListening(true);
+        onListeningChange?.(true);
+        return;
+      } catch (_) {}
+    }
     setIsListening(false);
     onListeningChange?.(false);
-    const finalText = (lastTranscriptRef.current || '').trim();
-    if (finalText) onFinalTranscript?.(finalText);
+    if (manualStopRef.current) {
+      const finalText = (lastTranscriptRef.current || '').trim();
+      if (finalText) onFinalTranscript?.(finalText);
+    }
   });
 
   useSpeechRecognitionEvent('error', (evt: any) => {
     if (engineRef.current !== 'expo') return;
-    setIsListening(false);
-    onListeningChange?.(false);
     const code = normalizeVoiceErrorCode(evt);
     if (isIgnorableVoiceError(code)) return;
+    if (!manualStopRef.current && shouldKeepListeningRef.current && isRetryableVoiceError(code) && ExpoSpeechRecognitionModule) {
+      try {
+        ExpoSpeechRecognitionModule.start?.({ lang: locale, interimResults: true, continuous: true });
+        setIsListening(true);
+        onListeningChange?.(true);
+        return;
+      } catch (_) {}
+    }
+    setIsListening(false);
+    onListeningChange?.(false);
+    if (!manualStopRef.current && shouldKeepListeningRef.current) return;
     emitError('Erro ao reconhecer sua voz.');
   });
 
@@ -379,10 +417,18 @@ export default function VoiceRecorder({
 
     NativeVoice.onSpeechEnd = () => {
       if (engineRef.current !== 'native') return;
+      if (!manualStopRef.current && shouldKeepListeningRef.current && NativeVoice) {
+        NativeVoice.start(locale).catch(() => {});
+        setIsListening(true);
+        onListeningChange?.(true);
+        return;
+      }
       setIsListening(false);
       onListeningChange?.(false);
-      const finalText = (lastTranscriptRef.current || '').trim();
-      if (finalText) onFinalTranscript?.(finalText);
+      if (manualStopRef.current) {
+        const finalText = (lastTranscriptRef.current || '').trim();
+        if (finalText) onFinalTranscript?.(finalText);
+      }
     };
 
     NativeVoice.onSpeechResults = (result: any) => {
@@ -396,10 +442,17 @@ export default function VoiceRecorder({
 
     NativeVoice.onSpeechError = (evt: any) => {
       if (engineRef.current !== 'native') return;
-      setIsListening(false);
-      onListeningChange?.(false);
       const code = normalizeVoiceErrorCode(evt);
       if (isIgnorableVoiceError(code)) return;
+      if (!manualStopRef.current && shouldKeepListeningRef.current && isRetryableVoiceError(code) && NativeVoice) {
+        NativeVoice.start(locale).catch(() => {});
+        setIsListening(true);
+        onListeningChange?.(true);
+        return;
+      }
+      setIsListening(false);
+      onListeningChange?.(false);
+      if (!manualStopRef.current && shouldKeepListeningRef.current) return;
       emitError('Erro ao reconhecer sua voz.');
     };
 

@@ -673,7 +673,10 @@ export function FinanceProvider({ children }) {
       estado: s.estado || null,
     }).select('*').single();
     if (error) return showDbError(error, 'cadastrar fornecedor');
-    if (data) setSuppliers((prev) => [...prev, toSupplier(data)]);
+    if (data) {
+      setSuppliers((prev) => [...prev, toSupplier(data)]);
+      return data.id;
+    }
   };
   const toSupplierUpdate = (data) => {
     const out = {};

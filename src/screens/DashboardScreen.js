@@ -2195,7 +2195,7 @@ export function DashboardScreen() {
                   style={[
                     ds.quoteText,
                     {
-                      color: colors.primary,
+                      color: colors.text,
                       fontSize: useWebLayout ? scaleWebDesktop(12, true) : ds.quoteText.fontSize,
                       textAlign: 'center',
                       width: '100%',
@@ -2208,7 +2208,7 @@ export function DashboardScreen() {
               </View>
             ) : (
               <Text
-                style={[ds.quoteText, { color: colors.primary, fontSize: useWebLayout ? (quoteType === 'verso' ? 16 : 14) : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? (quoteType === 'verso' ? 26 : 22) : ds.quoteText.lineHeight }]}
+                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? (quoteType === 'verso' ? 16 : 14) : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? (quoteType === 'verso' ? 26 : 22) : ds.quoteText.lineHeight }]}
                 numberOfLines={useWebLayout ? 3 : 3}
               >
                 "{useWebLayout ? quoteDesktopWrapped : quote}"

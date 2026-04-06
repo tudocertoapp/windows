@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
+import { FornecedorModal } from './FornecedorModal';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
@@ -27,7 +28,7 @@ const SCROLL_MAX_HEIGHT = Math.min(520, 580);
 
 export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { colors } = useTheme();
-  const { suppliers, products, addCompositeProduct } = useFinance();
+  const { suppliers, products, addCompositeProduct, addSupplier } = useFinance();
   const { showEmpresaFeatures } = usePlan();
   const [name, setName] = useState(editingItem?.name || '');
   const [costPrice, setCostPrice] = useState(editingItem?.costPrice != null ? String(editingItem.costPrice) : '');
@@ -41,6 +42,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const [minStock, setMinStock] = useState(editingItem?.minStock != null ? String(editingItem.minStock) : '0');
   const [supplierId, setSupplierId] = useState(editingItem?.supplierId || null);
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
+  const [showSupplierCreateModal, setShowSupplierCreateModal] = useState(false);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [isCompositeProduct, setIsCompositeProduct] = useState(!!(editingItem?.isComposite));
   const [compositeItems, setCompositeItems] = useState(editingItem?.compositeItems || []);
@@ -58,6 +60,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setStock(editingItem.stock != null ? String(editingItem.stock) : '0');
       setMinStock(editingItem.minStock != null ? String(editingItem.minStock) : '0');
       setSupplierId(editingItem.supplierId || null);
+      setShowSupplierPicker(false);
+      setShowSupplierCreateModal(false);
       setIsCompositeProduct(!!editingItem.isComposite);
       setCompositeItems(editingItem.compositeItems || []);
     } else if (visible && !editingItem) {
@@ -72,6 +76,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setStock('0');
       setMinStock('0');
       setSupplierId(null);
+      setShowSupplierPicker(false);
+      setShowSupplierCreateModal(false);
       setIsCompositeProduct(false);
       setCompositeItems([]);
     }
@@ -146,16 +152,11 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.text }]}>{editingItem ? 'EDITAR PRODUTO' : 'NOVO PRODUTO'}</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
-                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                  <Ionicons name="close" size={22} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
+                <Ionicons name="close" size={22} color={colors.primary} />
+              </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
               {/* Fotos do produto */}
               <Text style={[s.label, { color: colors.textSecondary }]}>FOTO DO PRODUTO (OPCIONAL)</Text>
               <View style={[s.photoRow, sectionGap]}>
@@ -239,27 +240,17 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
                   </Text>
                   <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.addBtn, { backgroundColor: colors.primary }]} onPress={() => setShowSupplierPicker(true)}>
+                <TouchableOpacity
+                  style={[s.addBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setShowSupplierPicker(false);
+                    setShowSupplierCreateModal(true);
+                  }}
+                >
                   <Ionicons name="add" size={18} color="#fff" />
                   <Text style={s.addBtnText}>ADD</Text>
                 </TouchableOpacity>
               </View>
-
-              {showSupplierPicker && (
-                <View style={[s.picker, { backgroundColor: colors.bg, borderColor: colors.border }, sectionGap]}>
-                  <TouchableOpacity style={s.pickerItem} onPress={() => { setSupplierId(null); setShowSupplierPicker(false); }}>
-                    <Text style={{ color: colors.text }}>Nenhum</Text>
-                  </TouchableOpacity>
-                  {(suppliers || []).map((sup) => (
-                    <TouchableOpacity key={sup.id} style={s.pickerItem} onPress={() => { setSupplierId(sup.id); setShowSupplierPicker(false); }}>
-                      <Text style={{ color: colors.text }}>{sup.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity style={s.pickerItem} onPress={() => setShowSupplierPicker(false)}>
-                    <Text style={{ color: colors.primary, fontWeight: '600' }}>Fechar</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
 
               <View style={[s.row, sectionGap]}>
                 <View style={s.half}>
@@ -308,6 +299,47 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </View>
+      <FornecedorModal
+        visible={showSupplierCreateModal}
+        fornecedor={null}
+        onClose={() => setShowSupplierCreateModal(false)}
+        onSave={async (supplierPayload) => {
+          const createdId = await addSupplier(supplierPayload);
+          if (createdId) {
+            setSupplierId(createdId);
+            setShowSupplierPicker(false);
+            return;
+          }
+          // fallback quando o provider atualizar o estado sem retornar id imediatamente
+          const normalizedName = String(supplierPayload?.name || '').trim().toLowerCase();
+          const match = (suppliers || []).find((s) => String(s?.name || '').trim().toLowerCase() === normalizedName);
+          if (match?.id) {
+            setSupplierId(match.id);
+            setShowSupplierPicker(false);
+          }
+        }}
+      />
+      <Modal visible={showSupplierPicker} transparent animationType="fade">
+        <View style={s.supplierPickerOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowSupplierPicker(false)} />
+          <View style={[s.supplierPickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 10 }}>Selecionar fornecedor</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <TouchableOpacity style={s.pickerItem} onPress={() => { setSupplierId(null); setShowSupplierPicker(false); }}>
+                <Text style={{ color: colors.text }}>Nenhum</Text>
+              </TouchableOpacity>
+              {(suppliers || []).map((sup) => (
+                <TouchableOpacity key={sup.id} style={s.pickerItem} onPress={() => { setSupplierId(sup.id); setShowSupplierPicker(false); }}>
+                  <Text style={{ color: colors.text }}>{sup.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={s.pickerItem} onPress={() => setShowSupplierPicker(false)}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -350,6 +382,23 @@ const s = StyleSheet.create({
   hint: { fontSize: 12 },
   picker: { borderRadius: 12, borderWidth: 1, maxHeight: 160 },
   pickerItem: { padding: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.1)' },
+  supplierPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+  },
+  supplierPickerCard: {
+    width: '100%',
+    maxWidth: 460,
+    maxHeight: '72%',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingTop: 14,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+  },
   saveBtn: { borderRadius: 12, paddingVertical: 18, alignItems: 'center', marginTop: GAP },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
