@@ -25,6 +25,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   AUTH_LOGO_SOURCE,
   AUTH_HERO_MOBILE,
+  AUTH_HERO_DESKTOP,
   AUTH_HERO_MOBILE_IMAGE_STYLE,
   AUTH_DESKTOP_LOGO,
   AUTH_DESKTOP_PRIMARY_BUTTON,
@@ -50,7 +51,6 @@ const PASSWORD_PLACEHOLDER = '\u2022'.repeat(8);
 const SIGNUP_ALREADY_ACCOUNT_PROMPT = ['J', String.fromCodePoint(0x00e1), ' tenho conta? '].join('');
 /** Título da página de cadastro (imperativo de *cadastrar*: cadastre-se). */
 const SIGNUP_PAGE_TITLE = 'Cadastre-se';
-const heroDesktop = require('../../assets/landing-desktop-hq-preview.png');
 
 /** Web: Alert.alert por vezes nÃ£o aparece; garantimos mensagem visÃ­vel. */
 function notifyAuth(title, message, buttons) {
@@ -65,13 +65,13 @@ function notifyAuth(title, message, buttons) {
   else Alert.alert(title, message);
 }
 
-export function LoginScreen({ initialSignUp = false, onBackToLanding } = {}) {
+export function LoginScreen({ initialSignUp = false, onBackToLanding, desktopReuseLandingCta = false } = {}) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { signIn, signUp, signInWithGoogle, resetPasswordForEmail } = useAuth();
   const isWebDesktop = Platform.OS === 'web' && useIsDesktopLayout();
   const isMobileLike = !isWebDesktop;
-  const heroSource = isMobileLike ? AUTH_HERO_MOBILE : heroDesktop;
+  const heroSource = isMobileLike ? AUTH_HERO_MOBILE : AUTH_HERO_DESKTOP;
   const { width: winW, height: winH } = useWindowDimensions();
   const compactAuth = isMobileLike;
   const [email, setEmail] = useState('');
@@ -82,6 +82,7 @@ export function LoginScreen({ initialSignUp = false, onBackToLanding } = {}) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const desktopEntrarButtonStyle = isWebDesktop ? { minHeight: 28.5, paddingVertical: 6.75 } : undefined;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -462,6 +463,7 @@ export function LoginScreen({ initialSignUp = false, onBackToLanding } = {}) {
                 loading={loading}
                 desktopFixedTop
                 marginTop={4}
+                containerStyle={desktopEntrarButtonStyle}
               />
               <AuthPrimaryButton
                 label="Criar conta"
@@ -519,7 +521,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   bgImage: { flex: 1, backgroundColor: '#0b1220', overflow: 'hidden' },
   bgImageStyle: { width: '100%', height: '100%' },
-  bgImageDesktopMirrored: { transform: [{ scaleX: -1 }] },
+  bgImageDesktopMirrored: {},
   keyboard: { flex: 1 },
   header: {
     flexDirection: 'row',

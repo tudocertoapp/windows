@@ -17,6 +17,7 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 import {
   AUTH_LOGO_SOURCE,
   AUTH_HERO_MOBILE,
+  AUTH_HERO_DESKTOP,
   AUTH_HERO_MOBILE_IMAGE_STYLE,
   AUTH_DESKTOP_LOGO,
   AUTH_DESKTOP_LOGO_TOP,
@@ -34,7 +35,6 @@ import { AuthMobileFixedCtaBar } from '../shared/AuthMobileFixedCtaBar';
 
 /** Logomarca completa (texto + ÃƒÂ­cone), igual ÃƒÂ s outras pÃƒÂ¡ginas. */
 const brandLogo = AUTH_LOGO_SOURCE;
-const heroDesktop = require('../../assets/landing-desktop-hq-preview.png');
 
 /** Gradiente: mais escuro em baixo para leitura do bloco no rodapÃƒÂ© (mobile). */
 const GRADIENT_COLORS = ['rgba(0,0,0,0.32)', 'rgba(0,0,0,0.42)', 'rgba(0,0,0,0.68)'];
@@ -81,7 +81,7 @@ export function LandingScreen({ onStart }) {
     return { ...getAuthMobileLogo(winW), marginBottom: 4 };
   }, [isWebDesktop, winW]);
 
-  const heroSource = isWebDesktop ? heroDesktop : AUTH_HERO_MOBILE;
+  const heroSource = isWebDesktop ? AUTH_HERO_DESKTOP : AUTH_HERO_MOBILE;
 
   /** Altura mínima do conteúdo do scroll = viewport útil (para centrar texto entre logo e CTA). */
   const mobileScrollMinHeight = Math.max(
@@ -130,6 +130,9 @@ export function LandingScreen({ onStart }) {
   );
 
   const fixedBtnStyle = { maxWidth: AUTH_MOBILE_FIXED_CTA_MAX_WIDTH, width: '100%', alignSelf: 'center' };
+  const desktopCtaNudgeStyle = {
+    transform: [{ translateY: 0.5 }],
+  };
 
   /** Começar: texto do CTA; ação continua a abrir o ecrã de login (onStart). */
   const ctaEntrar = (
@@ -142,7 +145,7 @@ export function LandingScreen({ onStart }) {
       desktopFixedTop={isWebDesktop}
       marginTop={isMobileLike ? 0 : undefined}
       marginBottom={isMobileLike ? 0 : undefined}
-      containerStyle={isMobileLike ? fixedBtnStyle : undefined}
+      containerStyle={isMobileLike ? fixedBtnStyle : desktopCtaNudgeStyle}
     />
   );
 
@@ -191,21 +194,14 @@ export function LandingScreen({ onStart }) {
               </ScrollView>
             </>
           ) : (
-            <ScrollView
-              style={s.scroll}
-              contentContainerStyle={[
-                s.scrollInner,
+            <View
+              style={[
+                s.desktopFixedContainer,
                 s.scrollContentDesktop,
                 {
                   paddingBottom: Math.max(56, (insets.bottom || 0) + 40),
-                  minHeight: Math.max(winH - ((insets.top || 0) + (insets.bottom || 0)), 0),
-                  justifyContent: 'center',
-                  alignItems: 'flex-end',
                 },
               ]}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              bounces
             >
               <View style={[s.brandMark, s.brandMarkDesktop]}>
                 <Image
@@ -223,7 +219,7 @@ export function LandingScreen({ onStart }) {
                 importantForAccessibility="no-hide-descendants"
               />
               {ctaEntrar}
-            </ScrollView>
+            </View>
           )}
         </SafeAreaView>
         {isMobileLike ? (
@@ -248,9 +244,7 @@ const s = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  heroImageDesktopMirrored: {
-    transform: [{ scaleX: -1 }],
-  },
+  heroImageDesktopMirrored: {},
   safe: { flex: 1, backgroundColor: 'transparent' },
   /** Mobile: RN Web — flexBasis 0 evita ScrollView a empurrar o conteúdo para fora da vista. */
   mobileBodyScroll: {
@@ -271,6 +265,13 @@ const s = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: 'transparent' },
   scrollInner: {
     flexGrow: 1,
+  },
+  desktopFixedContainer: {
+    flex: 1,
+    minHeight: 0,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    overflow: 'hidden',
   },
   /** Igual LoginScreen.scrollContentDesktop: coluna centrada na viewport (web desktop). */
   scrollContentDesktop: {

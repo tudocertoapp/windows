@@ -4,6 +4,8 @@ export const AUTH_LOGO_SOURCE = require('../../assets/logo-pages.png');
 
 /** Hero de fundo: mobile web e app nativo (Começar, Login, Criar conta). */
 export const AUTH_HERO_MOBILE = require('../../assets/auth-hero-mobile.png');
+/** Hero de fundo: web desktop (Começar, Login, Criar conta). */
+export const AUTH_HERO_DESKTOP = require('../../assets/landing-desktop-hq-preview.png');
 
 /**
  * Enquadramento mobile: retrato centrado (hero partilhado Começar / Login / Criar conta).

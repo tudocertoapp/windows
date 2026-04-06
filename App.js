@@ -43,6 +43,7 @@ function AppWithReminders() {
 function AppContent() {
   const { user, isGuest, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+  const [reuseDesktopLandingCta, setReuseDesktopLandingCta] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const [postLoginSplash, setPostLoginSplash] = useState(false);
   const hadUserRef = useRef(false);
@@ -70,9 +71,24 @@ function AppContent() {
 
   if (!user && !isGuest) {
     if (!showLogin) {
-      return <LandingScreen onStart={() => setShowLogin(true)} />;
+      return (
+        <LandingScreen
+          onStart={() => {
+            setReuseDesktopLandingCta(true);
+            setShowLogin(true);
+          }}
+        />
+      );
     }
-    return <LoginScreen onBackToLanding={() => setShowLogin(false)} />;
+    return (
+      <LoginScreen
+        desktopReuseLandingCta={reuseDesktopLandingCta}
+        onBackToLanding={() => {
+          setReuseDesktopLandingCta(false);
+          setShowLogin(false);
+        }}
+      />
+    );
   }
 
   return (
