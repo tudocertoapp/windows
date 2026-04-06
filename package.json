@@ -13,6 +13,7 @@
     "electron:pack:win:ia32": "npm run electron:icon && npm run web:build && electron-builder --win --ia32",
     "electron:pack:linux": "npm run electron:icon && npm run web:build && electron-builder --linux AppImage deb --x64",
     "electron:pack:mac": "npm run electron:icon && npm run web:build && electron-builder --mac dmg zip --x64",
+    "build:win": "npm run electron:pack:win",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -103,6 +104,11 @@
     "copyright": "Copyright © Tudo Certo",
     "directories": {
       "output": "release"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "tudocertoapp",
+      "repo": "windows"
     },
     "files": [
       "dist/**/*",

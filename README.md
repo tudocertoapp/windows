@@ -1,6 +1,6 @@
-# Tudo Certo - Controle Financeiro
+# Tudo Certo - Agenda e Finanças
 
-App mobile (React Native / Expo) para controle financeiro pessoal.
+Monorepo único: **Expo (web + iOS/Android)** e **Electron (Windows/desktop)**. Este repositório (`tudocertoapp/windows`) concentra o código que antes estava em projetos separados.
 
 ## Estrutura do projeto
 
@@ -8,35 +8,41 @@ App mobile (React Native / Expo) para controle financeiro pessoal.
 src/
   constants/     # Cores de categorias, etc.
   contexts/      # ThemeContext, FinanceContext, MenuContext
-  components/    # TopBar, CircularMenu, gráficos (PieChart, BarChart, LineChart)
-  screens/       # Dashboard, Agenda, Dinheiro, Gráficos, Menu
-  navigation/    # AppNavigator (Tab + Modal do Menu)
-  utils/         # formatCurrency e helpers
-App.js           # Entrada: providers + AppNavigator
+  components/    # UI compartilhada
+  screens/       # Dashboard, Agenda, Dinheiro, etc.
+  navigation/    # AppNavigator
+  utils/
+electron/        # Shell desktop (Electron)
+.github/workflows/  # Build Windows no GitHub Actions
 ```
 
-## Rodar o app
+## Rodar o app (mobile / web)
 
 ```bash
 npm install
 npx expo start
 ```
 
-Use o **Expo Go** no celular (mesma rede Wi‑Fi) e escaneie o QR code.
+Use o **Expo Go** no celular (mesma rede Wi‑Fi) e escaneie o QR code. Para web: `npm run web`.
 
-## Windows: erro "node:sea"
+## Build desktop (Windows)
 
-Em algumas versões do Node/Expo no Windows pode aparecer erro ao criar a pasta `.expo/metro/externals/node:sea` (caractere `:` inválido em caminhos).
+Localmente, após exportar o bundle web:
 
-- **Expo SDK 54**: esse problema costuma estar corrigido. Se ainda aparecer, você pode usar [patch-package](https://github.com/ds300/patch-package) para aplicar um patch no pacote afetado após `npm install`.
-- O script `postinstall` já chama `patch-package`; se existir a pasta `patches/` com um patch, ele será aplicado automaticamente.
+```bash
+npm run electron:pack:win
+```
+
+O instalador sai em `release/`. No CI, o workflow `.github/workflows/build.yml` usa o script `build:win` (alias de `electron:pack:win`).
 
 ## Gráficos
 
-Na tela **Gráficos** você encontra:
+Na tela **Gráficos** você encontra resumo do mês, receitas vs despesas, evolução do saldo, pizza por categoria e barras por categoria.
 
-- **Resumo do mês** – receitas, despesas e saldo
-- **Receitas vs Despesas** – barras por mês com filtro 3m / 6m / 12m
-- **Evolução do Saldo Mensal** – linha do saldo ao longo dos meses
-- **Pizza** – distribuição das despesas por categoria
-- **Barras por categoria** – gastos por categoria no mês
+## Windows: erro "node:sea"
+
+Em algumas versões do Node/Expo no Windows pode aparecer erro ao criar a pasta `.expo/metro/externals/node:sea`. O `postinstall` chama `patch-package`; patches em `patches/` são aplicados após `npm install`.
+
+## Download na landing (snippet)
+
+O arquivo `frontend-download-snippet.js` na raiz pode ser usado no site hospedado na Vercel para oferecer o instalador correto por sistema operacional (releases do GitHub).
