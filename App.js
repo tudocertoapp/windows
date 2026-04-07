@@ -138,6 +138,18 @@ export default function App() {
       } catch (e) {
         console.warn('[App] Ionicons.loadFont falhou:', e?.message || e);
       }
+      // expo-font pode resolver antes do ficheiro estar aplicado (ex.: FontFaceObserver);
+      // document.fonts garante que "ionicons" está realmente pronta antes de montar a UI.
+      try {
+        if (typeof document !== 'undefined' && document.fonts?.load) {
+          await Promise.race([
+            document.fonts.load('24px ionicons'),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+          ]);
+        }
+      } catch (e) {
+        console.warn('[App] Espera por ionicons (document.fonts):', e?.message || e);
+      }
       try {
         if (typeof document !== 'undefined' && document.fonts?.ready) {
           await document.fonts.ready;

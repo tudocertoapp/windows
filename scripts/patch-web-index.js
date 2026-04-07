@@ -1,9 +1,32 @@
 /**
  * Patches dist/index.html - background e loading inicial.
  * Evita tela branca enquanto o React carrega.
+ * Electron: embute Ionicons em data URL (@font-face) para os ícones não dependerem de GET /assets/*.ttf
+ * (evita quadrados vazios se o servidor local ou asar falhar nesse pedido).
  */
 const fs = require('fs');
 const path = require('path');
+
+function findIoniconsTtfUnderAssets(assetsDir) {
+  if (!fs.existsSync(assetsDir)) return null;
+  const stack = [assetsDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const ent of entries) {
+      const p = path.join(dir, ent.name);
+      if (ent.isDirectory()) stack.push(p);
+      else if (/^Ionicons\..+\.ttf$/i.test(ent.name)) return p;
+    }
+  }
+  return null;
+}
+
 const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
 if (fs.existsSync(indexPath)) {
   let html = fs.readFileSync(indexPath, 'utf8');
@@ -22,6 +45,23 @@ if (fs.existsSync(indexPath)) {
   if (patchedPaths !== html) {
     html = patchedPaths;
     changed = true;
+  }
+
+  // Nome da família = segundo argumento de createIconSet em @expo/vector-icons (Ionicons.js): "ionicons"
+  if (!html.includes('tc-ionicons-inline-face')) {
+    const distDir = path.join(__dirname, '..', 'dist');
+    const ttfAbs = findIoniconsTtfUnderAssets(path.join(distDir, 'assets'));
+    if (ttfAbs) {
+      const fontB64 = fs.readFileSync(ttfAbs).toString('base64');
+      const style = `<style id="tc-ionicons-inline-face">@font-face{font-family:ionicons;font-style:normal;font-weight:400;font-display:swap;src:url(data:font/ttf;base64,${fontB64}) format("truetype");}</style>`;
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/<head[^>]*>/i, (m) => `${m}\n    ${style}`);
+        changed = true;
+        console.log('[patch-web-index] Ionicons embutido (data URL) a partir de', path.relative(distDir, ttfAbs));
+      }
+    } else {
+      console.warn('[patch-web-index] Ionicons .ttf não encontrado em dist/assets; ícones podem falhar no Electron.');
+    }
   }
 
   if (!html.includes('background-color: #111827')) {

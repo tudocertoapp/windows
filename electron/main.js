@@ -163,9 +163,12 @@ function startDistServer() {
       res.setHeader('Content-Type', contentTypeFor(absResolved));
       res.setHeader('Content-Length', size);
       res.setHeader('Cache-Control', 'no-cache');
+      // CORS em tudo: o Expo Web faz <link rel="preload" as="font" crossorigin> e @font-face;
+      // sem ACAO o Chromium pode falhar o preload e os ícones ficam em "quadrado vazio".
+      res.setHeader('Access-Control-Allow-Origin', '*');
       const extLower = path.extname(absResolved).toLowerCase();
       if (['.ttf', '.otf', '.woff', '.woff2'].includes(extLower)) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       }
       fs.createReadStream(absResolved).pipe(res);
     } catch (e) {
