@@ -7,6 +7,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const splashLayout = require('../src/constants/splashLayout.json');
+
 function findIoniconsTtfUnderAssets(assetsDir) {
   if (!fs.existsSync(assetsDir)) return null;
   const stack = [assetsDir];
@@ -31,11 +33,13 @@ const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
 if (fs.existsSync(indexPath)) {
   let html = fs.readFileSync(indexPath, 'utf8');
   let changed = false;
-  const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
-  let logoDataUri = '';
-  if (fs.existsSync(logoPath)) {
-    const b64 = fs.readFileSync(logoPath).toString('base64');
-    logoDataUri = `data:image/png;base64,${b64}`;
+  const assetsDir = path.join(__dirname, '..', 'assets');
+  const splashPng = path.join(assetsDir, 'logo-splash.png');
+  const splashFallback = path.join(assetsDir, 'logo.png');
+  const splashFile = fs.existsSync(splashPng) ? splashPng : splashFallback;
+  let splashDataUri = '';
+  if (fs.existsSync(splashFile)) {
+    splashDataUri = `data:image/png;base64,${fs.readFileSync(splashFile).toString('base64')}`;
   }
 
   // Electron (file://): caminhos absolutos quebram; converte para relativos.
@@ -71,15 +75,21 @@ if (fs.existsSync(indexPath)) {
     );
     changed = true;
   }
+  // Mesmo tamanho que SplashScreen (splashLayout.js) — evita “duas logos” com tamanhos diferentes.
+  const { SPLASH_BACKGROUND, SPLASH_LOGO_WIDTH, SPLASH_LOGO_HEIGHT } = splashLayout;
+  const rootSplashHtml = splashDataUri
+    ? `<div id="root"><div id="root-loading" style="display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;background-color:${SPLASH_BACKGROUND};"><img src="${splashDataUri}" alt="" width="${SPLASH_LOGO_WIDTH}" height="${SPLASH_LOGO_HEIGHT}" style="width:${SPLASH_LOGO_WIDTH}px;height:${SPLASH_LOGO_HEIGHT}px;max-width:min(${SPLASH_LOGO_WIDTH}px,92vw);max-height:min(${SPLASH_LOGO_HEIGHT}px,28vh);object-fit:contain;" /></div></div>`
+    : `<div id="root"><div id="root-loading" style="min-height:100vh;width:100%;background-color:${SPLASH_BACKGROUND};"></div></div>`;
+
   if (!html.includes('id="root-loading"')) {
-    const loadingHtml = logoDataUri
-      ? `<div id="root"><div id="root-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-family:system-ui,sans-serif;font-size:16px;gap:14px;"><img src="${logoDataUri}" alt="Tudo Certo" style="width:92px;height:92px;object-fit:contain;opacity:0.98;" /><div style="font-size:15px;font-weight:600;color:#d1d5db;">Carregando Tudo Certo...</div></div></div>`
-      : '<div id="root"><div id="root-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-family:system-ui,sans-serif;font-size:16px;">Carregando Tudo Certo...</div></div>';
-    html = html.replace(
-      '<div id="root"></div>',
-      loadingHtml
-    );
+    html = html.replace('<div id="root"></div>', rootSplashHtml);
     changed = true;
+  } else if (html.includes('Carregando Tudo Certo')) {
+    const reOldRoot = /<div id="root">\s*<div id="root-loading"[^>]*>[\s\S]*?<\/div>\s*<\/div>/;
+    if (reOldRoot.test(html)) {
+      html = html.replace(reOldRoot, rootSplashHtml);
+      changed = true;
+    }
   }
   if (changed) {
     fs.writeFileSync(indexPath, html);

@@ -18,21 +18,22 @@ const outPng = path.join(outDir, 'icon.png');
 const outPng256 = path.join(outDir, 'icon-256.png');
 const outIco = path.join(outDir, 'icon.ico');
 const outIcns = path.join(outDir, 'icon.icns');
+const DEFAULT_FORCED_SOURCE = 'assets/logo.png';
 
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
 const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 
-/* logo-original / Generated_image: export “master” com fundo branco → chaveamos no script. */
+/* Ordem importa: logo.png primeiro para evitar cair no logo-original com visual "Electron". */
 const CANDIDATES = [
+  'assets/logo.png',
+  'assets/logo-app.svg',
   'assets/logo-desktop-oficial.png',
   'assets/logo-original.png',
   'assets/Generated_image.png',
-  'assets/logo.png',
   'assets/icon.png',
   'assets/adaptive-icon.png',
   'assets/logo-pages.png',
   'assets/favicon.png',
-  'assets/logo-app.svg',
   'assets/splash.png',
   'I:/Meu Drive/logo svg.svg',
   'i:/Meu Drive/logo svg.svg',
@@ -46,6 +47,14 @@ function ensureDirs() {
 }
 
 function resolveSource() {
+  const forced = process.env.ELECTRON_ICON_SOURCE;
+  if (forced) {
+    const p = path.isAbsolute(forced) ? forced : path.join(root, forced);
+    if (fs.existsSync(p)) return p;
+    console.warn('[electron:icon] ELECTRON_ICON_SOURCE não encontrado:', p);
+  }
+  const defaultForced = path.join(root, DEFAULT_FORCED_SOURCE);
+  if (fs.existsSync(defaultForced)) return defaultForced;
   for (const c of CANDIDATES) {
     const p = path.isAbsolute(c) ? c : path.join(root, c);
     if (fs.existsSync(p)) return p;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -11,7 +11,7 @@ import { FinanceProvider, useFinance } from './src/contexts/FinanceContext';
 import { PlanProvider } from './src/contexts/PlanContext';
 import { ProfileProvider } from './src/contexts/ProfileContext';
 import { ThemeSync } from './src/components/ThemeSync';
-import { BanksProvider } from './src/contexts/BanksContext';
+import { BanksProvider, useBanks } from './src/contexts/BanksContext';
 import { BudgetProvider } from './src/contexts/BudgetContext';
 import { NotesProvider } from './src/contexts/NotesContext';
 import { ShoppingListProvider } from './src/contexts/ShoppingListContext';
@@ -26,6 +26,18 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { SplashScreen } from './src/components/SplashScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { Ionicons } from '@expo/vector-icons';
+
+/** Atualiza quando dados iniciais (nuvem / AsyncStorage convidado) estão prontos. */
+function MainBootstrapBridge({ onMainDataReady }) {
+  const { user, isGuest } = useAuth();
+  const { loading: financeLoading } = useFinance();
+  const { banksHydrated } = useBanks();
+  useEffect(() => {
+    const ready = user ? !financeLoading : isGuest ? banksHydrated : false;
+    onMainDataReady(!!ready);
+  }, [user, isGuest, financeLoading, banksHydrated, onMainDataReady]);
+  return null;
+}
 
 function AppWithReminders() {
   const { agendaEvents, aReceber, checkListItems, updateCheckListItem } = useFinance();
@@ -42,46 +54,73 @@ function AppWithReminders() {
 }
 
 function AppContent() {
-  const { user, isGuest, loading } = useAuth();
+  const { user, isGuest, loading: authLoading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [reuseDesktopLandingCta, setReuseDesktopLandingCta] = useState(false);
-  const [splashDone, setSplashDone] = useState(false);
-  const [postLoginSplash, setPostLoginSplash] = useState(false);
-  const hadUserRef = useRef(false);
+  const [mainDataReady, setMainDataReady] = useState(true);
+  const [splashClosedForBoot, setSplashClosedForBoot] = useState(false);
 
   useEffect(() => {
     if (user || isGuest) {
-      if (!hadUserRef.current && showLogin) setPostLoginSplash(true);
-      hadUserRef.current = true;
-    } else hadUserRef.current = false;
-  }, [user, isGuest, showLogin]);
-
-  const isWeb = Platform.OS === 'web';
-  const showSplash = loading || !splashDone || postLoginSplash;
-  const splashDuration = isWeb ? 1500 : 4000;
-
-  if (showSplash) {
-    return (
-      <SplashScreen
-        duration={splashDuration}
-        onFinish={() => { setSplashDone(true); setPostLoginSplash(false); }}
-        backgroundColor="#111827"
-      />
-    );
-  }
-
-  if (!user && !isGuest) {
-    if (!showLogin) {
-      return (
-        <LandingScreen
-          onStart={() => {
-            setReuseDesktopLandingCta(true);
-            setShowLogin(true);
-          }}
-        />
-      );
+      setMainDataReady(false);
+    } else {
+      setMainDataReady(true);
     }
-    return (
+  }, [user?.id, isGuest]);
+
+  useEffect(() => {
+    if (user || isGuest) {
+      setSplashClosedForBoot(false);
+    }
+  }, [user?.id, isGuest]);
+
+  const sessionNeedsMainData = !!(user || isGuest);
+  const dataReady =
+    !authLoading && (sessionNeedsMainData ? mainDataReady : true);
+  const showSplash = authLoading || !splashClosedForBoot;
+
+  const mainTree =
+    (user || isGuest) && (
+      <BanksProvider>
+        <FinanceProvider>
+          <BudgetProvider>
+            <NotesProvider>
+              <ColaboradoresOrdemProvider>
+                <ShoppingListProvider>
+                  <GoalsProvider>
+                    <PlanProvider>
+                      <ProfileProvider>
+                        <ThemeSync>
+                          <EmpresaProvider>
+                            <ValuesVisibilityProvider>
+                              <MainBootstrapBridge onMainDataReady={setMainDataReady} />
+                              <AppWithReminders />
+                            </ValuesVisibilityProvider>
+                          </EmpresaProvider>
+                        </ThemeSync>
+                      </ProfileProvider>
+                    </PlanProvider>
+                  </GoalsProvider>
+                </ShoppingListProvider>
+              </ColaboradoresOrdemProvider>
+            </NotesProvider>
+          </BudgetProvider>
+        </FinanceProvider>
+      </BanksProvider>
+    );
+
+  const landingOrLogin =
+    !authLoading &&
+    !user &&
+    !isGuest &&
+    (!showLogin ? (
+      <LandingScreen
+        onStart={() => {
+          setReuseDesktopLandingCta(true);
+          setShowLogin(true);
+        }}
+      />
+    ) : (
       <LoginScreen
         desktopReuseLandingCta={reuseDesktopLandingCta}
         onBackToLanding={() => {
@@ -89,35 +128,21 @@ function AppContent() {
           setShowLogin(false);
         }}
       />
-    );
-  }
+    ));
 
   return (
-    <BanksProvider>
-      <FinanceProvider>
-        <BudgetProvider>
-          <NotesProvider>
-          <ColaboradoresOrdemProvider>
-          <ShoppingListProvider>
-          <GoalsProvider>
-            <PlanProvider>
-              <ProfileProvider>
-                <ThemeSync>
-                  <EmpresaProvider>
-                    <ValuesVisibilityProvider>
-                      <AppWithReminders />
-                    </ValuesVisibilityProvider>
-                  </EmpresaProvider>
-                </ThemeSync>
-              </ProfileProvider>
-            </PlanProvider>
-          </GoalsProvider>
-          </ShoppingListProvider>
-          </ColaboradoresOrdemProvider>
-          </NotesProvider>
-        </BudgetProvider>
-      </FinanceProvider>
-    </BanksProvider>
+    <View style={{ flex: 1, backgroundColor: '#111827' }}>
+      {mainTree}
+      {landingOrLogin}
+      {showSplash && (
+        <SplashScreen
+          overlay
+          dataReady={dataReady}
+          minHoldMs={sessionNeedsMainData ? 4000 : 0}
+          onFinish={() => setSplashClosedForBoot(true)}
+        />
+      )}
+    </View>
   );
 }
 

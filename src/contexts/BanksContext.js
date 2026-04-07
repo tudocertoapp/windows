@@ -205,6 +205,8 @@ export function BanksProvider({ children }) {
       value={{
         banks,
         cards,
+        /** true quando AsyncStorage dos bancos/cartões foi lido (convidado depende disto no splash). */
+        banksHydrated: loaded,
         addBank,
         updateBank,
         removeBank,
