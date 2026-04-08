@@ -3,12 +3,59 @@
  * Produção: carrega export estático Expo em dist/index.html.
  * Desenvolvimento: ELECTRON_DEV=1 + app web em http://127.0.0.1:8081 (npm run web).
  */
-const { app, BrowserWindow, shell, session, systemPreferences, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, shell, session, systemPreferences, Menu, nativeImage, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
 
 const isDev = process.env.ELECTRON_DEV === '1' || process.env.ELECTRON_DEV === 'true';
+let mainWindow = null;
+
+function setupAutoUpdate(win) {
+  if (!app.isPackaged || isDev) return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('error', (err) => {
+    console.error('[Updater] erro:', err?.message || err);
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[Updater] atualização disponível:', info?.version || '(sem versão)');
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[Updater] sem atualizações');
+  });
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    try {
+      const result = await dialog.showMessageBox(win, {
+        type: 'info',
+        buttons: ['Reiniciar agora', 'Depois'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Atualização pronta',
+        message: `Uma nova versão (${info?.version || 'nova'}) foi baixada.`,
+        detail: 'Deseja reiniciar agora para aplicar a atualização?',
+      });
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    } catch (e) {
+      console.error('[Updater] falha ao mostrar prompt:', e?.message || e);
+    }
+  });
+
+  // Pequeno atraso para não competir com a primeira renderização da janela.
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[Updater] checkForUpdates falhou:', err?.message || err);
+    });
+  }, 5000);
+}
 
 function appIconPath() {
   const ico = path.join(__dirname, 'icon.ico');
@@ -240,6 +287,8 @@ function createWindow() {
     }
     return { action: 'deny' };
   });
+
+  return win;
 }
 
 app.whenReady().then(() => {
@@ -277,9 +326,13 @@ app.whenReady().then(() => {
     systemPreferences.askForMediaAccess('microphone').catch(() => {});
   }
 
-  createWindow();
+  mainWindow = createWindow();
+  setupAutoUpdate(mainWindow);
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createWindow();
+      setupAutoUpdate(mainWindow);
+    }
   });
 });
 
