@@ -127,6 +127,8 @@ export function AppNavigator() {
   const [calculatorHistory, setCalculatorHistory] = useState([]);
   const { colors, primaryColor } = useTheme();
   const { showEmpresaFeatures } = usePlan();
+  /** Web desktop: navegação sempre na lateral (RightSideTabBar). Atalhos F1–F8 do Início ficam só no plano com empresa. */
+  const showDesktopRightRail = isWebDesktop;
   const { addProduct } = useFinance();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -288,7 +290,7 @@ export function AppNavigator() {
   return (
     <MenuContext.Provider value={menuActions}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, flexDirection: isWebDesktop ? 'row' : 'column' }}>
+        <View style={{ flex: 1, flexDirection: showDesktopRightRail ? 'row' : 'column' }}>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
             <NavigationContainer
               ref={navigationRef}
@@ -306,7 +308,7 @@ export function AppNavigator() {
               <Tab.Navigator
                 sceneContainerStyle={{ flex: 1, minHeight: 0 }}
                 tabBar={
-                  isDesktopLayout
+                  isWebDesktop
                     ? () => null
                     : (tabProps) => (
                         <WebMobileTabBarDock
@@ -321,11 +323,11 @@ export function AppNavigator() {
                 screenOptions={({ route }) => ({
                   headerShown: false,
                   tabBarShowLabel: false,
-                  // Web mobile: esconder botões WhatsApp/CRM da tabbar.
+                  // Web mobile: esconder WhatsApp/CRM/Cadastros da tabbar.
                   ...(isWebMobile && ['WhatsApp', 'CRM', 'Cadastros'].includes(route.name)
                     ? { tabBarButton: () => null }
                     : {}),
-                  tabBarStyle: isDesktopLayout
+                  tabBarStyle: isWebDesktop
                     ? { display: 'none' }
                     : isWeb
                       ? {
@@ -477,7 +479,7 @@ export function AppNavigator() {
               </View>
             )}
           </View>
-          {isWebDesktop ? (
+          {showDesktopRightRail ? (
             <View
               style={{
                 flexShrink: 0,

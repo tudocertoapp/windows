@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
-import { PLANS, PLAN_ID_TO_PLAN, PLAN_LABELS, PLAN_IDS_CUSTOM_COLORS } from '../constants/plans';
+import {
+  PLANS,
+  PLAN_ID_TO_PLAN,
+  PLAN_LABELS,
+  PLAN_IDS_CUSTOM_COLORS,
+  planTierIncludesEmpresaModule,
+} from '../constants/plans';
 
 const PLAN_STORAGE_BASE = '@tudocerto_plan';
 const DEFAULT_PLAN_ID = 'pessoal';
@@ -45,7 +51,7 @@ export function PlanProvider({ children }) {
     AsyncStorage.setItem(storageKey, JSON.stringify({ planId, plan, viewMode }));
   }, [loaded, planId, plan, viewMode, storageKey]);
 
-  const isEmpresa = plan === PLANS.empresa || plan === PLANS.pessoal_empresa;
+  const isEmpresa = planTierIncludesEmpresaModule(plan);
   const showEmpresaFeatures = isEmpresa;
   const canToggleView = isEmpresa;
   const planLabel = PLAN_LABELS[planId] || PLAN_LABELS.pessoal;

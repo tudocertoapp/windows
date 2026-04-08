@@ -274,6 +274,7 @@ export function DashboardScreen() {
 
   useEffect(() => {
     if (!(isWeb && useWebLayout)) return undefined;
+    if (!showEmpresaFeatures) return undefined;
     if (typeof window === 'undefined') return undefined;
     const isTypingTarget = (target) => {
       const tag = target?.tagName?.toLowerCase?.();
@@ -297,7 +298,7 @@ export function DashboardScreen() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWeb, useWebLayout, webDesktopQuickButtons]);
+  }, [isWeb, useWebLayout, showEmpresaFeatures, webDesktopQuickButtons]);
 
 
   useEffect(() => {
@@ -3152,7 +3153,7 @@ export function DashboardScreen() {
                 </View>
               );
             })()}
-            {useWebLayout ? (
+            {useWebLayout && showEmpresaFeatures ? (
               <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
                   {webDesktopQuickButtons.map((item, index) => (

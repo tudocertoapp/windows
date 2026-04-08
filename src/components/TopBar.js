@@ -300,10 +300,13 @@ export function TopBar({
     </View>
   );
 
-  const railFixedRight = WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT + (WEB_DESKTOP_RAIL_WIDTH - WEB_DESKTOP_ORGANIZE_BTN) / 2;
+  const showDesktopRightRail = isWebDesktop;
+  const railFixedRight = showDesktopRightRail
+    ? WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT + (WEB_DESKTOP_RAIL_WIDTH - WEB_DESKTOP_ORGANIZE_BTN) / 2
+    : 16;
   const railBaseTop = insets.top + scaleWebDesktop(10, true) + 8;
-  const showCardsRail = isWebDesktop && onManageCards && Platform.OS === 'web';
-  const showOrganizeRail = isWebDesktop && !hideOrganize && onOrganize && Platform.OS === 'web';
+  const showCardsRail = showDesktopRightRail && onManageCards && Platform.OS === 'web';
+  const showOrganizeRail = showDesktopRightRail && !hideOrganize && onOrganize && Platform.OS === 'web';
   const cardsRailTop = showCardsRail ? railBaseTop : null;
   const organizeRailTop = showOrganizeRail
     ? railBaseTop + (showCardsRail ? WEB_DESKTOP_ORGANIZE_BTN + WEB_DESKTOP_RAIL_BTN_GAP : 0)

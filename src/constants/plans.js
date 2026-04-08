@@ -4,6 +4,14 @@ export const PLANS = {
   empresa: 'empresa',
 };
 
+/**
+ * Tier com módulo empresa: pessoal+empresa (PE) ou só empresa.
+ * Usado para WhatsApp, cadastros empresa, atalhos F1–F8 no Início (web desktop), etc.
+ */
+export function planTierIncludesEmpresaModule(planTier) {
+  return planTier === PLANS.pessoal_empresa || planTier === PLANS.empresa;
+}
+
 /** Mapeia planId para plan (pessoal | pessoal_empresa | empresa) */
 export const PLAN_ID_TO_PLAN = {
   pessoal: PLANS.pessoal,
