@@ -3138,32 +3138,6 @@ export function DashboardScreen() {
               gap: WEB_DESKTOP_ROW_GAP,
             }}
           >
-            {(() => {
-              const carouselContent = sectionMap.carousel;
-              const quoteContent = sectionMap.quote;
-              if (!carouselContent && !quoteContent) return null;
-              if (!carouselContent) {
-                return quoteContent ? <View style={{ width: '100%' }}>{quoteContent}</View> : null;
-              }
-              if (!quoteContent) {
-                return <View style={{ width: '100%' }}>{carouselContent}</View>;
-              }
-              return (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    width: '100%',
-                    gap: WEB_DESKTOP_ROW_GAP,
-                    alignItems: 'stretch',
-                  }}
-                >
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
-                    {carouselContent}
-                  </View>
-                </View>
-              );
-            })()}
             {useWebLayout && showEmpresaFeatures ? (
               <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
@@ -3216,6 +3190,32 @@ export function DashboardScreen() {
                 </View>
               </View>
             ) : null}
+            {(() => {
+              const carouselContent = sectionMap.carousel;
+              const quoteContent = sectionMap.quote;
+              if (!carouselContent && !quoteContent) return null;
+              if (!carouselContent) {
+                return quoteContent ? <View style={{ width: '100%' }}>{quoteContent}</View> : null;
+              }
+              if (!quoteContent) {
+                return <View style={{ width: '100%' }}>{carouselContent}</View>;
+              }
+              return (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    width: '100%',
+                    gap: WEB_DESKTOP_ROW_GAP,
+                    alignItems: 'stretch',
+                  }}
+                >
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
+                    {carouselContent}
+                  </View>
+                </View>
+              );
+            })()}
             {(() => {
               const hasAgenda = webSectionTail.includes('agenda');
               if (!hasAgenda) return null;
