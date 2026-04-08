@@ -62,7 +62,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ matrix.os }}
-          path: release/*
+          path: |
+            release/*.exe
+            release/latest*.yml
+            release/*.blockmap
           
   release:
     needs: build
