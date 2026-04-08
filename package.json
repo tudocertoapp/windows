@@ -98,7 +98,7 @@
   },
   "private": true,
   "name": "tudo-certo",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "build": {
     "appId": "com.tudocerto.desktop",
     "productName": "Tudo Certo",
