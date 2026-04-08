@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { usePlan } from '../../contexts/PlanContext';
@@ -48,7 +49,7 @@ function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
 /** Deslocamento da pílula (desktop web): sobe 1/8 da altura útil e puxa um pouco para a esquerda. */
 const ISLAND_SHIFT_X = 12;
 
-export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
+export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mode = 'side', calculatorActive = false, menuActive = false }) {
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
   const { openCalculadoraFull } = useMenu();
@@ -63,6 +64,7 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
   }, [windowHeight]);
 
   if (!isWeb) return null;
+  const isBottomMode = mode === 'bottom';
 
   const tabItems = [
     { key: 'Início', label: 'Início', icon: 'home-outline', onPress: () => onNavigate?.('Início') },
@@ -81,12 +83,6 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
       icon: 'chatbubbles-outline',
       onPress: () => onNavigate?.('MeusGastos'),
     },
-    {
-      key: 'calc',
-      label: 'Calculadora',
-      icon: 'calculator-outline',
-      onPress: () => openCalculadoraFull?.(),
-    },
   ];
 
   if (showEmpresaFeatures) {
@@ -97,13 +93,32 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
       onPress: () => onNavigate?.('WhatsApp'),
     });
   }
+  tabItems.push({
+    key: 'menu',
+    label: 'Menu',
+    ionIcon: 'menu',
+    onPress: () => onMenu?.(),
+  });
+  if (!isBottomMode) {
+    tabItems.push({
+      key: 'calc',
+      label: 'Calculadora',
+      icon: 'calculator-outline',
+      onPress: () => openCalculadoraFull?.(),
+    });
+  }
 
   /** Safe area; altura útil = viewport entre paddings. O + fica no centro vertical dessa área. */
   const padTop = insets.top || 0;
   const padBottom = Math.max(12, insets.bottom || 0);
 
   const renderRailEntry = (it) => {
-    const active = activeRouteName === it.key;
+    const active =
+      it.key === 'calc'
+        ? calculatorActive
+        : it.key === 'menu'
+          ? menuActive
+          : activeRouteName === it.key;
     return (
       <RailItem
         key={it.key}
@@ -116,6 +131,91 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd }) {
       />
     );
   };
+
+  if (isBottomMode) {
+    const estimatedWidth = Math.max(420, tabItems.length * 56 + 64);
+    return (
+      <View
+        style={[
+          s.bottomWrap,
+          {
+            width: estimatedWidth,
+            borderColor: colors.border + '88',
+            ...(Platform.OS === 'web'
+              ? { boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.08)' }
+              : {}),
+          },
+        ]}
+      >
+        <BlurView
+          intensity={60}
+          tint={(colors.isDarkBg ?? false) ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: (colors.isDarkBg ?? false)
+                ? 'rgba(17,24,39,0.25)'
+                : 'rgba(255,255,255,0.25)',
+            },
+          ]}
+        />
+        <View style={s.bottomInner}>
+          {tabItems.map((it) => {
+            if (it.isAdd) {
+              return (
+                <TouchableOpacity
+                  key="Adicionar"
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    playTapSound();
+                    it.onPress?.();
+                  }}
+                  style={[s.bottomAddRound, { backgroundColor: colors.primary }]}
+                  accessibilityLabel="Adicionar"
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="add" size={24} color="#fff" />
+                </TouchableOpacity>
+              );
+            }
+            const active =
+              it.key === 'calc'
+                ? calculatorActive
+                : it.key === 'menu'
+                  ? menuActive
+                  : activeRouteName === it.key;
+            return (
+              <TouchableOpacity
+                key={it.key}
+                activeOpacity={0.85}
+                onPress={() => {
+                  playTapSound();
+                  it.onPress?.();
+                }}
+                style={[
+                  s.bottomRoundBtn,
+                  { borderColor: colors.border },
+                  active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
+                ]}
+                accessibilityLabel={it.label}
+                accessibilityRole="button"
+              >
+                {it.ionIcon ? (
+                  <Ionicons name={it.ionIcon} size={19} color={active ? colors.primary : colors.textSecondary} />
+                ) : (
+                  <AppIcon name={it.icon} size={19} color={active ? colors.primary : colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -215,6 +315,39 @@ const s = StyleSheet.create({
     width: ADD_BTN,
     height: ADD_BTN,
     borderRadius: ADD_BTN / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  bottomWrap: {
+    borderRadius: 26,
+    borderWidth: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 22,
+    overflow: 'hidden',
+  },
+  bottomInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  bottomRoundBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomAddRound: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

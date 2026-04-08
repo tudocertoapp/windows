@@ -202,17 +202,27 @@ export function AppNavigator() {
         navigationRef.current?.navigate('Início', { openCardPicker: true });
       },
       openCalculadoraFull: () => {
-        // No web desktop preferimos manter apenas a calculadora compacta (overlay).
+        // Toggle: segundo clique no atalho fecha a calculadora.
         if (isWebDesktop) {
+          if (calculadoraFloating || calculadoraModal) {
+            setCalculadoraFloating(false);
+            setCalculadoraModal(false);
+            return;
+          }
           setCalculadoraModal(false);
           setCalculadoraFloating(true);
+          return;
+        }
+        if (calculadoraModal || calculadoraFloating) {
+          setCalculadoraModal(false);
+          setCalculadoraFloating(false);
           return;
         }
         setCalculadoraFloating(false);
         setCalculadoraModal(true);
       },
     }),
-    [isWebDesktop, showEmpresaFeatures]
+    [isWebDesktop, showEmpresaFeatures, calculadoraFloating, calculadoraModal]
   );
 
   /** Seta + calculadora: mesma linha, centro vertical da tela (viewport), respeitando safe area e tab bar. */
@@ -290,7 +300,7 @@ export function AppNavigator() {
   return (
     <MenuContext.Provider value={menuActions}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, flexDirection: showDesktopRightRail ? 'row' : 'column' }}>
+        <View style={{ flex: 1, flexDirection: 'column' }}>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
             <NavigationContainer
               ref={navigationRef}
@@ -478,25 +488,39 @@ export function AppNavigator() {
                 </TouchableOpacity>
               </View>
             )}
+            {showDesktopRightRail ? (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  alignItems: 'center',
+                  zIndex: 2147483645,
+                  ...(Platform.OS === 'web'
+                    ? {
+                        position: 'fixed',
+                        left: 0,
+                        right: 0,
+                        bottom: Math.max(insets.bottom, 8),
+                      }
+                    : {
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: Math.max(insets.bottom, 8),
+                      }),
+                }}
+              >
+                <RightSideTabBar
+                  mode="bottom"
+                  activeRouteName={desktopTabRoute}
+                  calculatorActive={calculadoraFloating || calculadoraModal}
+                  menuActive={menuModalOpen}
+                  onNavigate={(name) => navigationRef.current?.navigate?.(name)}
+                  onAdd={() => { setMenuOpen(!menuOpen); }}
+                  onMenu={() => setMenuModalOpen(true)}
+                />
+              </View>
+            ) : null}
           </View>
-          {showDesktopRightRail ? (
-            <View
-              style={{
-                flexShrink: 0,
-                alignSelf: 'stretch',
-                minHeight: 0,
-                paddingLeft: 14,
-                paddingRight: 16,
-                backgroundColor: colors.bg,
-              }}
-            >
-              <RightSideTabBar
-                activeRouteName={desktopTabRoute}
-                onNavigate={(name) => navigationRef.current?.navigate?.(name)}
-                onAdd={() => { setMenuOpen(!menuOpen); }}
-              />
-            </View>
-          ) : null}
         </View>
       <CircularMenuComponent
         isOpen={menuOpen}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, AppState, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, AppState, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -79,8 +79,21 @@ export function TopBar({
   const isHome = title === 'Início' || useLogoImage;
   const isWeb = Platform.OS === 'web';
   const isWebDesktop = isWeb && isDesktopLayout;
+  const { width: winWidth } = useWindowDimensions();
+  const desktopPagePad = scaleWebDesktop(10, true);
+  const desktopRowGap = scaleWebDesktop(8, true);
+  const desktopCardW = Math.max(90, ((Math.max(200, winWidth - (2 * desktopPagePad))) - (desktopRowGap * 7)) / 8);
+  const desktopToggleTrackW = (desktopCardW * 2) + desktopRowGap;
+  const inlineToggleWrapStyle = isWebDesktop
+    ? {
+        width: desktopToggleTrackW,
+        marginRight: -(scaleWebDesktop(16, true) - desktopPagePad),
+        position: 'relative',
+        flexShrink: 0,
+      }
+    : null;
   // Web desktop: menu lateral sumiu — o botão de menu no cabeçalho abre o modal (igual mobile).
-  const showSlideMenu = !hideMenu;
+  const showSlideMenu = !hideMenu && !isWebDesktop;
   // Foto de perfil no cabeçalho também no web desktop (Início).
   const showHomeAvatar = isHome;
   const appStateRef = useRef(AppState.currentState);
@@ -160,7 +173,7 @@ export function TopBar({
           <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
         </TouchableOpacity>
       ) : null}
-      {!isWebDesktop && onCalculadora ? (
+      {onCalculadora ? (
         <TouchableOpacity
           style={{ padding: 8, backgroundColor: 'transparent' }}
           onPress={() => { playTapSound(); onCalculadora(); }}
@@ -236,8 +249,15 @@ export function TopBar({
         </Text>
       </View>
       <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
-        {inlineToggle}
         {homeTrailingActions}
+        {inlineToggle ? (
+          <View style={inlineToggleWrapStyle}>
+            {/* Guias invisíveis de início/fim para manter alinhamento horizontal estável. */}
+            <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, opacity: 0 }} />
+            <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 1, opacity: 0 }} />
+            {inlineToggle}
+          </View>
+        ) : null}
       </View>
     </View>
   ) : (
@@ -294,8 +314,15 @@ export function TopBar({
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {inlineToggle}
         {homeTrailingActions}
+        {inlineToggle ? (
+          <View style={inlineToggleWrapStyle}>
+            {/* Guias invisíveis de início/fim para manter alinhamento horizontal estável. */}
+            <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, opacity: 0 }} />
+            <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 1, opacity: 0 }} />
+            {inlineToggle}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -305,8 +332,8 @@ export function TopBar({
     ? WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT + (WEB_DESKTOP_RAIL_WIDTH - WEB_DESKTOP_ORGANIZE_BTN) / 2
     : 16;
   const railBaseTop = insets.top + scaleWebDesktop(10, true) + 8;
-  const showCardsRail = showDesktopRightRail && onManageCards && Platform.OS === 'web';
-  const showOrganizeRail = showDesktopRightRail && !hideOrganize && onOrganize && Platform.OS === 'web';
+  const showCardsRail = false;
+  const showOrganizeRail = false;
   const cardsRailTop = showCardsRail ? railBaseTop : null;
   const organizeRailTop = showOrganizeRail
     ? railBaseTop + (showCardsRail ? WEB_DESKTOP_ORGANIZE_BTN + WEB_DESKTOP_RAIL_BTN_GAP : 0)

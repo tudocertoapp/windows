@@ -100,8 +100,13 @@ const ds = StyleSheet.create({
   carouselTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
   carouselText: { fontSize: 12, lineHeight: 18 },
   quoteCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
-  quoteText: { fontSize: 14, fontStyle: 'italic', lineHeight: 22 },
-  quoteType: { fontSize: 10, marginTop: 8, letterSpacing: 1 },
+  quoteText: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'web' ? 'Georgia' : 'serif',
+  },
+  quoteType: { fontSize: 9, marginTop: 8, letterSpacing: 1 },
   tab: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   tabText: { fontSize: 12, fontWeight: '600' },
 });
@@ -274,7 +279,6 @@ export function DashboardScreen() {
 
   useEffect(() => {
     if (!(isWeb && useWebLayout)) return undefined;
-    if (!showEmpresaFeatures) return undefined;
     if (typeof window === 'undefined') return undefined;
     const isTypingTarget = (target) => {
       const tag = target?.tagName?.toLowerCase?.();
@@ -291,14 +295,22 @@ export function DashboardScreen() {
       const match = keyRaw.match(/^F(\d{1,2})$/);
       if (!match) return;
       const fnNumber = Number(match[1]);
-      if (!Number.isFinite(fnNumber) || fnNumber < 1 || fnNumber > webDesktopQuickButtons.length) return;
+      if (!Number.isFinite(fnNumber)) return;
+      if (canToggleView && (fnNumber === 9 || fnNumber === 10)) {
+        event.preventDefault();
+        playTapSound();
+        setViewMode(fnNumber === 9 ? 'pessoal' : 'empresa');
+        return;
+      }
+      if (!showEmpresaFeatures) return;
+      if (fnNumber < 1 || fnNumber > webDesktopQuickButtons.length) return;
       event.preventDefault();
       playTapSound();
       webDesktopQuickButtons[fnNumber - 1]?.onPress?.();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWeb, useWebLayout, showEmpresaFeatures, webDesktopQuickButtons]);
+  }, [isWeb, useWebLayout, showEmpresaFeatures, canToggleView, webDesktopQuickButtons, setViewMode]);
 
 
   useEffect(() => {
@@ -2204,7 +2216,7 @@ export function DashboardScreen() {
               <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: useWebLayout ? 13 : 15, fontWeight: '700', color: colors.text }}>
                 {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
               </Text>
             </View>
@@ -2238,7 +2250,7 @@ export function DashboardScreen() {
                     ds.quoteText,
                     {
                       color: colors.text,
-                      fontSize: useWebLayout ? scaleWebDesktop(12, true) : ds.quoteText.fontSize,
+                      fontSize: useWebLayout ? scaleWebDesktop(10, true) : ds.quoteText.fontSize,
                       textAlign: 'center',
                       width: '100%',
                     },
@@ -2250,7 +2262,7 @@ export function DashboardScreen() {
               </View>
             ) : (
               <Text
-                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? (quoteType === 'verso' ? 16 : 14) : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? (quoteType === 'verso' ? 26 : 22) : ds.quoteText.lineHeight }]}
+                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 14 : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? 21 : ds.quoteText.lineHeight }]}
                 numberOfLines={useWebLayout ? 3 : 3}
               >
                 "{useWebLayout ? quoteDesktopWrapped : quote}"
@@ -3090,9 +3102,6 @@ export function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
-      {(() => {
-        const showInlineToggle = useWebLayout && canToggleView;
-        return (
       <TopBar
         title="Início"
         colors={colors}
@@ -3104,14 +3113,16 @@ export function DashboardScreen() {
         }}
         headerDate={now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
         deferFinancePrompt
-        inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
+        inlineToggle={
+          useWebLayout && canToggleView ? (
+            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline />
+          ) : null
+        }
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={useWebLayout ? openCalculadoraFull : undefined}
         onChat={useWebLayout ? openMeusGastos : undefined}
         onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
       />
-        );
-      })()}
       {!(useWebLayout && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
       {isGuest && (
         <View style={{ marginHorizontal: useWebLayout ? WEB_DESKTOP_PAGE_PAD : 16, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.primaryRgba(0.2), borderWidth: 1, borderColor: colors.primary + '60', flexDirection: 'row', alignItems: 'center' }}>
@@ -3166,6 +3177,7 @@ export function DashboardScreen() {
                         flex: 1,
                         flexBasis: 0,
                         minWidth: 0,
+                        height: 40,
                         paddingVertical: 10,
                         paddingHorizontal: 10,
                         borderRadius: 14,
