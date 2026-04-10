@@ -250,17 +250,17 @@ export function DashboardScreen() {
   const [floatingId, setFloatingId] = useState(null);
   const now = new Date();
   const quote = getQuoteOfDay(quoteType);
-  const quoteDesktopWrapped = useMemo(() => {
-    const words = String(quote || '').trim().split(/\s+/).filter(Boolean);
-    if (words.length <= 6) return quote;
-    const lines = [];
-    let idx = 0;
-    while (idx < words.length) {
-      const lineSize = lines.length % 2 === 0 ? 6 : 5; // 5-6 palavras por linha
-      lines.push(words.slice(idx, idx + lineSize).join(' '));
-      idx += lineSize;
+  const { quoteBody, quoteSource } = useMemo(() => {
+    const raw = String(quote || '').trim();
+    // Versiculos vêm no formato "Referencia - texto". Ex: "Salmo 121:1-2 - ...".
+    const sep = raw.indexOf(' - ');
+    if (sep > 0) {
+      return {
+        quoteSource: raw.slice(0, sep).trim(),
+        quoteBody: raw.slice(sep + 3).trim(),
+      };
     }
-    return lines.join('\n');
+    return { quoteBody: raw, quoteSource: '' };
   }, [quote]);
 
   const webDesktopQuickButtons = useMemo(
@@ -2194,12 +2194,12 @@ export function DashboardScreen() {
             {
               padding: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true)) : WEB_CARD_PADDING,
               minHeight: useWebLayout ? 0 : undefined,
-              ...(useWebLayout ? { flex: 1, minHeight: 0, overflow: 'hidden' } : { minHeight: scaleWebDesktop(112, true) }),
+              ...(useWebLayout ? { flex: 1, minHeight: 0, overflow: 'visible' } : { minHeight: scaleWebDesktop(112, true) }),
             },
           ]}
           contentStyle={{
             padding: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true)) : WEB_CARD_PADDING,
-            ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column', overflow: 'hidden' } : null),
+            ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column', overflow: 'visible' } : null),
           }}
         >
           <View
@@ -2207,11 +2207,11 @@ export function DashboardScreen() {
               flex: useWebLayout ? 1 : undefined,
               minHeight: useWebLayout ? 0 : undefined,
               flexDirection: 'column',
-              justifyContent: useWebLayout && !desktopHomeCarouselQuoteAniv ? 'space-between' : undefined,
-              ...(useWebLayout ? { overflow: 'hidden' } : null),
+              justifyContent: useWebLayout ? 'flex-start' : undefined,
+              ...(useWebLayout ? { overflow: 'visible' } : null),
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true)) : 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true)) : 12, paddingTop: useWebLayout ? scaleWebDesktop(2, true) : 0 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
@@ -2250,23 +2250,57 @@ export function DashboardScreen() {
                     ds.quoteText,
                     {
                       color: colors.text,
-                      fontSize: useWebLayout ? scaleWebDesktop(10, true) : ds.quoteText.fontSize,
+                      fontSize: useWebLayout ? scaleWebDesktop(9, true) : ds.quoteText.fontSize,
+                      fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight,
                       textAlign: 'center',
                       width: '100%',
                     },
                   ]}
-                  numberOfLines={3}
+                  numberOfLines={useWebLayout ? 2 : 3}
                 >
-                  "{useWebLayout ? quoteDesktopWrapped : quote}"
+                  "{quoteBody}"
                 </Text>
+                {quoteSource ? (
+                  <Text
+                    style={{
+                      marginTop: useWebLayout ? scaleWebDesktop(4, true) : 4,
+                      fontSize: useWebLayout ? scaleWebDesktop(9, true) : 10,
+                      fontWeight: '500',
+                      color: colors.textSecondary,
+                      textAlign: 'center',
+                      width: '100%',
+                    }}
+                    numberOfLines={1}
+                  >
+                    {quoteSource}
+                  </Text>
+                ) : null}
               </View>
             ) : (
-              <Text
-                style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 14 : ds.quoteText.fontSize, flex: useWebLayout ? 1 : undefined, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? 21 : ds.quoteText.lineHeight }]}
-                numberOfLines={useWebLayout ? 3 : 3}
-              >
-                "{useWebLayout ? quoteDesktopWrapped : quote}"
-              </Text>
+              <View style={{ flex: useWebLayout ? 1 : undefined, minHeight: 0, justifyContent: 'center' }}>
+                <Text
+                  style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 11 : ds.quoteText.fontSize, fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? 17 : ds.quoteText.lineHeight }]}
+                  numberOfLines={useWebLayout ? 2 : 3}
+                >
+                  "{quoteBody}"
+                </Text>
+                {quoteSource ? (
+                  <Text
+                    style={{
+                      marginTop: useWebLayout ? scaleWebDesktop(1, true) : 4,
+                      fontSize: useWebLayout ? scaleWebDesktop(9, true) : 10,
+                      fontWeight: '500',
+                      color: colors.textSecondary,
+                      textAlign: useWebLayout ? 'center' : 'left',
+                      width: useWebLayout ? '100%' : undefined,
+                      alignSelf: useWebLayout ? 'center' : undefined,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {quoteSource}
+                  </Text>
+                ) : null}
+              </View>
             )}
           </View>
         </GlassCard>
@@ -2307,6 +2341,7 @@ export function DashboardScreen() {
         const bThisYear = new Date(h.getFullYear(), db.getMonth(), db.getDate()).getTime();
         return aThisYear - bThisYear;
       });
+      const aniversariantesPreview = aniversariantesSemana.slice(0, 3);
       const getDiaLabel = (str) => {
         const d = parseBirthDate(str);
         if (!d) return null;
@@ -2342,7 +2377,7 @@ export function DashboardScreen() {
               ds.card,
               {
                 padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : WEB_CARD_PADDING,
-                minHeight: desktopHomeCarouselQuoteAniv ? 0 : TRIO_CARD_HEIGHT,
+                minHeight: useWebLayout ? scaleWebDesktop(96, true) : (desktopHomeCarouselQuoteAniv ? 0 : TRIO_CARD_HEIGHT),
                 ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
               },
             ]}
@@ -2377,37 +2412,87 @@ export function DashboardScreen() {
                   </View>
                 </View>
                 <View style={{ flex: 1, minHeight: 0 }}>
-                  <ScrollableCardList
-                    items={aniversariantesSemana}
-                    colors={colors}
-                    accentColor={colors.primary}
-                    emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
-                    onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
-                    fixedVisibleHeight="fill"
-                    centerEmpty={useWebLayout}
-                    renderItem={(c) => {
-                      const bd = c.birthDate || c.dataNascimento;
-                      const diaLabel = getDiaLabel(bd);
-                      const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
-                      return (
-                        <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, paddingLeft: 4 }}>
-                          <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
-                            <Text style={{ fontSize: 10, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
-                          </View>
-                          {c.phone?.trim() ? (
-                            <TouchableOpacity
-                              onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
-                              style={{ padding: 6, backgroundColor: 'transparent', borderRadius: 10 }}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  {useWebLayout ? (
+                    aniversariantesPreview.length > 0 ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8, width: '100%' }}>
+                        {aniversariantesPreview.map((c) => {
+                          const bd = c.birthDate || c.dataNascimento;
+                          const diaLabel = getDiaLabel(bd);
+                          const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
+                          return (
+                            <View
+                              key={c.id}
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 10,
+                                paddingHorizontal: 8,
+                                paddingVertical: 6,
+                                backgroundColor: colors.bg,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
                             >
-                              <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
-                            </TouchableOpacity>
-                          ) : null}
-                        </View>
-                      );
-                    }}
-                  />
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                                <Text style={{ fontSize: 10, color: colors.textSecondary }} numberOfLines={1}>{dataStr}</Text>
+                              </View>
+                              {c.phone?.trim() ? (
+                                <TouchableOpacity
+                                  onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                                  style={{ padding: 4, backgroundColor: 'transparent', borderRadius: 8 }}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <Ionicons name="logo-whatsapp" size={16} color={colors.primary} />
+                                </TouchableOpacity>
+                              ) : null}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <View style={{ flex: 1, minHeight: 0, justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary, textAlign: 'center' }}>
+                          Mande uma mensagem de parabéns pelo WhatsApp
+                        </Text>
+                      </View>
+                    )
+                  ) : (
+                    <ScrollableCardList
+                      items={aniversariantesSemana}
+                      colors={colors}
+                      accentColor={colors.primary}
+                      emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
+                      onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
+                      fixedVisibleHeight="fill"
+                      centerEmpty={useWebLayout}
+                      renderItem={(c) => {
+                        const bd = c.birthDate || c.dataNascimento;
+                        const diaLabel = getDiaLabel(bd);
+                        const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
+                        return (
+                          <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, paddingLeft: 4 }}>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                              <Text style={{ fontSize: 10, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                            </View>
+                            {c.phone?.trim() ? (
+                              <TouchableOpacity
+                                onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                                style={{ padding: 6, backgroundColor: 'transparent', borderRadius: 10 }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
+                        );
+                      }}
+                    />
+                  )}
                 </View>
               </View>
             ) : (
@@ -2435,37 +2520,85 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <ScrollableCardList
-                  items={aniversariantesSemana}
-                  colors={colors}
-                  accentColor={colors.primary}
-                  emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
-                  onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
-                  fixedVisibleHeight={useWebLayout}
-                  centerEmpty={useWebLayout}
-                  renderItem={(c) => {
-                    const bd = c.birthDate || c.dataNascimento;
-                    const diaLabel = getDiaLabel(bd);
-                    const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
-                    return (
-                      <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
-                          <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
-                        </View>
-                        {c.phone?.trim() ? (
-                          <TouchableOpacity
-                            onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
-                            style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                {useWebLayout ? (
+                  aniversariantesPreview.length > 0 ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8, width: '100%' }}>
+                      {aniversariantesPreview.map((c) => {
+                        const bd = c.birthDate || c.dataNascimento;
+                        const diaLabel = getDiaLabel(bd);
+                        const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
+                        return (
+                          <View
+                            key={c.id}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              borderRadius: 10,
+                              paddingHorizontal: 8,
+                              paddingVertical: 6,
+                              backgroundColor: colors.bg,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
                           >
-                            <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                    );
-                  }}
-                />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                              <Text style={{ fontSize: 10, color: colors.textSecondary }} numberOfLines={1}>{dataStr}</Text>
+                            </View>
+                            {c.phone?.trim() ? (
+                              <TouchableOpacity
+                                onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                                style={{ padding: 4, backgroundColor: 'transparent', borderRadius: 8 }}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <Ionicons name="logo-whatsapp" size={16} color={colors.primary} />
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, textAlign: 'center', paddingVertical: 8 }}>
+                      Mande uma mensagem de parabéns pelo WhatsApp
+                    </Text>
+                  )
+                ) : (
+                  <ScrollableCardList
+                    items={aniversariantesSemana}
+                    colors={colors}
+                    accentColor={colors.primary}
+                    emptyText="Mande uma mensagem de parabéns pelo WhatsApp"
+                    onVerMais={() => { playTapSound(); openAniversariantes?.(); }}
+                    fixedVisibleHeight={useWebLayout}
+                    centerEmpty={useWebLayout}
+                    renderItem={(c) => {
+                      const bd = c.birthDate || c.dataNascimento;
+                      const diaLabel = getDiaLabel(bd);
+                      const dataStr = formatBirthShort(bd) + (diaLabel ? ` · ${diaLabel}` : '');
+                      return (
+                        <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 4 }}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }} numberOfLines={1}>{c.name}</Text>
+                            <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>{dataStr}{c.phone ? ` · ${c.phone}` : ''}</Text>
+                          </View>
+                          {c.phone?.trim() ? (
+                            <TouchableOpacity
+                              onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setParabensModalClient(c); setParabensFrase(FRASES_PARABENS[0] || ''); }}
+                              style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      );
+                    }}
+                  />
+                )}
               </>
             )}
           </GlassCard>
@@ -3115,7 +3248,7 @@ export function DashboardScreen() {
         deferFinancePrompt
         inlineToggle={
           useWebLayout && canToggleView ? (
-            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline />
+            <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline desktopHeaderSplit />
           ) : null
         }
         onManageCards={() => setShowCardPicker(true)}
@@ -3134,10 +3267,36 @@ export function DashboardScreen() {
           <View
             style={{
               paddingHorizontal: WEB_DESKTOP_PAGE_PAD,
-              paddingTop: WEB_DESKTOP_ROW_GAP,
+              paddingTop: scaleWebDesktop(2, true),
               gap: WEB_DESKTOP_ROW_GAP,
             }}
           >
+            {(() => {
+              const carouselContent = sectionMap.carousel;
+              const quoteContent = sectionMap.quote;
+              if (!carouselContent && !quoteContent) return null;
+              if (!carouselContent) {
+                return quoteContent ? <View style={{ width: '100%' }}>{quoteContent}</View> : null;
+              }
+              if (!quoteContent) {
+                return <View style={{ width: '100%' }}>{carouselContent}</View>;
+              }
+              return (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    width: '100%',
+                    gap: WEB_DESKTOP_ROW_GAP,
+                    alignItems: 'stretch',
+                  }}
+                >
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
+                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
+                    {carouselContent}
+                  </View>
+                </View>
+              );
+            })()}
             {useWebLayout && showEmpresaFeatures ? (
               <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
@@ -3151,8 +3310,8 @@ export function DashboardScreen() {
                         flex: 1,
                         flexBasis: 0,
                         minWidth: 0,
-                        height: 40,
-                        paddingVertical: 10,
+                        height: scaleWebDesktop(36, true),
+                        paddingVertical: 7,
                         paddingHorizontal: 10,
                         borderRadius: 14,
                         borderWidth: 1,
@@ -3190,32 +3349,6 @@ export function DashboardScreen() {
                 </View>
               </View>
             ) : null}
-            {(() => {
-              const carouselContent = sectionMap.carousel;
-              const quoteContent = sectionMap.quote;
-              if (!carouselContent && !quoteContent) return null;
-              if (!carouselContent) {
-                return quoteContent ? <View style={{ width: '100%' }}>{quoteContent}</View> : null;
-              }
-              if (!quoteContent) {
-                return <View style={{ width: '100%' }}>{carouselContent}</View>;
-              }
-              return (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    width: '100%',
-                    gap: WEB_DESKTOP_ROW_GAP,
-                    alignItems: 'stretch',
-                  }}
-                >
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
-                    {carouselContent}
-                  </View>
-                </View>
-              );
-            })()}
             {(() => {
               const hasAgenda = webSectionTail.includes('agenda');
               if (!hasAgenda) return null;

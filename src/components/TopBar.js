@@ -152,6 +152,8 @@ export function TopBar({
     title === 'Agenda';
   const homeDesktopDefer = isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
   const showPromptOutsideHeader = !isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
+  const showInlineToggleBottomRow = isWebDesktop && !!inlineToggle;
+  const hasCustomProfilePhoto = !!(profile?.fotoLocal || profile?.foto);
 
   const homeTrailingActions = (
     <>
@@ -203,11 +205,11 @@ export function TopBar({
       {menuButton ? <View style={{ marginRight: 4 }}>{menuButton}</View> : null}
       <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         {showHomeAvatar && (
-          <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
+          <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden', backgroundColor: '#000' }}>
             <Image
-              source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
+              source={hasCustomProfilePhoto ? { uri: profile.fotoLocal || profile.foto } : logoImage}
               style={{ width: 52, height: 52, borderRadius: 26 }}
-              resizeMode="cover"
+              resizeMode={hasCustomProfilePhoto ? 'cover' : 'contain'}
             />
           </TouchableOpacity>
         )}
@@ -250,7 +252,7 @@ export function TopBar({
       </View>
       <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
         {homeTrailingActions}
-        {inlineToggle ? (
+        {!showInlineToggleBottomRow && inlineToggle ? (
           <View style={inlineToggleWrapStyle}>
             {/* Guias invisíveis de início/fim para manter alinhamento horizontal estável. */}
             <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, opacity: 0 }} />
@@ -268,11 +270,11 @@ export function TopBar({
         {isHome ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
             {showHomeAvatar && (
-              <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden' }}>
+              <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden', backgroundColor: '#000' }}>
                 <Image
-                  source={(profile?.fotoLocal || profile?.foto) ? { uri: profile.fotoLocal || profile.foto } : logoImage}
+                  source={hasCustomProfilePhoto ? { uri: profile.fotoLocal || profile.foto } : logoImage}
                   style={{ width: 52, height: 52, borderRadius: 26 }}
-                  resizeMode="cover"
+                  resizeMode={hasCustomProfilePhoto ? 'cover' : 'contain'}
                 />
               </TouchableOpacity>
             )}
@@ -315,7 +317,7 @@ export function TopBar({
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {homeTrailingActions}
-        {inlineToggle ? (
+        {!showInlineToggleBottomRow && inlineToggle ? (
           <View style={inlineToggleWrapStyle}>
             {/* Guias invisíveis de início/fim para manter alinhamento horizontal estável. */}
             <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, opacity: 0 }} />
@@ -392,6 +394,17 @@ export function TopBar({
         {organizeRailButton}
         <View style={{ paddingTop: insets.top, backgroundColor: colors.bg }}>
           {Bar}
+          {showInlineToggleBottomRow ? (
+            <View
+              style={{
+                paddingHorizontal: scaleWebDesktop(10, true),
+                paddingBottom: scaleWebDesktop(2, true),
+                paddingTop: 0,
+              }}
+            >
+              {inlineToggle}
+            </View>
+          ) : null}
           {showPromptOutsideHeader ? (
             <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
               <Text
@@ -411,6 +424,18 @@ export function TopBar({
       {manageCardsRailButton}
       {organizeRailButton}
       {Bar}
+      {showInlineToggleBottomRow ? (
+        <View
+          style={{
+            paddingHorizontal: scaleWebDesktop(10, true),
+            paddingBottom: scaleWebDesktop(2, true),
+            paddingTop: 0,
+            backgroundColor: colors.bg,
+          }}
+        >
+          {inlineToggle}
+        </View>
+      ) : null}
       {showPromptOutsideHeader ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 8, backgroundColor: colors.bg }}>
           <Text

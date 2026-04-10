@@ -12,7 +12,7 @@ const config = {
     version: '1.0.0',
     scheme: 'tudocerto',
     orientation: 'portrait',
-    icon: './assets/icon.png',
+    icon: './assets/icon-safe.png',
     userInterfaceStyle: 'light',
     splash: {
       image: './assets/splash.png',
@@ -62,8 +62,8 @@ const config = {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#111827',
+        foregroundImage: './assets/adaptive-icon-safe.png',
+        backgroundColor: '#000000',
       },
       intentFilters: [
         {

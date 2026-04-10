@@ -32,6 +32,7 @@ export function PerfilScreen({ onClose, isModal }) {
   const [email, setEmail] = useState(profile.email || user?.email || '');
   const [foto, setFoto] = useState(profile.foto || null);
   const [lastFoto, setLastFoto] = useState(null);
+  const hasCustomProfilePhoto = !!(profile.fotoLocal || foto);
 
   useEffect(() => {
     setNome(profile.nome || '');
@@ -113,7 +114,13 @@ export function PerfilScreen({ onClose, isModal }) {
       )}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', paddingTop: 24, paddingBottom: 16 }}>
-          <Image source={(profile.fotoLocal || foto) ? { uri: profile.fotoLocal || foto } : logoImage} style={ps.avatar} resizeMode="cover" />
+          <View style={{ width: 100, height: 100, borderRadius: 50, overflow: 'hidden', backgroundColor: '#000', marginBottom: 16 }}>
+            <Image
+              source={hasCustomProfilePhoto ? { uri: profile.fotoLocal || foto } : logoImage}
+              style={{ width: 100, height: 100 }}
+              resizeMode={hasCustomProfilePhoto ? 'cover' : 'contain'}
+            />
+          </View>
           <TouchableOpacity style={[ps.photoBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={handleFoto}>
             <Ionicons name="camera-outline" size={20} color={colors.primary} />
             <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Carregar ou editar foto</Text>
