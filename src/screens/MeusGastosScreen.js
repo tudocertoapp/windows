@@ -40,7 +40,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
             hideOrganize
             headerDate={headerDate}
             deferFinancePrompt
-            inlineToggle={useWebLayout && canToggleView ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
+            inlineToggle={useWebLayout && canToggleView ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline desktopHeaderSplit /> : null}
             onCalculadora={useWebLayout ? openCalculadoraFull : undefined}
             onWhatsApp={showEmpresaFeatures ? openMensagensWhatsApp : undefined}
           />

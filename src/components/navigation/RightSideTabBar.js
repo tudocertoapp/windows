@@ -1,19 +1,27 @@
-import React, { useMemo } from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { usePlan } from '../../contexts/PlanContext';
-import { useMenu } from '../../contexts/MenuContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
 
+/** Margem da rail à borda direita da janela (não encosta no canto). */
+export const WEB_DESKTOP_RAIL_VIEWPORT_MARGIN = 12;
+/** Folga entre o conteúdo principal e a coluna da rail (evita sobreposição visual). */
+export const WEB_DESKTOP_RAIL_CONTENT_GAP = 12;
+/** Margem vertical da rail em relação ao topo/fundo da viewport. */
+export const WEB_DESKTOP_RAIL_VERTICAL_INSET = 12;
 /**
- * Largura da coluna direita (layout desktop web) — reservada no flex.
- * Mantém a rail fina; a “pílula” só envolve os ícones (não estica a altura da viewport).
+ * Largura da coluna dos botões (layout desktop web).
+ * Reservada no flex do AppNavigator + folgas — ver WEB_DESKTOP_RAIL_LAYOUT_RESERVE.
  */
 export const WEB_DESKTOP_RAIL_WIDTH = 64;
+/** Espaço total a reservar à direita no layout: margem janela + rail + folga até o conteúdo. */
+export const WEB_DESKTOP_RAIL_LAYOUT_RESERVE =
+  WEB_DESKTOP_RAIL_VIEWPORT_MARGIN + WEB_DESKTOP_RAIL_WIDTH + WEB_DESKTOP_RAIL_CONTENT_GAP;
 
 const ISLAND_RADIUS = 28;
 const BTN = 42;
@@ -46,22 +54,11 @@ function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
   );
 }
 
-/** Deslocamento da pílula (desktop web): sobe 1/8 da altura útil e puxa um pouco para a esquerda. */
-const ISLAND_SHIFT_X = 12;
-
-export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mode = 'side', calculatorActive = false, menuActive = false }) {
+export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mode = 'side', menuActive = false }) {
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
-  const { openCalculadoraFull } = useMenu();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
-
-  const islandTransform = useMemo(() => {
-    const h = windowHeight > 0 ? windowHeight : 640;
-    // Desktop: subir 10px em relação ao ajuste anterior.
-    return [{ translateY: -(h / 8) + BTN + 5 }, { translateX: -ISLAND_SHIFT_X }];
-  }, [windowHeight]);
 
   if (!isWeb) return null;
   const isBottomMode = mode === 'bottom';
@@ -99,26 +96,13 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mo
     ionIcon: 'menu',
     onPress: () => onMenu?.(),
   });
-  if (!isBottomMode) {
-    tabItems.push({
-      key: 'calc',
-      label: 'Calculadora',
-      icon: 'calculator-outline',
-      onPress: () => openCalculadoraFull?.(),
-    });
-  }
 
   /** Safe area; altura útil = viewport entre paddings. O + fica no centro vertical dessa área. */
   const padTop = insets.top || 0;
   const padBottom = Math.max(12, insets.bottom || 0);
 
   const renderRailEntry = (it) => {
-    const active =
-      it.key === 'calc'
-        ? calculatorActive
-        : it.key === 'menu'
-          ? menuActive
-          : activeRouteName === it.key;
+    const active = it.key === 'menu' ? menuActive : activeRouteName === it.key;
     return (
       <RailItem
         key={it.key}
@@ -182,12 +166,7 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mo
                 </TouchableOpacity>
               );
             }
-            const active =
-              it.key === 'calc'
-                ? calculatorActive
-                : it.key === 'menu'
-                  ? menuActive
-                  : activeRouteName === it.key;
+            const active = it.key === 'menu' ? menuActive : activeRouteName === it.key;
             return (
               <TouchableOpacity
                 key={it.key}
@@ -218,53 +197,53 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mo
   }
 
   return (
-    <View
-      style={[
-        s.wrap,
-        {
-          width: WEB_DESKTOP_RAIL_WIDTH,
-          paddingTop: padTop,
-          paddingBottom: padBottom,
-          backgroundColor: colors.bg,
-        },
-      ]}
-    >
+    <View style={[s.railOuter, { backgroundColor: 'transparent' }]}>
       <View
         style={[
-          s.island,
+          s.wrap,
           {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            transform: islandTransform,
-            ...(Platform.OS === 'web'
-              ? {
-                  boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.08)',
-                }
-              : {}),
+            paddingTop: padTop,
+            paddingBottom: padBottom,
+            backgroundColor: 'transparent',
           },
         ]}
       >
-        <View style={s.islandInner}>
-          {tabItems.map((it) => {
-            if (it.isAdd) {
-              return (
-                <TouchableOpacity
-                  key="Adicionar"
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    playTapSound();
-                    it.onPress?.();
-                  }}
-                  style={[s.addRound, { backgroundColor: colors.primary }]}
-                  accessibilityLabel="Adicionar"
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="add" size={ADD_ICON_SIZE} color="#fff" />
-                </TouchableOpacity>
-              );
-            }
-            return renderRailEntry(it);
-          })}
+        <View
+          style={[
+            s.island,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              ...(Platform.OS === 'web'
+                ? {
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.08)',
+                  }
+                : {}),
+            },
+          ]}
+        >
+          <View style={s.islandInner}>
+            {tabItems.map((it) => {
+              if (it.isAdd) {
+                return (
+                  <TouchableOpacity
+                    key="Adicionar"
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      playTapSound();
+                      it.onPress?.();
+                    }}
+                    style={[s.addRound, { backgroundColor: colors.primary }]}
+                    accessibilityLabel="Adicionar"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="add" size={ADD_ICON_SIZE} color="#fff" />
+                  </TouchableOpacity>
+                );
+              }
+              return renderRailEntry(it);
+            })}
+          </View>
         </View>
       </View>
     </View>
@@ -274,11 +253,19 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mo
 const GAP = 10;
 
 const s = StyleSheet.create({
+  /** Coluna da rail: preenche a altura útil; justifyContent centra a pílula quando a coluna é mais alta que o conteúdo. */
+  railOuter: {
+    flex: 1,
+    alignSelf: 'stretch',
+    width: WEB_DESKTOP_RAIL_WIDTH,
+    minHeight: 0,
+    justifyContent: 'center',
+  },
   wrap: {
     flex: 1,
     alignSelf: 'stretch',
     maxWidth: WEB_DESKTOP_RAIL_WIDTH,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 0,

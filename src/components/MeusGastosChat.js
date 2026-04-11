@@ -31,10 +31,10 @@ import {
 import VoiceRecorder from './VoiceRecorder';
 import { processReceipt } from '../services/receiptOcr/processReceipt';
 import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
-import { WEB_DESKTOP_RAIL_WIDTH } from './navigation/RightSideTabBar';
+import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 
-/** Mesmo gutter do AppNavigator (padding da rail): coluna principal não cobre a rail direita. */
-const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_WIDTH + 16;
+/** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
+const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_LAYOUT_RESERVE;
 
 function nowIso() {
   return new Date().toISOString();

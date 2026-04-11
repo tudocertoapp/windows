@@ -9,7 +9,7 @@ import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
-import { WEB_DESKTOP_RAIL_WIDTH } from './navigation/RightSideTabBar';
+import { WEB_DESKTOP_RAIL_WIDTH, WEB_DESKTOP_RAIL_VIEWPORT_MARGIN } from './navigation/RightSideTabBar';
 
 /** Padding direito da coluna da rail no AppNavigator — centraliza o botão na faixa da tabbar. */
 const WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT = 16;
@@ -331,7 +331,7 @@ export function TopBar({
 
   const showDesktopRightRail = isWebDesktop;
   const railFixedRight = showDesktopRightRail
-    ? WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT + (WEB_DESKTOP_RAIL_WIDTH - WEB_DESKTOP_ORGANIZE_BTN) / 2
+    ? WEB_DESKTOP_RAIL_VIEWPORT_MARGIN + WEB_DESKTOP_RAIL_SCREEN_PAD_RIGHT + (WEB_DESKTOP_RAIL_WIDTH - WEB_DESKTOP_ORGANIZE_BTN) / 2
     : 16;
   const railBaseTop = insets.top + scaleWebDesktop(10, true) + 8;
   const showCardsRail = false;

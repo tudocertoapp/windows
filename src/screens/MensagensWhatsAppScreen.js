@@ -403,7 +403,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
             hideOrganize
             headerDate={headerDate}
             deferFinancePrompt
-            inlineToggle={useWebLayout && canToggleView ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
+            inlineToggle={useWebLayout && canToggleView ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline desktopHeaderSplit /> : null}
             onCalculadora={useWebLayout ? openCalculadoraFull : undefined}
             onChat={openMeusGastos}
           />

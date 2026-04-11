@@ -9,7 +9,7 @@ const config = {
   expo: {
     name: 'Tudo Certo - Agenda e Finanças',
     slug: 'snack-833373eb-44e8-4aff-9e0e-96392f657b4c',
-    version: '1.0.0',
+    version: '1.0.3',
     scheme: 'tudocerto',
     orientation: 'portrait',
     icon: './assets/icon-safe.png',

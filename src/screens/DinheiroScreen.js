@@ -568,7 +568,7 @@ export function DinheiroScreen({ route }) {
         hideOrganize
         headerDate={now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
         deferFinancePrompt
-        inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline /> : null}
+        inlineToggle={showInlineToggle ? <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} inline desktopHeaderSplit /> : null}
         onManageCards={() => setShowCardPicker(true)}
         onCalculadora={useWebLayout ? openCalculadoraFull : undefined}
         onChat={openMeusGastos}

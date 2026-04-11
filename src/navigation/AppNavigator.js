@@ -48,7 +48,13 @@ import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverlay';
 import { FloatingCalculatorFab } from '../components/FloatingCalculatorFab';
 import { GlassTabBar } from '../components/navigation/GlassTabBar';
-import { RightSideTabBar } from '../components/navigation/RightSideTabBar';
+import {
+  RightSideTabBar,
+  WEB_DESKTOP_RAIL_WIDTH,
+  WEB_DESKTOP_RAIL_LAYOUT_RESERVE,
+  WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
+  WEB_DESKTOP_RAIL_VERTICAL_INSET,
+} from '../components/navigation/RightSideTabBar';
 import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -313,7 +319,14 @@ export function AppNavigator() {
                 if (n) setDesktopTabRoute(n);
               }}
             >
-              <View style={{ flex: 1, minHeight: 0 }}>
+              <View
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  backgroundColor: colors.bg,
+                  ...(isWebDesktop ? { paddingRight: WEB_DESKTOP_RAIL_LAYOUT_RESERVE } : {}),
+                }}
+              >
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
               <Tab.Navigator
                 sceneContainerStyle={{ flex: 1, minHeight: 0 }}
@@ -492,27 +505,31 @@ export function AppNavigator() {
               <View
                 pointerEvents="box-none"
                 style={{
-                  alignItems: 'center',
                   zIndex: 2147483645,
                   ...(Platform.OS === 'web'
                     ? {
                         position: 'fixed',
-                        left: 0,
-                        right: 0,
-                        bottom: Math.max(insets.bottom, 8),
+                        top: WEB_DESKTOP_RAIL_VERTICAL_INSET,
+                        bottom: WEB_DESKTOP_RAIL_VERTICAL_INSET,
+                        right: WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
+                        width: WEB_DESKTOP_RAIL_WIDTH,
+                        backgroundColor: 'transparent',
+                        alignItems: 'stretch',
                       }
                     : {
                         position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: Math.max(insets.bottom, 8),
+                        top: 0,
+                        bottom: 0,
+                        right: WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
+                        width: WEB_DESKTOP_RAIL_WIDTH,
+                        backgroundColor: 'transparent',
+                        alignItems: 'stretch',
                       }),
                 }}
               >
                 <RightSideTabBar
-                  mode="bottom"
+                  mode="side"
                   activeRouteName={desktopTabRoute}
-                  calculatorActive={calculadoraFloating || calculadoraModal}
                   menuActive={menuModalOpen}
                   onNavigate={(name) => navigationRef.current?.navigate?.(name)}
                   onAdd={() => { setMenuOpen(!menuOpen); }}
