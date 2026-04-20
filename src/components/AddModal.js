@@ -17,7 +17,7 @@ import { ServicoFormModal } from './ServicoFormModal';
 import { TarefaFormModal } from './TarefaFormModal';
 import { parseMoney, formatCurrency } from '../utils/format';
 import { playTapSound, playRecordingBeep } from '../utils/sounds';
-import { useNativeDriverSafe } from '../utils/platformLayout';
+import { useNativeDriverSafe, useIsDesktopLayout } from '../utils/platformLayout';
 import { parseExpenseVoice } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_RECEITA, CATEGORIAS_DESPESA } from '../constants/categories';
 
@@ -129,6 +129,7 @@ export function AddModal({ type, params, onClose }) {
   const { addTransaction, updateTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, updateOrcamento, clients, products, services } = useFinance();
   const { banks, cards, getBankById, getBankName, deductFromBank, addToBank, addToCardBalance } = useBanks();
   const { showEmpresaFeatures } = usePlan();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const { openBancos } = useMenu();
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -619,8 +620,16 @@ export function AddModal({ type, params, onClose }) {
     <Modal visible={!!type} transparent animationType="fade">
       <View style={styles.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, width: '100%', justifyContent: isDesktopWeb ? 'flex-start' : 'flex-end', alignItems: isDesktopWeb ? 'stretch' : 'center' }}>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+          style={[
+            styles.box,
+            { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+            isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 } : null,
+          ]}
+        >
           {servicePriceModal && (
             <Modal visible transparent animationType="fade">
               <TouchableOpacity style={[styles.overlay, { justifyContent: 'center', padding: GAP }]} activeOpacity={1} onPress={() => setServicePriceModal(null)}>
@@ -655,7 +664,7 @@ export function AddModal({ type, params, onClose }) {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             nestedScrollEnabled
-            style={{ maxHeight: Math.max(0, FORM_MAX_HEIGHT - 140), flexGrow: 1 }}
+            style={isDesktopWeb ? { flex: 1 } : { maxHeight: Math.max(0, FORM_MAX_HEIGHT - 140), flexGrow: 1 }}
             contentContainerStyle={{ paddingRight: 4, paddingBottom: GAP }}
           >
             {type === 'receita' && (

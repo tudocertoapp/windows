@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useIsDesktopLayout } from '../utils/platformLayout';
+import { ModalFormRow, ModalFormCell } from './ModalFormLayout';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
@@ -23,6 +25,7 @@ const SCROLL_MAX_HEIGHT = Math.min(520, 580);
 
 export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
   const { colors } = useTheme();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -81,38 +84,66 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboardView, isDesktopWeb ? { justifyContent: 'flex-start' } : null]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              s.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR FORNECEDOR' : 'NOVO FORNECEDOR'}</Text>
               <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
                 <Ionicons name="close" size={22} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
-              <Text style={[s.label, { color: colors.textSecondary }]}>NOME</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Nome do fornecedor" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>
+              <ModalFormRow style={sectionGap}>
+                <ModalFormCell fullWidth>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>NOME</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="Nome do fornecedor" value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
 
-              <Text style={[s.label, { color: colors.textSecondary }]}>E-MAIL</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
+              <ModalFormRow style={sectionGap}>
+                <ModalFormCell minWidth={220}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>E-MAIL</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+                <ModalFormCell minWidth={180}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>TELEFONE</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
 
-              <Text style={[s.label, { color: colors.textSecondary }]}>TELEFONE</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
+              <ModalFormRow style={sectionGap}>
+                <ModalFormCell minWidth={240}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>SITE (URL)</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="https://..." value={linkSite} onChangeText={setLinkSite} keyboardType="url" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+                <ModalFormCell minWidth={240}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>INSTAGRAM (URL)</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="https://instagram.com/..." value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
 
-              <Text style={[s.label, { color: colors.textSecondary }]}>SITE (URL)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="https://..." value={linkSite} onChangeText={setLinkSite} keyboardType="url" placeholderTextColor={colors.textSecondary} />
-
-              <Text style={[s.label, { color: colors.textSecondary }]}>INSTAGRAM (URL)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="https://instagram.com/..." value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" placeholderTextColor={colors.textSecondary} />
-
-              <Text style={[s.label, { color: colors.textSecondary }]}>LOJA (URL)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Link da loja" value={linkLoja} onChangeText={setLinkLoja} keyboardType="url" placeholderTextColor={colors.textSecondary} />
-
-              <Text style={[s.label, { color: colors.textSecondary }]}>CNPJ</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="00.000.000/0000-00" value={cnpj} onChangeText={setCnpj} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
-
-              <Text style={[s.label, { color: colors.textSecondary }]}>ESTADO (UF)</Text>
-              <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="Ex: SP, RJ" value={estado} onChangeText={setEstado} placeholderTextColor={colors.textSecondary} maxLength={2} />
+              <ModalFormRow style={sectionGap}>
+                <ModalFormCell minWidth={240}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>LOJA (URL)</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="Link da loja" value={linkLoja} onChangeText={setLinkLoja} keyboardType="url" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+                <ModalFormCell minWidth={180}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>CNPJ</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="00.000.000/0000-00" value={cnpj} onChangeText={setCnpj} keyboardType="number-pad" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+                <ModalFormCell minWidth={120} maxWidth={160}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>ESTADO (UF)</Text>
+                  <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]} placeholder="SP" value={estado} onChangeText={setEstado} placeholderTextColor={colors.textSecondary} maxLength={2} />
+                </ModalFormCell>
+              </ModalFormRow>
             </ScrollView>
             <TouchableOpacity style={[s.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
               <Text style={s.saveBtnText}>{isEdit ? 'Salvar alterações' : 'CADASTRAR FORNECEDOR'}</Text>

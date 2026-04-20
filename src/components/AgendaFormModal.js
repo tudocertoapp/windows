@@ -25,6 +25,7 @@ import { TimePickerInput } from './TimePickerInput';
 import { MoneyInput } from './MoneyInput';
 import { parseMoney } from '../utils/format';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const DEFAULT_TIME_START_KEY = '@tudocerto_agenda_default_time_start';
 const GAP = 20;
@@ -54,6 +55,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
   const { colors } = useTheme();
   const { clients, services, products, addAgendaEvent, updateAgendaEvent, deleteAgendaEvent } = useFinance();
   const { showEmpresaFeatures } = usePlan();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const { openAddModal } = useMenu();
 
   const [tipo, setTipo] = useState('pessoal');
@@ -262,8 +264,16 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboard}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboard, isDesktopWeb ? { justifyContent: 'flex-start', alignItems: 'stretch' } : null]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              s.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={s.header}>
               <Text style={[s.title, { color: colors.text }]}>
                 {isEdit
@@ -280,7 +290,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               nestedScrollEnabled
-              style={s.scroll}
+              style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]}
               contentContainerStyle={s.scrollContent}
             >
               {showEmpresaFeatures && (

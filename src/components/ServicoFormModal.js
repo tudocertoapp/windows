@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { MoneyInput } from './MoneyInput';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
@@ -26,6 +27,7 @@ const SCROLL_MAX_HEIGHT = Math.min(520, 580);
 
 export function ServicoFormModal({ visible, servico, onSave, onClose }) {
   const { colors } = useTheme();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [discount, setDiscount] = useState('');
@@ -78,8 +80,16 @@ export function ServicoFormModal({ visible, servico, onSave, onClose }) {
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboardView, isDesktopWeb ? { justifyContent: 'flex-start' } : null]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              s.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR SERVIÇO' : 'NOVO SERVIÇO'}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -91,7 +101,7 @@ export function ServicoFormModal({ visible, servico, onSave, onClose }) {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>
               <Text style={[s.label, { color: colors.textSecondary }]}>FOTO DO SERVIÇO (OPCIONAL)</Text>
               <View style={[s.photoRow, sectionGap]}>
                 {photoUris.map((uri, idx) => (

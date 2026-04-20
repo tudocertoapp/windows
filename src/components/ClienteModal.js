@@ -7,6 +7,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlan } from '../contexts/PlanContext';
 import { uploadClientPhoto } from '../utils/uploadClientPhoto';
+import { useIsDesktopLayout } from '../utils/platformLayout';
+import { ModalFormRow, ModalFormCell } from './ModalFormLayout';
 
 const NIVEL_OPTIONS = [
   { id: 'novo_cliente', label: 'Novo cliente', color: '#84cc16' },
@@ -51,6 +53,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
   const { colors } = useTheme();
   const { user } = useAuth();
   const { showEmpresaFeatures, viewMode } = usePlan();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -171,8 +174,16 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
     <Modal visible transparent animationType="fade">
       <View style={styles.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: isDesktopWeb ? 'flex-start' : 'center', alignItems: isDesktopWeb ? 'stretch' : 'center', flex: 1 }}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.box,
+              { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
               <View style={[styles.titleRow, { flex: 1 }]}>
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2) ?? (colors.primary + '25'), justifyContent: 'center', alignItems: 'center' }}>
@@ -184,7 +195,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                 <Ionicons name="close" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={{ maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
+            <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={isDesktopWeb ? { flex: 1 } : { maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
               <Text style={[styles.label, { color: colors.text }]}>Foto do cliente</Text>
               <TouchableOpacity onPress={pickFoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
                 {foto ? (
@@ -280,39 +291,61 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                 </View>
               )}
               <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>{tipo === 'empresa' ? 'Razão social' : 'Nome'}</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                placeholder={tipo === 'empresa' ? 'Razão social da empresa' : 'Nome'}
-                value={name}
-                onChangeText={setName}
-                placeholderTextColor={colors.textSecondary}
-              />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>E-mail</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>Telefone</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>{tipo === 'empresa' ? 'CNPJ' : 'CPF'}</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                placeholder={tipo === 'empresa' ? '00.000.000/0000-00' : '000.000.000-00'}
-                value={cpf}
-                onChangeText={setCpf}
-                keyboardType="numeric"
-                placeholderTextColor={colors.textSecondary}
-              />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>Link Instagram</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="https://instagram.com/seu-perfil" value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" autoCapitalize="none" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>Data de nascimento</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="DD/MM/AAAA (para lembrete de aniversário)" value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" placeholderTextColor={colors.textSecondary} />
-              <View style={{ height: FIELD_GAP }} />
-              <Text style={[styles.label, { color: colors.text }]}>Endereço</Text>
-              <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Rua, número, bairro, cidade" value={address} onChangeText={setAddress} placeholderTextColor={colors.textSecondary} />
+              <ModalFormRow style={{ marginBottom: FIELD_GAP }}>
+                <ModalFormCell fullWidth>
+                  <Text style={[styles.label, { color: colors.text }]}>{tipo === 'empresa' ? 'Razão social' : 'Nome'}</Text>
+                  <TextInput
+                    style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                    placeholder={tipo === 'empresa' ? 'Razão social da empresa' : 'Nome'}
+                    value={name}
+                    onChangeText={setName}
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </ModalFormCell>
+              </ModalFormRow>
+
+              <ModalFormRow style={{ marginBottom: FIELD_GAP }}>
+                <ModalFormCell minWidth={220}>
+                  <Text style={[styles.label, { color: colors.text }]}>E-mail</Text>
+                  <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+                <ModalFormCell minWidth={180}>
+                  <Text style={[styles.label, { color: colors.text }]}>Telefone</Text>
+                  <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
+
+              <ModalFormRow style={{ marginBottom: FIELD_GAP }}>
+                <ModalFormCell minWidth={180}>
+                  <Text style={[styles.label, { color: colors.text }]}>{tipo === 'empresa' ? 'CNPJ' : 'CPF'}</Text>
+                  <TextInput
+                    style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                    placeholder={tipo === 'empresa' ? '00.000.000/0000-00' : '000.000.000-00'}
+                    value={cpf}
+                    onChangeText={setCpf}
+                    keyboardType="numeric"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </ModalFormCell>
+                <ModalFormCell minWidth={180}>
+                  <Text style={[styles.label, { color: colors.text }]}>Data de nascimento</Text>
+                  <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="DD/MM/AAAA (para lembrete de aniversário)" value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
+
+              <ModalFormRow style={{ marginBottom: FIELD_GAP }}>
+                <ModalFormCell fullWidth>
+                  <Text style={[styles.label, { color: colors.text }]}>Link Instagram</Text>
+                  <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="https://instagram.com/seu-perfil" value={linkInstagram} onChangeText={setLinkInstagram} keyboardType="url" autoCapitalize="none" placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
+
+              <ModalFormRow>
+                <ModalFormCell fullWidth>
+                  <Text style={[styles.label, { color: colors.text }]}>Endereço</Text>
+                  <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text }]} placeholder="Rua, número, bairro, cidade" value={address} onChangeText={setAddress} placeholderTextColor={colors.textSecondary} />
+                </ModalFormCell>
+              </ModalFormRow>
             </ScrollView>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={saving}>
               {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>{cliente ? 'Salvar' : 'Cadastrar'}</Text>}

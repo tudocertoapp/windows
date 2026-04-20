@@ -20,6 +20,7 @@ import { useFinance } from '../contexts/FinanceContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { FornecedorModal } from './FornecedorModal';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
@@ -30,6 +31,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { colors } = useTheme();
   const { suppliers, products, addCompositeProduct, addSupplier } = useFinance();
   const { showEmpresaFeatures } = usePlan();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState(editingItem?.name || '');
   const [costPrice, setCostPrice] = useState(editingItem?.costPrice != null ? String(editingItem.costPrice) : '');
   const [price, setPrice] = useState(editingItem?.price != null ? String(editingItem.price) : '');
@@ -148,15 +150,23 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
     <Modal visible={visible} transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboardView, isDesktopWeb ? { justifyContent: 'flex-start' } : null]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              s.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.text }]}>{editingItem ? 'EDITAR PRODUTO' : 'NOVO PRODUTO'}</Text>
               <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
                 <Ionicons name="close" size={22} color={colors.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>
               {/* Fotos do produto */}
               <Text style={[s.label, { color: colors.textSecondary }]}>FOTO DO PRODUTO (OPCIONAL)</Text>
               <View style={[s.photoRow, sectionGap]}>

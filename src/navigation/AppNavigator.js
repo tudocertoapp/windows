@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { View, TouchableOpacity, Modal, SafeAreaView, Platform, Alert, StyleSheet, Dimensions, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationState, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
@@ -57,8 +57,35 @@ import {
 } from '../components/navigation/RightSideTabBar';
 import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createAppWebLinking, isWebCadastroPathSlug } from './webNavigationLinking';
+import { useWebModalUrlSync } from './useWebModalUrlSync';
 
 const Tab = createBottomTabNavigator();
+
+function readRootTabRouteName(navState) {
+  if (!navState?.routes?.length) return null;
+  const idx = typeof navState.index === 'number' ? navState.index : 0;
+  return navState.routes[idx]?.name ?? null;
+}
+
+/** Dentro do NavigationContainer: tab ativa sempre alinhada ao estado (web URL + modais + histórico). */
+function WebUrlSyncHost({ getModalSnapshot, getCadastroPathDescriptor, applyModalSnapshot }) {
+  const isWeb = Platform.OS === 'web';
+  const navigation = useNavigation();
+  const onNavigateToTab = useCallback((name) => {
+    if (name) navigation.navigate(name);
+  }, [navigation]);
+  const tabRouteName = useNavigationState((state) => readRootTabRouteName(state) || 'Início');
+  useWebModalUrlSync({
+    isWeb,
+    tabRouteName,
+    getModalSnapshot,
+    getCadastroPathDescriptor,
+    applyModalSnapshot,
+    onNavigateToTab,
+  });
+  return null;
+}
 
 /** Altura da faixa da seta (alinhamento vertical com o botão da calculadora). */
 const CALC_EDGE_ROW_H = 52;
@@ -141,6 +168,299 @@ export function AppNavigator() {
 
   const navigationRef = useRef(null);
   const [desktopTabRoute, setDesktopTabRoute] = useState('Início');
+  const cadastroUrlRef = useRef(null);
+
+  const getCadastroPathDescriptor = useCallback(() => {
+    if (!cadastroModal) return null;
+    const section = cadastroModal.section || 'clientes';
+    if (!isWebCadastroPathSlug(section)) return null;
+    if (
+      showCalcMenu ||
+      calculadoraModal ||
+      calculadoraFloating ||
+      pdvModal ||
+      orcamentosModal ||
+      ordemServicoModal ||
+      empresaModal ||
+      colaboradoresModal ||
+      aniversariantesModal ||
+      metasSonhosModal ||
+      listaComprasModal ||
+      receiptScannerModal ||
+      anotacoesModal ||
+      orcamentoModal ||
+      bancosModal ||
+      termosModal ||
+      temasModal ||
+      imageModal ||
+      assistantModal ||
+      aReceberModal ||
+      indiqueModal ||
+      assinaturaModal ||
+      perfilModal
+    ) {
+      return null;
+    }
+    return {
+      section,
+      eid: cadastroModal.editItemId != null ? String(cadastroModal.editItemId) : undefined,
+    };
+  }, [
+    cadastroModal,
+    showCalcMenu,
+    calculadoraModal,
+    calculadoraFloating,
+    pdvModal,
+    orcamentosModal,
+    ordemServicoModal,
+    empresaModal,
+    colaboradoresModal,
+    aniversariantesModal,
+    metasSonhosModal,
+    listaComprasModal,
+    receiptScannerModal,
+    anotacoesModal,
+    orcamentoModal,
+    bancosModal,
+    termosModal,
+    temasModal,
+    imageModal,
+    assistantModal,
+    aReceberModal,
+    indiqueModal,
+    assinaturaModal,
+    perfilModal,
+  ]);
+
+  cadastroUrlRef.current = getCadastroPathDescriptor();
+
+  const linking = useMemo(
+    () => createAppWebLinking({ isWeb, showEmpresaFeatures, cadastroUrlRef }),
+    [isWeb, showEmpresaFeatures]
+  );
+
+  const resetAllWebOverlayModals = useCallback(() => {
+    setShowCalcMenu(false);
+    setCalculadoraModal(false);
+    setCalculadoraFloating(false);
+    setPdvModal(false);
+    setOrcamentosModal(false);
+    setOrdemServicoModal(false);
+    setEmpresaModal(false);
+    setColaboradoresModal(false);
+    setAniversariantesModal(false);
+    setMetasSonhosModal(false);
+    setListaComprasModal(false);
+    setReceiptScannerModal(false);
+    setAnotacoesModal(null);
+    setOrcamentoModal(false);
+    setBancosModal(false);
+    setTermosModal(false);
+    setTemasModal(false);
+    setImageModal(false);
+    setImageModalParams({});
+    setAssistantModal(false);
+    setAReceberModal(false);
+    setIndiqueModal(false);
+    setAssinaturaModal(false);
+    setPerfilModal(false);
+    setCadastroModal(null);
+    setProductFormVisible(false);
+    setAddModalState({ type: null, params: null });
+    setMenuModalOpen(false);
+    setMenuOpen(false);
+  }, []);
+
+  const getModalSnapshot = useCallback(() => {
+    if (showCalcMenu) return { m: 'calc_menu' };
+    if (calculadoraModal) return { m: 'calc' };
+    if (calculadoraFloating) return { m: 'calc_float' };
+    if (pdvModal) return { m: 'pdv' };
+    if (orcamentosModal) return { m: 'orcamentos' };
+    if (ordemServicoModal) return { m: 'os' };
+    if (empresaModal) return { m: 'empresa' };
+    if (colaboradoresModal) return { m: 'colaboradores' };
+    if (aniversariantesModal) return { m: 'aniversariantes' };
+    if (metasSonhosModal) return { m: 'metas' };
+    if (listaComprasModal) return { m: 'lista' };
+    if (receiptScannerModal) return { m: 'scanner' };
+    if (anotacoesModal) {
+      const o = typeof anotacoesModal === 'object' ? anotacoesModal : {};
+      return {
+        m: 'anotacoes',
+        nid: o.editNoteId ? String(o.editNoteId) : undefined,
+        newNote: !!o.create,
+      };
+    }
+    if (orcamentoModal) return { m: 'orcamento' };
+    if (bancosModal) return { m: 'bancos' };
+    if (termosModal) return { m: 'termos' };
+    if (temasModal) return { m: 'temas' };
+    if (imageModal) {
+      const q = imageModalParams?.quote;
+      const qt = imageModalParams?.quoteType;
+      return {
+        m: 'image',
+        qt: qt != null ? String(qt) : undefined,
+        q: typeof q === 'string' && q.length > 0 ? q.slice(0, 400) : undefined,
+      };
+    }
+    if (assistantModal) return { m: 'assistant' };
+    if (aReceberModal) return { m: 'a_receber' };
+    if (indiqueModal) return { m: 'indique' };
+    if (assinaturaModal) return { m: 'assinatura' };
+    if (perfilModal) return { m: 'perfil' };
+    if (cadastroModal) {
+      if (getCadastroPathDescriptor()) return null;
+      return {
+        m: 'cadastro',
+        sec: cadastroModal.section ? String(cadastroModal.section) : undefined,
+        eid: cadastroModal.editItemId != null ? String(cadastroModal.editItemId) : undefined,
+      };
+    }
+    if (productFormVisible) return { m: 'produto' };
+    if (addModalState?.type === 'agenda') return { m: 'agenda' };
+    if (addModalState?.type) return { m: 'add', t: String(addModalState.type) };
+    if (menuModalOpen) return { m: 'menu' };
+    if (menuOpen) return { m: 'fab' };
+    return null;
+  }, [
+    showCalcMenu,
+    calculadoraModal,
+    calculadoraFloating,
+    pdvModal,
+    orcamentosModal,
+    ordemServicoModal,
+    empresaModal,
+    colaboradoresModal,
+    aniversariantesModal,
+    metasSonhosModal,
+    listaComprasModal,
+    receiptScannerModal,
+    anotacoesModal,
+    orcamentoModal,
+    bancosModal,
+    termosModal,
+    temasModal,
+    imageModal,
+    imageModalParams,
+    assistantModal,
+    aReceberModal,
+    indiqueModal,
+    assinaturaModal,
+    perfilModal,
+    cadastroModal,
+    getCadastroPathDescriptor,
+    productFormVisible,
+    addModalState,
+    menuModalOpen,
+    menuOpen,
+  ]);
+
+  const applyModalSnapshot = useCallback(
+    (snap) => {
+      resetAllWebOverlayModals();
+      if (!snap?.m) return;
+      switch (snap.m) {
+        case 'calc_menu':
+          setShowCalcMenu(true);
+          break;
+        case 'calc':
+          setCalculadoraModal(true);
+          break;
+        case 'calc_float':
+          setCalculadoraFloating(true);
+          break;
+        case 'pdv':
+          setPdvModal(true);
+          break;
+        case 'orcamentos':
+          setOrcamentosModal(true);
+          break;
+        case 'os':
+          setOrdemServicoModal(true);
+          break;
+        case 'empresa':
+          setEmpresaModal(true);
+          break;
+        case 'colaboradores':
+          setColaboradoresModal(true);
+          break;
+        case 'aniversariantes':
+          setAniversariantesModal(true);
+          break;
+        case 'metas':
+          setMetasSonhosModal(true);
+          break;
+        case 'lista':
+          setListaComprasModal(true);
+          break;
+        case 'scanner':
+          setReceiptScannerModal(true);
+          break;
+        case 'anotacoes':
+          if (snap.nid) setAnotacoesModal({ editNoteId: snap.nid });
+          else if (snap.newNote) setAnotacoesModal({ create: true });
+          else setAnotacoesModal(true);
+          break;
+        case 'orcamento':
+          setOrcamentoModal(true);
+          break;
+        case 'bancos':
+          setBancosModal(true);
+          break;
+        case 'termos':
+          setTermosModal(true);
+          break;
+        case 'temas':
+          setTemasModal(true);
+          break;
+        case 'image':
+          setImageModalParams({ quoteType: snap.qt, quote: snap.q });
+          setImageModal(true);
+          break;
+        case 'assistant':
+          setAssistantModal(true);
+          break;
+        case 'a_receber':
+          setAReceberModal(true);
+          break;
+        case 'indique':
+          setIndiqueModal(true);
+          break;
+        case 'assinatura':
+          setAssinaturaModal(true);
+          break;
+        case 'perfil':
+          setPerfilModal(true);
+          break;
+        case 'cadastro':
+          setCadastroModal({
+            section: snap.sec || 'clientes',
+            editItemId: snap.eid || undefined,
+          });
+          break;
+        case 'produto':
+          setProductFormVisible(true);
+          break;
+        case 'agenda':
+          setAddModalState({ type: 'agenda', params: null });
+          break;
+        case 'add':
+          setAddModalState({ type: snap.t || 'receita', params: null });
+          break;
+        case 'menu':
+          setMenuModalOpen(true);
+          break;
+        case 'fab':
+          setMenuOpen(true);
+          break;
+        default:
+          break;
+      }
+    },
+    [resetAllWebOverlayModals]
+  );
 
   const isDarkBg = colors.isDarkBg ?? (colors.text === '#ffffff');
   const tabBarGlassBg = () => (
@@ -310,15 +630,21 @@ export function AppNavigator() {
           <View style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
             <NavigationContainer
               ref={navigationRef}
+              linking={linking}
               onReady={() => {
-                const n = navigationRef.current?.getCurrentRoute?.()?.name;
+                const n = readRootTabRouteName(navigationRef.current?.getRootState?.());
                 if (n) setDesktopTabRoute(n);
               }}
-              onStateChange={() => {
-                const n = navigationRef.current?.getCurrentRoute?.()?.name;
+              onStateChange={(state) => {
+                const n = readRootTabRouteName(state);
                 if (n) setDesktopTabRoute(n);
               }}
             >
+              <WebUrlSyncHost
+                getModalSnapshot={getModalSnapshot}
+                getCadastroPathDescriptor={getCadastroPathDescriptor}
+                applyModalSnapshot={applyModalSnapshot}
+              />
               <View
                 style={{
                   flex: 1,

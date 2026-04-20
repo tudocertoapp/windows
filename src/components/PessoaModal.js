@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadClientPhoto } from '../utils/uploadClientPhoto';
 import { DatePickerInput } from './DatePickerInput';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const FIELD_GAP = 16;
 const styles = StyleSheet.create({
@@ -29,6 +30,7 @@ const styles = StyleSheet.create({
 export function PessoaModal({ visible, pessoa, onSave, onClose }) {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -178,8 +180,16 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
     <Modal visible transparent animationType="fade">
       <View style={styles.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[styles.box, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', justifyContent: isDesktopWeb ? 'flex-start' : 'center', alignItems: isDesktopWeb ? 'stretch' : 'center', flex: 1 }}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.box,
+              { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
               <View style={[styles.titleRow, { flex: 1, gap: 6 }]}>
                 <View style={{ width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}>

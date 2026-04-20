@@ -19,6 +19,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { DatePickerInput } from './DatePickerInput';
 import { MoneyInput } from './MoneyInput';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
@@ -33,6 +34,7 @@ function todayStr() {
 export function FaturaModal({ visible, fatura, onSave, onClose }) {
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [amount, setAmount] = useState('');
@@ -77,8 +79,16 @@ export function FaturaModal({ visible, fatura, onSave, onClose }) {
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboardView, isDesktopWeb ? { justifyContent: 'flex-start' } : null]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              s.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR FATURA' : 'NOVA FATURA'}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -90,7 +100,7 @@ export function FaturaModal({ visible, fatura, onSave, onClose }) {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>
               <Text style={[s.label, { color: colors.textSecondary }]}>DESCRIÇÃO</Text>
               <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Ex: Conta de luz, Aluguel..." value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
 

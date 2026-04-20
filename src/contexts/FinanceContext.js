@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
@@ -7,6 +7,21 @@ import { useBanks } from './BanksContext';
 
 const AGENDA_CACHE_KEY = 'tudocerto_agenda_cache';
 const COLABORADORES_CACHE_KEY = 'tudocerto_colaboradores_cache';
+const REALTIME_DEBOUNCE_MS = 700;
+const REALTIME_TABLES = [
+  'transactions',
+  'agenda_events',
+  'check_list_items',
+  'clients',
+  'products',
+  'composite_products',
+  'services',
+  'suppliers',
+  'a_receber',
+  'orcamentos',
+  'boletos',
+  'collaborators',
+];
 
 function showDbError(error, context = 'salvar') {
   const msg = error?.message || String(error) || 'Erro desconhecido';
@@ -189,6 +204,8 @@ export function FinanceProvider({ children }) {
   const [agendaEvents, setAgendaEvents] = useState([]);
   const [checkListItems, setCheckListItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const realtimeReloadTimerRef = useRef(null);
+  const realtimeReloadInFlightRef = useRef(false);
 
   const loadAll = useCallback(async () => {
     if (!user) {
@@ -308,6 +325,57 @@ export function FinanceProvider({ children }) {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  const scheduleRealtimeReload = useCallback(() => {
+    if (!user?.id) return;
+    if (realtimeReloadTimerRef.current) {
+      clearTimeout(realtimeReloadTimerRef.current);
+    }
+    realtimeReloadTimerRef.current = setTimeout(async () => {
+      if (realtimeReloadInFlightRef.current) return;
+      realtimeReloadInFlightRef.current = true;
+      try {
+        await loadAll();
+      } finally {
+        realtimeReloadInFlightRef.current = false;
+      }
+    }, REALTIME_DEBOUNCE_MS);
+  }, [user?.id, loadAll]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const channelName = `finance-sync-${user.id}`;
+    const channel = supabase.channel(channelName);
+
+    REALTIME_TABLES.forEach((table) => {
+      channel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table,
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          scheduleRealtimeReload();
+        }
+      );
+    });
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        scheduleRealtimeReload();
+      }
+    });
+
+    return () => {
+      if (realtimeReloadTimerRef.current) {
+        clearTimeout(realtimeReloadTimerRef.current);
+        realtimeReloadTimerRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, scheduleRealtimeReload]);
 
   const syncBankForAutoExpense = (tx, reverse) => {
     if (!tx) return;

@@ -20,6 +20,7 @@ import { DatePickerInput } from './DatePickerInput';
 import { TimePickerInput } from './TimePickerInput';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { playTapSound } from '../utils/sounds';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const DEFAULT_TIME_START_KEY = '@tudocerto_agenda_default_time_start';
 const { width: SW } = Dimensions.get('window');
@@ -41,6 +42,7 @@ const PRIORIDADES = [
 
 export function TarefaFormModal({ visible, tarefa, onSave, onClose }) {
   const { colors } = useTheme();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('media');
   const [date, setDate] = useState(todayStr());
@@ -114,8 +116,16 @@ export function TarefaFormModal({ visible, tarefa, onSave, onClose }) {
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.keyboardView}>
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboardView, isDesktopWeb ? { justifyContent: 'flex-start' } : null]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              s.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+            ]}
+          >
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR TAREFA' : 'NOVA TAREFA'}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -124,7 +134,7 @@ export function TarefaFormModal({ visible, tarefa, onSave, onClose }) {
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={s.scroll} contentContainerStyle={s.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>
               <Text style={[s.label, { color: colors.textSecondary }]}>TÍTULO</Text>
               <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Ex: Reunião, Ligar cliente..." value={title} onChangeText={setTitle} placeholderTextColor={colors.textSecondary} />
 

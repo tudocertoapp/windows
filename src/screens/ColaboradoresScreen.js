@@ -18,6 +18,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
+import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const FUNCOES = ['Vendedor', 'Gerente', 'Serviços gerais', 'Atendimento', 'Administrativo', 'Caixa', 'Outro'];
 const ESTADO_CIVIL = ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)', 'Outro'];
@@ -57,6 +58,7 @@ const emptyForm = () => ({
 
 export function ColaboradoresScreen({ onClose, isModal }) {
   const { colors } = useTheme();
+  const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const { collaborators, addCollaborator, updateCollaborator, deleteCollaborator, addCollaboratorPayment } = useFinance();
   const [formOpen, setFormOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -208,8 +210,8 @@ export function ColaboradoresScreen({ onClose, isModal }) {
 
       <Modal visible={formOpen} transparent animationType="fade">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 12 }}>
-            <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, maxHeight: '92%' }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: isDesktopWeb ? 'flex-start' : 'center', padding: isDesktopWeb ? 0 : 12 }}>
+            <View style={{ borderRadius: isDesktopWeb ? 0 : 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, maxHeight: isDesktopWeb ? '100%' : '92%', minHeight: isDesktopWeb ? '100%' : undefined }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{editing ? 'Editar colaborador' : 'Novo colaborador'}</Text>
                 <TouchableOpacity onPress={() => setFormOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
