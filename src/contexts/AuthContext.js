@@ -109,6 +109,16 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * Apaga a conta no Supabase (RPC `delete_my_account` — ver `supabase-delete-my-account.sql`).
+   * Só funciona no servidor se o plano na metadata for `pessoal`; caso contrário a RPC falha.
+   */
+  const deleteAccount = async () => {
+    const { error } = await supabase.rpc('delete_my_account');
+    if (error) throw error;
+    await signOut();
+  };
+
   const enterAsGuest = () => setIsGuest(true);
 
   /** Web: envia e-mail com link para redefinir senha (Supabase Auth > URL Configuration deve incluir o redirectTo). */
@@ -228,6 +238,7 @@ export function AuthProvider({ children }) {
         signIn,
         signUp,
         signOut,
+        deleteAccount,
         signInWithGoogle,
         enterAsGuest,
         resetPasswordForEmail,

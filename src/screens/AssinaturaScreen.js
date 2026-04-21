@@ -1,8 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan, PLANS } from '../contexts/PlanContext';
+import { useAuth } from '../contexts/AuthContext';
 import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 
@@ -48,6 +59,26 @@ const MENSAGENS_UPGRADE = {
   empresa: 'Potencialize sua empresa! Múltiplos usuários, integrações e suporte especializado.',
 };
 
+function mapDeleteAccountError(err) {
+  const code = String(err?.code || err?.details || '');
+  const msg = String(err?.message || err || '').toLowerCase();
+  if (msg.includes('plan_not_free') || code.includes('P0001')) {
+    return 'Só é possível excluir a conta no plano Básico (grátis). Cancele o plano pago acima e volte ao Básico.';
+  }
+  if (msg.includes('not_authenticated') || msg.includes('28000')) {
+    return 'Sessão inválida. Entre de novo e tente outra vez.';
+  }
+  if (
+    msg.includes('delete_my_account') ||
+    msg.includes('function') ||
+    msg.includes('does not exist') ||
+    msg.includes('pgrst202')
+  ) {
+    return 'Função de exclusão não configurada no Supabase. Execute o ficheiro supabase-delete-my-account.sql no painel SQL.';
+  }
+  return err?.message || 'Não foi possível excluir a conta. Tente mais tarde.';
+}
+
 const as = StyleSheet.create({
   tabRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 20, gap: 8 },
   tab: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', gap: 4 },
@@ -63,12 +94,19 @@ const as = StyleSheet.create({
   upgradeBanner: { marginHorizontal: 16, marginBottom: 20, padding: 20, borderRadius: 16, borderWidth: 1 },
   upgradeTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   upgradeText: { fontSize: 14, lineHeight: 22 },
+  dangerZone: { marginHorizontal: 16, marginTop: 8, marginBottom: 24, padding: 20, borderRadius: 16, borderWidth: 1 },
+  dangerTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  dangerText: { fontSize: 14, lineHeight: 22, marginBottom: 14 },
+  dangerBtn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  mutedBtn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 8, borderWidth: 1 },
 });
 
 export function AssinaturaScreen({ onClose, isModal }) {
   const { colors } = useTheme();
+  const { user, deleteAccount } = useAuth();
   const { planId, setPlanId, plan } = usePlan();
   const [categoriaAtiva, setCategoriaAtiva] = useState(plan === PLANS.empresa ? 'empresa' : plan === PLANS.pessoal_empresa ? 'pessoal_empresa' : 'pessoal');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const planosCategoria = PLANOS[categoriaAtiva];
   const mensagemUpgrade = MENSAGENS_UPGRADE[categoriaAtiva];
@@ -84,6 +122,56 @@ export function AssinaturaScreen({ onClose, isModal }) {
     playTapSound();
     if (MAP_ID_TO_PLAN[planoId]) setPlanId(planoId);
   };
+
+  const voltarPlanoGratis = useCallback(() => {
+    playTapSound();
+    setPlanId('pessoal');
+    setCategoriaAtiva('pessoal');
+    Alert.alert(
+      'Plano Básico',
+      'O plano foi alterado para Básico (grátis). Quando a alteração estiver sincronizada com a conta, pode excluir a conta abaixo.',
+      [{ text: 'OK' }]
+    );
+  }, [setPlanId]);
+
+  const runDeleteAccount = useCallback(async () => {
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      onClose?.();
+    } catch (e) {
+      Alert.alert('Erro', mapDeleteAccountError(e));
+    } finally {
+      setDeletingAccount(false);
+    }
+  }, [deleteAccount, onClose]);
+
+  const confirmarExcluirConta = useCallback(() => {
+    if (!user?.id) {
+      Alert.alert('Conta', 'Inicie sessão para gerir a conta.');
+      return;
+    }
+    if (!isPlanoGratuito) {
+      Alert.alert(
+        'Plano ativo',
+        'Para excluir a conta, primeiro tem de cancelar o plano pago: escolha o plano Básico (Grátis) na categoria Pessoal. Depois pode usar «Excluir conta».'
+      );
+      return;
+    }
+    const titulo = 'Excluir conta';
+    const texto =
+      'Isto apaga permanentemente a sua conta e os dados associados no servidor. Não pode ser anulado. Continuar?';
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm) {
+      if (window.confirm(`${titulo}\n\n${texto}`)) {
+        void runDeleteAccount();
+      }
+      return;
+    }
+    Alert.alert(titulo, texto, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir para sempre', style: 'destructive', onPress: () => void runDeleteAccount() },
+    ]);
+  }, [user?.id, isPlanoGratuito, runDeleteAccount]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -168,6 +256,56 @@ export function AssinaturaScreen({ onClose, isModal }) {
             </TouchableOpacity>
           );
         })}
+
+        {user?.id ? (
+          <View style={[as.dangerZone, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[as.dangerTitle, { color: colors.text }]}>Zona de perigo</Text>
+            {!isPlanoGratuito ? (
+              <>
+                <Text style={[as.dangerText, { color: colors.textSecondary }]}>
+                  Com um plano pago ativo não pode excluir a conta. Cancele o plano: volte ao **Básico (Grátis)** na
+                  categoria Pessoal e confirme. Depois disso, o botão «Excluir conta» fica disponível.
+                </Text>
+                <TouchableOpacity
+                  style={[as.mutedBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba(0.08) }]}
+                  onPress={voltarPlanoGratis}
+                  accessibilityLabel="Voltar ao plano Básico grátis"
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary }}>Voltar ao plano Básico (grátis)</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={[as.dangerText, { color: colors.textSecondary }]}>
+                A exclusão remove a conta no Supabase e os dados associados (conforme as regras da base de dados). Esta
+                ação não pode ser desfeita.
+              </Text>
+            )}
+            <TouchableOpacity
+              style={[
+                as.dangerBtn,
+                {
+                  backgroundColor: isPlanoGratuito && !deletingAccount ? '#dc2626' : colors.border,
+                  opacity: deletingAccount ? 0.85 : 1,
+                },
+              ]}
+              onPress={() => {
+                playTapSound();
+                confirmarExcluirConta();
+              }}
+              disabled={!isPlanoGratuito || deletingAccount}
+              accessibilityLabel="Excluir conta"
+            >
+              {deletingAccount ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ fontSize: 15, fontWeight: '700', color: isPlanoGratuito ? '#fff' : colors.textSecondary }}>
+                  Excluir conta
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>

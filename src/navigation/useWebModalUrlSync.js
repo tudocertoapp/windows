@@ -32,8 +32,8 @@ const MODAL_TO_PATH_SEGMENTS = {
   indique: ['menu', 'indique'],
   assinatura: ['menu', 'assinatura'],
   perfil: ['menu', 'perfil'],
-  cadastro: ['cadastros'],
-  produto: ['produto'],
+  cadastro: ['menu', 'cadastros'],
+  produto: ['menu', 'produto'],
   agenda: ['adicionar', 'agenda'],
   add: ['adicionar'],
   menu: ['menu'],
@@ -51,7 +51,7 @@ function getModalPathSegmentsFromSnapshot(snapshot) {
   const base = MODAL_TO_PATH_SEGMENTS[snapshot.m];
   if (!base) return [];
   if (snapshot.m === 'cadastro') {
-    return snapshot.sec ? ['cadastros', String(snapshot.sec)] : ['cadastros'];
+    return snapshot.sec ? ['menu', String(snapshot.sec)] : ['menu', 'cadastros'];
   }
   if (snapshot.m === 'add' && snapshot.t) {
     return ['adicionar', String(snapshot.t)];
@@ -71,10 +71,60 @@ function buildSearchForSnapshot(snapshot, currentSearch) {
   return sp.toString();
 }
 
-function buildDesiredUrl({ tabRouteName, snapshot, currentSearch }) {
-  const basePath = tabRouteNameToWebPathname(tabRouteName) || '/inicio';
+function buildSearchForCadastroDescriptor(cadastroDescriptor, currentSearch) {
+  const sp = removeModalQueryParams(currentSearch);
+  if (cadastroDescriptor?.eid) sp.set('eid', String(cadastroDescriptor.eid));
+  return sp.toString();
+}
+
+function shouldUseRootMenuPath(snapshot, cadastroDescriptor) {
+  if (!snapshot && cadastroDescriptor?.section) return true;
+  const menuRootSnapshots = new Set([
+    'menu',
+    'perfil',
+    'assinatura',
+    'indique',
+    'a_receber',
+    'temas',
+    'termos',
+    'bancos',
+    'orcamento',
+    'anotacoes',
+    'produto',
+    'cadastro',
+    'empresa',
+    'colaboradores',
+    'os',
+    'orcamentos',
+    'pdv',
+    'metas',
+    'lista',
+    'scanner',
+    'image',
+    'assistant',
+    'calc_menu',
+    'calc',
+    'calc_float',
+  ]);
+  return !!snapshot?.m && menuRootSnapshots.has(snapshot.m);
+}
+
+function buildDesiredUrl({ tabRouteName, snapshot, cadastroDescriptor, currentSearch }) {
+  const basePath = shouldUseRootMenuPath(snapshot, cadastroDescriptor)
+    ? '/menu'
+    : (tabRouteNameToWebPathname(tabRouteName) || '/inicio');
+  if (!snapshot && cadastroDescriptor?.section) {
+    const sec = String(cadastroDescriptor.section || '').trim();
+    const fullPath = sec ? `${basePath}/${sec}` : basePath;
+    const search = buildSearchForCadastroDescriptor(cadastroDescriptor, currentSearch);
+    return search ? `${fullPath}?${search}` : fullPath;
+  }
   const modalSegments = getModalPathSegmentsFromSnapshot(snapshot);
-  const modalPath = modalSegments.length > 0 ? `/${modalSegments.join('/')}` : '';
+  const scopedSegments =
+    basePath === '/menu' && modalSegments[0] === 'menu'
+      ? modalSegments.slice(1)
+      : modalSegments;
+  const modalPath = scopedSegments.length > 0 ? `/${scopedSegments.join('/')}` : '';
   const search = buildSearchForSnapshot(snapshot, currentSearch);
   const fullPath = `${basePath}${modalPath}`.replace(/\/{2,}/g, '/');
   return search ? `${fullPath}?${search}` : fullPath;
@@ -84,11 +134,18 @@ function parseSnapshotFromPathAndSearch(pathname, search) {
   const normalized = String(pathname || '/').replace(/^\/+/, '');
   const parts = normalized.split('/').filter(Boolean);
   const root = parts[0] || 'inicio';
-  const modalParts = parts.slice(1);
+  const modalParts = root === 'menu' ? ['menu', ...parts.slice(1)] : parts.slice(1);
   const joined = modalParts.join('/');
   const sp = new URLSearchParams(String(search || '').replace(/^\?/, ''));
 
   if (modalParts[0] === 'cadastros') {
+    return {
+      m: 'cadastro',
+      sec: modalParts[1] || undefined,
+      eid: sp.get('eid') || undefined,
+    };
+  }
+  if (modalParts[0] === 'menu' && isWebCadastroPathSlug(modalParts[1])) {
     return {
       m: 'cadastro',
       sec: modalParts[1] || undefined,
@@ -111,6 +168,19 @@ function parseSnapshotFromPathAndSearch(pathname, search) {
       nid: sp.get('nid') || undefined,
       newNote: sp.get('new') === '1',
     },
+    'menu/empresa': { m: 'empresa' },
+    'menu/colaboradores': { m: 'colaboradores' },
+    'menu/ordem-servico': { m: 'os' },
+    'menu/orcamentos': { m: 'orcamentos' },
+    'menu/pdv': { m: 'pdv' },
+    'menu/metas': { m: 'metas' },
+    'menu/lista-compras': { m: 'lista' },
+    'menu/scanner': { m: 'scanner' },
+    'menu/imagem': { m: 'image', qt: sp.get('qt') || undefined, q: sp.get('q') || undefined },
+    'menu/assistente': { m: 'assistant' },
+    'menu/calculadora': { m: 'calc' },
+    'menu/calculadora-flutuante': { m: 'calc_float' },
+    'menu/produto': { m: 'produto' },
     calculadora: { m: 'calc' },
     'menu/calculadora': { m: 'calc_menu' },
     'calculadora-flutuante': { m: 'calc_float' },
@@ -170,6 +240,7 @@ export function useWebModalUrlSync({
   isWeb,
   tabRouteName,
   getModalSnapshot,
+  getCadastroPathDescriptor,
   applyModalSnapshot,
   onNavigateToTab,
 }) {
@@ -212,9 +283,12 @@ export function useWebModalUrlSync({
     }
 
     const snapshot = getModalSnapshot();
+    const cadastroDescriptor =
+      typeof getCadastroPathDescriptor === 'function' ? getCadastroPathDescriptor() : null;
     const desired = buildDesiredUrl({
       tabRouteName,
       snapshot,
+      cadastroDescriptor,
       currentSearch: window.location.search || '',
     });
     const current = `${window.location.pathname}${window.location.search || ''}`;
@@ -231,5 +305,5 @@ export function useWebModalUrlSync({
 
     window.history.pushState(window.history.state, '', desired);
     return undefined;
-  }, [isWeb, tabRouteName, getModalSnapshot]);
+  }, [isWeb, tabRouteName, getModalSnapshot, getCadastroPathDescriptor]);
 }

@@ -167,6 +167,7 @@ export function AppNavigator() {
   const { height: windowHeight } = useWindowDimensions();
 
   const navigationRef = useRef(null);
+  const prevDesktopTabRouteRef = useRef('Início');
   const [desktopTabRoute, setDesktopTabRoute] = useState('Início');
   const cadastroUrlRef = useRef(null);
 
@@ -233,6 +234,16 @@ export function AppNavigator() {
   ]);
 
   cadastroUrlRef.current = getCadastroPathDescriptor();
+
+  useEffect(() => {
+    const prev = prevDesktopTabRouteRef.current;
+    if (prev && prev !== desktopTabRoute) {
+      // Troca de tab deve priorizar a página alvo; fecha overlays de menu.
+      setMenuModalOpen(false);
+      setMenuOpen(false);
+    }
+    prevDesktopTabRouteRef.current = desktopTabRoute;
+  }, [desktopTabRoute]);
 
   const linking = useMemo(
     () => createAppWebLinking({ isWeb, showEmpresaFeatures, cadastroUrlRef }),
