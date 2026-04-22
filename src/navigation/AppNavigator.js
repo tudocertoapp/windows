@@ -23,6 +23,7 @@ import { MotivationalImageScreen } from '../screens/MotivationalImageScreen';
 import { MenuScreen } from '../screens/MenuScreen';
 import { TemasScreen } from '../screens/TemasScreen';
 import { TermosScreen } from '../screens/TermosScreen';
+import { PoliticaPrivacidadeScreen } from '../screens/PoliticaPrivacidadeScreen';
 import { BancosECartoesScreen } from '../screens/BancosECartoesScreen';
 import { OrcamentoScreen } from '../screens/OrcamentoScreen';
 import { AnotacoesScreen } from '../screens/AnotacoesScreen';
@@ -140,6 +141,7 @@ export function AppNavigator() {
   const [imageModalParams, setImageModalParams] = useState({});
   const [temasModal, setTemasModal] = useState(false);
   const [termosModal, setTermosModal] = useState(false);
+  const [privacidadeModal, setPrivacidadeModal] = useState(false);
   const [bancosModal, setBancosModal] = useState(false);
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [anotacoesModal, setAnotacoesModal] = useState(false);
@@ -192,6 +194,7 @@ export function AppNavigator() {
       orcamentoModal ||
       bancosModal ||
       termosModal ||
+      privacidadeModal ||
       temasModal ||
       imageModal ||
       assistantModal ||
@@ -224,6 +227,7 @@ export function AppNavigator() {
     orcamentoModal,
     bancosModal,
     termosModal,
+    privacidadeModal,
     temasModal,
     imageModal,
     assistantModal,
@@ -267,6 +271,7 @@ export function AppNavigator() {
     setOrcamentoModal(false);
     setBancosModal(false);
     setTermosModal(false);
+    setPrivacidadeModal(false);
     setTemasModal(false);
     setImageModal(false);
     setImageModalParams({});
@@ -306,6 +311,7 @@ export function AppNavigator() {
     if (orcamentoModal) return { m: 'orcamento' };
     if (bancosModal) return { m: 'bancos' };
     if (termosModal) return { m: 'termos' };
+    if (privacidadeModal) return { m: 'privacidade' };
     if (temasModal) return { m: 'temas' };
     if (imageModal) {
       const q = imageModalParams?.quote;
@@ -352,6 +358,7 @@ export function AppNavigator() {
     orcamentoModal,
     bancosModal,
     termosModal,
+    privacidadeModal,
     temasModal,
     imageModal,
     imageModalParams,
@@ -422,6 +429,9 @@ export function AppNavigator() {
           break;
         case 'termos':
           setTermosModal(true);
+          break;
+        case 'privacidade':
+          setPrivacidadeModal(true);
           break;
         case 'temas':
           setTemasModal(true);
@@ -495,6 +505,7 @@ export function AppNavigator() {
       openPerfil: () => { setMenuModalOpen(false); setPerfilModal(true); },
       openTemas: () => { setMenuModalOpen(false); setTemasModal(true); },
       openTermos: () => { setMenuModalOpen(false); setTermosModal(true); },
+      openPrivacidade: () => { setMenuModalOpen(false); setPrivacidadeModal(true); },
       openAssinatura: () => { setMenuModalOpen(false); setAssinaturaModal(true); },
       openIndique: () => { setMenuModalOpen(false); setIndiqueModal(true); },
       openAReceber: () => { setMenuModalOpen(false); setAReceberModal(true); },
@@ -591,6 +602,7 @@ export function AppNavigator() {
     if (orcamentoModal) { setOrcamentoModal(false); return true; }
     if (bancosModal) { setBancosModal(false); return true; }
     if (termosModal) { setTermosModal(false); return true; }
+    if (privacidadeModal) { setPrivacidadeModal(false); return true; }
     if (temasModal) { setTemasModal(false); return true; }
     if (imageModal) { setImageModal(false); return true; }
     if (assistantModal) { setAssistantModal(false); return true; }
@@ -607,7 +619,7 @@ export function AppNavigator() {
   }, [
     showCalcMenu, calculadoraModal, calculadoraFloating, pdvModal, orcamentosModal, ordemServicoModal,
     empresaModal, colaboradoresModal, aniversariantesModal, metasSonhosModal, listaComprasModal, receiptScannerModal,
-    anotacoesModal, orcamentoModal, bancosModal, termosModal, temasModal, imageModal, assistantModal,
+    anotacoesModal, orcamentoModal, bancosModal, termosModal, privacidadeModal, temasModal, imageModal, assistantModal,
     aReceberModal, indiqueModal, assinaturaModal, perfilModal, cadastroModal, productFormVisible,
     addModalState, menuModalOpen, menuOpen,
   ]);
@@ -968,6 +980,7 @@ export function AppNavigator() {
                 onOpenPerfil={menuActions.openPerfil}
                 onOpenTemas={menuActions.openTemas}
                 onOpenTermos={menuActions.openTermos}
+                onOpenPrivacidade={menuActions.openPrivacidade}
                 onOpenAssinatura={menuActions.openAssinatura}
                 onOpenIndique={menuActions.openIndique}
                 onOpenAReceber={menuActions.openAReceber}
@@ -1014,6 +1027,7 @@ export function AppNavigator() {
                 onOpenPerfil={menuActions.openPerfil}
                 onOpenTemas={menuActions.openTemas}
                 onOpenTermos={menuActions.openTermos}
+                onOpenPrivacidade={menuActions.openPrivacidade}
                 onOpenAssinatura={menuActions.openAssinatura}
                 onOpenIndique={menuActions.openIndique}
                 onOpenAReceber={menuActions.openAReceber}
@@ -1076,6 +1090,11 @@ export function AppNavigator() {
       <Modal visible={termosModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <TermosScreen onClose={() => setTermosModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={privacidadeModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <PoliticaPrivacidadeScreen onClose={() => setPrivacidadeModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={bancosModal} animationType="slide">

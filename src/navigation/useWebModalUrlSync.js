@@ -25,6 +25,7 @@ const MODAL_TO_PATH_SEGMENTS = {
   orcamento: ['menu', 'orcamento'],
   bancos: ['menu', 'bancos'],
   termos: ['menu', 'termos'],
+  privacidade: ['menu', 'privacidade'],
   temas: ['menu', 'temas'],
   image: ['imagem'],
   assistant: ['assistente'],
@@ -87,6 +88,7 @@ function shouldUseRootMenuPath(snapshot, cadastroDescriptor) {
     'a_receber',
     'temas',
     'termos',
+    'privacidade',
     'bancos',
     'orcamento',
     'anotacoes',
@@ -161,6 +163,7 @@ function parseSnapshotFromPathAndSearch(pathname, search) {
     'menu/a-receber': { m: 'a_receber' },
     'menu/temas': { m: 'temas' },
     'menu/termos': { m: 'termos' },
+    'menu/privacidade': { m: 'privacidade' },
     'menu/bancos': { m: 'bancos' },
     'menu/orcamento': { m: 'orcamento' },
     'menu/anotacoes': {
