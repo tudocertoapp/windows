@@ -54,6 +54,9 @@ const emptyForm = () => ({
   descricao: '',
   curriculoExperiencias: '',
   observacoes: '',
+  operadorCaixaAtivo: false,
+  operadorCaixaId: '',
+  operadorCaixaSenha: '',
 });
 
 export function ColaboradoresScreen({ onClose, isModal }) {
@@ -102,6 +105,9 @@ export function ColaboradoresScreen({ onClose, isModal }) {
       descricao: c.descricao || '',
       curriculoExperiencias: c.curriculoExperiencias || '',
       observacoes: c.observacoes || '',
+      operadorCaixaAtivo: c.operadorCaixaAtivo === true,
+      operadorCaixaId: c.operadorCaixaId || '',
+      operadorCaixaSenha: c.operadorCaixaSenha || '',
     });
     setFormOpen(true);
   };
@@ -127,7 +133,13 @@ export function ColaboradoresScreen({ onClose, isModal }) {
       descricao: form.descricao.trim(),
       curriculoExperiencias: form.curriculoExperiencias.trim(),
       observacoes: form.observacoes.trim(),
+      operadorCaixaAtivo: form.operadorCaixaAtivo === true,
+      operadorCaixaId: form.operadorCaixaId.trim(),
+      operadorCaixaSenha: form.operadorCaixaSenha.trim(),
     };
+    if (payload.operadorCaixaAtivo && (!payload.operadorCaixaId || !payload.operadorCaixaSenha)) {
+      return Alert.alert('Atenção', 'Para operador de caixa, informe ID e senha.');
+    }
     if (editing?.id) await updateCollaborator(editing.id, payload);
     else await addCollaborator(payload);
     setFormOpen(false);
@@ -190,6 +202,11 @@ export function ColaboradoresScreen({ onClose, isModal }) {
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>{c.nome}</Text>
                   <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{c.funcao}{c.habilitado === false ? ' · Sem habilitação' : ''}</Text>
+                  {c.operadorCaixaAtivo ? (
+                    <Text style={{ color: colors.primary, marginTop: 2, fontWeight: '600' }}>
+                      Operador de caixa: {c.operadorCaixaId || '(sem ID)'}
+                    </Text>
+                  ) : null}
                   {c.telefone ? <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{c.telefone}</Text> : null}
                   <Text style={{ color: colors.textSecondary, marginTop: 2 }}>Salário: {toMoney(c.salarioBase)} · Comissão: {Number(c.comissaoPercent || 0)}%</Text>
                   <Text style={{ color: colors.primary, marginTop: 4, fontWeight: '600' }}>Pagamentos registrados: {toMoney(pagos)}</Text>
@@ -279,6 +296,44 @@ export function ColaboradoresScreen({ onClose, isModal }) {
                   </View>
                   <Switch value={form.habilitado} onValueChange={(v) => setF('habilitado', v)} trackColor={{ false: colors.border, true: colors.primary + '88' }} thumbColor={form.habilitado ? colors.primary : '#f4f4f5'} />
                 </View>
+
+                <Text style={[s.sectionTitle, { color: colors.primary }]}>Operador de caixa (PDV)</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>Habilitar como operador</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                      Quando ativo, este colaborador pode abrir caixa no PDV com ID e senha.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={!!form.operadorCaixaAtivo}
+                    onValueChange={(v) => setF('operadorCaixaAtivo', v)}
+                    trackColor={{ false: colors.border, true: colors.primary + '88' }}
+                    thumbColor={form.operadorCaixaAtivo ? colors.primary : '#f4f4f5'}
+                  />
+                </View>
+                {form.operadorCaixaAtivo ? (
+                  <>
+                    <Text style={[s.label, { color: colors.textSecondary }]}>ID do operador</Text>
+                    <TextInput
+                      value={form.operadorCaixaId}
+                      onChangeText={(t) => setF('operadorCaixaId', t)}
+                      placeholder="ex: caixa01"
+                      placeholderTextColor={colors.textSecondary}
+                      style={inputStyle}
+                      autoCapitalize="none"
+                    />
+                    <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Senha do operador</Text>
+                    <TextInput
+                      value={form.operadorCaixaSenha}
+                      onChangeText={(t) => setF('operadorCaixaSenha', t)}
+                      placeholder="Senha para abrir caixa"
+                      placeholderTextColor={colors.textSecondary}
+                      style={inputStyle}
+                      secureTextEntry
+                    />
+                  </>
+                ) : null}
 
                 <Text style={[s.sectionTitle, { color: colors.primary }]}>Apresentação e experiência</Text>
                 <Text style={[s.label, { color: colors.textSecondary }]}>Descrição / resumo profissional</Text>

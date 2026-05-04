@@ -27,6 +27,39 @@ const GAP = 20;
 const CARD_MAX_WIDTH = Math.min(SW - 8, 520);
 const SCROLL_MAX_HEIGHT = Math.min(520, 580);
 
+function onlyDigits(v) {
+  return String(v || '').replace(/\D/g, '');
+}
+
+function generateInternalProductCode(existingProducts = []) {
+  let maxNum = 0;
+  for (const p of existingProducts || []) {
+    const raw = String(p?.code || '');
+    const m = raw.match(/(\d+)\s*$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (!Number.isNaN(n) && n > maxNum) maxNum = n;
+  }
+  return `PROD-${String(maxNum + 1).padStart(4, '0')}`;
+}
+
+function generateBarcode13(existingProducts = []) {
+  const used = new Set(
+    (existingProducts || [])
+      .map((p) => onlyDigits(p?.barcode))
+      .filter((x) => x.length > 0),
+  );
+  let attempt = 0;
+  while (attempt < 30) {
+    const now = Date.now().toString().slice(-9);
+    const rand = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+    const candidate = `7891${now}${rand}`.slice(0, 13);
+    if (!used.has(candidate)) return candidate;
+    attempt += 1;
+  }
+  return String(Date.now()).slice(-13).padStart(13, '0');
+}
+
 export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { colors } = useTheme();
   const { suppliers, products, addCompositeProduct, addSupplier } = useFinance();
@@ -39,6 +72,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const [unit, setUnit] = useState(editingItem?.unit || 'un');
   const [photoUris, setPhotoUris] = useState(editingItem?.photoUris?.length ? [...editingItem.photoUris] : (editingItem?.photoUri ? [editingItem.photoUri] : []));
   const [code, setCode] = useState(editingItem?.code || '');
+  const [barcode, setBarcode] = useState(editingItem?.barcode || '');
   const [allowDiscount, setAllowDiscount] = useState(editingItem?.allowDiscount !== false);
   const [stock, setStock] = useState(editingItem?.stock != null ? String(editingItem.stock) : '0');
   const [minStock, setMinStock] = useState(editingItem?.minStock != null ? String(editingItem.minStock) : '0');
@@ -58,6 +92,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setUnit(editingItem.unit || 'un');
       setPhotoUris(editingItem.photoUris?.length ? [...editingItem.photoUris] : (editingItem.photoUri ? [editingItem.photoUri] : []));
       setCode(editingItem.code || '');
+      setBarcode(editingItem.barcode || '');
       setAllowDiscount(editingItem.allowDiscount !== false);
       setStock(editingItem.stock != null ? String(editingItem.stock) : '0');
       setMinStock(editingItem.minStock != null ? String(editingItem.minStock) : '0');
@@ -74,6 +109,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setUnit('un');
       setPhotoUris([]);
       setCode('');
+      setBarcode('');
       setAllowDiscount(true);
       setStock('0');
       setMinStock('0');
@@ -116,7 +152,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
         discount: d,
         unit: unit.trim() || 'un',
         photoUris: photoUris.length > 0 ? photoUris : null,
-        code: code.trim() || null,
+        code: code.trim() || generateInternalProductCode(products),
+        barcode: onlyDigits(barcode) || generateBarcode13(products),
         allowDiscount,
         stock: st,
         minStock: minSt,
@@ -275,6 +312,19 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
 
               <Text style={[s.label, { color: colors.textSecondary }]}>CÓDIGO DO PRODUTO</Text>
               <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="SKU, ref..." value={code} onChangeText={setCode} placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>CÓDIGO DE BARRAS</Text>
+              <TextInput
+                style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]}
+                placeholder="Digite o código original (se tiver)"
+                value={barcode}
+                onChangeText={(t) => setBarcode(onlyDigits(t))}
+                keyboardType="number-pad"
+                placeholderTextColor={colors.textSecondary}
+              />
+              <Text style={[s.hint, { color: colors.textSecondary }, sectionGap]}>
+                Se ficar vazio, geramos automaticamente ao salvar.
+              </Text>
 
               <Text style={[s.label, { color: colors.textSecondary }]}>PERMITIR DESCONTO NA VENDA?</Text>
               <View style={[s.toggleRow, sectionGap]}>

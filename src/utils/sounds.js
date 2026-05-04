@@ -10,6 +10,61 @@ export function playTapSound() {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
+function playWebUiTone(freqHz, durationMs) {
+  try {
+    if (typeof window === 'undefined') return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freqHz;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const t0 = ctx.currentTime;
+    const dur = durationMs / 1000;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.15, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.03);
+    setTimeout(() => ctx.close?.().catch(() => {}), Math.ceil(durationMs + 120));
+  } catch (_) {}
+}
+
+export function playPdvOpenSound() {
+  if (Platform.OS === 'web') {
+    playWebUiTone(780, 85);
+    return;
+  }
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+}
+
+export function playPdvAddItemSound() {
+  if (Platform.OS === 'web') {
+    playWebUiTone(910, 70);
+    return;
+  }
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+}
+
+export function playPdvEditItemSound() {
+  if (Platform.OS === 'web') {
+    playWebUiTone(620, 60);
+    return;
+  }
+  Haptics.selectionAsync().catch(() => {});
+}
+
+export function playPdvRemoveItemSound() {
+  if (Platform.OS === 'web') {
+    playWebUiTone(420, 110);
+    return;
+  }
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+}
+
 /**
  * Feedback de "gravando" - haptic médio por 1-2 segundos (2 pulsos).
  */

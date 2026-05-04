@@ -70,7 +70,12 @@ function readRootTabRouteName(navState) {
 }
 
 /** Dentro do NavigationContainer: tab ativa sempre alinhada ao estado (web URL + modais + histórico). */
-function WebUrlSyncHost({ getModalSnapshot, getCadastroPathDescriptor, applyModalSnapshot }) {
+function WebUrlSyncHost({
+  getModalSnapshot,
+  getCadastroPathDescriptor,
+  applyModalSnapshot,
+  canNavigateTabs,
+}) {
   const isWeb = Platform.OS === 'web';
   const navigation = useNavigation();
   const onNavigateToTab = useCallback((name) => {
@@ -84,6 +89,7 @@ function WebUrlSyncHost({ getModalSnapshot, getCadastroPathDescriptor, applyModa
     getCadastroPathDescriptor,
     applyModalSnapshot,
     onNavigateToTab,
+    canNavigateTabs,
   });
   return null;
 }
@@ -171,6 +177,8 @@ export function AppNavigator() {
   const navigationRef = useRef(null);
   const prevDesktopTabRouteRef = useRef('Início');
   const [desktopTabRoute, setDesktopTabRoute] = useState('Início');
+  const [navigationReady, setNavigationReady] = useState(false);
+  const [pdvStandaloneWeb, setPdvStandaloneWeb] = useState(false);
   const cadastroUrlRef = useRef(null);
 
   const getCadastroPathDescriptor = useCallback(() => {
@@ -248,6 +256,15 @@ export function AppNavigator() {
     }
     prevDesktopTabRouteRef.current = desktopTabRoute;
   }, [desktopTabRoute]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (window.location.hash !== '#pdv') return;
+    setPdvStandaloneWeb(true);
+    setPdvModal(true);
+    const cleanUrl = `${window.location.pathname}${window.location.search || ''}`;
+    window.history.replaceState(window.history.state, '', cleanUrl);
+  }, []);
 
   const linking = useMemo(
     () => createAppWebLinking({ isWeb, showEmpresaFeatures, cadastroUrlRef }),
@@ -536,7 +553,14 @@ export function AppNavigator() {
       openColaboradores: () => { setMenuModalOpen(false); setColaboradoresModal(true); },
       openOrdemServico: () => { setMenuModalOpen(false); setOrdemServicoModal(true); },
       openOrcamentos: () => { setMenuModalOpen(false); setOrcamentosModal(true); },
-      openPDV: () => { setMenuModalOpen(false); setPdvModal(true); },
+      openPDV: () => {
+        setMenuModalOpen(false);
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.open('/inicio#pdv', '_blank', 'noopener,noreferrer');
+          return;
+        }
+        setPdvModal(true);
+      },
       openAddModal: (type, params) => setAddModalState(typeof type === 'object' ? type : { type, params: params || null }),
       openProductForm: () => setProductFormVisible(true),
       openAssistant: () => setAssistantModal(true),
@@ -589,7 +613,11 @@ export function AppNavigator() {
     if (showCalcMenu) { setShowCalcMenu(false); return true; }
     if (calculadoraModal) { setCalculadoraModal(false); return true; }
     if (calculadoraFloating) { setCalculadoraFloating(false); return true; }
-    if (pdvModal) { setPdvModal(false); return true; }
+    if (pdvModal) {
+      if (pdvStandaloneWeb) return false;
+      setPdvModal(false);
+      return true;
+    }
     if (orcamentosModal) { setOrcamentosModal(false); return true; }
     if (ordemServicoModal) { setOrdemServicoModal(false); return true; }
     if (empresaModal) { setEmpresaModal(false); return true; }
@@ -617,7 +645,7 @@ export function AppNavigator() {
     if (menuOpen) { setMenuOpen(false); return true; }
     return false;
   }, [
-    showCalcMenu, calculadoraModal, calculadoraFloating, pdvModal, orcamentosModal, ordemServicoModal,
+    showCalcMenu, calculadoraModal, calculadoraFloating, pdvModal, pdvStandaloneWeb, orcamentosModal, ordemServicoModal,
     empresaModal, colaboradoresModal, aniversariantesModal, metasSonhosModal, listaComprasModal, receiptScannerModal,
     anotacoesModal, orcamentoModal, bancosModal, termosModal, privacidadeModal, temasModal, imageModal, assistantModal,
     aReceberModal, indiqueModal, assinaturaModal, perfilModal, cadastroModal, productFormVisible,
@@ -655,6 +683,7 @@ export function AppNavigator() {
               ref={navigationRef}
               linking={linking}
               onReady={() => {
+                setNavigationReady(true);
                 const n = readRootTabRouteName(navigationRef.current?.getRootState?.());
                 if (n) setDesktopTabRoute(n);
               }}
@@ -667,6 +696,7 @@ export function AppNavigator() {
                 getModalSnapshot={getModalSnapshot}
                 getCadastroPathDescriptor={getCadastroPathDescriptor}
                 applyModalSnapshot={applyModalSnapshot}
+                canNavigateTabs={navigationReady}
               />
               <View
                 style={{
@@ -1150,7 +1180,19 @@ export function AppNavigator() {
       {isWeb && (
         <Modal visible={pdvModal} animationType="slide">
           <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-            <PDVScreen onClose={() => setPdvModal(false)} />
+            <PDVScreen
+              lockedMode={pdvStandaloneWeb}
+              onClose={() => {
+                if (pdvStandaloneWeb) {
+                  if (typeof window !== 'undefined') {
+                    window.close?.();
+                  }
+                  setPdvModal(true);
+                  return;
+                }
+                setPdvModal(false);
+              }}
+            />
           </SafeAreaView>
         </Modal>
       )}

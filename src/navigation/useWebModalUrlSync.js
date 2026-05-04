@@ -98,7 +98,6 @@ function shouldUseRootMenuPath(snapshot, cadastroDescriptor) {
     'colaboradores',
     'os',
     'orcamentos',
-    'pdv',
     'metas',
     'lista',
     'scanner',
@@ -136,7 +135,12 @@ function parseSnapshotFromPathAndSearch(pathname, search) {
   const normalized = String(pathname || '/').replace(/^\/+/, '');
   const parts = normalized.split('/').filter(Boolean);
   const root = parts[0] || 'inicio';
-  const modalParts = root === 'menu' ? ['menu', ...parts.slice(1)] : parts.slice(1);
+  const rootIsTab = !!webPathSegmentToTabRouteName(root);
+  const modalParts = root === 'menu'
+    ? ['menu', ...parts.slice(1)]
+    : rootIsTab
+      ? parts.slice(1)
+      : parts;
   const joined = modalParts.join('/');
   const sp = new URLSearchParams(String(search || '').replace(/^\?/, ''));
 
@@ -246,19 +250,34 @@ export function useWebModalUrlSync({
   getCadastroPathDescriptor,
   applyModalSnapshot,
   onNavigateToTab,
+  canNavigateTabs = true,
 }) {
   const hydratedRef = useRef(false);
   const ignoreNextUrlEffectRef = useRef(false);
   const initialCommitRef = useRef(false);
+  const pendingTabRef = useRef(null);
 
   const applyFromLocation = useCallback(() => {
     if (typeof window === 'undefined') return;
     const seg = firstPathSegment(window.location.pathname || '/');
     const tabName = webPathSegmentToTabRouteName(seg) || 'Início';
-    onNavigateToTab?.(tabName);
+    if (canNavigateTabs) {
+      onNavigateToTab?.(tabName);
+      pendingTabRef.current = null;
+    } else {
+      pendingTabRef.current = tabName;
+    }
     const snapshot = parseSnapshotFromPathAndSearch(window.location.pathname, window.location.search);
     applyModalSnapshot(snapshot);
-  }, [applyModalSnapshot, onNavigateToTab]);
+  }, [applyModalSnapshot, onNavigateToTab, canNavigateTabs]);
+
+  useEffect(() => {
+    if (!isWeb || !canNavigateTabs) return undefined;
+    if (!pendingTabRef.current) return undefined;
+    onNavigateToTab?.(pendingTabRef.current);
+    pendingTabRef.current = null;
+    return undefined;
+  }, [isWeb, canNavigateTabs, onNavigateToTab]);
 
   useEffect(() => {
     if (!isWeb || typeof window === 'undefined' || hydratedRef.current) return undefined;

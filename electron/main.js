@@ -11,50 +11,70 @@ const fs = require('fs');
 
 const isDev = process.env.ELECTRON_DEV === '1' || process.env.ELECTRON_DEV === 'true';
 let mainWindow = null;
+/** Janela atual para o diálogo de update (evita listeners/interval duplicados no macOS). */
+let updatePromptWindow = null;
+let autoUpdateHandlersRegistered = false;
 
 function setupAutoUpdate(win) {
+  updatePromptWindow = win;
   if (!app.isPackaged || isDev) return;
 
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on('error', (err) => {
-    console.error('[Updater] erro:', err?.message || err);
-  });
-
-  autoUpdater.on('update-available', (info) => {
-    console.log('[Updater] atualização disponível:', info?.version || '(sem versão)');
-  });
-
-  autoUpdater.on('update-not-available', () => {
-    console.log('[Updater] sem atualizações');
-  });
-
-  autoUpdater.on('update-downloaded', async (info) => {
+  if (!autoUpdateHandlersRegistered) {
+    autoUpdateHandlersRegistered = true;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    // Garante o feed GitHub (mesmo `build.publish` do package.json no build).
     try {
-      const result = await dialog.showMessageBox(win, {
-        type: 'info',
-        buttons: ['Reiniciar agora', 'Depois'],
-        defaultId: 0,
-        cancelId: 1,
-        title: 'Atualização pronta',
-        message: `Uma nova versão (${info?.version || 'nova'}) foi baixada.`,
-        detail: 'Deseja reiniciar agora para aplicar a atualização?',
+      autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: 'tudocertoapp',
+        repo: 'windows',
       });
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall();
-      }
-    } catch (e) {
-      console.error('[Updater] falha ao mostrar prompt:', e?.message || e);
-    }
-  });
+    } catch (_) {}
 
-  // Pequeno atraso para não competir com a primeira renderização da janela.
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.error('[Updater] checkForUpdates falhou:', err?.message || err);
+    autoUpdater.on('error', (err) => {
+      console.error('[Updater] erro:', err?.message || err);
     });
-  }, 5000);
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('[Updater] atualização disponível:', info?.version || '(sem versão)');
+    });
+
+    autoUpdater.on('update-not-available', () => {
+      console.log('[Updater] sem atualizações');
+    });
+
+    autoUpdater.on('update-downloaded', async (info) => {
+      const w = updatePromptWindow;
+      if (!w || w.isDestroyed()) return;
+      try {
+        const result = await dialog.showMessageBox(w, {
+          type: 'info',
+          buttons: ['Reiniciar agora', 'Depois'],
+          defaultId: 0,
+          cancelId: 1,
+          title: 'Atualização pronta',
+          message: `Uma nova versão (${info?.version || 'nova'}) foi baixada.`,
+          detail: 'Deseja reiniciar agora para aplicar a atualização?',
+        });
+        if (result.response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      } catch (e) {
+        console.error('[Updater] falha ao mostrar prompt:', e?.message || e);
+      }
+    });
+
+    const check = () => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('[Updater] checkForUpdates falhou:', err?.message || err);
+      });
+    };
+    // Pequeno atraso para não competir com a primeira renderização da janela.
+    setTimeout(check, 5000);
+    // Verificação periódica (app aberto por muito tempo ainda recebe updates).
+    setInterval(check, 8 * 60 * 60 * 1000);
+  }
 }
 
 function appIconPath() {

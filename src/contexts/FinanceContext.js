@@ -98,7 +98,12 @@ function toProduct(r) {
   return {
     id: r.id, name: r.name, price: Number(r.price), costPrice: Number(r.cost_price || 0), discount: Number(r.discount || 0), unit: r.unit,
     photoUri: photoUris[0] || r.photo_uri, photoUris,
-    code: data.code, allowDiscount: data.allow_discount !== false, stock: data.stock ?? 0, minStock: data.min_stock ?? 0, supplierId: data.supplier_id,
+    code: data.code,
+    barcode: data.barcode || data.bar_code || data.codigo_barras || null,
+    allowDiscount: data.allow_discount !== false,
+    stock: data.stock ?? 0,
+    minStock: data.min_stock ?? 0,
+    supplierId: data.supplier_id,
   };
 }
 function toService(r) {
@@ -126,6 +131,11 @@ function toAReceber(r) {
 function toCollaborator(r) {
   if (!r) return null;
   const data = r.data || r;
+  const rawOpAtivo = data.operadorCaixaAtivo ?? data.operador_caixa_ativo;
+  const operadorCaixaAtivo =
+    rawOpAtivo === true || rawOpAtivo === 'true' || rawOpAtivo === 1 || rawOpAtivo === '1';
+  const operadorCaixaId = data.operadorCaixaId ?? data.operador_caixa_id ?? '';
+  const operadorCaixaSenha = data.operadorCaixaSenha ?? data.operador_caixa_senha ?? '';
   return {
     id: r.id || data.id,
     nome: data.nome || data.name || '',
@@ -149,6 +159,9 @@ function toCollaborator(r) {
     descricao: data.descricao || '',
     curriculoExperiencias: data.curriculoExperiencias || data.experiencias || '',
     observacoes: data.observacoes || '',
+    operadorCaixaAtivo,
+    operadorCaixaId: operadorCaixaId || '',
+    operadorCaixaSenha: operadorCaixaSenha || '',
   };
 }
 function toOrcamento(r) {
@@ -615,6 +628,7 @@ export function FinanceProvider({ children }) {
     const photoUris = (p.photoUris && p.photoUris.length > 0) ? p.photoUris : (p.photoUri ? [p.photoUri] : []);
     const dataJson = {
       ...(p.code != null && { code: p.code }),
+      ...(p.barcode != null && { barcode: p.barcode }),
       ...(p.allowDiscount != null && { allow_discount: p.allowDiscount }),
       ...(p.stock != null && { stock: p.stock }),
       ...(p.minStock != null && { min_stock: p.minStock }),
@@ -643,12 +657,13 @@ export function FinanceProvider({ children }) {
     if (data.discount != null) up.discount = data.discount;
     if (data.unit != null) up.unit = data.unit;
     if (data.photoUri != null) up.photo_uri = data.photoUri;
-    if (data.code !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.photoUris !== undefined) {
+    if (data.code !== undefined || data.barcode !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.photoUris !== undefined) {
       const curr = (await supabase.from('products').select('data').eq('id', id).single()).data?.data || {};
       const photoUris = data.photoUris !== undefined ? (data.photoUris?.length ? data.photoUris : []) : undefined;
       up.data = {
         ...curr,
         ...(data.code !== undefined && { code: data.code }),
+        ...(data.barcode !== undefined && { barcode: data.barcode }),
         ...(data.allowDiscount !== undefined && { allow_discount: data.allowDiscount }),
         ...(data.stock !== undefined && { stock: data.stock }),
         ...(data.minStock !== undefined && { min_stock: data.minStock }),
@@ -800,6 +815,9 @@ export function FinanceProvider({ children }) {
       descricao: c.descricao || '',
       curriculoExperiencias: c.curriculoExperiencias || '',
       observacoes: c.observacoes || '',
+      operadorCaixaAtivo: c.operadorCaixaAtivo === true,
+      operadorCaixaId: c.operadorCaixaId || '',
+      operadorCaixaSenha: c.operadorCaixaSenha || '',
     };
     if (!user) {
       const next = [...collaborators, collaborator];

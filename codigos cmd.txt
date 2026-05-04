@@ -1,3 +1,15 @@
 abrir expo go 
 
 npx expo start -c --lan
+
+
+cada pagina tera que ter um subdominio
+
+catalogo online; com botão de mandar lista de produtos do carrinho no whatsapp pre pedido!
+
+criar termos  de uso claro com subdominio para liberação da play store e app store
+
+conectar stripe com planos pagos do app
+
+
+

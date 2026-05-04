@@ -291,6 +291,7 @@ export function DashboardScreen() {
     };
     const onKeyDown = (event) => {
       if (isTypingTarget(event?.target)) return;
+      if (event?.ctrlKey || event?.shiftKey || event?.altKey || event?.metaKey) return;
       const keyRaw = String(event?.key || event?.code || '').toUpperCase();
       const match = keyRaw.match(/^F(\d{1,2})$/);
       if (!match) return;

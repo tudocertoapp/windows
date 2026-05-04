@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { formatCurrency } from '../../utils/format';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { buildEmpresaRelatorioWorkbook } from '../../utils/empresaRelatorioXlsx';
 import { canUseWebDocument, printHtmlInBrowser, downloadXlsxInBrowser } from '../../utils/webRelatorioExport';
+import { DEFAULT_PDV_CONFIG, readPdvConfig, writePdvConfig } from '../../utils/pdvConfig';
 
 function parseDateStr(str) {
   if (!str || !String(str).trim()) return null;
@@ -60,9 +61,18 @@ function formatDateStr(d) {
 const REPORT_TYPES = [
   { id: 'fluxo', label: 'Fluxo de Caixa', icon: 'trending-up-outline', color: '#22c55e' },
   { id: 'produtosVendem', label: 'Produtos que mais vendem', icon: 'cart-outline', color: '#8b5cf6' },
+  { id: 'vendasOperador', label: 'Vendas por operador', icon: 'people-outline', color: '#0ea5e9' },
   { id: 'servicos', label: 'Serviços realizados', icon: 'construct-outline', color: '#06b6d4' },
   { id: 'produtos', label: 'Produtos', icon: 'cube-outline', color: '#f59e0b' },
+  { id: 'pdvConfig', label: 'Configurações do PDV', icon: 'settings-outline', color: '#10b981' },
 ];
+
+function readOperatorFromDescription(desc) {
+  const s = String(desc || '');
+  const m = s.match(/operador:\s*(.+)$/i);
+  if (!m?.[1]) return 'Sem operador';
+  return m[1].trim();
+}
 
 function escapeHtml(s) {
   if (s == null || s === '') return '—';
@@ -85,6 +95,20 @@ export function EmpresaRelatorioScreen({ onClose }) {
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [tempStart, setTempStart] = useState(periodStart);
   const [tempEnd, setTempEnd] = useState(periodEnd);
+  const [operatorFilter, setOperatorFilter] = useState('todos');
+  const [pdvConfig, setPdvConfig] = useState(DEFAULT_PDV_CONFIG);
+
+  useEffect(() => {
+    (async () => {
+      const cfg = await readPdvConfig(profile);
+      setPdvConfig(cfg);
+    })();
+  }, [profile?.email]);
+
+  const savePdvConfig = useCallback((next) => {
+    setPdvConfig(next);
+    writePdvConfig(profile, next).catch(() => {});
+  }, [profile]);
 
   const adjustFilterDate = useCallback((delta) => {
     setFilterDate((d) => {
@@ -212,6 +236,45 @@ export function EmpresaRelatorioScreen({ onClose }) {
     });
   }, [products, currentReport, filter, periodStart, periodEnd]);
 
+  const pdvTransactionsFiltered = useMemo(
+    () => transactionsFiltered.filter((t) => {
+      const cat = String(t.category || '').toLowerCase();
+      const desc = String(t.description || '').toLowerCase();
+      return t.type === 'income' && (cat.includes('venda pdv') || desc.includes('venda pdv'));
+    }),
+    [transactionsFiltered],
+  );
+
+  const operatorSalesRows = useMemo(() => {
+    const map = {};
+    pdvTransactionsFiltered.forEach((t) => {
+      const op = readOperatorFromDescription(t.description);
+      if (!map[op]) map[op] = { operador: op, qtdVendas: 0, valorTotal: 0 };
+      map[op].qtdVendas += 1;
+      map[op].valorTotal += Number(t.amount || 0);
+    });
+    return Object.values(map).sort((a, b) => b.valorTotal - a.valorTotal);
+  }, [pdvTransactionsFiltered]);
+
+  const operatorOptions = useMemo(
+    () => ['todos', ...operatorSalesRows.map((r) => r.operador)],
+    [operatorSalesRows],
+  );
+
+  const operatorSalesFiltered = useMemo(
+    () => operatorSalesRows.filter((r) => operatorFilter === 'todos' || r.operador === operatorFilter),
+    [operatorSalesRows, operatorFilter],
+  );
+
+  const totalVendasComercio = useMemo(
+    () => pdvTransactionsFiltered.reduce((s, t) => s + Number(t.amount || 0), 0),
+    [pdvTransactionsFiltered],
+  );
+  const totalVendasFiltradasOperador = useMemo(
+    () => operatorSalesFiltered.reduce((s, r) => s + Number(r.valorTotal || 0), 0),
+    [operatorSalesFiltered],
+  );
+
   const handleBack = () => {
     playTapSound();
     if (currentReport) setCurrentReport(null);
@@ -273,6 +336,18 @@ export function EmpresaRelatorioScreen({ onClose }) {
       tableRows += '<h3>Lista de Produtos</h3><table><tr><th>Nome</th><th>Preço</th><th>Estoque</th></tr>';
       productsFiltered.forEach((p) => {
         tableRows += `<tr><td>${p.name || '—'}</td><td>${formatCurrency(p.price || 0)}</td><td>${p.stock ?? '—'}</td></tr>`;
+      });
+      tableRows += '</table>';
+    }
+
+    if (tipo === 'vendasOperador') {
+      tableRows += '<h3>Vendas por operador</h3>';
+      tableRows += `<p><b>Total do comércio:</b> ${formatCurrency(totalVendasComercio)}</p>`;
+      tableRows += `<p><b>Filtro operador:</b> ${escapeHtml(operatorFilter === 'todos' ? 'Todos' : operatorFilter)}</p>`;
+      tableRows += `<p><b>Total do filtro:</b> ${formatCurrency(totalVendasFiltradasOperador)}</p>`;
+      tableRows += '<table><tr><th>Operador</th><th>Qtd vendas</th><th>Total vendido</th></tr>';
+      operatorSalesFiltered.forEach((r) => {
+        tableRows += `<tr><td>${escapeHtml(r.operador)}</td><td>${r.qtdVendas}</td><td>${formatCurrency(r.valorTotal)}</td></tr>`;
       });
       tableRows += '</table>';
     }
@@ -393,6 +468,25 @@ export function EmpresaRelatorioScreen({ onClose }) {
           tableRows,
           moneyColumnIndexes: [3],
         });
+      } else if (tipo === 'vendasOperador') {
+        sheetName = 'Vendas por operador';
+        const headers = ['Operador', 'Qtd vendas', 'Total vendido'];
+        const tableRows = operatorSalesFiltered.map((r) => [r.operador, Number(r.qtdVendas) || 0, Number(r.valorTotal) || 0]);
+        wb = buildEmpresaRelatorioWorkbook({
+          currencyCode,
+          profile,
+          filterLabel: `${periodStr} | Operador: ${operatorFilter === 'todos' ? 'Todos' : operatorFilter}`,
+          reportTitle: 'Vendas por operador',
+          sheetName,
+          tableHeaders: headers,
+          tableRows,
+          moneyColumnIndexes: [2],
+          footerSummaryRows: [
+            ['', 'Total comércio', totalVendasComercio],
+            ['', 'Total filtro', totalVendasFiltradasOperador],
+          ],
+          moneyColumnIndexesInFooter: [2],
+        });
       } else {
         sheetName = 'Produtos';
         const headers = ['Nome', 'Preço', 'Estoque', 'Código'];
@@ -499,14 +593,14 @@ export function EmpresaRelatorioScreen({ onClose }) {
 
   if (currentReport) {
     const report = REPORT_TYPES.find((r) => r.id === currentReport);
-    const showDateFilter = currentReport !== 'produtos';
+    const showDateFilter = currentReport !== 'produtos' && currentReport !== 'pdvConfig';
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
         <View style={[s.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleBack} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: colors.text }]}>{report?.label}</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>{report?.label || 'Relatório'}</Text>
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
@@ -514,6 +608,24 @@ export function EmpresaRelatorioScreen({ onClose }) {
             <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
               <Text style={[s.sectionLabel, { color: colors.textSecondary, marginBottom: 10 }]}>FILTRO DE PERÍODO</Text>
               <DateFilterBar />
+              {currentReport === 'vendasOperador' ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.operatorFilterRow}>
+                  {operatorOptions.map((op) => {
+                    const active = operatorFilter === op;
+                    return (
+                      <TouchableOpacity
+                        key={op}
+                        onPress={() => setOperatorFilter(op)}
+                        style={[s.operatorChip, { backgroundColor: active ? colors.primary : colors.primaryRgba?.(0.12) }]}
+                      >
+                        <Text style={{ color: active ? '#fff' : colors.text, fontSize: 12, fontWeight: '700' }}>
+                          {op === 'todos' ? 'Todos operadores' : op}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
             </GlassCard>
           ) : (
             <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
@@ -610,6 +722,42 @@ export function EmpresaRelatorioScreen({ onClose }) {
             </GlassCard>
           )}
 
+          {currentReport === 'vendasOperador' && (
+            <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
+              <Text style={[s.periodLabel, { color: colors.textSecondary }]}>
+                {filterLabel} | Operador: {operatorFilter === 'todos' ? 'Todos' : operatorFilter}
+              </Text>
+              <View style={s.statsRow}>
+                <View style={[s.statBox, { backgroundColor: colors.primaryRgba?.(0.15), borderColor: colors.primary + '40' }]}>
+                  <Text style={[s.statLabel, { color: colors.textSecondary }]}>Total comércio</Text>
+                  <Text style={[s.statValor, { color: colors.text }]}>{formatCurrency(totalVendasComercio)}</Text>
+                </View>
+                <View style={[s.statBox, { backgroundColor: '#0ea5e920', borderColor: '#0ea5e940' }]}>
+                  <Text style={[s.statLabel, { color: colors.textSecondary }]}>Total filtro</Text>
+                  <Text style={[s.statValor, { color: '#0ea5e9' }]}>{formatCurrency(totalVendasFiltradasOperador)}</Text>
+                </View>
+              </View>
+              <View style={[s.tableWrap, { borderColor: colors.border }]}>
+                <View style={[s.tableRow, s.tableHeader, { borderColor: colors.border }]}>
+                  <Text style={[s.tableCell, s.tableHeaderText, { color: colors.text, flex: 2 }]}>Operador</Text>
+                  <Text style={[s.tableCell, s.tableHeaderText, { color: colors.text }]}>Qtd</Text>
+                  <Text style={[s.tableCell, s.tableHeaderText, { color: colors.text }]}>Total</Text>
+                </View>
+                {operatorSalesFiltered.length === 0 ? (
+                  <Text style={[s.emptyText, { color: colors.textSecondary }]}>Nenhuma venda PDV no período</Text>
+                ) : (
+                  operatorSalesFiltered.map((r) => (
+                    <View key={r.operador} style={[s.tableRow, { borderColor: colors.border }]}>
+                      <Text style={[s.tableCell, { color: colors.text, flex: 2 }]} numberOfLines={1}>{r.operador}</Text>
+                      <Text style={[s.tableCell, { color: colors.text }]}>{r.qtdVendas}</Text>
+                      <Text style={[s.tableCell, { color: colors.primary }]}>{formatCurrency(r.valorTotal)}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            </GlassCard>
+          )}
+
           {currentReport === 'produtos' && (
             <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
               <View style={[s.tableWrap, { borderColor: colors.border }]}>
@@ -633,17 +781,50 @@ export function EmpresaRelatorioScreen({ onClose }) {
             </GlassCard>
           )}
 
-          <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
-            <Text style={[s.sectionLabel, { color: colors.textSecondary, marginBottom: 10 }]}>EXPORTAR / IMPRIMIR</Text>
-            <View style={s.exportRow}>
-              <ExportBtn icon="document-text-outline" label="PDF" onPress={() => exportPdf(currentReport)} />
-              <ExportBtn icon="grid-outline" label="XLSX" onPress={() => exportXlsx(currentReport)} />
-            </View>
-            <TouchableOpacity style={[s.printBtn, { backgroundColor: colors.primary }]} onPress={() => imprimir(currentReport)} disabled={exporting}>
-              <Ionicons name="print-outline" size={22} color="#fff" />
-              <Text style={s.printBtnText}>Imprimir</Text>
-            </TouchableOpacity>
-          </GlassCard>
+          {currentReport === 'pdvConfig' && (
+            <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
+              <Text style={[s.sectionLabel, { color: colors.textSecondary, marginBottom: 10 }]}>REGRAS DO CAIXA</Text>
+              <TouchableOpacity
+                style={[s.pdvCfgRow, { borderColor: colors.border, backgroundColor: colors.primaryRgba?.(0.08) }]}
+                onPress={() => savePdvConfig({ ...pdvConfig, requireOperatorLogin: !pdvConfig.requireOperatorLogin })}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.pdvCfgTitle, { color: colors.text }]}>Exigir login do operador ao abrir caixa</Text>
+                  <Text style={[s.pdvCfgDesc, { color: colors.textSecondary }]}>Se OFF, vendedor entra direto.</Text>
+                </View>
+                <View style={[s.pdvCfgBadge, { backgroundColor: pdvConfig.requireOperatorLogin ? colors.primary : colors.border }]}>
+                  <Text style={s.pdvCfgBadgeText}>{pdvConfig.requireOperatorLogin ? 'ATIVO' : 'OFF'}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.pdvCfgRow, { borderColor: colors.border, backgroundColor: colors.primaryRgba?.(0.08) }]}
+                onPress={() => savePdvConfig({ ...pdvConfig, requireFrontDeskAuth: !pdvConfig.requireFrontDeskAuth })}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.pdvCfgTitle, { color: colors.text }]}>Exigir autenticação para cancelar/fechar</Text>
+                  <Text style={[s.pdvCfgDesc, { color: colors.textSecondary }]}>Controla item, pedido e fechar caixa.</Text>
+                </View>
+                <View style={[s.pdvCfgBadge, { backgroundColor: pdvConfig.requireFrontDeskAuth ? colors.primary : colors.border }]}>
+                  <Text style={s.pdvCfgBadgeText}>{pdvConfig.requireFrontDeskAuth ? 'ATIVO' : 'OFF'}</Text>
+                </View>
+              </TouchableOpacity>
+            </GlassCard>
+          )}
+
+          {currentReport !== 'pdvConfig' ? (
+            <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
+              <Text style={[s.sectionLabel, { color: colors.textSecondary, marginBottom: 10 }]}>EXPORTAR / IMPRIMIR</Text>
+              <View style={s.exportRow}>
+                <ExportBtn icon="document-text-outline" label="PDF" onPress={() => exportPdf(currentReport)} />
+                <ExportBtn icon="grid-outline" label="XLSX" onPress={() => exportXlsx(currentReport)} />
+              </View>
+              <TouchableOpacity style={[s.printBtn, { backgroundColor: colors.primary }]} onPress={() => imprimir(currentReport)} disabled={exporting}>
+                <Ionicons name="print-outline" size={22} color="#fff" />
+                <Text style={s.printBtnText}>Imprimir</Text>
+              </TouchableOpacity>
+            </GlassCard>
+          ) : null}
         </ScrollView>
 
         <Modal visible={showPeriodModal} transparent animationType="fade">
@@ -729,6 +910,22 @@ const s = StyleSheet.create({
   emptyText: { padding: 16, textAlign: 'center', fontSize: 13 },
   hint: { fontSize: 11, marginTop: 4 },
   exportRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  operatorFilterRow: { flexDirection: 'row', gap: 8, paddingTop: 6 },
+  operatorChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999 },
+  pdvCfgRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pdvCfgTitle: { fontSize: 13, fontWeight: '700' },
+  pdvCfgDesc: { fontSize: 11, marginTop: 2 },
+  pdvCfgBadge: { minWidth: 56, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center' },
+  pdvCfgBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   exportBtnText: { fontSize: 13, fontWeight: '600' },
   printBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12 },

@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allow manual trigger para testar
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    outputs:
+      release_tag: ${{ steps.app_version.outputs.release_tag }}
     strategy:
       matrix:
         os: [windows-latest]
@@ -28,33 +30,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build macOS App
-        if: matrix.os == 'macos-latest'
-        run: npm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment and add secrets in GitHub for macOS code signing:
-          # CSC_LINK: ${{ secrets.MAC_CERTS }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Versão para release (package.json)
+        id: app_version
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "release_tag=v${V}" >> "$GITHUB_OUTPUT"
 
       - name: Build Windows App
         if: matrix.os == 'windows-latest'
         run: npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment and add secrets in GitHub for Windows code signing:
-          # CSC_LINK: ${{ secrets.WIN_CERTS }}
-          # CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTS_PASSWORD }}
-
-      - name: Build Linux App
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse2
-          npm run build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -66,23 +51,31 @@ jobs:
             release/*.exe
             release/latest*.yml
             release/*.blockmap
-          
+
   release:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          
-      - name: Release to GitHub
-        uses: softprops/action-gh-release@v1
+
+      # Feed do auto-update (package.json build.publish → tudocertoapp/windows).
+      # Crie um PAT com escopo `repo` e adicione como secret WINDOWS_RELEASE_PAT neste repositório.
+      - name: Release to GitHub (tudocertoapp/windows)
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: "latest"
-          name: "Download"
-          files: artifacts/**/*
+          repository: tudocertoapp/windows
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: Tudo Certo ${{ needs.build.outputs.release_tag }}
+          make_latest: true
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/latest*.yml
+            artifacts/**/*.blockmap
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.WINDOWS_RELEASE_PAT }}
