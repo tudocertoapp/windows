@@ -32,6 +32,9 @@ yarn-error.*
 .env
 .env*.local
 
+# GitHub PAT só para publicar updates Windows (nunca commitar)
+.github-publish-token
+
 # typescript
 *.tsbuildinfo
 

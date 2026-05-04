@@ -18,43 +18,34 @@ const outPng = path.join(outDir, 'icon.png');
 const outPng256 = path.join(outDir, 'icon-256.png');
 const outIco = path.join(outDir, 'icon.ico');
 const outIcns = path.join(outDir, 'icon.icns');
-const DEFAULT_FORCED_SOURCE = 'assets/logo.png';
+const buildDir = path.join(root, 'build');
+const outNsisSidebarBmp = path.join(buildDir, 'installer-sidebar.bmp');
+const outNsisHeaderBmp = path.join(buildDir, 'installer-header.bmp');
+const outNsisFinishBmp = path.join(buildDir, 'installer-finish.bmp');
 
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
 const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 
-/* Ordem importa: logo.png primeiro para evitar cair no logo-original com visual "Electron". */
 const CANDIDATES = [
-  'assets/logo.png',
-  'assets/logo-app.svg',
-  'assets/logo-desktop-oficial.png',
-  'assets/logo-original.png',
-  'assets/Generated_image.png',
+  'H:/Meu Drive/logo svg.svg',
   'assets/icon.png',
   'assets/adaptive-icon.png',
-  'assets/logo-pages.png',
+  'assets/logo.png',
   'assets/favicon.png',
+  'assets/logo-pages.png',
   'assets/splash.png',
-  'I:/Meu Drive/logo svg.svg',
-  'i:/Meu Drive/logo svg.svg',
-  'H:/Meu Drive/logo svg.svg',
-  'h:/Meu Drive/logo svg.svg',
+];
+const INSTALLER_PHOTO_CANDIDATES = [
+  'assets/installer-photo.png',
 ];
 
 function ensureDirs() {
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
   if (!fs.existsSync(outIconsDir)) fs.mkdirSync(outIconsDir, { recursive: true });
+  if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true });
 }
 
 function resolveSource() {
-  const forced = process.env.ELECTRON_ICON_SOURCE;
-  if (forced) {
-    const p = path.isAbsolute(forced) ? forced : path.join(root, forced);
-    if (fs.existsSync(p)) return p;
-    console.warn('[electron:icon] ELECTRON_ICON_SOURCE não encontrado:', p);
-  }
-  const defaultForced = path.join(root, DEFAULT_FORCED_SOURCE);
-  if (fs.existsSync(defaultForced)) return defaultForced;
   for (const c of CANDIDATES) {
     const p = path.isAbsolute(c) ? c : path.join(root, c);
     if (fs.existsSync(p)) return p;
@@ -62,96 +53,40 @@ function resolveSource() {
   return null;
 }
 
-/**
- * Remove placa preta/cinza escura típica de adaptive-icon (RGB baixo, sem verde do check).
- */
-async function keyOutDarkPlate(sharpMod, pipeline) {
-  const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const max = r > g ? (r > b ? r : b) : g > b ? g : b;
-    const isDark = max < 52;
-    const looksGreenGlyph = g > r + 25 && g > b + 25;
-    if (isDark && !looksGreenGlyph) {
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
-      data[i + 3] = 0;
-    }
+function resolveInstallerPhoto() {
+  for (const c of INSTALLER_PHOTO_CANDIDATES) {
+    const p = path.isAbsolute(c) ? c : path.join(root, c);
+    if (fs.existsSync(p)) return p;
   }
-  return sharpMod(Buffer.from(data), { raw: info });
+  return null;
 }
 
-/**
- * Remove fundo branco/cinza-claro de renders 3D (mantém verdes e reflexos com contraste).
- */
-async function keyOutLightStudioBackground(sharpMod, pipeline) {
-  const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const avg = (r + g + b) / 3;
-    const spread = Math.max(r, g, b) - Math.min(r, g, b);
-    const looksGreenBrand = g > r + 20 && g > b + 18;
-    const lightNeutral = avg > 236 && spread < 38;
-    if (lightNeutral && !looksGreenBrand) {
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
-      data[i + 3] = 0;
-    }
-  }
-  return sharpMod(Buffer.from(data), { raw: info });
-}
-
-/**
- * Fundo transparente, logo inteira (sem cortar traços).
- * 1) Rasteriza grande → 2) opcional: chavear preto/branco → 3) trim → 4) 1024 contain
- */
 async function transparentFromSource(sharp, srcPath) {
-  const base = () =>
-    sharp(srcPath, { density: 400, limitInputPixels: false })
-      .ensureAlpha()
-      .resize(2048, 2048, { fit: 'inside', background: BG, kernel: 'lanczos3' });
+  const { data, info } = await sharp(srcPath, { density: 256, limitInputPixels: false })
+    .resize(1024, 1024, { fit: 'contain', background: BG })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-  const lower = srcPath.replace(/\\/g, '/').toLowerCase();
-  const useDarkKey = lower.includes('adaptive-icon');
-  const useLightKey =
-    lower.includes('logo-desktop-oficial') ||
-    lower.includes('logo-original') ||
-    lower.includes('generated_image');
-
-  try {
-    let pipe = sharp(await base().toBuffer());
-    if (useLightKey) {
-      pipe = await keyOutLightStudioBackground(sharp, pipe);
+  // Remove fundo quase preto/cinza escuro (comum em SVG exportado com fundo).
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    if (a === 0) continue;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const chroma = max - min;
+    if (max <= 26 && chroma <= 10) {
+      data[i + 3] = 0;
     }
-    if (useDarkKey) {
-      pipe = await keyOutDarkPlate(sharp, pipe);
-    }
-    const buf = await pipe
-      .trim({ threshold: 3 })
-      .resize(1024, 1024, { fit: 'contain', background: BG, kernel: 'lanczos3' })
-      .png({ compressionLevel: 9, effort: 10 })
-      .toBuffer();
-    return sharp(buf).ensureAlpha();
-  } catch (_) {
-    let pipe = sharp(await base().toBuffer());
-    if (useLightKey) {
-      pipe = await keyOutLightStudioBackground(sharp, pipe);
-    }
-    if (useDarkKey) {
-      pipe = await keyOutDarkPlate(sharp, pipe);
-    }
-    const buf = await pipe
-      .resize(1024, 1024, { fit: 'contain', background: BG, kernel: 'lanczos3' })
-      .png({ compressionLevel: 9, effort: 10 })
-      .toBuffer();
-    return sharp(buf).ensureAlpha();
   }
+
+  // Remove áreas transparentes/margens para aumentar presença visual do símbolo.
+  return sharp(data, { raw: info })
+    .trim({ threshold: 8 })
+    .png();
 }
 
 async function writeAllSizes(baseSharp) {
@@ -180,37 +115,88 @@ async function writeAllSizes(baseSharp) {
     .toFile(outPng256);
 }
 
-/**
- * Bordas semi-transparentes no ICO costumam virar preto/cinza na barra do Windows.
- * Força alpha quase 0 → 0 e quase 255 → 255; RGB a 0 onde alpha = 0.
- */
-async function pngToIcoFriendlyBuffer(sharp, pngPath) {
-  const { data, info } = await sharp(pngPath)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    let a = data[i + 3];
-    if (a < 18) {
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
-      data[i + 3] = 0;
-    } else if (a > 237) {
-      data[i + 3] = 255;
-    }
-  }
-  return sharp(data, { raw: info }).png({ compressionLevel: 9 }).toBuffer();
-}
-
-async function writeIcoFromSizes(sharp) {
+async function writeIcoFromSizes() {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
   const buffers = [];
   for (const s of sizes) {
     const p = path.join(outIconsDir, `icon-${s}.png`);
-    buffers.push(await pngToIcoFriendlyBuffer(sharp, p));
+    buffers.push(fs.readFileSync(p));
   }
   fs.writeFileSync(outIco, await pngToIco(buffers));
+}
+
+async function writeNsisBitmaps(baseSharp, sharp) {
+  let Jimp;
+  try {
+    ({ Jimp } = require('jimp'));
+  } catch (_) {
+    throw new Error('Dependência jimp não encontrada para gerar bitmaps do instalador.');
+  }
+
+  // Tamanhos recomendados pelo NSIS (MUI2).
+  const sidebarW = 164;
+  const sidebarH = 314;
+  const headerW = 150;
+  const headerH = 57;
+  const sidebarBg = { r: 10, g: 17, b: 28, alpha: 1 };
+  const headerBg = { r: 10, g: 17, b: 28, alpha: 1 };
+  const installerPhoto = resolveInstallerPhoto();
+
+  // Boas-vindas + páginas internas: só logo (sem foto no canto durante "Instalando").
+  const sidebarLogo = await baseSharp
+    .clone()
+    .resize(112, 112, { fit: 'contain', background: BG, kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
+  const sidebarPng = await sharp({
+    create: { width: sidebarW, height: sidebarH, channels: 4, background: sidebarBg },
+  })
+    .composite([{ input: sidebarLogo, gravity: 'north' }])
+    .flatten({ background: sidebarBg })
+    .png()
+    .toBuffer();
+
+  const headerLogo = await baseSharp
+    .clone()
+    .resize(40, 40, { fit: 'contain', background: BG, kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
+  const headerPng = await sharp({
+    create: { width: headerW, height: headerH, channels: 4, background: headerBg },
+  })
+    .composite([{ input: headerLogo, left: 8, top: 8 }])
+    .flatten({ background: headerBg })
+    .png()
+    .toBuffer();
+
+  const sidebarBmp = await Jimp.read(sidebarPng);
+  await sidebarBmp.write(outNsisSidebarBmp);
+  const headerBmp = await Jimp.read(headerPng);
+  await headerBmp.write(outNsisHeaderBmp);
+
+  // Página "Concluir" apenas: foto em melhor nitidez (superamostragem 2x → tamanho final).
+  let finishPng;
+  if (installerPhoto) {
+    const w2 = sidebarW * 2;
+    const h2 = sidebarH * 2;
+    finishPng = await sharp(installerPhoto)
+      .resize(w2, h2, { fit: 'cover', position: 'center', kernel: 'lanczos3' })
+      .modulate({ brightness: 0.9, saturation: 1.03 })
+      .resize(sidebarW, sidebarH, { fit: 'fill', kernel: 'lanczos3' })
+      .composite([{
+        input: Buffer.from(
+          `<svg width="${sidebarW}" height="${sidebarH}" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="rgba(6,12,20,0.28)"/>
+          </svg>`
+        ),
+      }])
+      .png()
+      .toBuffer();
+  } else {
+    finishPng = sidebarPng;
+  }
+  const finishBmp = await Jimp.read(finishPng);
+  await finishBmp.write(outNsisFinishBmp);
 }
 
 async function writeIcns() {
@@ -250,10 +236,11 @@ async function main() {
   }
 
   await writeAllSizes(base);
-  await writeIcoFromSizes(sharp);
+  await writeIcoFromSizes();
+  await writeNsisBitmaps(base, sharp);
   const hasIcns = await writeIcns();
 
-  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, icons/*');
+  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, icons/*, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
   if (!hasIcns) {
     console.warn('[electron:icon] icon.icns não foi gerado (instale png2icons para suporte macOS).');
   } else {

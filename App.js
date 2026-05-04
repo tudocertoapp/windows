@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -11,7 +11,7 @@ import { FinanceProvider, useFinance } from './src/contexts/FinanceContext';
 import { PlanProvider } from './src/contexts/PlanContext';
 import { ProfileProvider } from './src/contexts/ProfileContext';
 import { ThemeSync } from './src/components/ThemeSync';
-import { BanksProvider, useBanks } from './src/contexts/BanksContext';
+import { BanksProvider } from './src/contexts/BanksContext';
 import { BudgetProvider } from './src/contexts/BudgetContext';
 import { NotesProvider } from './src/contexts/NotesContext';
 import { ShoppingListProvider } from './src/contexts/ShoppingListContext';
@@ -25,19 +25,6 @@ import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SplashScreen } from './src/components/SplashScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { Ionicons } from '@expo/vector-icons';
-
-/** Atualiza quando dados iniciais (nuvem / AsyncStorage convidado) estão prontos. */
-function MainBootstrapBridge({ onMainDataReady }) {
-  const { user, isGuest } = useAuth();
-  const { loading: financeLoading } = useFinance();
-  const { banksHydrated } = useBanks();
-  useEffect(() => {
-    const ready = user ? !financeLoading : isGuest ? banksHydrated : false;
-    onMainDataReady(!!ready);
-  }, [user, isGuest, financeLoading, banksHydrated, onMainDataReady]);
-  return null;
-}
 
 function AppWithReminders() {
   const { agendaEvents, aReceber, checkListItems, updateCheckListItem } = useFinance();
@@ -54,138 +41,82 @@ function AppWithReminders() {
 }
 
 function AppContent() {
-  const { user, isGuest, loading: authLoading } = useAuth();
+  const { user, isGuest, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
-  const [reuseDesktopLandingCta, setReuseDesktopLandingCta] = useState(false);
-  const [mainDataReady, setMainDataReady] = useState(true);
-  const [splashClosedForBoot, setSplashClosedForBoot] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  const [postLoginSplash, setPostLoginSplash] = useState(false);
+  const hadUserRef = useRef(false);
 
   useEffect(() => {
     if (user || isGuest) {
-      setMainDataReady(false);
-    } else {
-      setMainDataReady(true);
-    }
-  }, [user?.id, isGuest]);
+      if (!hadUserRef.current && showLogin) setPostLoginSplash(true);
+      hadUserRef.current = true;
+    } else hadUserRef.current = false;
+  }, [user, isGuest, showLogin]);
 
   useEffect(() => {
-    if (user || isGuest) {
-      setSplashClosedForBoot(false);
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+    if (path === '/sucesso' || path === '/cancelado') {
+      window.history.replaceState({}, '', '/');
     }
-  }, [user?.id, isGuest]);
+  }, [user?.id]);
 
-  const sessionNeedsMainData = !!(user || isGuest);
-  const dataReady =
-    !authLoading && (sessionNeedsMainData ? mainDataReady : true);
-  const showSplash = authLoading || !splashClosedForBoot;
+  const isWeb = Platform.OS === 'web';
+  const showSplash = loading || !splashDone || postLoginSplash;
+  const splashDuration = isWeb ? 1500 : 4000;
 
-  const mainTree =
-    (user || isGuest) && (
-      <BanksProvider>
-        <FinanceProvider>
-          <BudgetProvider>
-            <NotesProvider>
-              <ColaboradoresOrdemProvider>
-                <ShoppingListProvider>
-                  <GoalsProvider>
-                    <PlanProvider>
-                      <ProfileProvider>
-                        <ThemeSync>
-                          <EmpresaProvider>
-                            <ValuesVisibilityProvider>
-                              <MainBootstrapBridge onMainDataReady={setMainDataReady} />
-                              <AppWithReminders />
-                            </ValuesVisibilityProvider>
-                          </EmpresaProvider>
-                        </ThemeSync>
-                      </ProfileProvider>
-                    </PlanProvider>
-                  </GoalsProvider>
-                </ShoppingListProvider>
-              </ColaboradoresOrdemProvider>
-            </NotesProvider>
-          </BudgetProvider>
-        </FinanceProvider>
-      </BanksProvider>
+  if (showSplash) {
+    return (
+      <SplashScreen
+        duration={splashDuration}
+        onFinish={() => { setSplashDone(true); setPostLoginSplash(false); }}
+        backgroundColor="#111827"
+      />
     );
+  }
 
-  const landingOrLogin =
-    !authLoading &&
-    !user &&
-    !isGuest &&
-    (!showLogin ? (
-      <LandingScreen
-        onStart={() => {
-          setReuseDesktopLandingCta(true);
-          setShowLogin(true);
-        }}
-      />
-    ) : (
-      <LoginScreen
-        desktopReuseLandingCta={reuseDesktopLandingCta}
-        onBackToLanding={() => {
-          setReuseDesktopLandingCta(false);
-          setShowLogin(false);
-        }}
-      />
-    ));
+  if (!user && !isGuest) {
+    if (!showLogin) {
+      return <LandingScreen onStart={() => setShowLogin(true)} />;
+    }
+    return <LoginScreen onBackToLanding={() => setShowLogin(false)} />;
+  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#111827' }}>
-      {mainTree}
-      {landingOrLogin}
-      {showSplash && (
-        <SplashScreen
-          overlay
-          dataReady={dataReady}
-          minHoldMs={sessionNeedsMainData ? 4000 : 0}
-          onFinish={() => setSplashClosedForBoot(true)}
-        />
-      )}
-    </View>
+    <BanksProvider>
+      <FinanceProvider>
+        <BudgetProvider>
+          <NotesProvider>
+          <ColaboradoresOrdemProvider>
+          <ShoppingListProvider>
+          <GoalsProvider>
+            <PlanProvider>
+              <ProfileProvider>
+                <ThemeSync>
+                  <EmpresaProvider>
+                    <ValuesVisibilityProvider>
+                      <AppWithReminders />
+                    </ValuesVisibilityProvider>
+                  </EmpresaProvider>
+                </ThemeSync>
+              </ProfileProvider>
+            </PlanProvider>
+          </GoalsProvider>
+          </ShoppingListProvider>
+          </ColaboradoresOrdemProvider>
+          </NotesProvider>
+        </BudgetProvider>
+      </FinanceProvider>
+    </BanksProvider>
   );
 }
 
 export default function App() {
   const isWeb = Platform.OS === 'web';
-  const [ioniconsReady, setIoniconsReady] = useState(Platform.OS !== 'web');
   const rootStyle = isWeb
     ? { flex: 1, width: '100%', minWidth: '100%', minHeight: '100vh', maxWidth: '100%', zoom: 1.12 }
     : { flex: 1 };
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return undefined;
-    let alive = true;
-    (async () => {
-      try {
-        const p = Ionicons.loadFont?.();
-        if (p && typeof p.then === 'function') await p;
-      } catch (e) {
-        console.warn('[App] Ionicons.loadFont falhou:', e?.message || e);
-      }
-      // expo-font pode resolver antes do ficheiro estar aplicado (ex.: FontFaceObserver);
-      // document.fonts garante que "ionicons" está realmente pronta antes de montar a UI.
-      try {
-        if (typeof document !== 'undefined' && document.fonts?.load) {
-          await Promise.race([
-            document.fonts.load('24px ionicons'),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
-          ]);
-        }
-      } catch (e) {
-        console.warn('[App] Espera por ionicons (document.fonts):', e?.message || e);
-      }
-      try {
-        if (typeof document !== 'undefined' && document.fonts?.ready) {
-          await document.fonts.ready;
-        }
-      } catch (_) {}
-      if (alive) setIoniconsReady(true);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'android' && NavigationBar) {
@@ -226,10 +157,6 @@ export default function App() {
   }, []);
 
   const RootView = isWeb ? View : GestureHandlerRootView;
-
-  if (isWeb && !ioniconsReady) {
-    return <View style={{ flex: 1, backgroundColor: '#111827' }} />;
-  }
 
   return (
     <ErrorBoundary>
