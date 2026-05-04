@@ -8,6 +8,14 @@
 | **Mobile (iOS/Android)** | **Expo** + **EAS** (`eas.json`): `npx expo start`, `eas build` — repositório Git = este. |
 | **Desktop (Windows .exe)** | **Electron** (`electron/` + `electron-builder`). O CI em `.github/workflows/build.yml` gera o instalador e publica a release com tag **`latest`** neste repo (feed do `electron-updater`). |
 
+### Backup em App-Nativo-1.0
+
+O repositório **`tudocertoapp/App-Nativo-1.0`** é **espelho** do `main` (código idêntico; não é o canónico para Vercel/EAS se usares só `windows`).
+
+1. No GitHub **`tudocertoapp/windows`** → **Settings → Secrets and variables → Actions**, cria **`APP_NATIVO_MIRROR_TOKEN`**: um PAT com permissão de **push** em `tudocertoapp/App-Nativo-1.0`.
+2. O workflow **Espelho backup — App-Nativo-1.0** (`.github/workflows/mirror-app-nativo.yml`) corre em cada push a `main` **apenas** no repo `windows` e faz `git push` para `App-Nativo-1.0/main`.
+3. Em clone local podes manter os dois remotos, por exemplo: `origin` → `windows`, `backup` → `App-Nativo-1.0`.
+
 ## Estrutura do projeto
 
 ```
@@ -20,7 +28,7 @@ src/
   utils/
 electron/        # Shell desktop (Electron)
 api/             # Funções serverless (ex.: Stripe) para Vercel
-.github/workflows/  # CI: build web + release desktop
+.github/workflows/  # CI web + desktop; espelho opcional para App-Nativo-1.0
 vercel.json      # Build e rewrites para deploy web na Vercel
 eas.json         # Perfis EAS para builds de loja / preview
 ```

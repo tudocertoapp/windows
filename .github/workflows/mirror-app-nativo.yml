@@ -1,0 +1,37 @@
+# Espelho automático: repositório canónico = tudocertoapp/windows → backup em tudocertoapp/App-Nativo-1.0
+# Corre só quando o push é no repo `windows` (no clone de backup este job não faz nada).
+# Secret em tudocertoapp/windows: APP_NATIVO_MIRROR_TOKEN = PAT com escrita em App-Nativo-1.0 (scope repo ou Contents: Read+Write).
+
+name: Espelho backup — App-Nativo-1.0
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    if: github.repository == 'tudocertoapp/windows'
+
+    steps:
+      - name: Checkout (histórico completo)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push para App-Nativo-1.0
+        env:
+          PAT: ${{ secrets.APP_NATIVO_MIRROR_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$PAT" ]; then
+            echo "::warning::APP_NATIVO_MIRROR_TOKEN não está definido em Actions secrets. Define um PAT com push em tudocertoapp/App-Nativo-1.0 para ativar o backup."
+            exit 0
+          fi
+          git remote add backup "https://x-access-token:${PAT}@github.com/tudocertoapp/App-Nativo-1.0.git"
+          git push backup "HEAD:refs/heads/main"
