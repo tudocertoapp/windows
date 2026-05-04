@@ -4,7 +4,12 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allow manual trigger para testar
+  workflow_dispatch:
+    inputs:
+      desktop_version:
+        description: "Semver do instalador (ex. 1.0.13). Vazio = usar desktop-version.json"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -19,6 +24,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Aplicar versão desktop
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.desktop_version }}" ]; then
+            node scripts/set-desktop-version.js "${{ inputs.desktop_version }}"
+          else
+            node scripts/set-desktop-version.js
+          fi
 
       - name: Use Node.js
         uses: actions/setup-node@v4
