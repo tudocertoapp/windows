@@ -40,8 +40,9 @@ function setupAutoUpdate(win) {
       console.log('[Updater] atualização disponível:', info?.version || '(sem versão)');
     });
 
-    autoUpdater.on('update-not-available', () => {
-      console.log('[Updater] sem atualizações');
+    autoUpdater.on('update-not-available', (info) => {
+      const v = info?.version ?? info?.updateInfo?.version;
+      console.log('[Updater] sem atualizações.', v ? `Remoto: ${v}` : '(remoto igual ou indisponível)');
     });
 
     autoUpdater.on('update-downloaded', async (info) => {

@@ -80,32 +80,41 @@ jobs:
             release/*.blockmap
 
   release-desktop:
-    name: Release desktop (GitHub)
+    name: Publicar feed desktop (release latest)
     needs: desktop-build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Download artefatos
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts-windows-latest
           path: artifacts
 
-      - name: Release tag latest (electron-updater)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: Tudo Certo — Desktop (latest)
-          make_latest: true
-          generate_release_notes: true
-          body: |
-            Instalador Windows e `latest.yml` para atualização automática do app desktop (electron-updater).
-            Repositório monorepo: **web + mobile + desktop** no mesmo código.
-            Commit: `${{ github.sha }}`.
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/latest*.yml
-            artifacts/**/*.blockmap
+      # softprops não substitui ficheiros na release; com milhares de assets o latest.yml ficou em 1.0.12.
+      # publish-windows-update.js remove os 3 nomes antigos na release `latest` e envia os novos (electron-updater).
+      - name: Atualizar release latest (latest.yml + Setup + blockmap)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          YML=$(find "$GITHUB_WORKSPACE/artifacts" -name 'latest.yml' | head -1)
+          if [ -z "$YML" ]; then
+            echo "::error::latest.yml não encontrado em artifacts/"
+            find "$GITHUB_WORKSPACE/artifacts" -type f | head -50 || true
+            exit 1
+          fi
+          export WINDOWS_RELEASE_DIR="$(dirname "$YML")"
+          echo "WINDOWS_RELEASE_DIR=$WINDOWS_RELEASE_DIR"
+          ls -la "$WINDOWS_RELEASE_DIR"
+          node scripts/publish-windows-update.js
