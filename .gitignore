@@ -49,3 +49,7 @@ dist-mac/
 dist-linux/
 build-artifacts-*/
 *.log
+
+# Notas locais (não versionar)
+/blee esp 32.txt
+/botão junp esp 32.txt
