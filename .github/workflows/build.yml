@@ -1,36 +1,61 @@
-name: Build and Release Desktop App
+# Monorepo tudocertoapp/windows: valida build web (Ubuntu) e gera release do instalador desktop (Windows).
+# Vercel: liga o projeto a este mesmo repositório (raiz, vercel.json).
+# Mobile: EAS/Expo (`eas.json`) a partir deste repo — `eas build` na tua máquina ou workflow à parte se quiseres.
+
+name: CI — web + release desktop
 
 on:
   push:
     branches:
       - main
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
-    runs-on: windows-latest
-
+  web:
+    name: Build web (export)
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node.js
+      - name: Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install dependencies
+      - name: Instalar e exportar web
+        run: |
+          npm ci
+          npm run web:build
+
+  desktop-build:
+    name: Build instalador Windows
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar e empacotar
         run: npm ci
-
-      - name: Build Windows App
+      - name: Electron + NSIS
         run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Artifacts
+      - name: Artefactos
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-windows-latest
@@ -39,12 +64,11 @@ jobs:
             release/latest*.yml
             release/*.blockmap
 
-  # Publicação direta em tudocertoapp/windows (feed do electron-updater em package.json).
-  # Secret neste repositório (App-Nativo-1.0): WINDOWS_REPO_WRITE_TOKEN = PAT com escrita em tudocertoapp/windows.
-  release-windows:
-    needs: build
+  release-desktop:
+    name: Release desktop (GitHub)
+    needs: desktop-build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Download artefatos
@@ -53,28 +77,20 @@ jobs:
           name: build-artifacts-windows-latest
           path: artifacts
 
-      - name: Exigir token para o repositório windows
-        env:
-          WINDOWS_TOKEN: ${{ secrets.WINDOWS_REPO_WRITE_TOKEN }}
-        run: |
-          if [ -z "$WINDOWS_TOKEN" ]; then
-            echo "::error::Cria o secret WINDOWS_REPO_WRITE_TOKEN neste repositório (Actions secrets). PAT classic: scope repo, ou fine-grained: Contents Read+Write em tudocertoapp/windows."
-            exit 1
-          fi
-
-      - name: Release em tudocertoapp/windows
+      - name: Release tag latest (electron-updater)
         uses: softprops/action-gh-release@v2
         with:
-          repository: tudocertoapp/windows
           tag_name: latest
-          name: Tudo Certo — Windows (latest)
+          name: Tudo Certo — Desktop (latest)
           make_latest: true
           generate_release_notes: true
           body: |
-            Build a partir de [${{ github.repository }}](https://github.com/${{ github.repository }}) — commit `${{ github.sha }}`.
+            Instalador Windows e `latest.yml` para atualização automática do app desktop (electron-updater).
+            Repositório monorepo: **web + mobile + desktop** no mesmo código.
+            Commit: `${{ github.sha }}`.
           files: |
             artifacts/**/*.exe
             artifacts/**/latest*.yml
             artifacts/**/*.blockmap
         env:
-          GITHUB_TOKEN: ${{ secrets.WINDOWS_REPO_WRITE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

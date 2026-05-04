@@ -1,6 +1,12 @@
 # Tudo Certo - Agenda e Finanças
 
-Monorepo único: **Expo (web + iOS/Android)** e **Electron (Windows/desktop)**. Este repositório (`tudocertoapp/windows`) concentra o código que antes estava em projetos separados.
+**Um único repositório GitHub (`tudocertoapp/windows`)** para as três superfícies:
+
+| Superfície | Como |
+|------------|------|
+| **Web** | Mesmo código: `npm run web` / `npm run web:build`. Na **Vercel**, liga o projeto a **este repositório** (raiz; usa `vercel.json` e pasta `dist` no build). |
+| **Mobile (iOS/Android)** | **Expo** + **EAS** (`eas.json`): `npx expo start`, `eas build` — repositório Git = este. |
+| **Desktop (Windows .exe)** | **Electron** (`electron/` + `electron-builder`). O CI em `.github/workflows/build.yml` gera o instalador e publica a release com tag **`latest`** neste repo (feed do `electron-updater`). |
 
 ## Estrutura do projeto
 
@@ -13,7 +19,10 @@ src/
   navigation/    # AppNavigator
   utils/
 electron/        # Shell desktop (Electron)
-.github/workflows/  # Build Windows no GitHub Actions
+api/             # Funções serverless (ex.: Stripe) para Vercel
+.github/workflows/  # CI: build web + release desktop
+vercel.json      # Build e rewrites para deploy web na Vercel
+eas.json         # Perfis EAS para builds de loja / preview
 ```
 
 ## Rodar o app (mobile / web)
@@ -33,7 +42,7 @@ Localmente, após exportar o bundle web:
 npm run electron:pack:win
 ```
 
-O instalador sai em `release/`. No CI, o workflow `.github/workflows/build.yml` usa o script `build:win` (alias de `electron:pack:win`).
+O instalador sai em `release/`. No CI (branch `main` ou execução manual), o workflow usa `build:win` e cria/atualiza a release **`latest`** com `.exe`, `latest.yml` e `.blockmap`.
 
 ## Gráficos
 
