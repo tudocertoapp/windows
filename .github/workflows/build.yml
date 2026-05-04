@@ -1,6 +1,6 @@
 # Monorepo tudocertoapp/windows: valida build web (Ubuntu) e gera release do instalador desktop (Windows).
 # Vercel: liga o projeto a este mesmo repositório (raiz, vercel.json).
-# Mobile: EAS/Expo (`eas.json`) a partir deste repo — `eas build` na tua máquina ou workflow à parte se quiseres.
+# Mobile: EAS/Expo (`eas.json`) — `eas build` a partir deste repo.
 
 name: CI — web + release desktop
 
@@ -10,6 +10,11 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      desktop_version:
+        description: "Semver do instalador (ex. 1.0.13). Vazio = usar desktop-version.json / script"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -41,6 +46,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Sincronizar versão desktop
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.desktop_version }}" ]; then
+            node scripts/set-desktop-version.js "${{ inputs.desktop_version }}"
+          else
+            node scripts/set-desktop-version.js
+          fi
 
       - name: Node.js
         uses: actions/setup-node@v4
