@@ -66,6 +66,7 @@ function setupAutoUpdate(win) {
     });
 
     const check = () => {
+      console.log('[Updater] versão instalada:', app.getVersion(), '| feed: github.com/tudocertoapp/windows');
       autoUpdater.checkForUpdates().catch((err) => {
         console.error('[Updater] checkForUpdates falhou:', err?.message || err);
       });
