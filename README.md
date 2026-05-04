@@ -5,7 +5,7 @@
 | Superfície | Como |
 |------------|------|
 | **Web** | Mesmo código: `npm run web` / `npm run web:build`. Na **Vercel**, liga o projeto a **este repositório** (raiz; usa `vercel.json` e pasta `dist` no build). |
-| **Mobile (iOS/Android)** | **Expo** + **EAS** (`eas.json`): `npx expo start`, `eas build` — repositório Git = este. |
+| **Mobile (iOS/Android)** | **Expo** + **EAS** (`eas.json`). Versão em **`mobile-version.json`**; `npm run sync:mobile-version` ou `node scripts/set-mobile-version.js 1.0.11`. O `app.config.js` define **`android.versionCode`** e **`ios.buildNumber`** automaticamente a partir do semver. |
 | **Desktop (Windows .exe)** | **Electron** (`electron/` + `electron-builder`). O CI em `.github/workflows/build.yml` gera o instalador e publica a release com tag **`latest`** neste repo (feed do `electron-updater`). |
 
 ### Backup em App-Nativo-1.0
@@ -29,8 +29,10 @@ src/
 electron/        # Shell desktop (Electron)
 api/             # Funções serverless (ex.: Stripe) para Vercel
 .github/workflows/  # CI web + desktop; espelho opcional para App-Nativo-1.0
-vercel.json      # Build e rewrites para deploy web na Vercel
-eas.json         # Perfis EAS para builds de loja / preview
+vercel.json         # Build e rewrites para deploy web na Vercel
+eas.json            # Perfis EAS para builds de loja / preview
+mobile-version.json # Versão semver mobile → versionCode / buildNumber nativos (ver app.config.js)
+desktop-version.json # Versão semver do instalador Windows (Electron)
 ```
 
 ## Rodar o app (mobile / web)

@@ -2,14 +2,42 @@
  * Configuração Expo - lê a chave Google Vision de variável de ambiente.
  * Crie um arquivo .env com: EXPO_PUBLIC_GOOGLE_VISION_API_KEY=sua_chave
  * O Expo carrega .env automaticamente ao iniciar.
+ *
+ * Versão mobile: edite mobile-version.json (ou `npm run sync:mobile-version`).
+ * android.versionCode e ios.buildNumber derivam automaticamente do semver (monótonos).
  */
 try { require('dotenv').config(); } catch (_) {}
+
+const fs = require('fs');
+const path = require('path');
+
+const mobilePath = path.join(__dirname, 'mobile-version.json');
+let MOBILE_APP_VERSION = '1.0.10';
+if (fs.existsSync(mobilePath)) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(mobilePath, 'utf8'));
+    MOBILE_APP_VERSION = (raw.version || MOBILE_APP_VERSION).trim() || MOBILE_APP_VERSION;
+  } catch (_) {}
+}
+
+/** major*1e6 + minor*1e3 + patch — até 999 por segmento (Play / App Store monótonos com semver crescente). */
+function semverToNativeBuildNumber(semver) {
+  const base = String(semver).split('-')[0];
+  const m = base.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!m) return 1;
+  const major = Math.min(999, parseInt(m[1], 10) || 0);
+  const minor = Math.min(999, parseInt(m[2], 10) || 0);
+  const patch = Math.min(999, parseInt(m[3], 10) || 0);
+  return major * 1_000_000 + minor * 1_000 + patch;
+}
+
+const nativeBuild = semverToNativeBuildNumber(MOBILE_APP_VERSION);
 
 const config = {
   expo: {
     name: 'Tudo Certo - Agenda e Finanças',
     slug: 'snack-833373eb-44e8-4aff-9e0e-96392f657b4c',
-    version: '1.0.10',
+    version: MOBILE_APP_VERSION,
     scheme: 'tudocerto',
     orientation: 'portrait',
     icon: './assets/icon-safe.png',
@@ -49,6 +77,7 @@ const config = {
       '@react-native-voice/voice',
     ],
     ios: {
+      buildNumber: String(nativeBuild),
       supportsTablet: true,
       infoPlist: {
         NSSpeechRecognitionUsageDescription:
@@ -61,6 +90,7 @@ const config = {
       },
     },
     android: {
+      versionCode: nativeBuild,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon-safe.png',
         backgroundColor: '#000000',
