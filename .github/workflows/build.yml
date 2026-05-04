@@ -4,17 +4,14 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allow manual trigger para testar
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest]
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -28,96 +25,56 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build macOS App
-        if: matrix.os == 'macos-latest'
-        run: npm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment and add secrets in GitHub for macOS code signing:
-          # CSC_LINK: ${{ secrets.MAC_CERTS }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
       - name: Build Windows App
-        if: matrix.os == 'windows-latest'
         run: npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment and add secrets in GitHub for Windows code signing:
-          # CSC_LINK: ${{ secrets.WIN_CERTS }}
-          # CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTS_PASSWORD }}
-
-      - name: Build Linux App
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse2
-          npm run build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-${{ matrix.os }}
+          name: build-artifacts-windows-latest
           path: |
             release/*.exe
             release/latest*.yml
             release/*.blockmap
-          
-  release:
+
+  # Publicação direta em tudocertoapp/windows (feed do electron-updater em package.json).
+  # Secret neste repositório (App-Nativo-1.0): WINDOWS_REPO_WRITE_TOKEN = PAT com escrita em tudocertoapp/windows.
+  release-windows:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          
-      - name: Release to GitHub
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: "latest"
-          name: "Download"
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publica os mesmos artefatos na release `latest` do repo `windows` (URL do electron-updater).
-  # Crie um PAT só com escrita em `tudocertoapp/windows` e guarde como secret WINDOWS_REPO_WRITE_TOKEN neste repositório.
-  mirror-windows-downloads:
-    needs: release
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download artefatos Windows
+      - name: Download artefatos
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts-windows-latest
-          path: _mirror
+          path: artifacts
 
-      - name: Espelhar para tudocertoapp/windows
+      - name: Exigir token para o repositório windows
         env:
-          GH_TOKEN: ${{ secrets.WINDOWS_REPO_WRITE_TOKEN }}
+          WINDOWS_TOKEN: ${{ secrets.WINDOWS_REPO_WRITE_TOKEN }}
         run: |
-          set -e
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::WINDOWS_REPO_WRITE_TOKEN não está definido. O updater continua a depender de publicação manual no repo windows."
-            exit 0
-          fi
-          YML=$(find "$GITHUB_WORKSPACE/_mirror" -name latest.yml | head -1)
-          if [ -z "$YML" ]; then
-            echo "::error::Não foi encontrado latest.yml dentro de _mirror"
-            find "$GITHUB_WORKSPACE/_mirror" -type f | head -50 || true
+          if [ -z "$WINDOWS_TOKEN" ]; then
+            echo "::error::Cria o secret WINDOWS_REPO_WRITE_TOKEN neste repositório (Actions secrets). PAT classic: scope repo, ou fine-grained: Contents Read+Write em tudocertoapp/windows."
             exit 1
           fi
-          export WINDOWS_RELEASE_DIR="$(dirname "$YML")"
-          echo "WINDOWS_RELEASE_DIR=$WINDOWS_RELEASE_DIR"
-          node scripts/publish-windows-update.js
+
+      - name: Release em tudocertoapp/windows
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: tudocertoapp/windows
+          tag_name: latest
+          name: Tudo Certo — Windows (latest)
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            Build a partir de [${{ github.repository }}](https://github.com/${{ github.repository }}) — commit `${{ github.sha }}`.
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/latest*.yml
+            artifacts/**/*.blockmap
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINDOWS_REPO_WRITE_TOKEN }}
