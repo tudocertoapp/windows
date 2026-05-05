@@ -16,6 +16,7 @@
     "electron:pack:linux": "npm run sync:desktop-version && npm run electron:icon && npm run web:build && electron-builder --linux AppImage deb --x64 --publish never",
     "electron:pack:mac": "npm run sync:desktop-version && npm run electron:icon && npm run web:build && electron-builder --mac dmg zip --x64 --publish never",
     "build:win": "npm run electron:pack:win",
+    "publish:windows-update": "node scripts/publish-windows-update.js",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -101,7 +102,7 @@
   },
   "private": true,
   "name": "tudo-certo",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "build": {
     "artifactName": "Tudo-Certo-Setup-${version}.${ext}",
     "appId": "com.tudocerto.desktop",
@@ -121,6 +122,7 @@
       "electron/icon.png",
       "electron/icon-256.png",
       "electron/icon.ico",
+      "electron/installer-wizard.ico",
       "electron/icon.icns",
       "electron/icons/**/*"
     ],
@@ -149,9 +151,9 @@
       "allowToChangeInstallationDirectory": true,
       "guid": "6a87a150-9f77-4dd8-b149-8d9be5f1f0d3",
       "include": "build/installer.nsh",
-      "installerIcon": "electron/icon.ico",
-      "uninstallerIcon": "electron/icon.ico",
-      "installerHeaderIcon": "electron/icon.ico",
+      "installerIcon": "electron/installer-wizard.ico",
+      "uninstallerIcon": "electron/installer-wizard.ico",
+      "installerHeaderIcon": "electron/installer-wizard.ico",
       "runAfterFinish": true
     }
   }

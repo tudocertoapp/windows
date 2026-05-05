@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       desktop_version:
-        description: "Semver do instalador (ex. 1.0.13). Vazio = usar desktop-version.json / script"
+        description: "Semver do instalador (ex. 1.0.14). Vazio = usar desktop-version.json / script"
         required: false
         default: ""
 

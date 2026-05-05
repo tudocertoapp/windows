@@ -2,7 +2,7 @@
  * Define o campo "version" do package.json para o build Electron / electron-builder.
  * Uso:
  *   node scripts/set-desktop-version.js              → lê desktop-version.json
- *   node scripts/set-desktop-version.js 1.0.13       → força versão (ex.: CI workflow_dispatch)
+ *   node scripts/set-desktop-version.js 1.0.14       → força versão (ex.: CI workflow_dispatch)
  */
 /* eslint-disable no-console */
 const fs = require('fs');

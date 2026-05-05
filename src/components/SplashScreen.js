@@ -102,11 +102,14 @@ export function SplashScreen({
             { transform: [{ scale }] },
           ]}
         >
-          <Image
-            source={logoImage}
-            style={{ width: SPLASH_LOGO_WIDTH, height: SPLASH_LOGO_HEIGHT }}
-            resizeMode="contain"
-          />
+          {/* Fundo opaco evita artefactos de alpha (buracos) no Electron/Web empacotado */}
+          <View style={[s.logoPlate, { backgroundColor }]}>
+            <Image
+              source={logoImage}
+              style={{ width: SPLASH_LOGO_WIDTH, height: SPLASH_LOGO_HEIGHT }}
+              resizeMode="contain"
+            />
+          </View>
         </Animated.View>
       </View>
     </Animated.View>
@@ -124,6 +127,12 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   logoWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoPlate: {
+    borderRadius: 9999,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -69,8 +69,12 @@ function AppContent() {
   if (showSplash) {
     return (
       <SplashScreen
-        duration={splashDuration}
-        onFinish={() => { setSplashDone(true); setPostLoginSplash(false); }}
+        dataReady={!loading}
+        minHoldMs={splashDuration}
+        onFinish={() => {
+          setSplashDone(true);
+          setPostLoginSplash(false);
+        }}
         backgroundColor="#111827"
       />
     );

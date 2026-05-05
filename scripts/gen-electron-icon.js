@@ -17,6 +17,7 @@ const outIconsDir = path.join(outDir, 'icons');
 const outPng = path.join(outDir, 'icon.png');
 const outPng256 = path.join(outDir, 'icon-256.png');
 const outIco = path.join(outDir, 'icon.ico');
+const outInstallerWizardIco = path.join(outDir, 'installer-wizard.ico');
 const outIcns = path.join(outDir, 'icon.icns');
 const buildDir = path.join(root, 'build');
 const outNsisSidebarBmp = path.join(buildDir, 'installer-sidebar.bmp');
@@ -123,6 +124,22 @@ async function writeIcoFromSizes() {
     buffers.push(fs.readFileSync(p));
   }
   fs.writeFileSync(outIco, await pngToIco(buffers));
+}
+
+/** ICO opaco para o assistente NSIS (transparência no .ico aparece como preto / “furado”). */
+async function writeInstallerWizardIco(baseSharp) {
+  const sidebarBg = { r: 10, g: 17, b: 28, alpha: 1 };
+  const sizes = [16, 24, 32, 48, 64, 128, 256];
+  const buffers = [];
+  for (const s of sizes) {
+    const buf = await baseSharp
+      .clone()
+      .resize(s, s, { fit: 'contain', background: sidebarBg, kernel: 'lanczos3' })
+      .png()
+      .toBuffer();
+    buffers.push(buf);
+  }
+  fs.writeFileSync(outInstallerWizardIco, await pngToIco(buffers));
 }
 
 async function writeNsisBitmaps(baseSharp, sharp) {
@@ -237,10 +254,11 @@ async function main() {
 
   await writeAllSizes(base);
   await writeIcoFromSizes();
+  await writeInstallerWizardIco(base);
   await writeNsisBitmaps(base, sharp);
   const hasIcns = await writeIcns();
 
-  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, icons/*, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
+  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, installer-wizard.ico, icons/*, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
   if (!hasIcns) {
     console.warn('[electron:icon] icon.icns não foi gerado (instale png2icons para suporte macOS).');
   } else {
