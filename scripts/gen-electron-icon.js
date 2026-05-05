@@ -92,35 +92,34 @@ async function transparentFromSource(sharp, srcPath) {
     }
   }
 
-  // Em SVG preferimos NÃO trimar para preservar 100% da arte sem risco de corte.
-  // Em PNG/JPG mantemos trim para remover fundos transparentes exagerados.
-  if (isSvg) {
-    return sharp(data, { raw: info }).png();
-  }
-  return sharp(data, { raw: info })
-    .trim({ threshold: 8 })
+  // Remove margens transparentes da arte (inclusive SVG com viewBox folgado)
+  // e depois reencapsula com pequena margem de segurança para não cortar bordas.
+  const trimmed = sharp(data, { raw: info }).trim({ threshold: isSvg ? 1 : 8 });
+  const meta = await trimmed.metadata();
+  const tw = meta.width || raster;
+  const th = meta.height || raster;
+  const safePad = Math.max(2, Math.round(Math.max(tw, th) * 0.02));
+  return trimmed
+    .extend({
+      top: safePad,
+      bottom: safePad,
+      left: safePad,
+      right: safePad,
+      background: BG,
+    })
     .png();
 }
 
-async function writeAllSizes(baseSharp, sharp) {
-  const SAFE_SCALE = 0.94; // pequena margem para garantir logo inteira em todos os tamanhos
+async function writeAllSizes(baseSharp) {
   for (const size of ICON_SIZES) {
     const p = path.join(outIconsDir, `icon-${size}.png`);
-    const inner = Math.max(1, Math.round(size * SAFE_SCALE));
-    const iconPng = await baseSharp
+    await baseSharp
       .clone()
-      .resize(inner, inner, {
+      .resize(size, size, {
         fit: 'contain',
         background: BG,
-        // Upscale suave para ficar no padrão visual de ícones de desktop.
         kernel: 'lanczos3',
       })
-      .png()
-      .toBuffer();
-    await sharp({
-      create: { width: size, height: size, channels: 4, background: BG },
-    })
-      .composite([{ input: iconPng, gravity: 'center' }])
       .png({ compressionLevel: 9 })
       .toFile(p);
   }
@@ -146,7 +145,7 @@ async function writeFavicon(baseSharp) {
 }
 
 async function writeIcoFromSizes() {
-  const sizes = [16, 24, 32, 48, 64, 128, 256];
+  const sizes = [16, 20, 24, 32, 40, 48, 64, 72, 96, 128, 256];
   const buffers = [];
   for (const s of sizes) {
     const p = path.join(outIconsDir, `icon-${s}.png`);
@@ -173,9 +172,13 @@ async function writeNsisBitmaps(baseSharp, sharp) {
   const installerPhoto = resolveInstallerPhoto();
 
   // Boas-vindas + páginas internas: só logo (sem foto no canto durante "Instalando").
-  const sidebarLogo = await baseSharp
+  const sidebarLogoRaw = await baseSharp
     .clone()
     .resize(112, 112, { fit: 'contain', background: BG, kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
+  const sidebarLogo = await sharp(sidebarLogoRaw)
+    .resize(112, 112, { fit: 'inside', withoutEnlargement: true, kernel: 'lanczos3' })
     .png()
     .toBuffer();
   const sidebarPng = await sharp({
@@ -186,9 +189,13 @@ async function writeNsisBitmaps(baseSharp, sharp) {
     .png()
     .toBuffer();
 
-  const headerLogo = await baseSharp
+  const headerLogoRaw = await baseSharp
     .clone()
     .resize(40, 40, { fit: 'contain', background: BG, kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
+  const headerLogo = await sharp(headerLogoRaw)
+    .resize(40, 40, { fit: 'inside', withoutEnlargement: true, kernel: 'lanczos3' })
     .png()
     .toBuffer();
   const headerPng = await sharp({
@@ -265,7 +272,7 @@ async function main() {
     console.warn('[electron:icon] Fonte não encontrada. Usando placeholder.');
   }
 
-  await writeAllSizes(base, sharp);
+  await writeAllSizes(base);
   await writeFavicon(base);
   await writeIcoFromSizes();
   await writeNsisBitmaps(base, sharp);
