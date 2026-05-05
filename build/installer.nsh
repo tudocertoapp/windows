@@ -318,4 +318,14 @@ Function tcInstallerBringToFront
   System::Call 'user32::SetForegroundWindow(i $HWNDPARENT)'
 FunctionEnd
 
+; Segundo ícone no ambiente de trabalho: --pdv → preload expõe launchPdvOnly (modal PDV após login, sem URL #pdv).
+; O atalho predefinido do electron-builder continua sem argumentos (aplicação completa).
+!macro customInstall
+  CreateShortcut "$DESKTOP\Tudo Certo - PDV.lnk" "$INSTDIR\${PRODUCT_FILENAME}.exe" "--pdv" "$INSTDIR\${PRODUCT_FILENAME}.exe" 0
+!macroend
+
 !endif
+
+!macro customUnInstall
+  Delete "$DESKTOP\Tudo Certo - PDV.lnk"
+!macroend

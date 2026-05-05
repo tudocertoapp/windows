@@ -119,10 +119,10 @@
     "files": [
       "dist/**/*",
       "electron/main.js",
+      "electron/preload.js",
       "electron/icon.png",
       "electron/icon-256.png",
       "electron/icon.ico",
-      "electron/installer-wizard.ico",
       "electron/icon.icns",
       "electron/icons/**/*"
     ],
@@ -151,9 +151,9 @@
       "allowToChangeInstallationDirectory": true,
       "guid": "6a87a150-9f77-4dd8-b149-8d9be5f1f0d3",
       "include": "build/installer.nsh",
-      "installerIcon": "electron/installer-wizard.ico",
-      "uninstallerIcon": "electron/installer-wizard.ico",
-      "installerHeaderIcon": "electron/installer-wizard.ico",
+      "installerIcon": "electron/icon.ico",
+      "uninstallerIcon": "electron/icon.ico",
+      "installerHeaderIcon": "electron/icon.ico",
       "runAfterFinish": true
     }
   }

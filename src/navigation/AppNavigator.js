@@ -56,7 +56,7 @@ import {
   WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
   WEB_DESKTOP_RAIL_VERTICAL_INSET,
 } from '../components/navigation/RightSideTabBar';
-import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
+import { useIsDesktopLayout, isElectronWebClient, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createAppWebLinking, isWebCadastroPathSlug } from './webNavigationLinking';
 import { useWebModalUrlSync } from './useWebModalUrlSync';
@@ -259,6 +259,14 @@ export function AppNavigator() {
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    // Electron (.exe): arranque só-PDV vem do preload (--pdv), sem #pdv na URL (evita janela/link extra).
+    const desktop = window.__TUDO_CERTO_DESKTOP__;
+    if (desktop?.launchPdvOnly) {
+      setPdvStandaloneWeb(true);
+      setPdvModal(true);
+      return;
+    }
+    if (isElectronWebClient()) return;
     if (window.location.hash !== '#pdv') return;
     setPdvStandaloneWeb(true);
     setPdvModal(true);
@@ -555,7 +563,7 @@ export function AppNavigator() {
       openOrcamentos: () => { setMenuModalOpen(false); setOrcamentosModal(true); },
       openPDV: () => {
         setMenuModalOpen(false);
-        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && !isElectronWebClient()) {
           window.open('/inicio#pdv', '_blank', 'noopener,noreferrer');
           return;
         }

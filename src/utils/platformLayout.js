@@ -7,6 +7,12 @@ import { useMemo } from 'react';
 
 const IS_WEB = Platform.OS === 'web';
 
+/** App empacotada no Electron (mesmo bundle "web", sem browser externo). */
+export function isElectronWebClient() {
+  if (!IS_WEB || typeof navigator === 'undefined' || !navigator.userAgent) return false;
+  return navigator.userAgent.includes('Electron');
+}
+
 /** Largura mínima para layout desktop (sidebar) na web */
 const DESKTOP_BREAKPOINT = 768;
 

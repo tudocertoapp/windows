@@ -268,6 +268,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
       // Sandbox pode impedir carregamento fiável de fontes TTF (Ionicons) no Windows empacotado.
       sandbox: !app.isPackaged,
       // Empacotado: mesma origem loopback + @font-face (Ionicons); webSecurity off evita bloqueios de fonte no Chromium.
@@ -290,9 +291,9 @@ function createWindow() {
   });
 
   if (isDev) {
-    const url = process.env.ELECTRON_START_URL || 'http://127.0.0.1:8081';
-    win.loadURL(url).catch((err) => {
-      console.error('[Electron] Falha ao abrir', url, err.message);
+    const href = process.env.ELECTRON_START_URL || 'http://127.0.0.1:8081';
+    win.loadURL(href).catch((err) => {
+      console.error('[Electron] Falha ao abrir', href, err.message);
       console.error('Inicie o servidor web: npm run web');
     });
   } else {

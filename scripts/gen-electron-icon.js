@@ -17,7 +17,6 @@ const outIconsDir = path.join(outDir, 'icons');
 const outPng = path.join(outDir, 'icon.png');
 const outPng256 = path.join(outDir, 'icon-256.png');
 const outIco = path.join(outDir, 'icon.ico');
-const outInstallerWizardIco = path.join(outDir, 'installer-wizard.ico');
 const outIcns = path.join(outDir, 'icon.icns');
 const buildDir = path.join(root, 'build');
 const outNsisSidebarBmp = path.join(buildDir, 'installer-sidebar.bmp');
@@ -90,6 +89,45 @@ async function transparentFromSource(sharp, srcPath) {
     .png();
 }
 
+/**
+ * Windows (ICO / shell) trata mal alpha parcial no XOR+AND do BMP embutido → quadrado preto e “furacos”.
+ * Converte bordas para alpha 0 ou 255 e faz unpremultiply antes do png-to-ico.
+ */
+async function hardenAlphaForWinIcoPng(buf, sharp) {
+  const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  if (info.channels !== 4) {
+    return sharp(buf).ensureAlpha().png({ compressionLevel: 9 }).toBuffer();
+  }
+  const w = info.width;
+  const h = info.height;
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+    const a = data[i + 3];
+    if (a < 14) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 0;
+      continue;
+    }
+    if (a < 255) {
+      const f = 255 / a;
+      r = Math.min(255, Math.round(r * f));
+      g = Math.min(255, Math.round(g * f));
+      b = Math.min(255, Math.round(b * f));
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+    }
+  }
+  return sharp(data, { raw: { width: w, height: h, channels: 4 } })
+    .png({ compressionLevel: 9, force: true })
+    .toBuffer();
+}
+
 async function writeAllSizes(baseSharp) {
   for (const size of ICON_SIZES) {
     const p = path.join(outIconsDir, `icon-${size}.png`);
@@ -116,30 +154,21 @@ async function writeAllSizes(baseSharp) {
     .toFile(outPng256);
 }
 
-async function writeIcoFromSizes() {
+async function hardenPngFile(absPath, sharp) {
+  const raw = fs.readFileSync(absPath);
+  const out = await hardenAlphaForWinIcoPng(raw, sharp);
+  fs.writeFileSync(absPath, out);
+}
+
+async function writeIcoFromSizes(sharp) {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
   const buffers = [];
   for (const s of sizes) {
     const p = path.join(outIconsDir, `icon-${s}.png`);
-    buffers.push(fs.readFileSync(p));
+    const raw = fs.readFileSync(p);
+    buffers.push(await hardenAlphaForWinIcoPng(raw, sharp));
   }
   fs.writeFileSync(outIco, await pngToIco(buffers));
-}
-
-/** ICO opaco para o assistente NSIS (transparência no .ico aparece como preto / “furado”). */
-async function writeInstallerWizardIco(baseSharp) {
-  const sidebarBg = { r: 10, g: 17, b: 28, alpha: 1 };
-  const sizes = [16, 24, 32, 48, 64, 128, 256];
-  const buffers = [];
-  for (const s of sizes) {
-    const buf = await baseSharp
-      .clone()
-      .resize(s, s, { fit: 'contain', background: sidebarBg, kernel: 'lanczos3' })
-      .png()
-      .toBuffer();
-    buffers.push(buf);
-  }
-  fs.writeFileSync(outInstallerWizardIco, await pngToIco(buffers));
 }
 
 async function writeNsisBitmaps(baseSharp, sharp) {
@@ -253,12 +282,13 @@ async function main() {
   }
 
   await writeAllSizes(base);
-  await writeIcoFromSizes();
-  await writeInstallerWizardIco(base);
+  await hardenPngFile(outPng, sharp);
+  await hardenPngFile(outPng256, sharp);
+  await writeIcoFromSizes(sharp);
   await writeNsisBitmaps(base, sharp);
   const hasIcns = await writeIcns();
 
-  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, installer-wizard.ico, icons/*, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
+  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, icons/*, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
   if (!hasIcns) {
     console.warn('[electron:icon] icon.icns não foi gerado (instale png2icons para suporte macOS).');
   } else {
