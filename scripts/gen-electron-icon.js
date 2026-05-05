@@ -1,10 +1,12 @@
 /**
  * Gera ícones do Electron com fundo transparente para Win/Linux/macOS.
+ * Fonte preferida: assets/logo-app.svg (logo o maior possível dentro do quadrado, sem cortar, contain).
  * - electron/icon.png (512)
  * - electron/icon-256.png
  * - electron/icon.ico (16..256)
  * - electron/icon.icns (macOS)
  * - electron/icons/*.png (múltiplos tamanhos)
+ * - assets/favicon.png (web / Expo, 48×48)
  */
 const fs = require('fs');
 const path = require('path');
@@ -22,11 +24,13 @@ const buildDir = path.join(root, 'build');
 const outNsisSidebarBmp = path.join(buildDir, 'installer-sidebar.bmp');
 const outNsisHeaderBmp = path.join(buildDir, 'installer-header.bmp');
 const outNsisFinishBmp = path.join(buildDir, 'installer-finish.bmp');
+const outFavicon = path.join(root, 'assets', 'favicon.png');
 
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
 const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 
 const CANDIDATES = [
+  'assets/logo-app.svg',
   'H:/Meu Drive/logo svg.svg',
   'assets/icon.png',
   'assets/adaptive-icon.png',
@@ -62,13 +66,18 @@ function resolveInstallerPhoto() {
 }
 
 async function transparentFromSource(sharp, srcPath) {
-  const { data, info } = await sharp(srcPath, { density: 256, limitInputPixels: false })
-    .resize(1024, 1024, { fit: 'contain', background: BG })
+  const isSvg = /\.svg$/i.test(srcPath);
+  // SVG: raster maior + DPI para nitidez; contain = logo inteira visível, sem cortar.
+  const raster = isSvg ? 2048 : 1024;
+  const density = isSvg ? 384 : 256;
+
+  const { data, info } = await sharp(srcPath, { density, limitInputPixels: false })
+    .resize(raster, raster, { fit: 'contain', background: BG, kernel: 'lanczos3' })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Remove fundo quase preto/cinza escuro (comum em SVG exportado com fundo).
+  // Remove fundo quase preto/cinza escuro (comum em PNG exportado com fundo).
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -83,9 +92,10 @@ async function transparentFromSource(sharp, srcPath) {
     }
   }
 
-  // Remove áreas transparentes/margens para aumentar presença visual do símbolo.
+  // Margens transparentes: threshold mais baixo em SVG para não “comer” halos da arte.
+  const trimThreshold = isSvg ? 2 : 8;
   return sharp(data, { raw: info })
-    .trim({ threshold: 8 })
+    .trim({ threshold: trimThreshold })
     .png();
 }
 
@@ -158,6 +168,15 @@ async function hardenPngFile(absPath, sharp) {
   const raw = fs.readFileSync(absPath);
   const out = await hardenAlphaForWinIcoPng(raw, sharp);
   fs.writeFileSync(absPath, out);
+}
+
+/** Favicon do site (Expo `web.favicon`); PNG com alpha — sem endurecer como o ICO do Windows. */
+async function writeFavicon(baseSharp) {
+  await baseSharp
+    .clone()
+    .resize(48, 48, { fit: 'contain', background: BG, kernel: 'lanczos3' })
+    .png({ compressionLevel: 9, force: true })
+    .toFile(outFavicon);
 }
 
 async function writeIcoFromSizes(sharp) {
@@ -282,13 +301,14 @@ async function main() {
   }
 
   await writeAllSizes(base);
+  await writeFavicon(base);
   await hardenPngFile(outPng, sharp);
   await hardenPngFile(outPng256, sharp);
   await writeIcoFromSizes(sharp);
   await writeNsisBitmaps(base, sharp);
   const hasIcns = await writeIcns();
 
-  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, icons/*, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
+  console.log('[electron:icon] Gerados: icon.png, icon-256.png, icon.ico, icons/*, assets/favicon.png, installer-sidebar.bmp, installer-header.bmp, installer-finish.bmp');
   if (!hasIcns) {
     console.warn('[electron:icon] icon.icns não foi gerado (instale png2icons para suporte macOS).');
   } else {

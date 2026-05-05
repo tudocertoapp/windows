@@ -36,6 +36,7 @@ jobs:
       - name: Instalar e exportar web
         run: |
           npm ci
+          npm run electron:icon
           npm run web:build
 
   desktop-build:
