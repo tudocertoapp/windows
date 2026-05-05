@@ -27,7 +27,7 @@ const outNsisFinishBmp = path.join(buildDir, 'installer-finish.bmp');
 const outFavicon = path.join(root, 'assets', 'favicon.png');
 
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
-const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
+const ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 72, 96, 128, 256, 512, 1024];
 
 const CANDIDATES = [
   'assets/logo-app.svg',
@@ -92,64 +92,36 @@ async function transparentFromSource(sharp, srcPath) {
     }
   }
 
-  // Margens transparentes: threshold mais baixo em SVG para não “comer” halos da arte.
-  const trimThreshold = isSvg ? 2 : 8;
+  // Em SVG preferimos NÃO trimar para preservar 100% da arte sem risco de corte.
+  // Em PNG/JPG mantemos trim para remover fundos transparentes exagerados.
+  if (isSvg) {
+    return sharp(data, { raw: info }).png();
+  }
   return sharp(data, { raw: info })
-    .trim({ threshold: trimThreshold })
+    .trim({ threshold: 8 })
     .png();
 }
 
-/**
- * Windows (ICO / shell) trata mal alpha parcial no XOR+AND do BMP embutido → quadrado preto e “furacos”.
- * Converte bordas para alpha 0 ou 255 e faz unpremultiply antes do png-to-ico.
- */
-async function hardenAlphaForWinIcoPng(buf, sharp) {
-  const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  if (info.channels !== 4) {
-    return sharp(buf).ensureAlpha().png({ compressionLevel: 9 }).toBuffer();
-  }
-  const w = info.width;
-  const h = info.height;
-  for (let i = 0; i < data.length; i += 4) {
-    let r = data[i];
-    let g = data[i + 1];
-    let b = data[i + 2];
-    const a = data[i + 3];
-    if (a < 14) {
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
-      data[i + 3] = 0;
-      continue;
-    }
-    if (a < 255) {
-      const f = 255 / a;
-      r = Math.min(255, Math.round(r * f));
-      g = Math.min(255, Math.round(g * f));
-      b = Math.min(255, Math.round(b * f));
-      data[i] = r;
-      data[i + 1] = g;
-      data[i + 2] = b;
-      data[i + 3] = 255;
-    }
-  }
-  return sharp(data, { raw: { width: w, height: h, channels: 4 } })
-    .png({ compressionLevel: 9, force: true })
-    .toBuffer();
-}
-
-async function writeAllSizes(baseSharp) {
+async function writeAllSizes(baseSharp, sharp) {
+  const SAFE_SCALE = 0.94; // pequena margem para garantir logo inteira em todos os tamanhos
   for (const size of ICON_SIZES) {
     const p = path.join(outIconsDir, `icon-${size}.png`);
-    await baseSharp
+    const inner = Math.max(1, Math.round(size * SAFE_SCALE));
+    const iconPng = await baseSharp
       .clone()
-      .resize(size, size, {
+      .resize(inner, inner, {
         fit: 'contain',
         background: BG,
         // Upscale suave para ficar no padrão visual de ícones de desktop.
         kernel: 'lanczos3',
       })
       .png()
+      .toBuffer();
+    await sharp({
+      create: { width: size, height: size, channels: 4, background: BG },
+    })
+      .composite([{ input: iconPng, gravity: 'center' }])
+      .png({ compressionLevel: 9 })
       .toFile(p);
   }
   await baseSharp
@@ -164,12 +136,6 @@ async function writeAllSizes(baseSharp) {
     .toFile(outPng256);
 }
 
-async function hardenPngFile(absPath, sharp) {
-  const raw = fs.readFileSync(absPath);
-  const out = await hardenAlphaForWinIcoPng(raw, sharp);
-  fs.writeFileSync(absPath, out);
-}
-
 /** Favicon do site (Expo `web.favicon`); PNG com alpha — sem endurecer como o ICO do Windows. */
 async function writeFavicon(baseSharp) {
   await baseSharp
@@ -179,13 +145,12 @@ async function writeFavicon(baseSharp) {
     .toFile(outFavicon);
 }
 
-async function writeIcoFromSizes(sharp) {
+async function writeIcoFromSizes() {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
   const buffers = [];
   for (const s of sizes) {
     const p = path.join(outIconsDir, `icon-${s}.png`);
-    const raw = fs.readFileSync(p);
-    buffers.push(await hardenAlphaForWinIcoPng(raw, sharp));
+    buffers.push(fs.readFileSync(p));
   }
   fs.writeFileSync(outIco, await pngToIco(buffers));
 }
@@ -300,11 +265,9 @@ async function main() {
     console.warn('[electron:icon] Fonte não encontrada. Usando placeholder.');
   }
 
-  await writeAllSizes(base);
+  await writeAllSizes(base, sharp);
   await writeFavicon(base);
-  await hardenPngFile(outPng, sharp);
-  await hardenPngFile(outPng256, sharp);
-  await writeIcoFromSizes(sharp);
+  await writeIcoFromSizes();
   await writeNsisBitmaps(base, sharp);
   const hasIcns = await writeIcns();
 

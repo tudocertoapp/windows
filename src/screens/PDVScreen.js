@@ -61,8 +61,27 @@ function normalizeLoginText(v) {
     .toLowerCase();
 }
 
+function normalizeLoginToken(v) {
+  return normalizeLoginText(v).replace(/[^a-z0-9]/g, '');
+}
+
 function normalizeSecret(v) {
   return String(v || '').normalize('NFKC').trim();
+}
+
+function normalizeSecretLoose(v) {
+  return normalizeSecret(v)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+function secretsMatch(stored, typed) {
+  const strictStored = normalizeSecret(stored);
+  const strictTyped = normalizeSecret(typed);
+  if (!strictStored || !strictTyped) return false;
+  if (strictStored === strictTyped) return true;
+  return normalizeSecretLoose(strictStored) === normalizeSecretLoose(strictTyped);
 }
 
 function readOperatorId(c) {
@@ -292,6 +311,46 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     writePdvConfig(profile, next).catch(() => {});
   }, [profile]);
 
+  const findOperatorByLogin = useCallback((loginText, selectedId) => {
+    const loginNorm = normalizeLoginText(loginText);
+    const loginToken = normalizeLoginToken(loginText);
+    let operator = null;
+    if (selectedId) {
+      operator = activeOperators.find((c) => String(c.id) === String(selectedId)) || null;
+    }
+    if (!operator && loginNorm) {
+      operator = activeOperators.find((c) => {
+        const opId = normalizeLoginText(readOperatorId(c));
+        const opName = normalizeLoginText(c.nome || '');
+        const opIdToken = normalizeLoginToken(opId);
+        const opNameToken = normalizeLoginToken(opName);
+        return (
+          opId === loginNorm
+          || opName === loginNorm
+          || (loginToken && (opIdToken === loginToken || opNameToken === loginToken))
+        );
+      }) || null;
+    }
+    if (!operator && loginNorm) {
+      const partial = activeOperators.filter((c) => {
+        const opId = normalizeLoginText(readOperatorId(c));
+        const opName = normalizeLoginText(c.nome || '');
+        const opIdToken = normalizeLoginToken(opId);
+        const opNameToken = normalizeLoginToken(opName);
+        return (
+          opId.includes(loginNorm)
+          || opName.includes(loginNorm)
+          || (loginToken && (opIdToken.includes(loginToken) || opNameToken.includes(loginToken)))
+        );
+      });
+      if (partial.length === 1) [operator] = partial;
+    }
+    if (!operator && activeOperators.length === 1 && !loginNorm) {
+      [operator] = activeOperators;
+    }
+    return operator;
+  }, [activeOperators]);
+
   const selectItem = useCallback(
     (item) => {
       playPdvEditItemSound();
@@ -496,34 +555,9 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       Alert.alert('Atenção', 'Informe operador e senha de caixa.');
       return;
     }
-    const loginNorm = stripAccents(loginInput).toLowerCase();
+    const operator = findOperatorByLogin(loginInput, selectedOperatorId);
 
-    let operator = null;
-    if (selectedOperatorId) {
-      operator = activeOperators.find((c) => String(c.id) === String(selectedOperatorId)) || null;
-    }
-
-    if (!operator && loginNorm) {
-      operator = activeOperators.find((c) => {
-        const opId = normalizeLoginText(readOperatorId(c));
-        const opName = normalizeLoginText(c.nome || '');
-        return opId === loginNorm || opName === loginNorm;
-      }) || null;
-    }
-
-    if (!operator && loginNorm) {
-      const partial = activeOperators.filter((c) => {
-        const opId = normalizeLoginText(readOperatorId(c));
-        const opName = normalizeLoginText(c.nome || '');
-        return opId.includes(loginNorm) || opName.includes(loginNorm);
-      });
-      if (partial.length === 1) [operator] = partial;
-    }
-
-    if (!operator && activeOperators.length === 1 && !loginNorm) {
-      [operator] = activeOperators;
-    }
-
+    const storedPassCandidate = operator ? readOperatorPass(operator) : '';
     const debugPayload = {
       operadoresAtivos: activeOperators.length,
       idsAtivos: activeOperators.map((c) => readOperatorId(c)).filter(Boolean).slice(0, 8),
@@ -531,7 +565,8 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       operadorSelecionadoId: selectedOperatorId ? String(selectedOperatorId) : '(nenhum)',
       operadorEncontrado: operator ? (operator.nome || readOperatorId(operator) || 'sim') : '(não)',
       senhaDigitada: pass ? 'sim' : 'não',
-      senhaCadastrada: operator ? (normalizeSecret(readOperatorPass(operator)) ? 'sim' : 'não') : '(n/a)',
+      senhaCadastrada: operator ? (normalizeSecret(storedPassCandidate) ? 'sim' : 'não') : '(n/a)',
+      senhaConfere: operator ? (secretsMatch(storedPassCandidate, pass) ? 'sim' : 'não') : '(n/a)',
     };
     setLoginDebug(debugPayload);
 
@@ -540,38 +575,23 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       return;
     }
 
-    const storedPass = normalizeSecret(readOperatorPass(operator));
-    if (!storedPass) {
+    const storedPass = readOperatorPass(operator);
+    if (!normalizeSecret(storedPass)) {
       Alert.alert(
         'Acesso negado',
         `Operador "${operator.nome || readOperatorId(operator)}" está sem senha de caixa cadastrada em Colaboradores.`,
       );
       return;
     }
-    if (storedPass !== pass) {
-      Alert.alert('Acesso negado', `Senha incorreta para o operador "${operator.nome || readOperatorId(operator)}".`);
+    if (!secretsMatch(storedPass, pass)) {
+      Alert.alert('Acesso negado', 'senha errada');
       return;
     }
     playPdvOpenSound();
     setOperatorLogged({ id: operator.id, nome: operator.nome || 'Operador', operadorId: String(readOperatorId(operator) || id || '') });
     setAuthOpen(false);
     setLoginDebug(null);
-  }, [activeOperators, operatorId, operatorNameQuery, operatorPass, selectedOperatorId]);
-
-  const authorizeByOperatorCredentials = useCallback((loginText, passText) => {
-    const loginNorm = normalizeLoginText(loginText);
-    const passNorm = normalizeSecret(passText);
-    if (!loginNorm || !passNorm) return null;
-    return (
-      activeOperators.find((c) => {
-        const opId = normalizeLoginText(readOperatorId(c));
-        const opName = normalizeLoginText(c.nome || '');
-        const opPass = normalizeSecret(readOperatorPass(c));
-        const loginOk = opId === loginNorm || opName === loginNorm;
-        return loginOk && opPass === passNorm;
-      }) || null
-    );
-  }, [activeOperators]);
+  }, [findOperatorByLogin, activeOperators, operatorId, operatorNameQuery, operatorPass, selectedOperatorId]);
 
   const executeProtectedAction = useCallback((actionType) => {
     if (actionType === 'item') {
@@ -622,9 +642,13 @@ export function PDVScreen({ onClose, lockedMode = false }) {
   }, [cart, selectedCartIndex, pdvConfig.requireFrontDeskAuth, executeProtectedAction]);
 
   const confirmCancelByOperator = useCallback(() => {
-    const operator = authorizeByOperatorCredentials(cancelOperatorLogin, cancelOperatorPass);
+    const operator = findOperatorByLogin(cancelOperatorLogin, null);
     if (!operator) {
-      Alert.alert('Acesso negado', 'Login ou senha do operador inválidos.');
+      Alert.alert('Acesso negado', 'Operador não encontrado.');
+      return;
+    }
+    if (!secretsMatch(readOperatorPass(operator), cancelOperatorPass)) {
+      Alert.alert('Acesso negado', 'senha errada');
       return;
     }
     playTapSound();
@@ -634,7 +658,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     setCancelOperatorLogin('');
     setCancelOperatorPass('');
   }, [
-    authorizeByOperatorCredentials,
+    findOperatorByLogin,
     cancelOperatorLogin,
     cancelOperatorPass,
     cancelActionType,
@@ -645,8 +669,8 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     if (loading) return;
     setOperatorCheckReady(true);
     if (mustRequireOperatorLogin) {
-      setOperatorLogged(null);
-      setAuthOpen(true);
+      // Só abre autenticação se ainda não houver operador autenticado.
+      if (!operatorLogged) setAuthOpen(true);
       return;
     }
     setAuthOpen(false);
@@ -1256,7 +1280,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                       key={`op-${op.id}`}
                       style={[styles.operatorSuggestItem, { borderBottomColor: colors.border }]}
                       onPress={() => {
-                        setOperatorNameQuery(op.nome || '');
+                        setOperatorNameQuery(String(readOperatorId(op) || op.nome || ''));
                         setOperatorId(String(readOperatorId(op) || ''));
                         setSelectedOperatorId(op.id);
                         setShowOperatorSuggest(false);
@@ -1298,6 +1322,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                 <Text style={[styles.loginDebugLine, { color: colors.textSecondary }]}>Login digitado: {loginDebug.loginDigitado}</Text>
                 <Text style={[styles.loginDebugLine, { color: colors.textSecondary }]}>Operador encontrado: {loginDebug.operadorEncontrado}</Text>
                 <Text style={[styles.loginDebugLine, { color: colors.textSecondary }]}>Senha digitada: {loginDebug.senhaDigitada} | Senha cadastrada: {loginDebug.senhaCadastrada}</Text>
+                <Text style={[styles.loginDebugLine, { color: colors.textSecondary }]}>Senha confere: {loginDebug.senhaConfere}</Text>
               </View>
             ) : null}
             <View style={styles.authBtnsRow}>

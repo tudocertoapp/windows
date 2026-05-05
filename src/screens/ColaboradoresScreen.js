@@ -23,6 +23,15 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 const FUNCOES = ['Vendedor', 'Gerente', 'Serviços gerais', 'Atendimento', 'Administrativo', 'Caixa', 'Outro'];
 const ESTADO_CIVIL = ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)', 'Outro'];
 
+function buildOperatorIdFromName(name) {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .trim();
+}
+
 const s = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 14, marginHorizontal: 16, marginTop: 10 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
@@ -55,7 +64,6 @@ const emptyForm = () => ({
   curriculoExperiencias: '',
   observacoes: '',
   operadorCaixaAtivo: false,
-  operadorCaixaId: '',
   operadorCaixaSenha: '',
 });
 
@@ -68,6 +76,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [showOperatorPassword, setShowOperatorPassword] = useState(false);
   const [payTipo, setPayTipo] = useState('salario');
   const [payValor, setPayValor] = useState('');
   const [payObs, setPayObs] = useState('');
@@ -80,12 +89,14 @@ export function ColaboradoresScreen({ onClose, isModal }) {
     playTapSound();
     setEditing(null);
     setForm(emptyForm());
+    setShowOperatorPassword(false);
     setFormOpen(true);
   };
 
   const openEdit = (c) => {
     playTapSound();
     setEditing(c);
+    setShowOperatorPassword(false);
     setForm({
       nome: c.nome || '',
       funcao: c.funcao || 'Vendedor',
@@ -106,7 +117,6 @@ export function ColaboradoresScreen({ onClose, isModal }) {
       curriculoExperiencias: c.curriculoExperiencias || '',
       observacoes: c.observacoes || '',
       operadorCaixaAtivo: c.operadorCaixaAtivo === true,
-      operadorCaixaId: c.operadorCaixaId || '',
       operadorCaixaSenha: c.operadorCaixaSenha || '',
     });
     setFormOpen(true);
@@ -114,6 +124,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
 
   const save = async () => {
     if (!form.nome.trim()) return Alert.alert('Atenção', 'Informe o nome do colaborador.');
+    const generatedOperatorId = buildOperatorIdFromName(form.nome);
     const payload = {
       nome: form.nome.trim(),
       funcao: form.funcao || 'Vendedor',
@@ -134,11 +145,11 @@ export function ColaboradoresScreen({ onClose, isModal }) {
       curriculoExperiencias: form.curriculoExperiencias.trim(),
       observacoes: form.observacoes.trim(),
       operadorCaixaAtivo: form.operadorCaixaAtivo === true,
-      operadorCaixaId: form.operadorCaixaId.trim(),
+      operadorCaixaId: form.operadorCaixaAtivo ? generatedOperatorId : '',
       operadorCaixaSenha: form.operadorCaixaSenha.trim(),
     };
     if (payload.operadorCaixaAtivo && (!payload.operadorCaixaId || !payload.operadorCaixaSenha)) {
-      return Alert.alert('Atenção', 'Para operador de caixa, informe ID e senha.');
+      return Alert.alert('Atenção', 'Para operador de caixa, informe nome e senha.');
     }
     if (editing?.id) await updateCollaborator(editing.id, payload);
     else await addCollaborator(payload);
@@ -314,24 +325,42 @@ export function ColaboradoresScreen({ onClose, isModal }) {
                 </View>
                 {form.operadorCaixaAtivo ? (
                   <>
-                    <Text style={[s.label, { color: colors.textSecondary }]}>ID do operador</Text>
-                    <TextInput
-                      value={form.operadorCaixaId}
-                      onChangeText={(t) => setF('operadorCaixaId', t)}
-                      placeholder="ex: caixa01"
-                      placeholderTextColor={colors.textSecondary}
-                      style={inputStyle}
-                      autoCapitalize="none"
-                    />
+                    <Text style={[s.label, { color: colors.textSecondary }]}>ID do operador (automático pelo nome)</Text>
+                    <View style={[s.input, { borderColor: colors.border, backgroundColor: colors.bg, justifyContent: 'center' }]}>
+                      <Text style={{ color: colors.text }}>
+                        {buildOperatorIdFromName(form.nome) || '(digite o nome do colaborador)'}
+                      </Text>
+                    </View>
                     <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>Senha do operador</Text>
-                    <TextInput
-                      value={form.operadorCaixaSenha}
-                      onChangeText={(t) => setF('operadorCaixaSenha', t)}
-                      placeholder="Senha para abrir caixa"
-                      placeholderTextColor={colors.textSecondary}
-                      style={inputStyle}
-                      secureTextEntry
-                    />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <TextInput
+                        value={form.operadorCaixaSenha}
+                        onChangeText={(t) => setF('operadorCaixaSenha', t)}
+                        placeholder="Senha para abrir caixa"
+                        placeholderTextColor={colors.textSecondary}
+                        style={[inputStyle, { flex: 1 }]}
+                        secureTextEntry={!showOperatorPassword}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowOperatorPassword((v) => !v)}
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: colors.bg,
+                        }}
+                      >
+                        <Ionicons
+                          name={showOperatorPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={20}
+                          color={colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </>
                 ) : null}
 
