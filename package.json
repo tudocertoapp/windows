@@ -143,6 +143,7 @@
       "icon": "electron/icons"
     },
     "nsis": {
+      "warningsAsErrors": false,
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
