@@ -92,21 +92,10 @@ async function transparentFromSource(sharp, srcPath) {
     }
   }
 
-  // Remove margens transparentes da arte (inclusive SVG com viewBox folgado)
-  // e depois reencapsula com pequena margem de segurança para não cortar bordas.
-  const trimmed = sharp(data, { raw: info }).trim({ threshold: isSvg ? 1 : 8 });
-  const meta = await trimmed.metadata();
-  const tw = meta.width || raster;
-  const th = meta.height || raster;
-  const safePad = Math.max(2, Math.round(Math.max(tw, th) * 0.02));
-  return trimmed
-    .extend({
-      top: safePad,
-      bottom: safePad,
-      left: safePad,
-      right: safePad,
-      background: BG,
-    })
+  // Recorte justo: remove margens transparentes para a logo ocupar mais área no ícone.
+  // threshold 0 em SVG evita “encolher” por excesso de margem de segurança.
+  return sharp(data, { raw: info })
+    .trim({ threshold: isSvg ? 0 : 8 })
     .png();
 }
 
