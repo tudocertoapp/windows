@@ -65,10 +65,9 @@ jobs:
 
       - name: Instalar e empacotar
         run: npm ci
+      # Sem --publish never o electron-builder tenta publicar com GITHUB_TOKEN e falha no CI.
       - name: Electron + NSIS
         run: npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Artefactos
         uses: actions/upload-artifact@v4
