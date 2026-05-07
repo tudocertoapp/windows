@@ -8,7 +8,7 @@
   ],
   "functions": {
     "api/stripe/webhook.js": {
-      "runtime": "edge"
+      "runtime": "nodejs20.x"
     }
   }
 }
