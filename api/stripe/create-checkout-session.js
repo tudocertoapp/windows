@@ -2,6 +2,8 @@ const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 
 const BUSINESS_PRICE_ID = 'price_1THoyFECYmuevOzFxkP44dmF';
+const FALLBACK_SUPABASE_URL = 'https://azvfiuvggppnulfepwbc.supabase.co';
+const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dmZpdXZnZ3BwbnVsZmVwd2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTc1OTUsImV4cCI6MjA4NTE5MzU5NX0.eZUbc2sveWDRCu_Nm6z0chP7T6-hqDJf7omatgiB2Pk';
 
 function getSiteUrl(req) {
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
@@ -16,8 +18,29 @@ function getSiteUrl(req) {
 function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return null;
   return createClient(url, key, { auth: { persistSession: false } });
+}
+
+function getSupabasePublicVerifier() {
+  const url = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || FALLBACK_SUPABASE_URL;
+  const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+async function verifyUserSession(jwt, userId) {
+  const supabaseAdmin = getSupabaseAdmin();
+  if (supabaseAdmin) {
+    const { data: userData, error: authErr } = await supabaseAdmin.auth.getUser(jwt);
+    return !authErr && !!userData?.user && userData.user.id === userId;
+  }
+
+  // Fallback: valida o JWT com cliente público (anon) quando service role não está configurada.
+  const supabasePublic = getSupabasePublicVerifier();
+  if (!supabasePublic) return false;
+  const { data: userData, error: authErr } = await supabasePublic.auth.getUser(jwt);
+  return !authErr && !!userData?.user && userData.user.id === userId;
 }
 
 module.exports = async function handler(req, res) {
@@ -65,11 +88,8 @@ module.exports = async function handler(req, res) {
   const jwt = String(authHeader).slice(7).trim();
 
   try {
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data: userData, error: authErr } = await supabaseAdmin.auth.getUser(jwt);
-    if (authErr || !userData?.user || userData.user.id !== userId) {
-      return res.status(403).json({ error: 'Invalid session' });
-    }
+    const ok = await verifyUserSession(jwt, userId);
+    if (!ok) return res.status(403).json({ error: 'Invalid session' });
   } catch (e) {
     return res.status(500).json({ error: 'Auth verification failed' });
   }
