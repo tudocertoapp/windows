@@ -27,6 +27,10 @@ const outNsisFinishBmp = path.join(buildDir, 'installer-finish.bmp');
 const outFavicon = path.join(root, 'assets', 'favicon.png');
 
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
+// Tamanhos "base correta" para ícones Windows/Electron sem perda visível:
+// - taskbar/janela/atalho usam principalmente 16, 24, 32, 48, 64, 128, 256
+// - extras (20, 40, 72, 96) ajudam em escalas intermediárias de DPI.
+// Se precisar ajustar no futuro, altere primeiro aqui e rode: npm run electron:icon
 const ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 72, 96, 128, 256, 512, 1024];
 
 const CANDIDATES = [

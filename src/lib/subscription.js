@@ -2,11 +2,19 @@ import { Platform } from 'react-native';
 import { STRIPE_BUSINESS_PLAN_KEY } from '../constants/stripe';
 
 export function getApiOrigin() {
+  if (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_STRIPE_API_URL) {
+    return String(process.env.EXPO_PUBLIC_STRIPE_API_URL).replace(/\/$/, '');
+  }
   if (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_SITE_URL) {
     return String(process.env.EXPO_PUBLIC_SITE_URL).replace(/\/$/, '');
   }
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin.replace(/\/$/, '');
+    const origin = window.location.origin.replace(/\/$/, '');
+    // Em localhost do Expo, geralmente não há rota /api/stripe ativa.
+    if (/^https?:\/\/localhost(?::\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(?::\d+)?$/i.test(origin)) {
+      return '';
+    }
+    return origin;
   }
   return '';
 }
@@ -44,7 +52,7 @@ export function hasActiveBusinessSubscription(sub) {
 export async function handleSubscribe(supabase) {
   const origin = getApiOrigin();
   if (!origin) {
-    throw new Error('Defina EXPO_PUBLIC_SITE_URL ou abra o app na web.');
+    throw new Error('Defina EXPO_PUBLIC_STRIPE_API_URL (ou EXPO_PUBLIC_SITE_URL com API ativa) para usar o checkout.');
   }
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -58,7 +66,8 @@ export async function handleSubscribe(supabase) {
     throw new Error('Sessão inválida. Entre novamente.');
   }
 
-  const res = await fetch(`${origin}/api/stripe/create-checkout-session`, {
+  const endpoint = `${origin}/api/stripe/create-checkout-session`;
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -70,19 +79,26 @@ export async function handleSubscribe(supabase) {
     }),
   });
 
-  const json = await res.json().catch(() => ({}));
+  const contentType = String(res.headers?.get?.('content-type') || '').toLowerCase();
+  const isJson = contentType.includes('application/json');
+  const json = isJson ? await res.json().catch(() => ({})) : {};
   if (!res.ok) {
     throw new Error(json.error || `Erro ${res.status}`);
   }
-  if (!json.url) {
+
+  const checkoutUrl = json.url || json.checkoutUrl || json.checkout_url;
+  if (!checkoutUrl) {
+    if (!isJson) {
+      throw new Error(`Endpoint Stripe inválido em ${endpoint} (resposta não JSON).`);
+    }
     throw new Error('Resposta sem URL de checkout.');
   }
 
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.location.assign(json.url);
+    window.location.assign(checkoutUrl);
     return;
   }
 
   const { Linking } = require('react-native');
-  await Linking.openURL(json.url);
+  await Linking.openURL(checkoutUrl);
 }

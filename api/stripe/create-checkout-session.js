@@ -21,6 +21,15 @@ function getSupabaseAdmin() {
 }
 
 module.exports = async function handler(req, res) {
+  const requestOrigin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   res.setHeader('Content-Type', 'application/json');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');

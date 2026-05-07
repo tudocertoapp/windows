@@ -34,6 +34,8 @@ const RADIUS = 14;
 const { width: SW, height: SH } = Dimensions.get('window');
 const MODAL_MAX_WIDTH = Math.min(SW - 8, 520);
 const MODAL_SCROLL_MAX_HEIGHT = Math.round(SH * 0.7);
+const ITEM_PICKER_MAX_WIDTH = Math.min(SW - 8, 760);
+const ITEM_PICKER_MAX_HEIGHT = Math.round(SH * 0.82);
 
 function todayStr() {
   const d = new Date();
@@ -73,8 +75,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
   const [preOrderItems, setPreOrderItems] = useState([]);
   const [editingItemIdx, setEditingItemIdx] = useState(null);
   const [editingItemPrice, setEditingItemPrice] = useState('0,00');
-  const [manualItemName, setManualItemName] = useState('');
-  const [manualItemPrice, setManualItemPrice] = useState('0,00');
+  const [itemPickerTab, setItemPickerTab] = useState('produtos');
+  const [itemPickerQuery, setItemPickerQuery] = useState('');
   const isEdit = Boolean(editingEvent);
 
   useEffect(() => {
@@ -138,40 +140,28 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
         setTimeEnd(data.timeEnd || '10:00');
         setPreOrderItems(Array.isArray(data.preOrderItems) ? data.preOrderItems : []);
       }
-      setManualItemName('');
-      setManualItemPrice('0,00');
+      setItemPickerQuery('');
     }
   }, [visible, editingEvent, initialDate, initialData, showEmpresaFeatures, services]);
 
   const selectedClient = clients?.find((c) => c.id === clientId);
   const selectedService = services?.find((s) => s.id === serviceId);
+  const mergedItems = [
+    ...(products || []).map((p) => ({ id: `p-${p.id}`, name: p.name, price: p.price || 0, source: 'produto' })),
+    ...(services || []).map((sv) => ({ id: `s-${sv.id}`, name: sv.name, price: sv.price || 0, source: 'servico' })),
+  ];
+  const normalizedPickerQuery = (itemPickerQuery || '').trim().toLowerCase();
+  const pickerItemsFiltered = mergedItems.filter((x) => {
+    const byTab = itemPickerTab === 'produtos' ? x.source === 'produto' : x.source === 'servico';
+    const byQuery = normalizedPickerQuery ? (x.name || '').toLowerCase().includes(normalizedPickerQuery) : true;
+    return byTab && byQuery;
+  });
 
   const parseAmount = () => parseMoney(amount || '0');
 
   const preOrderTotal = preOrderItems.reduce((s, i) => s + ((i.price || 0) - (i.discount || 0)) * (i.qty || 1), 0);
   const isVendaEmpresa = tipo === 'empresa' && tipoAtendimento === 'venda';
   const totalAtendimento = isVendaEmpresa ? preOrderTotal : parseAmount();
-
-  const handleAddManualItem = () => {
-    const name = (manualItemName || '').trim();
-    const value = parseMoney(manualItemPrice || '0');
-    if (!name) return Alert.alert('Erro', 'Digite o nome do produto/serviço.');
-    if (value <= 0) return Alert.alert('Erro', 'Digite um valor maior que zero.');
-    playTapSound();
-    setPreOrderItems((prev) => [
-      ...prev,
-      {
-        id: `m-${Date.now()}`,
-        name,
-        price: value,
-        qty: 1,
-        discount: 0,
-        isProduct: false,
-      },
-    ]);
-    setManualItemName('');
-    setManualItemPrice('0,00');
-  };
 
   const handleConfirm = () => {
     if (!date?.trim()) return Alert.alert('Erro', 'Informe a data.');
@@ -390,9 +380,6 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                         <>
                           <View style={s.rowLabel}>
                             <Text style={labelS}>ITENS DA VENDA</Text>
-                            <TouchableOpacity onPress={() => { playTapSound(); setShowItemPicker(true); }}>
-                              <Text style={[s.novoLink, { color: colors.primary }]}>ADICIONAR</Text>
-                            </TouchableOpacity>
                           </View>
                           {preOrderItems.length > 0 ? (
                             <>
@@ -421,34 +408,12 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                               ))}
                               <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary, marginTop: 4 }}>Total: R$ {preOrderTotal.toFixed(2).replace('.', ',')}</Text>
                             </>
-                          ) : (
-                            <TouchableOpacity style={[s.select, { backgroundColor: colors.bg, borderColor: colors.border, borderStyle: 'dashed' }]} onPress={() => setShowItemPicker(true)}>
-                              <Text style={[s.selectText, { color: colors.textSecondary }]}>Adicionar produtos ou serviços</Text>
-                              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-                            </TouchableOpacity>
-                          )}
-                          <View style={s.rowLabel}>
-                            <Text style={labelS}>DIGITAR PRODUTO/SERVIÇO</Text>
-                          </View>
-                          <View style={s.twoCol}>
-                            <View style={s.half}>
-                              <TextInput
-                                style={inputS}
-                                placeholder="Nome do item"
-                                placeholderTextColor={colors.textSecondary}
-                                value={manualItemName}
-                                onChangeText={setManualItemName}
-                              />
-                            </View>
-                            <View style={s.half}>
-                              <MoneyInput value={manualItemPrice} onChange={setManualItemPrice} colors={colors} containerStyle={{ backgroundColor: colors.bg }} />
-                            </View>
-                          </View>
+                          ) : null}
                           <TouchableOpacity
-                            style={[s.select, { marginTop: -8, backgroundColor: colors.bg, borderColor: colors.primary }]}
-                            onPress={handleAddManualItem}
+                            style={[s.select, { backgroundColor: colors.bg, borderColor: colors.primary, marginTop: preOrderItems.length > 0 ? 8 : 0 }]}
+                            onPress={() => setShowItemPicker(true)}
                           >
-                            <Text style={[s.selectText, { color: colors.primary, fontWeight: '700' }]}>Adicionar item digitado</Text>
+                            <Text style={[s.selectText, { color: colors.primary, fontWeight: '700' }]}>Adicionar produto ou serviço</Text>
                             <Ionicons name="add-circle" size={20} color={colors.primary} />
                           </TouchableOpacity>
                         </>
@@ -596,56 +561,70 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
       {showItemPicker && (
         <Modal visible transparent animationType="fade">
           <TouchableOpacity style={s.overlay} onPress={() => setShowItemPicker(false)}>
-            <View style={[s.pickerCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: 360 }]}>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => {}}
+              style={[s.itemPickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
               <Text style={[s.pickerTitle, { color: colors.text }]}>Adicionar produto ou serviço</Text>
-              <ScrollView style={{ maxHeight: 280 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginBottom: 8, marginTop: 4 }}>PRODUTOS</Text>
-                {(products || []).map((p) => (
+              <View style={[s.filterRow, { borderColor: colors.border, backgroundColor: colors.bg }]}>
+                {[
+                  { id: 'produtos', label: 'Produtos' },
+                  { id: 'servicos', label: 'Serviços' },
+                ].map((tab) => (
                   <TouchableOpacity
-                    key={'p-' + p.id}
+                    key={tab.id}
+                    style={[s.filterBtn, itemPickerTab === tab.id && { backgroundColor: colors.primary }]}
+                    onPress={() => { playTapSound(); setItemPickerTab(tab.id); }}
+                  >
+                    <Text style={{ color: itemPickerTab === tab.id ? '#fff' : colors.text, fontWeight: '700', fontSize: 12 }}>{tab.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[s.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text, marginBottom: 10 }]}
+                placeholder="Digite para filtrar (auto-sugestão)"
+                placeholderTextColor={colors.textSecondary}
+                value={itemPickerQuery}
+                onChangeText={setItemPickerQuery}
+              />
+              <ScrollView style={{ maxHeight: ITEM_PICKER_MAX_HEIGHT - 170 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {pickerItemsFiltered.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
                     style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}
                     onPress={() => {
                       playTapSound();
-                      setPreOrderItems((prev) => [...prev, { id: 'p-' + p.id, name: p.name, price: p.price || 0, qty: 1, discount: 0, isProduct: true }]);
+                      setPreOrderItems((prev) => [...prev, {
+                        id: item.source === 'produto' ? item.id : item.id + '-' + String(item.price || 0).replace('.', '_'),
+                        name: item.name,
+                        price: item.price || 0,
+                        qty: 1,
+                        discount: 0,
+                        isProduct: item.source === 'produto',
+                      }]);
                       setShowItemPicker(false);
+                      setItemPickerQuery('');
                     }}
                   >
-                    {p.photoUri ? (
-                      <Image source={{ uri: p.photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
-                    ) : (
-                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="cube-outline" size={22} color={colors.primary} />
-                      </View>
-                    )}
-                    <Text style={{ color: colors.text, flex: 1 }}>{p.name} — R$ {(p.price || 0).toFixed(2)}</Text>
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name={item.source === 'produto' ? 'cube-outline' : 'construct-outline'} size={22} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '600' }}>{item.name}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                        {item.source === 'produto' ? 'Produto' : 'Serviço'} — R$ {(item.price || 0).toFixed(2).replace('.', ',')}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginBottom: 8, marginTop: 12 }}>SERVIÇOS</Text>
-                {(services || []).map((s) => (
-                  <TouchableOpacity
-                    key={'s-' + s.id}
-                    style={[s.pickerItem, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}
-                    onPress={() => {
-                      playTapSound();
-                      setPreOrderItems((prev) => [...prev, { id: 's-' + s.id + '-' + String(s.price || 0).replace('.', '_'), name: s.name, price: s.price || 0, qty: 1, discount: 0, isProduct: false }]);
-                      setShowItemPicker(false);
-                    }}
-                  >
-                    {s.photoUri ? (
-                      <Image source={{ uri: s.photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
-                    ) : (
-                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="construct-outline" size={22} color={colors.primary} />
-                      </View>
-                    )}
-                    <Text style={{ color: colors.text, flex: 1 }}>{s.name} — R$ {(s.price || 0).toFixed(2)}</Text>
-                  </TouchableOpacity>
-                ))}
-                {(!products || products.length === 0) && (!services || services.length === 0) && (
-                  <Text style={{ color: colors.textSecondary, paddingVertical: 16, textAlign: 'center' }}>Cadastre produtos e serviços primeiro</Text>
+                {pickerItemsFiltered.length === 0 && (
+                  <Text style={{ color: colors.textSecondary, paddingVertical: 16, textAlign: 'center' }}>
+                    {mergedItems.length === 0 ? 'Cadastre produtos e serviços primeiro' : 'Nenhum item encontrado para esse filtro'}
+                  </Text>
                 )}
               </ScrollView>
-            </View>
+            </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
       )}
@@ -709,6 +688,9 @@ const s = StyleSheet.create({
   confirmBtn: { borderRadius: RADIUS, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
   confirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   pickerCard: { width: '100%', maxWidth: 340, borderRadius: 20, padding: GAP, borderWidth: 1 },
+  itemPickerCard: { width: '100%', maxWidth: ITEM_PICKER_MAX_WIDTH, maxHeight: ITEM_PICKER_MAX_HEIGHT, borderRadius: 20, padding: GAP, borderWidth: 1 },
   pickerTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
   pickerItem: { paddingVertical: 14, paddingHorizontal: 16, marginBottom: 8, borderRadius: 12, borderBottomWidth: 0, backgroundColor: 'transparent' },
+  filterRow: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, padding: 4, marginBottom: 10, gap: 6 },
+  filterBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8 },
 });

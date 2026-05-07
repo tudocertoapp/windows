@@ -170,6 +170,31 @@ export function DashboardScreen() {
   );
   const { banks, cards, addToBank, deductFromBank, addToCardBalance, deductFromCardBalance, getBankById } = useBanks();
   const { colors, themeMode } = useTheme();
+  const isDarkTheme = themeMode === 'dark' || colors?.isDarkBg;
+  const quickRowTheme = useMemo(
+    () => (isDarkTheme
+      ? {
+          shellBg: 'rgba(9,9,11,0.6)',
+          shellBorder: 'rgba(82,82,91,0.5)',
+          btnBg: 'rgba(24,24,27,0.92)',
+          btnBorder: 'rgba(82,82,91,0.95)',
+          chipBorder: '#3f3f46',
+          chipText: '#a1a1aa',
+          icon: '#d4d4d8',
+          text: '#e4e4e7',
+        }
+      : {
+          shellBg: 'rgba(255,255,255,0.86)',
+          shellBorder: 'rgba(148,163,184,0.5)',
+          btnBg: 'rgba(248,250,252,0.96)',
+          btnBorder: 'rgba(148,163,184,0.65)',
+          chipBorder: '#cbd5e1',
+          chipText: '#64748b',
+          icon: '#334155',
+          text: '#1f2937',
+        }),
+    [isDarkTheme]
+  );
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
   const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
@@ -1295,19 +1320,38 @@ export function DashboardScreen() {
           style={[ds.card, { padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }]}
           contentStyle={{ padding: WEB_CARD_PADDING, flex: 1, minHeight: 0 }}
         >
-          <View style={{ marginBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, gap: 8 }}>
+          <View style={{ marginBottom: 2 }}>
+            <View style={{ position: 'relative', minHeight: CARD_ACTION_SIZE, justifyContent: 'center', marginBottom: 2 }}>
+              <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '45%' }}>
                 <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                   <AppIcon name="calendar-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                    Agenda
-                  </Text>
-                </View>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  Agenda
+                </Text>
               </View>
-              <View style={cardHeaderActionsStyle}>
+              <View style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', minWidth: 0, maxWidth: '40%' }}>
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
+                  activeOpacity={0.85}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    paddingVertical: 3,
+                    paddingHorizontal: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: colors.border + '80',
+                    backgroundColor: colors.card,
+                    maxWidth: '100%',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
+                  <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <View style={[cardHeaderActionsStyle, { position: 'absolute', right: 0, top: 0, bottom: 0, justifyContent: 'flex-end', flexShrink: 0 }]}>
                 <TouchableOpacity
                   onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setAgendaCardDate(new Date()); }}
                   style={[
@@ -1333,30 +1377,9 @@ export function DashboardScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={{ width: '100%', alignItems: 'center', marginBottom: 6 }}>
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(true); }}
-                activeOpacity={0.85}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 4,
-                  paddingVertical: 3,
-                  paddingHorizontal: 8,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: colors.border + '80',
-                  backgroundColor: colors.card,
-                  maxWidth: '100%',
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }} numberOfLines={1}>{agendaMonthLabel}</Text>
-                <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
           </View>
 
-          <View style={{ marginBottom: 6, overflow: 'visible', paddingRight: 8, paddingLeft: 8 }}>
+          <View style={{ marginBottom: 2, overflow: 'visible', paddingRight: 8, paddingLeft: 8 }}>
             {(() => {
               // Mesmo padrão visual da AgendaScreen desktop: letra em cima e círculo no dia selecionado.
               const days = agendaCardWeek;
@@ -1539,7 +1562,7 @@ export function DashboardScreen() {
             const nowTop = (nowMinutes / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
             return (
               <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border + '80', overflow: 'hidden', backgroundColor: colors.bg }}>
-                <View style={{ padding: 12 }}>
+                <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 }}>
                   {/* Agenda (timeline) */}
                   <View style={{ position: 'relative' }}>
                   <ScrollView
@@ -2251,7 +2274,7 @@ export function DashboardScreen() {
                     ds.quoteText,
                     {
                       color: colors.text,
-                      fontSize: useWebLayout ? scaleWebDesktop(9, true) : ds.quoteText.fontSize,
+                      fontSize: useWebLayout ? scaleWebDesktop(11, true) : ds.quoteText.fontSize,
                       fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight,
                       textAlign: 'center',
                       width: '100%',
@@ -2280,7 +2303,7 @@ export function DashboardScreen() {
             ) : (
               <View style={{ flex: useWebLayout ? 1 : undefined, minHeight: 0, justifyContent: 'center' }}>
                 <Text
-                  style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 11 : ds.quoteText.fontSize, fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? 17 : ds.quoteText.lineHeight }]}
+                  style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 13 : ds.quoteText.fontSize, fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? 20 : ds.quoteText.lineHeight }]}
                   numberOfLines={useWebLayout ? 2 : 3}
                 >
                   "{quoteBody}"
@@ -3298,58 +3321,7 @@ export function DashboardScreen() {
                 </View>
               );
             })()}
-            {useWebLayout && showEmpresaFeatures ? (
-              <View style={{ width: '100%' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
-                  {webDesktopQuickButtons.map((item, index) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => { playTapSound(); item.onPress?.(); }}
-                      activeOpacity={0.85}
-                      accessibilityLabel={`${item.label} (F${index + 1})`}
-                      style={{
-                        flex: 1,
-                        flexBasis: 0,
-                        minWidth: 0,
-                        height: scaleWebDesktop(36, true),
-                        paddingVertical: 7,
-                        paddingHorizontal: 10,
-                        borderRadius: 14,
-                        borderWidth: 1,
-                        borderColor: item.color + '55',
-                        backgroundColor: item.color + '16',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        position: 'relative',
-                      }}
-                    >
-                      <View
-                        pointerEvents="none"
-                        style={{
-                          position: 'absolute',
-                          top: -5,
-                          right: 6,
-                          borderRadius: 7,
-                          paddingHorizontal: 6,
-                          paddingVertical: 1,
-                          backgroundColor: colors.bg,
-                          borderWidth: 1,
-                          borderColor: item.color,
-                        }}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: item.color }}>{`F${index + 1}`}</Text>
-                      </View>
-                      <AppIcon name={item.icon} size={16} color={item.color} />
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: item.color, textAlign: 'center' }} numberOfLines={1}>
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ) : null}
+            {null}
             {(() => {
               const hasAgenda = webSectionTail.includes('agenda');
               if (!hasAgenda) return null;
@@ -3526,8 +3498,81 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
         )}
-        <View style={{ height: isWebMobile ? 140 : 100 }} />
+        <View style={{ height: Platform.OS === 'web' ? 170 : (isWebMobile ? 140 : 100) }} />
       </ScrollView>
+      {Platform.OS === 'web' && webDesktopQuickButtons.length > 0 ? (
+        <View
+          pointerEvents="auto"
+          style={{
+            ...(Platform.OS === 'web'
+              ? { position: 'fixed', left: '6%', right: '6%', bottom: 8 }
+              : { position: 'absolute', left: WEB_DESKTOP_PAGE_PAD, right: WEB_DESKTOP_PAGE_PAD, bottom: 10 }),
+            zIndex: 9999,
+          }}
+        >
+          <View
+            style={{
+              width: '100%',
+              flexDirection: 'row',
+              alignItems: 'stretch',
+              gap: WEB_DESKTOP_ROW_GAP,
+              backgroundColor: quickRowTheme.shellBg,
+              borderWidth: 1,
+              borderColor: quickRowTheme.shellBorder,
+              borderRadius: 16,
+              paddingHorizontal: 6,
+              paddingVertical: 6,
+            }}
+          >
+            {webDesktopQuickButtons.map((item, index) => (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => { playTapSound(); item.onPress?.(); }}
+                activeOpacity={0.85}
+                accessibilityLabel={`${item.label} (F${index + 1})`}
+                style={{
+                  flex: 1,
+                  flexBasis: 0,
+                  minWidth: 0,
+                  height: scaleWebDesktop(36, true),
+                  paddingVertical: 7,
+                  paddingHorizontal: 8,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: quickRowTheme.btnBorder,
+                  backgroundColor: quickRowTheme.btnBg,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  position: 'relative',
+                }}
+              >
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    top: -5,
+                    right: 6,
+                    borderRadius: 7,
+                    paddingHorizontal: 6,
+                    paddingVertical: 1,
+                    backgroundColor: colors.bg,
+                    borderWidth: 1,
+                    borderColor: quickRowTheme.chipBorder,
+                  }}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: '800', color: quickRowTheme.chipText }}>{`F${index + 1}`}</Text>
+                </View>
+                <AppIcon name={item.icon} size={16} color={quickRowTheme.icon} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: quickRowTheme.text, textAlign: 'center', flexShrink: 1 }} numberOfLines={1}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
       <CardPickerModal
         visible={showCardPicker}
         onClose={() => setShowCardPicker(false)}

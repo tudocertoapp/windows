@@ -384,6 +384,7 @@ export function DinheiroScreen({ route }) {
           onToggleValues={() => { playTapSound(); toggleValues(); }}
           stackBoxes
           noMargins={useWebLayout}
+          compact={useWebLayout}
         />
       </View>
     ),
@@ -399,6 +400,7 @@ export function DinheiroScreen({ route }) {
           colors={colors}
           lightBackground={themeMode === 'light'}
           noMargins={useWebLayout}
+          compact={useWebLayout}
           onOpenFaturas={() => openCadastro?.('boletos')}
           onAddFatura={() => openCadastro?.('boletos')}
           playTapSound={playTapSound}

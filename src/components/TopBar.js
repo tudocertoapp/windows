@@ -240,9 +240,9 @@ export function TopBar({
         <Text
           style={{
             color: colors.text,
-            fontSize: scaleWebDesktop(13, true),
+            fontSize: scaleWebDesktop(15, true),
             fontWeight: '600',
-            lineHeight: scaleWebDesktop(18, true),
+            lineHeight: scaleWebDesktop(21, true),
             textAlign: 'center',
           }}
           numberOfLines={2}
@@ -292,7 +292,7 @@ export function TopBar({
                   </Text>
                   {isWebDesktop && unifiedDeferTitles ? (
                     <Text
-                      style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(13, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: 18, marginTop: 4 }}
+                      style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(15, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: isWebDesktop ? scaleWebDesktop(21, true) : 18, marginTop: 4 }}
                       numberOfLines={2}
                     >
                       {homePrompt}

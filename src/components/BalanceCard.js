@@ -61,11 +61,14 @@ export function BalanceCard({
   stackBoxes,
   /** Remove margens externas (ex.: linha 50/50 no web desktop). */
   noMargins,
+  /** Layout mais compacto para cards altos em desktop. */
+  compact,
 }) {
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
   const accent = iconColor || colors.primary;
   const btnColor = colors.primary;
+  const compactMode = !!compact;
   const hasFilter = !!filter;
   const isPeriodo = filter === 'periodo';
   const [showPeriodModal, setShowPeriodModal] = useState(false);
@@ -87,7 +90,7 @@ export function BalanceCard({
         noMargins && { marginHorizontal: 0, marginTop: 0 },
         noMargins && { flex: 1, minHeight: 0 },
       ]}
-      contentStyle={{ padding: 20, ...(noMargins ? { flex: 1, minHeight: 0 } : null) }}
+      contentStyle={{ padding: compactMode ? 14 : 20, ...(noMargins ? { flex: 1, minHeight: 0 } : null) }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, flexShrink: 1, minWidth: 0 }}>
@@ -99,16 +102,16 @@ export function BalanceCard({
           </TouchableOpacity>
         )}
       </View>
-      <View style={{ marginTop: -4, marginBottom: 8 }}>
-        <Text style={[ds.balanceAmount, { color: colors.text, fontSize: 24 }]}>{m(fmt(balance))}</Text>
+      <View style={{ marginTop: compactMode ? -8 : -4, marginBottom: compactMode ? 4 : 8 }}>
+        <Text style={[ds.balanceAmount, { color: colors.text, fontSize: compactMode ? 20 : 24 }]}>{m(fmt(balance))}</Text>
       </View>
       {hasFilter && (
         <>
-          <View style={ds.filterRow}>
+          <View style={[ds.filterRow, compactMode && { marginTop: 8 }]}>
             {['dia', 'mes', 'ano', 'periodo'].map((f) => (
               <TouchableOpacity
                 key={f}
-                style={[ds.filterTab, { backgroundColor: filter === f ? btnColor + '40' : btnColor + '20' }]}
+                style={[ds.filterTab, compactMode && { paddingVertical: 6 }, { backgroundColor: filter === f ? btnColor + '40' : btnColor + '20' }]}
                 onPress={() => { playTapSound(); onFilterChange?.(f); }}
               >
                 <Text style={[ds.filterTabText, { color: colors.text }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
@@ -121,28 +124,28 @@ export function BalanceCard({
               <Text style={{ fontSize: 11, color: colors.textSecondary }}>Toque para alterar</Text>
             </TouchableOpacity>
           ) : (
-            <View style={ds.navRow}>
-              <TouchableOpacity onPress={() => { playTapSound(); onFilterDatePrev?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+            <View style={[ds.navRow, compactMode && { marginTop: 6 }]}>
+              <TouchableOpacity onPress={() => { playTapSound(); onFilterDatePrev?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
                 <Ionicons name="chevron-back" size={18} color={colors.text} />
               </TouchableOpacity>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>{filterLabel}</Text>
-              <TouchableOpacity onPress={() => { playTapSound(); onFilterDateNext?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+              <Text style={{ fontSize: compactMode ? 12 : 13, fontWeight: '600', color: colors.text }}>{filterLabel}</Text>
+              <TouchableOpacity onPress={() => { playTapSound(); onFilterDateNext?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
                 <Ionicons name="chevron-forward" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
           )}
         </>
       )}
-      <View style={[ds.balanceRow, stackBoxes && { flexDirection: 'column' }]}>
-        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
+      <View style={[ds.balanceRow, compactMode && { marginTop: 10 }, stackBoxes && { flexDirection: 'column' }]}>
+        <View style={[ds.balanceBox, compactMode && { paddingVertical: 8, paddingHorizontal: 10 }, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>ENTRADA</Text>
           <Text style={[ds.boxValue, { color: colors.text }]}>+ {m(fmt(income))}</Text>
         </View>
-        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
+        <View style={[ds.balanceBox, compactMode && { paddingVertical: 8, paddingHorizontal: 10 }, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>SAÍDA</Text>
           <Text style={[ds.boxValue, { color: colors.expense || '#dc2626' }]}>- {m(fmt(expense))}</Text>
         </View>
-        <View style={[ds.balanceBox, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
+        <View style={[ds.balanceBox, compactMode && { paddingVertical: 8, paddingHorizontal: 10 }, { backgroundColor: colors.primaryRgba?.(0.12) }, stackBoxes && { width: '100%', minWidth: undefined }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary }]}>SALDO</Text>
           <Text style={[ds.boxValue, { color: balance >= 0 ? accent : '#dc2626' }]}>{m(fmt(balance))}</Text>
         </View>

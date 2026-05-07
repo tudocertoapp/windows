@@ -64,6 +64,8 @@ export function ContasDoMesCard({
   noMargins,
   /** Web desktop Início: cabeçalho como os outros cards (ícone + botões; título na linha de baixo). */
   dashboardWebHeader,
+  /** Layout mais compacto para reduzir altura visual dos cards. */
+  compact,
 }) {
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [tempStart, setTempStart] = useState(filterStartDate || formatDateStr(new Date(new Date().getFullYear(), 0, 1)));
@@ -85,7 +87,8 @@ export function ContasDoMesCard({
   const vencidas = contasVencidas || { qty: 0, valor: 0 };
   const totalContas = pagas.qty + aVencer.qty + vencidas.qty;
   const webDesk = !!dashboardWebHeader;
-  const cardPad = webDesk ? scaleWebDesktop(12, true) : 20;
+  const compactMode = !!compact;
+  const cardPad = compactMode ? 12 : (webDesk ? scaleWebDesktop(12, true) : 20);
   const headerIconBox = webDesk ? scaleWebDesktop(40, true) : 48;
   const headerIconSize = webDesk ? scaleWebDesktop(22, true) : 26;
   const actionBtnSize = webDesk ? scaleWebDesktop(26, true) : 40;
@@ -186,11 +189,11 @@ export function ContasDoMesCard({
       )}
       {hasFilter && (
         <>
-          <View style={ds.filterRow}>
+          <View style={[ds.filterRow, compactMode && { marginTop: 8, marginBottom: 6 }]}>
             {['dia', 'mes', 'ano', 'periodo'].map((f) => (
               <TouchableOpacity
                 key={f}
-                style={[ds.filterTab, { backgroundColor: filter === f ? btnColor + '40' : btnColor + '20' }]}
+                style={[ds.filterTab, compactMode && { paddingVertical: 6 }, { backgroundColor: filter === f ? btnColor + '40' : btnColor + '20' }]}
                 onPress={() => { tap(); onFilterChange?.(f); }}
               >
                 <Text style={[ds.filterTabText, { color: colors?.text }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
@@ -203,12 +206,12 @@ export function ContasDoMesCard({
               <Text style={{ fontSize: webDesk ? scaleWebDesktop(11, true) : 11, color: colors?.textSecondary, marginTop: 2 }}>Toque para alterar</Text>
             </TouchableOpacity>
           ) : (
-            <View style={ds.navRow}>
-              <TouchableOpacity onPress={() => { tap(); onFilterDatePrev?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+            <View style={[ds.navRow, compactMode && { marginTop: 6, marginBottom: 6 }]}>
+              <TouchableOpacity onPress={() => { tap(); onFilterDatePrev?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
                 <Ionicons name="chevron-back" size={chevronSz} color={colors?.text} />
               </TouchableOpacity>
               <Text style={{ fontSize: navMidFs, fontWeight: '600', color: colors?.text }}>{filterLabel}</Text>
-              <TouchableOpacity onPress={() => { tap(); onFilterDateNext?.(); }} style={{ padding: 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+              <TouchableOpacity onPress={() => { tap(); onFilterDateNext?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
                 <Ionicons name="chevron-forward" size={chevronSz} color={colors?.text} />
               </TouchableOpacity>
             </View>
@@ -216,24 +219,24 @@ export function ContasDoMesCard({
         </>
       )}
       {headerActions ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: webDesk ? 6 : 8, marginBottom: 12, width: '100%' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: webDesk ? 6 : 8, marginBottom: compactMode ? 8 : 12, width: '100%' }}>
           {headerActions}
         </View>
       ) : null}
-      <View style={[ds.row, { marginTop: webDesk ? 8 : 12 }]}>
-        <View style={[ds.box, { minWidth: '100%', marginBottom: 4, backgroundColor: colors.primaryRgba?.(0.12), padding: webDesk ? scaleWebDesktop(10, true) : 12 }]}>
+      <View style={[ds.row, { marginTop: compactMode ? 6 : (webDesk ? 8 : 12), gap: compactMode ? 8 : 12 }]}>
+        <View style={[ds.box, { minWidth: '100%', marginBottom: compactMode ? 2 : 4, backgroundColor: colors.primaryRgba?.(0.12), padding: compactMode ? 9 : (webDesk ? scaleWebDesktop(10, true) : 12) }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary, fontSize: boxLabelFs }]}>TOTAL</Text>
           <Text style={[ds.boxValue, { color: colors.text, fontSize: boxValueFs }]}>{totalContas} {totalContas === 1 ? 'conta' : 'contas'}</Text>
         </View>
-        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12), padding: webDesk ? scaleWebDesktop(10, true) : 12 }]}>
+        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12), padding: compactMode ? 9 : (webDesk ? scaleWebDesktop(10, true) : 12) }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary, fontSize: boxLabelFs }]}>PAGAS</Text>
           <Text style={[ds.boxValue, { color: colors.text, fontSize: boxValueFs }]}>{pagas.qty} · {m(fmt(pagas.valor))}</Text>
         </View>
-        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12), padding: webDesk ? scaleWebDesktop(10, true) : 12 }]}>
+        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12), padding: compactMode ? 9 : (webDesk ? scaleWebDesktop(10, true) : 12) }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary, fontSize: boxLabelFs }]}>A VENCER</Text>
           <Text style={[ds.boxValue, { color: colors.text, fontSize: boxValueFs }]}>{aVencer.qty} · {m(fmt(aVencer.valor))}</Text>
         </View>
-        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12), padding: webDesk ? scaleWebDesktop(10, true) : 12 }]}>
+        <View style={[ds.box, { backgroundColor: colors.primaryRgba?.(0.12), padding: compactMode ? 9 : (webDesk ? scaleWebDesktop(10, true) : 12) }]}>
           <Text style={[ds.boxLabel, { color: colors.textSecondary, fontSize: boxLabelFs }]}>VENCIDAS</Text>
           <Text style={[ds.boxValue, { color: lightBackground ? '#dc2626' : '#fecaca', fontSize: boxValueFs }]}>{vencidas.qty} · {m(fmt(vencidas.valor))}</Text>
         </View>

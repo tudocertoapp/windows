@@ -56,13 +56,13 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
     opacity.value = withTiming(isFocused ? 1 : 0.85, { duration: 200 });
   }, [isFocused, scale, opacity]);
 
-  const color = isFocused ? primaryColor : inactiveColor;
+  const color = isFocused ? '#e4e4e7' : '#a1a1aa';
   const IconElement = icon;
 
   const tabInner = (
     <View style={[styles.tabContent, isFocused && styles.tabContentActive]}>
       {isFocused && (
-        <View style={[styles.activeIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)' }]} />
+        <View style={[styles.activeIndicator, { backgroundColor: 'rgba(24,24,27,0.95)' }]} />
       )}
       <View style={[styles.iconWrap, !showLabel && styles.iconWrapOnly]}>
         {IconElement || <Ionicons name={iconName} size={24} color={color} />}
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     // Android: manter visível para o botão "+" flutuante não ser recortado.
     overflow: 'visible',
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(9,9,11,0.96)',
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }
       : {
@@ -253,11 +253,11 @@ const styles = StyleSheet.create({
   },
   glassLight: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: '#27272a',
   },
   glassDark: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: '#27272a',
   },
   glassInner: {
     ...StyleSheet.absoluteFillObject,
@@ -265,19 +265,19 @@ const styles = StyleSheet.create({
     borderRadius: 26,
   },
   webFallback: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(9,9,11,0.96)',
   },
   webFallbackDark: {
-    backgroundColor: 'rgba(30,41,59,0.9)',
+    backgroundColor: 'rgba(9,9,11,0.96)',
   },
   overlay: {
     zIndex: 1,
   },
   overlayLight: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'transparent',
   },
   overlayDark: {
-    backgroundColor: 'rgba(17,24,39,0.25)',
+    backgroundColor: 'transparent',
   },
   borderWrap: {
     zIndex: 2,
@@ -285,10 +285,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
   },
   borderLight: {
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: '#27272a',
   },
   borderDark: {
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: '#27272a',
   },
   tabsRow: {
     flexDirection: 'row',
@@ -311,6 +311,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 16,
     position: 'relative',
+    backgroundColor: 'rgba(9,9,11,0.96)',
+    borderWidth: 1,
+    borderColor: '#27272a',
   },
   tabContentActive: {
     minWidth: 64,
@@ -341,6 +344,9 @@ const styles = StyleSheet.create({
     marginTop: Platform.OS === 'web' ? -32 : -26,
   },
   addButton: {
+    backgroundColor: 'rgba(9,9,11,0.96)',
+    borderWidth: 1,
+    borderColor: '#27272a',
     width: 56,
     height: 56,
     borderRadius: 28,
