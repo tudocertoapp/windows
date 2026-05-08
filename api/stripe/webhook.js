@@ -47,6 +47,7 @@ export default async function handler(request) {
         const session = event.data.object;
         if (session.mode !== 'subscription') break;
         const userId = session.metadata?.user_id;
+        const planId = session.metadata?.plan;
         if (!userId) break;
         const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
         const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
@@ -61,7 +62,7 @@ export default async function handler(request) {
             stripe_customer_id: customerId,
             stripe_subscription_id: subId,
             price_id: priceId,
-            plan: 'business',
+            plan: planId || 'pe_business',
             status: 'ativo',
           },
           { onConflict: 'user_id' }

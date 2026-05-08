@@ -149,7 +149,8 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
   const [customHex, setCustomHex] = useState('#10b981');
   const [customName, setCustomName] = useState('');
 
-  const freeColors = FREE_COLORS;
+  const freeColors = FREE_COLORS.filter((c) => ['blue', 'green'].includes(c.id));
+  const freeBgThemes = BACKGROUND_COLORS.slice(0, 3);
 
   useEffect(() => {
     if (showCreateColor) {
@@ -258,7 +259,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
               <Text style={[ts.rowLabel, { color: colors.text }]}>Escolha seu tema</Text>
             </View>
             <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16 }]}>
-              {BACKGROUND_COLORS.map((item) => {
+              {freeBgThemes.map((item) => {
                 const sel = customBgColor && customBgColor.toLowerCase() === item.hex.toLowerCase();
                 const r = parseInt(item.hex.slice(1, 3), 16);
                 const g = parseInt(item.hex.slice(3, 5), 16);
@@ -336,7 +337,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
               </TouchableOpacity>
             ))}
             <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12 }]}>
-              {primaryOptions.map((item) => {
+              {primaryOptions.filter((item) => ['blue', 'green'].includes(item.id)).map((item) => {
                 const sel = primaryColor.toLowerCase() === item.hex.toLowerCase();
                 const locked = !freeColors.some((f) => f.id === item.id) && !hasPremiumColors;
                 const r = parseInt(item.hex.slice(1, 3), 16);

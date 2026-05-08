@@ -100,7 +100,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   const [boletosFiltroMesAno, setBoletosFiltroMesAno] = useState(true);
 
   const { colors } = useTheme();
-  const { showEmpresaFeatures } = usePlan();
+  const { showEmpresaFeatures, planFeatures, planLabel } = usePlan();
   const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
 
   useEffect(() => {
@@ -156,6 +156,11 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   const { addProduct, updateProduct } = useFinance();
 
   const handleProductSave = (data) => {
+    const maxProducts = planFeatures?.maxProducts;
+    if (!editingItem && Number.isFinite(maxProducts) && (items?.length || 0) >= maxProducts) {
+      Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxProducts} produtos.`);
+      return;
+    }
     if (data?._skipAdd) {
       setShowForm(false);
       setEditingItem(null);
@@ -187,6 +192,11 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   };
 
   const handleServicoSave = (data) => {
+    const maxServices = planFeatures?.maxServices;
+    if (!editingItem && Number.isFinite(maxServices) && (items?.length || 0) >= maxServices) {
+      Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxServices} serviços.`);
+      return;
+    }
     if (editingItem) update(editingItem.id, data);
     else add(data);
     setShowForm(false);
@@ -202,6 +212,46 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
 
   const handleSave = () => {
     if (section === 'produtos') return;
+    if (section === 'clientes' && !editingItem) {
+      const maxBirthdays = planFeatures?.maxBirthdays;
+      const newBirthDate = (formData.birthDate || '').trim();
+      if (Number.isFinite(maxBirthdays) && newBirthDate) {
+        const currentWithBirthday = (items || []).filter((c) => String(c.birthDate || '').trim()).length;
+        if (currentWithBirthday >= maxBirthdays) {
+          return Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxBirthdays} aniversariantes.`);
+        }
+      }
+    }
+    if (section === 'tarefas' && !editingItem) {
+      const maxTasksPerMonth = planFeatures?.maxTasksPerMonth;
+      if (Number.isFinite(maxTasksPerMonth)) {
+        const dateStr = (formData.date || todayStr()).trim();
+        const [, mm, yyyy] = dateStr.split('/');
+        const monthlyCount = (items || []).filter((t) => {
+          const parts = String(t.date || '').split('/');
+          return parts[1] === mm && parts[2] === yyyy;
+        }).length;
+        if (monthlyCount >= maxTasksPerMonth) {
+          return Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxTasksPerMonth} tarefas por mês.`);
+        }
+      }
+    }
+    if (section === 'boletos' && !editingItem) {
+      const maxBoletosPerMonth = planFeatures?.maxBoletosPerMonth;
+      if (Number.isFinite(maxBoletosPerMonth)) {
+        const dueDate = (formData.dueDate || '').trim();
+        const [, mm, yyyy] = dueDate.split('/');
+        if (mm && yyyy) {
+          const monthlyCount = (items || []).filter((b) => {
+            const parts = String(b.dueDate || '').split('/');
+            return parts[1] === mm && parts[2] === yyyy;
+          }).length;
+          if (monthlyCount >= maxBoletosPerMonth) {
+            return Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxBoletosPerMonth} faturas por mês.`);
+          }
+        }
+      }
+    }
     const entry = {};
     fields.forEach((f) => (entry[f] = (formData[f] || '').trim()));
     const required = section === 'tarefas' ? 'title' : fields[0];
@@ -253,6 +303,20 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   };
 
   const openAdd = () => {
+    if (section === 'produtos') {
+      const maxProducts = planFeatures?.maxProducts;
+      if (Number.isFinite(maxProducts) && (items?.length || 0) >= maxProducts) {
+        Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxProducts} produtos.`);
+        return;
+      }
+    }
+    if (section === 'servicos') {
+      const maxServices = planFeatures?.maxServices;
+      if (Number.isFinite(maxServices) && (items?.length || 0) >= maxServices) {
+        Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxServices} serviços.`);
+        return;
+      }
+    }
     setEditingItem(null);
     setFormData(section === 'tarefas' ? { title: '', priority: 'media', date: todayStr(), showTime: false, timeStart: '', timeEnd: '', description: '', important: false } : {});
     setShowForm(true);

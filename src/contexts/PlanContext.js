@@ -2,11 +2,19 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { PLANS, PLAN_ID_TO_PLAN, PLAN_LABELS, PLAN_IDS_CUSTOM_COLORS } from '../constants/plans';
+import { getPlanFeatures } from '../constants/planFeatures';
 import { supabase } from '../lib/supabase';
-import { getUserSubscription, hasActiveBusinessSubscription } from '../lib/subscription';
+import { getUserSubscription, isPaidSubscriptionActive } from '../lib/subscription';
 
 const PLAN_STORAGE_BASE = '@tudocerto_plan';
 const DEFAULT_PLAN_ID = 'pessoal';
+
+function fallbackFreePlanId(currentPlanId) {
+  const tier = PLAN_ID_TO_PLAN[currentPlanId] || PLANS.pessoal;
+  if (tier === PLANS.empresa) return 'emp_free';
+  if (tier === PLANS.pessoal_empresa) return 'pe_free';
+  return 'pessoal';
+}
 
 export { PLANS };
 
@@ -29,16 +37,20 @@ export function PlanProvider({ children }) {
         if (raw) {
           const data = JSON.parse(raw);
           if (data.planId && PLAN_ID_TO_PLAN[data.planId]) setPlanId(data.planId);
-          else if (data.plan && data.plan === PLANS.pessoal_empresa) setPlanId('pe_starter');
-          else if (data.plan && data.plan === PLANS.empresa) setPlanId('emp_small');
+          else if (data.plan && data.plan === PLANS.pessoal_empresa) setPlanId('pe_free');
+          else if (data.plan && data.plan === PLANS.empresa) setPlanId('emp_free');
           if (data.viewMode) setViewMode(data.viewMode);
         }
         if (user?.id) {
           const sub = await getUserSubscription(supabase, user.id);
-          if (hasActiveBusinessSubscription(sub)) {
-            setPlanId('pe_business');
+          if (isPaidSubscriptionActive(sub) && sub?.plan && PLAN_ID_TO_PLAN[sub.plan]) {
+            setPlanId(sub.plan);
           } else {
-            setPlanId((prev) => (prev === 'pe_business' ? 'pessoal' : prev));
+            setPlanId((prev) => {
+              if (!prev) return 'pessoal';
+              const isPaid = !['pessoal', 'pessoal_free', 'pe_free', 'emp_free'].includes(prev);
+              return isPaid ? fallbackFreePlanId(prev) : prev;
+            });
           }
         }
       } catch (_) {}
@@ -60,6 +72,7 @@ export function PlanProvider({ children }) {
   const canToggleView = isEmpresa;
   const planLabel = PLAN_LABELS[planId] || PLAN_LABELS.pessoal;
   const canUseCustomColors = PLAN_IDS_CUSTOM_COLORS.includes(planId);
+  const planFeatures = getPlanFeatures(planId);
 
   return (
     <PlanContext.Provider
@@ -69,8 +82,8 @@ export function PlanProvider({ children }) {
         plan,
         setPlan: (p) => {
           if (p === PLANS.pessoal) setPlanId('pessoal');
-          else if (p === PLANS.pessoal_empresa) setPlanId('pe_starter');
-          else if (p === PLANS.empresa) setPlanId('emp_small');
+          else if (p === PLANS.pessoal_empresa) setPlanId('pe_free');
+          else if (p === PLANS.empresa) setPlanId('emp_free');
         },
         viewMode,
         setViewMode,
@@ -79,6 +92,7 @@ export function PlanProvider({ children }) {
         canToggleView,
         planLabel,
         canUseCustomColors,
+        planFeatures,
         PLANS,
       }}
     >
@@ -104,6 +118,7 @@ export function usePlan() {
       canToggleView: false,
       planLabel: PLAN_LABELS.pessoal,
       canUseCustomColors: false,
+      planFeatures: getPlanFeatures(DEFAULT_PLAN_ID),
       PLANS,
     };
   }

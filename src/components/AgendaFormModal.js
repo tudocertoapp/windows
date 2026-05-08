@@ -55,8 +55,8 @@ function timeToMinutes(t) {
 
 export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, initialData, onOpenNewClient, onOpenNewService }) {
   const { colors } = useTheme();
-  const { clients, services, products, addAgendaEvent, updateAgendaEvent, deleteAgendaEvent } = useFinance();
-  const { showEmpresaFeatures } = usePlan();
+  const { clients, services, products, agendaEvents, addAgendaEvent, updateAgendaEvent, deleteAgendaEvent } = useFinance();
+  const { showEmpresaFeatures, planFeatures } = usePlan();
   const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const { openAddModal } = useMenu();
 
@@ -163,7 +163,20 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
   const isVendaEmpresa = tipo === 'empresa' && tipoAtendimento === 'venda';
   const totalAtendimento = isVendaEmpresa ? preOrderTotal : parseAmount();
 
+  const countAgendaThisMonth = () => {
+    const [dd, mm, yyyy] = String(date || '').split('/');
+    if (!mm || !yyyy) return 0;
+    return (agendaEvents || []).filter((ev) => {
+      if (isEdit && ev.id === editingEvent?.id) return false;
+      const parts = String(ev.date || '').split('/');
+      return parts[1] === mm && parts[2] === yyyy;
+    }).length;
+  };
+
   const handleConfirm = () => {
+    if (Number.isFinite(planFeatures?.maxAgendaPerMonth) && countAgendaThisMonth() >= planFeatures.maxAgendaPerMonth) {
+      return Alert.alert('Limite do plano', `Seu plano permite até ${planFeatures.maxAgendaPerMonth} agendamentos por mês.`);
+    }
     if (!date?.trim()) return Alert.alert('Erro', 'Informe a data.');
     if (tipo === 'pessoal' && !description?.trim()) return Alert.alert('Erro', 'Preencha a descrição do evento.');
     if (timeToMinutes(timeEnd) < timeToMinutes(timeStart)) {

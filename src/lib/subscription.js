@@ -46,10 +46,15 @@ export function hasActiveBusinessSubscription(sub) {
   return sub.plan === STRIPE_BUSINESS_PLAN_KEY && sub.status === 'ativo';
 }
 
+export function isPaidSubscriptionActive(sub) {
+  if (!sub) return false;
+  return sub.status === 'ativo' && !!sub.plan;
+}
+
 /**
  * POST /api/stripe/create-checkout-session + redirect Stripe Checkout (web).
  */
-export async function handleSubscribe(supabase) {
+export async function handleSubscribe(supabase, planId) {
   const origin = getApiOrigin();
   if (!origin) {
     throw new Error('Defina EXPO_PUBLIC_STRIPE_API_URL (ou EXPO_PUBLIC_SITE_URL com API ativa) para usar o checkout.');
@@ -65,6 +70,9 @@ export async function handleSubscribe(supabase) {
   if (!accessToken) {
     throw new Error('Sessão inválida. Entre novamente.');
   }
+  if (!planId) {
+    throw new Error('Plano inválido para checkout.');
+  }
 
   const endpoint = `${origin}/api/stripe/create-checkout-session`;
   const res = await fetch(endpoint, {
@@ -76,6 +84,7 @@ export async function handleSubscribe(supabase) {
     body: JSON.stringify({
       userId: user.id,
       email: user.email || '',
+      planId,
     }),
   });
 

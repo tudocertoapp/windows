@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotes } from '../contexts/NotesContext';
+import { usePlan } from '../contexts/PlanContext';
 import { topBarStyles } from '../components/TopBar';
 import { GlassCard } from '../components/GlassCard';
 import { playTapSound } from '../utils/sounds';
@@ -57,6 +58,7 @@ function formatDate(iso) {
 export function AnotacoesScreen({ onClose, isModal, initialEditNoteId, initialCreate }) {
   const { colors } = useTheme();
   const { notes, addNote, updateNote, deleteNote } = useNotes();
+  const { planFeatures, planLabel } = usePlan();
   const [modalNote, setModalNote] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -95,6 +97,26 @@ export function AnotacoesScreen({ onClose, isModal, initialEditNoteId, initialCr
   };
 
   const handleSave = () => {
+    if (!modalNote?.id) {
+      if (Number.isFinite(planFeatures?.maxNotesTotal) && notes.length >= planFeatures.maxNotesTotal) {
+        Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${planFeatures.maxNotesTotal} anotações.`);
+        return;
+      }
+      if (Number.isFinite(planFeatures?.notesPerDay) && planFeatures.notesPerDay > 0) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = today.getMonth();
+        const dd = today.getDate();
+        const createdToday = notes.filter((n) => {
+          const d = new Date(n.createdAt || n.updatedAt || Date.now());
+          return d.getFullYear() === yyyy && d.getMonth() === mm && d.getDate() === dd;
+        }).length;
+        if (createdToday >= planFeatures.notesPerDay) {
+          Alert.alert('Limite diário', `Seu plano ${planLabel} permite até ${planFeatures.notesPerDay} anotações por dia.`);
+          return;
+        }
+      }
+    }
     if (modalNote?.id) {
       updateNote(modalNote.id, { title: editTitle, content: editContent });
     } else {

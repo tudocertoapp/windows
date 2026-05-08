@@ -18,7 +18,7 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 
 export function MeusGastosScreen({ onClose, isModal = false }) {
   const { colors } = useTheme();
-  const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
+  const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, planFeatures } = usePlan();
   const { openCalculadoraFull, openMensagensWhatsApp } = useMenu();
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
@@ -57,20 +57,32 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         </View>
       )}
 
-      <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
-          Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
-        </Text>
-      </View>
-      {/* flex:1 + minHeight:0 + height:0 (web desktop): força o Yoga/CSS a limitar altura para a barra de input não ficar abaixo da viewport */}
-      <View
-        style={[
-          s.chatWrap,
-          useWebLayout && isWeb ? { height: 0, overflow: 'hidden' } : null,
-        ]}
-      >
-        <MeusGastosChat transparentBg={false} />
-      </View>
+      {!planFeatures?.canUseMeusGastos ? (
+        <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 8 }}>
+            Recurso disponível apenas nos planos pagos.
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+            Atualize seu plano para liberar o Meus Gastos.
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
+              Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
+            </Text>
+          </View>
+          <View
+            style={[
+              s.chatWrap,
+              useWebLayout && isWeb ? { height: 0, overflow: 'hidden' } : null,
+            ]}
+          >
+            <MeusGastosChat transparentBg={false} />
+          </View>
+        </>
+      )}
     </SafeAreaView>
   );
 }

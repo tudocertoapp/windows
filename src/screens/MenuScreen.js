@@ -36,7 +36,7 @@ const ms = StyleSheet.create({
 export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenPrivacidade, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, onOpenColaboradores, compact }) {
   const { clients, products, services, boletos, checkListItems, suppliers, collaborators } = useFinance();
   const { colors } = useTheme();
-  const { showEmpresaFeatures, planLabel, planId } = usePlan();
+  const { showEmpresaFeatures, planLabel, planId, planFeatures } = usePlan();
   const { signOut } = useAuth();
   const { profile } = useProfile();
   const [photoError, setPhotoError] = useState(false);
@@ -203,7 +203,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
               </TouchableOpacity>
               {empresaDropdownOpen && (
                 <>
-                  {isWeb && <MenuItem icon="cart-outline" label="Abrir Caixa" subtitle="Ponto de venda e vendas" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
+                  {isWeb && planFeatures?.canUsePDV && <MenuItem icon="cart-outline" label="Abrir Caixa" subtitle="Ponto de venda e vendas" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
                   <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads e mensagens" badge={`${clients.length}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenMensagensWhatsApp?.(); }} />
                   <MenuItem icon="document-text-outline" label="Ordem de serviço" subtitle="Cadastro e gestão de OS" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrdemServico?.(); }} />
                   <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />

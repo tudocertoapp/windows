@@ -1,12 +1,23 @@
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 
-const BUSINESS_PRICE_ID = 'price_1THoyFECYmuevOzFxkP44dmF';
+const PLAN_TO_PRICE_ID = {
+  pessoal_plus: 'price_1TUotKECYmuevOzFnccC3opK',
+  pessoal_premium: 'price_1TUotLECYmuevOzFkIvOgwSu',
+  pessoal_pro: 'price_1TUotMECYmuevOzFuRlRXeob',
+  pe_teste_real: 'price_1TUp1GECYmuevOzFzrVPhleL',
+  pe_starter: 'price_1TUotRECYmuevOzFWvrAiCik',
+  pe_pro: 'price_1TUotSECYmuevOzFupnpOqOJ',
+  pe_business: 'price_1TUotUECYmuevOzFX94TbtLm',
+  emp_small: 'price_1TUotNECYmuevOzFa44C1flC',
+  emp_medium: 'price_1TUotPECYmuevOzFXYhEBiGu',
+  emp_enterprise: 'price_1TUotQECYmuevOzFuC5OHj8m',
+};
 const FALLBACK_SUPABASE_URL = 'https://azvfiuvggppnulfepwbc.supabase.co';
 const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dmZpdXZnZ3BwbnVsZmVwd2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTc1OTUsImV4cCI6MjA4NTE5MzU5NX0.eZUbc2sveWDRCu_Nm6z0chP7T6-hqDJf7omatgiB2Pk';
 
 function getSiteUrl(req) {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.EXPO_PUBLIC_SITE_URL || process.env.SITE_URL;
   if (envUrl) return String(envUrl).replace(/\/$/, '');
   if (process.env.VERCEL_URL) return `https://${String(process.env.VERCEL_URL).replace(/\/$/, '')}`;
   const proto = req.headers['x-forwarded-proto'] || 'https';
@@ -76,9 +87,13 @@ module.exports = async function handler(req, res) {
     body = {};
   }
 
-  const { userId, email } = body;
-  if (!userId || !email) {
-    return res.status(400).json({ error: 'userId and email are required' });
+  const { userId, email, planId } = body;
+  if (!userId || !email || !planId) {
+    return res.status(400).json({ error: 'userId, email and planId are required' });
+  }
+  const selectedPriceId = PLAN_TO_PRICE_ID[planId];
+  if (!selectedPriceId) {
+    return res.status(400).json({ error: 'Plano inválido para checkout' });
   }
 
   const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -105,15 +120,15 @@ module.exports = async function handler(req, res) {
       mode: 'subscription',
       payment_method_types: ['card'],
       customer_email: String(email).trim(),
-      line_items: [{ price: BUSINESS_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: selectedPriceId, quantity: 1 }],
       metadata: {
         user_id: userId,
-        plan: 'business',
+        plan: planId,
       },
       subscription_data: {
         metadata: {
           user_id: userId,
-          plan: 'business',
+          plan: planId,
         },
       },
       success_url,
