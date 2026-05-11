@@ -1146,7 +1146,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       </View>
 
       {/* Barra inferior - Atalhos */}
-      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
+      <View style={[styles.footer, { backgroundColor: '#111827', borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#22c55e' }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
           <Ionicons name="add" size={22} color="#fff" />
           <Text style={styles.footerBtnText}>Item (F1)</Text>
@@ -1626,11 +1626,11 @@ const styles = StyleSheet.create({
   totalFinalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 12, marginTop: 12 },
   totalFinalLabel: { fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
   totalFinalVal: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1 },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1 },
   footerWrap: { flexWrap: 'wrap', rowGap: 8 },
-  footerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minWidth: 110, justifyContent: 'center' },
+  footerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, height: 48, paddingHorizontal: 10, borderRadius: 10, minWidth: 0, justifyContent: 'center' },
   footerBtnText: { fontSize: 12, color: '#fff', fontWeight: '600' },
-  footerFinalizar: { paddingHorizontal: 18, minWidth: 140, flexShrink: 1 },
+  footerFinalizar: { flex: 1 },
   successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   successBox: { width: '100%', maxWidth: 360, padding: 24, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
   successIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },

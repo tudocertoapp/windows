@@ -171,33 +171,33 @@ export function DashboardScreen() {
   const { banks, cards, addToBank, deductFromBank, addToCardBalance, deductFromCardBalance, getBankById } = useBanks();
   const { colors, themeMode } = useTheme();
   const isDarkTheme = themeMode === 'dark' || colors?.isDarkBg;
-  const quickRowTheme = useMemo(
-    () => (isDarkTheme
+  const quickRowTheme = useMemo(() => {
+    const p = colors.primary;
+    return isDarkTheme
       ? {
-          shellBg: 'rgba(9,9,11,0.6)',
-          shellBorder: 'rgba(82,82,91,0.5)',
+          shellBg: 'transparent',
+          shellBorder: 'transparent',
           btnBg: 'rgba(24,24,27,0.92)',
-          btnBorder: 'rgba(82,82,91,0.95)',
-          chipBorder: '#3f3f46',
+          btnBorder: p,
+          chipBorder: p,
           chipText: '#a1a1aa',
-          icon: '#d4d4d8',
+          icon: p,
           text: '#e4e4e7',
         }
       : {
-          shellBg: 'rgba(255,255,255,0.86)',
-          shellBorder: 'rgba(148,163,184,0.5)',
+          shellBg: 'transparent',
+          shellBorder: 'transparent',
           btnBg: 'rgba(248,250,252,0.96)',
-          btnBorder: 'rgba(148,163,184,0.65)',
-          chipBorder: '#cbd5e1',
+          btnBorder: p,
+          chipBorder: p,
           chipText: '#64748b',
-          icon: '#334155',
+          icon: p,
           text: '#1f2937',
-        }),
-    [isDarkTheme]
-  );
+        };
+  }, [isDarkTheme, colors.primary]);
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
   const { notes, deleteNote } = useNotes();
   const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
   const { profile } = useProfile();
@@ -295,11 +295,11 @@ export function DashboardScreen() {
       { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
       { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes'), color: CARD_ICON_COLORS.aniversariantes },
       { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores'), color: CARD_ICON_COLORS.anotacoes },
-      { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.(), color: CARD_ICON_COLORS.listacompras },
+      { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => (openOrcamentos?.() || openOrcamento?.()), color: CARD_ICON_COLORS.listacompras },
       { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
       { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
     ],
-    [openAReceber, openCadastro, openEmpresa, openOrcamento, openPDV],
+    [openAReceber, openCadastro, openEmpresa, openOrcamento, openOrcamentos, openPDV],
   );
 
   useEffect(() => {
@@ -3505,7 +3505,7 @@ export function DashboardScreen() {
           pointerEvents="auto"
           style={{
             ...(Platform.OS === 'web'
-              ? { position: 'fixed', left: '6%', right: '6%', bottom: 8 }
+              ? { position: 'fixed', left: '6%', right: '6%', bottom: 8, transform: [{ translateX: -15 }] }
               : { position: 'absolute', left: WEB_DESKTOP_PAGE_PAD, right: WEB_DESKTOP_PAGE_PAD, bottom: 10 }),
             zIndex: 9999,
           }}

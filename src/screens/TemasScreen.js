@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Modal, TextInput, Alert, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,10 @@ import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 import { FREE_COLORS } from '../contexts/ThemeContext';
+import { isFreePlanId } from '../constants/planFeatures';
+
+/** Fundos neutros escuros na paleta (mesmo preset “Escuro” #111827 e variantes) */
+const BACKGROUND_DARK_NEUTRAL_IDS = new Set(['21', '22', '23', '24']);
 
 function hexToHsl(hex) {
   let h = hex.replace(/^#/, '');
@@ -139,9 +143,10 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
     removeFavoriteColor,
     maxFavorites,
   } = useTheme();
-  const { canUseCustomColors } = usePlan();
+  const { canUseCustomColors, planId } = usePlan();
   const { updateProfile } = useProfile();
   const hasPremiumColors = canUseCustomColors;
+  const showDarkBackgroundOptions = isFreePlanId(planId) || planId === 'pe_teste_real';
   const [showCreateColor, setShowCreateColor] = useState(false);
   const PICKER_LIGHTNESS = 50;
   const [pickerHue, setPickerHue] = useState(142);
@@ -150,7 +155,12 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
   const [customName, setCustomName] = useState('');
 
   const freeColors = FREE_COLORS.filter((c) => ['blue', 'green'].includes(c.id));
-  const freeBgThemes = BACKGROUND_COLORS.slice(0, 3);
+  const freeBgThemes = useMemo(() => {
+    const light = BACKGROUND_COLORS.slice(0, 3);
+    if (!showDarkBackgroundOptions) return light;
+    const darkNeutrals = BACKGROUND_COLORS.filter((c) => BACKGROUND_DARK_NEUTRAL_IDS.has(c.id));
+    return [...light, ...darkNeutrals];
+  }, [showDarkBackgroundOptions]);
 
   useEffect(() => {
     if (showCreateColor) {
