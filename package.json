@@ -5,6 +5,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web --port 8081",
+    "web:api": "node scripts/vision-dev-server.js",
     "web:build": "expo export --platform web && node scripts/ensure-dist-assets.js && node scripts/patch-web-index.js && node scripts/patch-web-bundle-assets.js",
     "sync:desktop-version": "node scripts/set-desktop-version.js",
     "sync:mobile-version": "node scripts/set-mobile-version.js",

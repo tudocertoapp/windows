@@ -13,6 +13,8 @@ DROP POLICY IF EXISTS "Users own suppliers" ON suppliers;
 DROP POLICY IF EXISTS "Users own boletos" ON boletos;
 DROP POLICY IF EXISTS "Users own a_receber" ON a_receber;
 DROP POLICY IF EXISTS "Users own profiles" ON profiles;
+DROP POLICY IF EXISTS "Users own user_banks" ON user_banks;
+DROP POLICY IF EXISTS "Users own user_cards" ON user_cards;
 
 CREATE POLICY "Users own transactions" ON transactions FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
@@ -36,3 +38,7 @@ CREATE POLICY "Users own a_receber" ON a_receber FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users own profiles" ON profiles FOR ALL
   USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users own user_banks" ON user_banks FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users own user_cards" ON user_cards FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);

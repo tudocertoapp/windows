@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Image, Keyboard, KeyboardAvoidingView, Platform, Dimensions, Animated } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +18,7 @@ import { TarefaFormModal } from './TarefaFormModal';
 import { parseMoney, formatCurrency } from '../utils/format';
 import { playTapSound, playRecordingBeep } from '../utils/sounds';
 import { useNativeDriverSafe, useIsDesktopLayout } from '../utils/platformLayout';
-import { parseExpenseVoice } from '../utils/voiceExpenseParser';
+import { parseExpenseVoice, inferDespCategoryFromDescription } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_RECEITA, CATEGORIAS_DESPESA } from '../constants/categories';
 
 let ExpoSpeechRecognitionModule = null;
@@ -77,53 +77,6 @@ const FORMAS_PAGAMENTO_DESPESA = [
 const TODAS_FORMAS_PAGAMENTO_RECEITA = [...METODOS_PAGAMENTO_RECEITA, { id: 'transferencia', label: 'Transferência', icon: 'swap-horizontal-outline' }];
 const TODAS_FORMAS_PAGAMENTO_DESPESA = [...FORMAS_PAGAMENTO_DESPESA, { id: 'transferencia', label: 'Transferência', icon: 'swap-horizontal-outline' }, { id: 'boleto', label: 'Boleto', icon: 'document-text-outline' }, { id: 'prazo', label: 'A prazo', icon: 'calendar-outline' }];
 
-function stripAccents(s) {
-  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-function inferDespCategoryAndSubcategory(text) {
-  const raw = String(text || '').trim();
-  if (!raw) return null;
-  const t = stripAccents(raw).toLowerCase();
-
-  let best = null;
-  let bestScore = 0;
-
-  for (const cat of CATEGORIAS_DESPESA) {
-    const catLabel = stripAccents(cat.label).toLowerCase();
-    for (const sub of cat.sub || []) {
-      const subNorm = stripAccents(sub).toLowerCase();
-      if (!subNorm) continue;
-      if (!t.includes(subNorm)) continue;
-      const words = subNorm.split(/\s+/).filter(Boolean);
-      const wordHits = words.reduce((acc, w) => acc + (w.length > 2 && t.includes(w) ? 1 : 0), 0);
-      const score = 2 + words.length + wordHits;
-      if (score > bestScore) {
-        bestScore = score;
-        best = { categoryDesp: cat.id, subcategoryDesp: sub };
-      }
-    }
-    if (t.includes(catLabel) && bestScore < 2) {
-      bestScore = 2;
-      best = { categoryDesp: cat.id, subcategoryDesp: cat.sub?.[0] || cat.label };
-    }
-  }
-
-  if (best) return best;
-
-  // fallback por heurísticas simples
-  const hasFood = /(supermercad|mercad|padari|restaur|delivery|cafe|acoug|a(c|ç)ougue|hortifr|mercear|lancho|bebi|feira)/i.test(stripAccents(raw));
-  if (hasFood) return { categoryDesp: 'alimentacao', subcategoryDesp: CATEGORIAS_DESPESA.find((c) => c.id === 'alimentacao')?.sub?.[0] || 'Supermercado' };
-
-  const hasBills = /(energia|agua|água|luz|iptu|condominio|condomínio|boleto|impost|taxa|tribut|saneamento|internet)/i.test(stripAccents(raw));
-  if (hasBills) return { categoryDesp: 'moradia', subcategoryDesp: CATEGORIAS_DESPESA.find((c) => c.id === 'moradia')?.sub?.[0] || 'Energia' };
-
-  const hasProduct = /(loja|shopping|eletron|celular|roupa|sapato|camisa|cosmet|mercador|produto)/i.test(stripAccents(raw));
-  if (hasProduct) return { categoryDesp: 'compras', subcategoryDesp: CATEGORIAS_DESPESA.find((c) => c.id === 'compras')?.sub?.[0] || 'Roupas' };
-
-  return { categoryDesp: 'outros_desp', subcategoryDesp: 'Outros' };
-}
-
 export function AddModal({ type, params, onClose }) {
   const { colors } = useTheme();
   const { addTransaction, updateTransaction, addAgendaEvent, updateAgendaEvent, addClient, addProduct, addService, addCheckListItem, addSupplier, addAReceber, updateOrcamento, clients, products, services } = useFinance();
@@ -133,7 +86,6 @@ export function AddModal({ type, params, onClose }) {
   const { openBancos } = useMenu();
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [autoCategorizeFromDescription, setAutoCategorizeFromDescription] = useState(false);
   const [tipoVenda, setTipoVenda] = useState('pessoal');
   const userEditedCategoryRef = useRef(false);
   useEffect(() => {
@@ -147,7 +99,6 @@ export function AddModal({ type, params, onClose }) {
     if (params?.tipoVenda) setTipoVenda(params.tipoVenda);
 
     userEditedCategoryRef.current = false;
-    if (params?.__autoCategorizeFromDescription != null) setAutoCategorizeFromDescription(Boolean(params.__autoCategorizeFromDescription));
   }, [type, params]);
 
   useEffect(() => {
@@ -332,20 +283,41 @@ export function AddModal({ type, params, onClose }) {
   const [subcategoryRec, setSubcategoryRec] = useState('');
   const [categoryDesp, setCategoryDesp] = useState('');
   const [subcategoryDesp, setSubcategoryDesp] = useState('');
-  useEffect(() => {
-    if (type !== 'despesa') return;
-    if (!autoCategorizeFromDescription) return;
-    if (!description || description.trim().length < 3) return;
+
+  const applyDespCategoryFromText = useCallback((text) => {
     if (userEditedCategoryRef.current) return;
-
-    const inferred = inferDespCategoryAndSubcategory(description);
-    if (!inferred) return;
-    if (inferred.categoryDesp === categoryDesp && inferred.subcategoryDesp === subcategoryDesp) return;
-
+    const trimmed = String(text || '').trim();
+    if (trimmed.length < 2) return;
+    const inferred = inferDespCategoryFromDescription(trimmed, { products, services });
+    if (!inferred?.categoryDesp) return;
     setCategoryDesp(inferred.categoryDesp);
     setSubcategoryDesp(inferred.subcategoryDesp);
     setCategory(inferred.subcategoryDesp);
-  }, [type, description, autoCategorizeFromDescription, categoryDesp, subcategoryDesp]);
+  }, [products, services]);
+
+  const handleDespDescriptionChange = useCallback((text) => {
+    setDescription(text);
+    applyDespCategoryFromText(text);
+  }, [applyDespCategoryFromText]);
+
+  useEffect(() => {
+    if (type !== 'despesa' || params?.editTransaction) return;
+    if (params?.categoryDesp || params?.subcategoryDesp || params?.description) return;
+    setCategoryDesp('');
+    setSubcategoryDesp('');
+    setCategory('');
+    userEditedCategoryRef.current = false;
+  }, [type, params?.editTransaction, params?.categoryDesp, params?.subcategoryDesp, params?.description]);
+
+  useEffect(() => {
+    if (type !== 'despesa' || params?.editTransaction) return;
+    if (params?.categoryDesp && params?.subcategoryDesp) return;
+    const desc = params?.description;
+    if (desc?.trim()) {
+      userEditedCategoryRef.current = false;
+      applyDespCategoryFromText(desc);
+    }
+  }, [type, params?.description, params?.categoryDesp, params?.subcategoryDesp, params?.editTransaction, applyDespCategoryFromText]);
   const [showAddFormaModalRec, setShowAddFormaModalRec] = useState(false);
   const [showAddFormaModalDesp, setShowAddFormaModalDesp] = useState(false);
   const [newFormaNome, setNewFormaNome] = useState('');
@@ -366,7 +338,11 @@ export function AddModal({ type, params, onClose }) {
       if (parsed.amount) setAmount(parsed.amount);
       if (parsed.categoryDesp) setCategoryDesp(parsed.categoryDesp);
       if (parsed.subcategoryDesp) { setSubcategoryDesp(parsed.subcategoryDesp); setCategory(parsed.subcategoryDesp); }
-      if (parsed.description) setDescription(parsed.description);
+      if (parsed.description) {
+        setDescription(parsed.description);
+        userEditedCategoryRef.current = false;
+        if (!parsed.categoryDesp) applyDespCategoryFromText(parsed.description);
+      }
       if (parsed.tipoVenda) setTipoVenda(parsed.tipoVenda);
     }
   });
@@ -788,13 +764,13 @@ export function AddModal({ type, params, onClose }) {
 
                 {tipoReceita === 'outra' && (
                   <View style={{ marginBottom: SECTION_GAP }}>
+                    <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 8 }]}>NOME / DESCRIÇÃO</Text>
+                    <TextInput style={[styles.input, { marginBottom: 12, backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]} placeholder="Ex: Cliente X, Projeto ABC" value={description} onChangeText={setDescription} placeholderTextColor={colors.textSecondary} />
                     <CategoryPicker categories={CATEGORIAS_RECEITA} value={categoryRec} onChange={(id) => { setCategoryRec(id); setSubcategoryRec(''); }} placeholder="Selecionar categoria" colors={colors} label="CATEGORIA" />
                     <SubcategoryPicker subcategories={CATEGORIAS_RECEITA.find((c) => c.id === categoryRec)?.sub} value={subcategoryRec} onChange={(sub) => { setSubcategoryRec(sub); setCategory(sub); }} placeholder="Selecionar subcategoria" colors={colors} label="SUBCATEGORIA" />
                     {!categoryRec && (
                       <TextInput style={[styles.input, { marginBottom: 12, backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]} placeholder="Ou digite a categoria" value={category} onChangeText={setCategory} placeholderTextColor={colors.textSecondary} />
                     )}
-                    <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 8 }]}>NOME / DESCRIÇÃO</Text>
-                    <TextInput style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]} placeholder="Ex: Cliente X, Projeto ABC" value={description} onChangeText={setDescription} placeholderTextColor={colors.textSecondary} />
                   </View>
                 )}
 
@@ -1180,21 +1156,19 @@ export function AddModal({ type, params, onClose }) {
                   ))}
                 </View>
                 )}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: GAP }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
                   <View style={{ flex: 1 }}>
-                    <CategoryPicker
-                      categories={CATEGORIAS_DESPESA}
-                      value={categoryDesp}
-                      onChange={(id) => {
-                        userEditedCategoryRef.current = true;
-                        setCategoryDesp(id);
-                        setSubcategoryDesp('');
-                        setCategory('');
-                      }}
-                      placeholder="Selecionar categoria"
-                      colors={colors}
-                      label="CATEGORIA"
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>PRODUTO OU SERVIÇO (COM O QUE FOI GASTO)</Text>
+                    <TextInput
+                      style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                      placeholder="Ex: Netflix, pão, mercado..."
+                      value={description}
+                      onChangeText={handleDespDescriptionChange}
+                      placeholderTextColor={colors.textSecondary}
                     />
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 6 }}>
+                      Categoria e subcategoria preenchem automaticamente ao digitar.
+                    </Text>
                   </View>
                   {isSpeechAvailable && (
                     <TouchableOpacity
@@ -1208,7 +1182,7 @@ export function AddModal({ type, params, onClose }) {
                           ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', interimResults: true, continuous: false });
                         } catch (e) { Alert.alert('Erro', 'Não foi possível iniciar o microfone.'); }
                       }}
-                      style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: voiceListening ? colors.primary : colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center', marginTop: 18 }}
+                      style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: voiceListening ? colors.primary : colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center', marginTop: 22 }}
                     >
                       <Animated.View style={{ transform: [{ scale: micPulse }] }}>
                         <Ionicons name={voiceListening ? 'mic' : 'mic-outline'} size={26} color={voiceListening ? '#fff' : colors.primary} />
@@ -1216,6 +1190,19 @@ export function AddModal({ type, params, onClose }) {
                     </TouchableOpacity>
                   )}
                 </View>
+                <CategoryPicker
+                  categories={CATEGORIAS_DESPESA}
+                  value={categoryDesp}
+                  onChange={(id) => {
+                    userEditedCategoryRef.current = true;
+                    setCategoryDesp(id);
+                    setSubcategoryDesp('');
+                    setCategory('');
+                  }}
+                  placeholder="Selecionar categoria"
+                  colors={colors}
+                  label="CATEGORIA"
+                />
                 <SubcategoryPicker
                   subcategories={CATEGORIAS_DESPESA.find((c) => c.id === categoryDesp)?.sub}
                   value={subcategoryDesp}
@@ -1240,8 +1227,6 @@ export function AddModal({ type, params, onClose }) {
                     placeholderTextColor={colors.textSecondary}
                   />
                 )}
-                <Text style={[styles.label, { color: colors.textSecondary }]}>DESCRIÇÃO (OPCIONAL)</Text>
-                <TextInput style={[styles.input, { borderColor: colors.border, color: colors.text, marginBottom: GAP }]} placeholder="Ex: Supermercado do bairro. Ou use o microfone: 'gastei 50 na padaria com pão gasto empresa'" value={description} onChangeText={setDescription} placeholderTextColor={colors.textSecondary} />
                 <Text style={[styles.label, { color: colors.textSecondary }]}>VALOR</Text>
                 <MoneyInput value={amount} onChange={setAmount} style={{ marginBottom: GAP }} colors={colors} />
                 <Text style={[styles.label, { color: colors.textSecondary }]}>FORMA DE PAGAMENTO</Text>

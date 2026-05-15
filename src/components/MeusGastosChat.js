@@ -458,7 +458,9 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
           id: `assistant-ocr-failed-${Date.now()}`,
           from: 'assistant',
           kind: 'text',
-          text: 'Não consegui extrair valor e data desta nota. Verifique se a chave API está configurada e se a imagem está legível.',
+          text:
+            receipt.error ||
+            'Não consegui extrair valor e data desta nota. Verifique se a chave API está configurada e se a imagem está legível.',
           actions: [{ label: 'Tentar novamente', actionType: 'retryOcr' }],
           ocrFailMeta: { imageUri: uri, imageBase64: base64 },
           createdAt: nowIso(),
@@ -658,7 +660,9 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
             id: `assistant-ocr-failed-${Date.now()}`,
             from: 'assistant',
             kind: 'text',
-            text: 'Não consegui extrair valor e data desta nota. Verifique se a chave API está configurada e se a imagem está legível.',
+            text:
+              receipt.error ||
+              'Não consegui extrair valor e data desta nota. Verifique se a chave API está configurada e se a imagem está legível.',
             actions: [{ label: 'Tentar novamente', actionType: 'retryOcr' }],
             ocrFailMeta: {
               imageUri,

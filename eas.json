@@ -12,6 +12,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SITE_URL": "https://tudocerto-web.vercel.app"
       }
     },
     "production": {
@@ -21,6 +24,9 @@
       },
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_SITE_URL": "https://tudocerto-web.vercel.app"
       }
     }
   },

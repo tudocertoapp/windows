@@ -9,6 +9,12 @@ import { usePlan } from '../contexts/PlanContext';
 import { uploadClientPhoto } from '../utils/uploadClientPhoto';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 import { ModalFormRow, ModalFormCell } from './ModalFormLayout';
+import {
+  buildClientRegistrationUrl,
+  copyClientRegistrationLink,
+  shareClientRegistrationViaWhatsApp,
+  shareClientRegistrationLink,
+} from '../utils/clientRegistrationLink';
 
 const NIVEL_OPTIONS = [
   { id: 'novo_cliente', label: 'Novo cliente', color: '#84cc16' },
@@ -47,6 +53,9 @@ const styles = StyleSheet.create({
   saveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   closeBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
+  shareRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: FIELD_GAP },
+  shareBtn: { flex: 1, minWidth: 140, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 },
+  shareBtnText: { fontSize: 13, fontWeight: '700' },
 });
 
 export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo }) {
@@ -168,6 +177,13 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
     onClose();
   };
 
+  const registrationUrl = user?.id ? buildClientRegistrationUrl(user.id) : '';
+
+  const handleShareRegistrationWhatsApp = () => {
+    if (!user?.id) return Alert.alert('Aviso', 'Faça login para gerar o link de cadastro.');
+    shareClientRegistrationViaWhatsApp(user.id, phone.trim());
+  };
+
   if (!visible) return null;
 
   return (
@@ -196,6 +212,37 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={isDesktopWeb ? { flex: 1 } : { maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
+              {showEmpresaFeatures && user?.id ? (
+                <View style={{ marginBottom: FIELD_GAP }}>
+                  <Text style={[styles.label, { color: colors.text }]}>Link de cadastro (web)</Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 10, lineHeight: 18 }}>
+                    Envie para o cliente preencher o cadastro no site ({registrationUrl.replace(/^https?:\/\//, '')}).
+                  </Text>
+                  <View style={styles.shareRow}>
+                    <TouchableOpacity
+                      style={[styles.shareBtn, { borderColor: '#25D366', backgroundColor: '#25D36618' }]}
+                      onPress={handleShareRegistrationWhatsApp}
+                    >
+                      <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                      <Text style={[styles.shareBtnText, { color: '#25D366' }]}>WhatsApp</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.shareBtn, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                      onPress={() => copyClientRegistrationLink(user.id)}
+                    >
+                      <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                      <Text style={[styles.shareBtnText, { color: colors.text }]}>Copiar link</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.shareBtn, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                      onPress={() => shareClientRegistrationLink(user.id)}
+                    >
+                      <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+                      <Text style={[styles.shareBtnText, { color: colors.text }]}>Compartilhar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
               <Text style={[styles.label, { color: colors.text }]}>Foto do cliente</Text>
               <TouchableOpacity onPress={pickFoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
                 {foto ? (

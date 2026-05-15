@@ -1,14 +1,11 @@
 /**
- * Web: OCR com Google Vision - converte imagem para base64 via Fetch/FileReader.
+ * Web: OCR via proxy /api/vision/ocr (evita CORS no navegador).
  */
-import axios from 'axios';
-
-function getVisionApiKey() {
-  if (typeof window !== 'undefined' && window.__EXPO_CONFIG__?.extra?.googleVisionApiKey) {
-    return window.__EXPO_CONFIG__.extra.googleVisionApiKey;
-  }
-  return process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY || '';
-}
+import {
+  ocrViaProxy,
+  formatVisionProxyError,
+} from './googleVisionOCR.shared';
+import { getVisionOcrEndpoint } from '../lib/visionApi';
 
 async function imageToBase64(image) {
   if (!image) throw new Error('Imagem ausente');
@@ -29,7 +26,10 @@ async function imageToBase64(image) {
     });
   }
   if (typeof image === 'object') {
-    if (typeof image.base64 === 'string' && image.base64.trim()) return image.base64.trim();
+    if (typeof image.base64 === 'string' && image.base64.trim()) {
+      const b = image.base64.trim();
+      return b.startsWith('data:') ? b.split(',')[1] || '' : b;
+    }
     if (typeof image.uri === 'string' && image.uri.trim()) {
       return imageToBase64(image.uri);
     }
@@ -38,37 +38,21 @@ async function imageToBase64(image) {
 }
 
 export async function googleVisionOcrText(image, opts = {}) {
-  const apiKey = (opts.apiKey || getVisionApiKey() || '').trim();
-  if (!apiKey) throw new Error('Chave da Google Vision ausente (googleVisionApiKey)');
-
+  const languageHints = opts.languageHints || ['pt'];
   const base64 = await imageToBase64(image);
-  const url = `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`;
 
-  const payload = {
-    requests: [
-      {
-        image: { content: base64 },
-        features: [{ type: 'TEXT_DETECTION', maxResults: 1 }],
-        imageContext: {
-          languageHints: opts.languageHints || ['pt'],
-        },
-      },
-    ],
-  };
+  const proxyEndpoint = getVisionOcrEndpoint();
+  if (!proxyEndpoint) {
+    throw new Error(
+      'OCR no navegador precisa do servidor /api/vision/ocr. Defina EXPO_PUBLIC_SITE_URL no .env (após deploy) ou rode "npm run web:api" com EXPO_PUBLIC_VISION_API_URL=http://localhost:3000.'
+    );
+  }
 
-  const { data } = await axios.post(url, payload, {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 45000,
-  });
-
-  const resp = data?.responses?.[0];
-  const full = resp?.fullTextAnnotation?.text;
-  if (typeof full === 'string' && full.trim()) return full.trim();
-
-  const first = resp?.textAnnotations?.[0]?.description;
-  if (typeof first === 'string' && first.trim()) return first.trim();
-
-  const errMsg = resp?.error?.message;
-  if (errMsg) throw new Error(errMsg);
-  return '';
+  try {
+    const text = await ocrViaProxy(base64, languageHints);
+    if (text) return text;
+    throw new Error('O OCR não encontrou texto na imagem. Use uma foto mais nítida.');
+  } catch (proxyErr) {
+    throw new Error(formatVisionProxyError(proxyErr));
+  }
 }

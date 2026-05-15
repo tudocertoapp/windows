@@ -1,12 +1,14 @@
 import { googleVisionOcrText } from '../googleVisionOCR';
 import { extractReceiptData, isValidReceiptData } from '../../utils/receiptOcr/extractReceiptData';
 
-const receiptCache = new Map(); // sessão (não persistente)
+const receiptCache = new Map();
 const MAX_CACHE = 8;
+
 function cacheGet(key) {
   if (!key) return null;
   return receiptCache.get(key) || null;
 }
+
 function cacheSet(key, value) {
   if (!key) return;
   if (receiptCache.size >= MAX_CACHE) {
@@ -23,11 +25,10 @@ async function readWithCloudVision(imageUri, imageBase64, opts = {}) {
 }
 
 /**
- * processReceipt - OCR com Google Cloud Vision.
- * @returns {{ success: true, total, date, store, rawText, source } | { success: false, source: 'cloud-failed' }}
+ * @returns {{ success: true, total, date, store, rawText, source } | { success: false, source, error?: string, rawText?: string }}
  */
 export async function processReceipt(arg1) {
-  const input = typeof arg1 === 'string' ? { imageUri: arg1 } : (arg1 || {});
+  const input = typeof arg1 === 'string' ? { imageUri: arg1 } : arg1 || {};
   const { imageUri, imageBase64, cacheKey, onStage } = input;
 
   if (!imageUri || typeof imageUri !== 'string') throw new Error('imageUri inválida');
@@ -37,20 +38,31 @@ export async function processReceipt(arg1) {
   if (cached) return { ...cached, success: true };
 
   onStage?.('cloud-start');
+  let rawText = '';
+  let lastError = '';
+
   try {
-    const cloudText = await readWithCloudVision(imageUri, imageBase64);
-    const cloudData = extractReceiptData(cloudText);
+    rawText = await readWithCloudVision(imageUri, imageBase64);
+    const cloudData = extractReceiptData(rawText);
     if (isValidReceiptData(cloudData)) {
       const out = { ...cloudData, success: true, source: 'cloud' };
       cacheSet(key, out);
       onStage?.('cloud-success');
       return out;
     }
-  } catch (_) {}
+    lastError = rawText
+      ? 'Li o comprovante, mas não encontrei valor total e data com clareza. Tente uma foto mais nítida ou cadastre manualmente.'
+      : 'O OCR não retornou texto. Verifique a chave API e se a imagem está legível.';
+  } catch (e) {
+    lastError = e?.message || 'Erro ao ler imagem com Google Vision';
+    console.warn('[processReceipt]', lastError);
+  }
 
   onStage?.('cloud-failed');
   return {
     success: false,
     source: 'cloud-failed',
+    error: lastError,
+    rawText: rawText || undefined,
   };
 }

@@ -346,7 +346,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
     setShowFormModal(true);
   };
 
-  const handleSaveForm = () => {
+  const handleSaveForm = async () => {
     const temCredito = form.tipoConta === 'credito' || form.tipoConta === 'ambos' || addCardOnlyMode;
     const temDebito = form.tipoConta === 'debito' || form.tipoConta === 'ambos';
     if (temCredito && !form.cardName?.trim()) {
@@ -370,7 +370,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
 
     const cardBandeiraFinal = (form.tipoConta === 'ambos' && !addCardOnlyMode) ? (form.bandeira || 'visa') : (form.cardBandeira || 'visa');
     if ((editingBank && !editingCard && temCredito && form.cardName?.trim()) || (addCardOnlyMode && form.cardName?.trim())) {
-      addCard({
+      await addCard({
         bankId: editingBank.id,
         name: form.cardName.trim(),
         diaFechamento: diaFech,
@@ -379,7 +379,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
         bandeira: cardBandeiraFinal,
       });
     } else if (editingBank && editingCard) {
-      updateBank(editingBank.id, {
+      await updateBank(editingBank.id, {
         bancoId: finalBancoId,
         nomeCustom: finalNomeCustom,
         tipo: tipoFinal,
@@ -389,7 +389,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
         bandeira: form.bandeira || 'visa',
       });
       if (temCredito) {
-        updateCard(editingCard.id, {
+        await updateCard(editingCard.id, {
           bankId: editingBank.id,
           name: form.cardName.trim(),
           diaFechamento: diaFech,
@@ -399,7 +399,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
         });
       }
     } else if (editingBank) {
-      updateBank(editingBank.id, {
+      await updateBank(editingBank.id, {
         bancoId: finalBancoId,
         nomeCustom: finalNomeCustom,
         tipo: tipoFinal,
@@ -409,7 +409,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
         bandeira: form.bandeira || 'visa',
       });
     } else {
-      const newBankId = addBank({
+      const newBankId = await addBank({
         bancoId: finalBancoId,
         nomeCustom: finalNomeCustom,
         tipo: tipoFinal,
@@ -419,7 +419,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
         bandeira: form.bandeira || 'visa',
       });
       if (temCredito && form.cardName?.trim() && newBankId) {
-        addCard({
+        await addCard({
           bankId: newBankId,
           name: form.cardName.trim(),
           diaFechamento: diaFech,

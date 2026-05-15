@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { openWhatsApp as openWhatsAppUtil, formatPhoneForWhatsApp } from '../utils/whatsapp';
+import { buildClientRegistrationUrl, getClientRegistrationWhatsAppMessage } from '../utils/clientRegistrationLink';
 import { ClienteModal } from '../components/ClienteModal';
 import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
 import { CatalogoScreen } from './CatalogoScreen';
@@ -37,7 +38,6 @@ import { useMenu } from '../contexts/MenuContext';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const TEMPLATES_KEY = '@tudocerto_msg_templates';
-const CADASTRO_LINK_KEY = '@tudocerto_cadastro_link_url';
 const SUGGESTED_TEMPLATES = [
   'Como está a cicatrização da tatuagem?',
   'Bora fazer outra tattoo? Estou com promoção!',
@@ -82,7 +82,6 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
   const [frasesDropdownOpen, setFrasesDropdownOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [newClientFromContact, setNewClientFromContact] = useState(null);
-  const [cadastroLinkUrl, setCadastroLinkUrl] = useState('');
   const [conversarClientModal, setConversarClientModal] = useState(null);
   const [conversarFraseFilter, setConversarFraseFilter] = useState('');
   const [nivelFilterDropdownOpen, setNivelFilterDropdownOpen] = useState(false);
@@ -109,10 +108,6 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
-
-  useEffect(() => {
-    AsyncStorage.getItem(CADASTRO_LINK_KEY).then((v) => setCadastroLinkUrl(v || ''));
-  }, []);
 
   useEffect(() => {
     if (tab === 'contatos' && contacts.length === 0 && !loadingContacts) {
@@ -474,14 +469,13 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                       <Ionicons name="person-add" size={20} color={colors.primary} />
                     </TouchableOpacity>
                   )}
-                  {showEmpresaFeatures && user && cadastroLinkUrl && (
+                  {showEmpresaFeatures && user?.id && (
                     <TouchableOpacity
                       style={[s.linkBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}
                       onPress={() => {
                         playTapSound();
-                        const sep = cadastroLinkUrl.includes('?') ? '&' : '?';
-                        const fullUrl = `${cadastroLinkUrl}${sep}ref=${encodeURIComponent(user.id)}`;
-                        openWhatsApp(phone, `Olá! Por favor preencha seu cadastro: ${fullUrl}`);
+                        const fullUrl = buildClientRegistrationUrl(user.id);
+                        openWhatsApp(phone, getClientRegistrationWhatsAppMessage(fullUrl));
                       }}
                     >
                       <Ionicons name="link" size={20} color={colors.primary} />

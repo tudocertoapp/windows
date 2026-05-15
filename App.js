@@ -26,7 +26,9 @@ import { LandingScreen } from './src/screens/LandingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SplashScreen } from './src/components/SplashScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { CadastroClientePublicoScreen } from './src/screens/CadastroClientePublicoScreen';
 import { playBrandIntroSound } from './src/utils/sounds';
+import { CLIENT_REGISTRATION_PATH } from './src/utils/clientRegistrationLink';
 
 const BRAND_INTRO_ONCE_KEY = '@tudocerto_brand_intro_once_v1';
 
@@ -44,7 +46,15 @@ function AppWithReminders() {
   );
 }
 
+function getPublicCadastroOwnerId() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const path = (window.location.pathname || '').replace(/\/$/, '') || '/';
+  if (path !== CLIENT_REGISTRATION_PATH && !path.endsWith(CLIENT_REGISTRATION_PATH)) return null;
+  return new URLSearchParams(window.location.search).get('ref') || '';
+}
+
 function AppContent() {
+  const publicCadastroOwnerId = getPublicCadastroOwnerId();
   const { user, isGuest, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
@@ -118,6 +128,14 @@ function AppContent() {
   const isWeb = Platform.OS === 'web';
   const showSplash = loading || !splashDone || postLoginSplash;
   const splashDuration = isWeb ? 1500 : 4000;
+
+  if (publicCadastroOwnerId !== null) {
+    return (
+      <ThemeProvider>
+        <CadastroClientePublicoScreen ownerUserId={publicCadastroOwnerId} />
+      </ThemeProvider>
+    );
+  }
 
   if (showSplash) {
     return (

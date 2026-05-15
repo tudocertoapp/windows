@@ -1,8 +1,12 @@
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 
+function stripAccents(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 /** Prefer o match mais longo (ex.: "supermercado" antes de "mercado"). */
 function findLongestCategoryMatch(text) {
-  const t = (text || '').toLowerCase();
+  const t = stripAccents(text || '').toLowerCase();
   let best = null;
   let bestLen = 0;
   for (const cat of CATEGORIAS_DESPESA) {
@@ -38,7 +42,7 @@ function extractPlaceRaw(text) {
 
 /** Mapeia trecho do lugar (ex.: "padaria", "loja de roupas") para categoria/sub do app. */
 function matchPlaceToCategory(placeStr) {
-  const p = (placeStr || '').toLowerCase().trim();
+  const p = stripAccents(placeStr || '').toLowerCase().trim();
   if (!p) return null;
 
   if (/^loja\b/.test(p) || p === 'loja') {
@@ -62,17 +66,24 @@ function matchPlaceToCategory(placeStr) {
   return best;
 }
 
-/** Dicas por produto quando o texto não cita padaria/mercado etc. */
+/** Dicas por produto/serviço quando o texto não cita padaria/mercado etc. */
 function matchItemKeywordToCategory(itemLower) {
-  const t = (itemLower || '').toLowerCase();
+  const t = stripAccents(itemLower || '').toLowerCase();
   if (!t) return null;
   const hints = [
+    { re: /\b(netflix|spotify|disney\s*\+?|amazon\s*prime|prime\s*video|hbo|max|globoplay|paramount|crunchyroll|deezer|youtube\s*premium|streaming|streamer|assinatura)\b/i, catId: 'lazer', sub: 'Streaming' },
+    { re: /\b(cinema|ingresso|filme)\b/i, catId: 'lazer', sub: 'Cinema' },
     { re: /\b(celular|smartphone|iphone|galaxy|tablet|notebook|monitor|mouse|teclado|fone|headphone|carregador)\b/i, catId: 'compras', sub: 'Eletrônicos' },
-    { re: /\b(p[aã]o|sandu[íi]che|manteiga|leite|caf[ée]|a[cç][uú]car)\b/i, catId: 'alimentacao', sub: 'Padaria' },
+    { re: /\b(p[aã]o|sandu[íi]che|manteiga|leite|caf[ée]|a[cç][uú]car|croissant|bolo|torta)\b/i, catId: 'alimentacao', sub: 'Padaria' },
+    { re: /\b(arroz|feijao|feijão|macarr[aã]o|carne|frango|supermercad|mercad)\b/i, catId: 'alimentacao', sub: 'Supermercado' },
+    { re: /\b(ifood|rappi|delivery|entrega)\b/i, catId: 'alimentacao', sub: 'Delivery' },
     { re: /\b(uber|99|t[aá]xi|carro por app)\b/i, catId: 'transporte', sub: 'Uber/99' },
-    { re: /\b(combust[ií]vel|gasolina|etanol)\b/i, catId: 'transporte', sub: 'Combustível' },
+    { re: /\b(combust[ií]vel|gasolina|etanol|diesel)\b/i, catId: 'transporte', sub: 'Combustível' },
     { re: /\b([ôo]nibus|metr[ôo]|passe)\b/i, catId: 'transporte', sub: 'Ônibus/Metrô' },
-    { re: /\b(rem[eé]dio|farm[aá]cia|vitamina)\b/i, catId: 'saude', sub: 'Farmácia' },
+    { re: /\b(rem[eé]dio|farm[aá]cia|vitamina|medicamento)\b/i, catId: 'saude', sub: 'Farmácia' },
+    { re: /\b(plano de saude|plano de sa[uú]de|unimed|amil|sulamerica)\b/i, catId: 'saude', sub: 'Plano de saúde' },
+    { re: /\b(aluguel|condominio|condom[ií]nio)\b/i, catId: 'moradia', sub: 'Aluguel' },
+    { re: /\b(energia|luz|agua|água|g[aá]s)\b/i, catId: 'moradia', sub: 'Energia' },
   ];
   for (const h of hints) {
     if (h.re.test(t)) return { catId: h.catId, sub: h.sub };
@@ -80,17 +91,73 @@ function matchItemKeywordToCategory(itemLower) {
   return null;
 }
 
+/** Produto/serviço cadastrado cujo nome aparece no texto (match mais longo). */
+function matchCatalogItemName(text, products = [], services = []) {
+  const t = stripAccents(text).toLowerCase().trim();
+  if (!t) return null;
+  const tokens = t.split(/\s+/).filter((w) => w.length >= 2);
+  let bestName = '';
+  for (const row of [...(products || []), ...(services || [])]) {
+    const name = stripAccents(row?.name || '').toLowerCase().trim();
+    if (!name || name.length < 2) continue;
+    const exact = t === name;
+    const contained = t.includes(name) || (t.length >= 2 && name.includes(t));
+    const tokenHit = tokens.some((tok) => tok === name || name.startsWith(tok) || tok.startsWith(name));
+    if (exact || contained || tokenHit) {
+      if (name.length > bestName.length) bestName = name;
+    }
+  }
+  return bestName || null;
+}
+
+function toCategoryResult(catId, sub) {
+  if (!catId || !sub) return null;
+  return { categoryDesp: catId, subcategoryDesp: sub, category: sub };
+}
+
+/**
+ * Infere categoria e subcategoria a partir do texto digitado/falado (ex.: "netflix", "pão", "gastei com pão na padaria").
+ * Retorna null se não houver correspondência confiável (não força "Outros" enquanto digita).
+ */
+export function inferDespCategoryFromDescription(text, { products = [], services = [] } = {}) {
+  const raw = String(text || '').trim();
+  if (!raw || raw.length < 2) return null;
+
+  const placeRaw = extractPlaceRaw(raw);
+  const itemDesc = extractMainExpenseDescription(raw) || raw;
+  const catalogName = matchCatalogItemName(raw, products, services);
+
+  const fromVoice = inferExpenseCategory(raw, itemDesc, placeRaw);
+  if (fromVoice) return fromVoice;
+
+  if (catalogName) {
+    const fromCatalog = inferExpenseCategory(catalogName, catalogName, '');
+    if (fromCatalog) return fromCatalog;
+  }
+
+  const fromItem = matchItemKeywordToCategory(itemDesc);
+  if (fromItem) return toCategoryResult(fromItem.catId, fromItem.sub);
+
+  const fromFull = matchItemKeywordToCategory(raw);
+  if (fromFull) return toCategoryResult(fromFull.catId, fromFull.sub);
+
+  const fromText = findLongestCategoryMatch(stripAccents(raw).toLowerCase());
+  if (fromText) return toCategoryResult(fromText.catId, fromText.sub);
+
+  return null;
+}
+
 /**
  * Prioridade: lugar explícito (na padaria > na loja); depois palavras-chave do item; depois maior match no texto.
  */
 function inferExpenseCategory(fullText, itemDescription, placeRaw) {
-  const t = (fullText || '').toLowerCase();
-  const place = (placeRaw || '').toLowerCase().trim();
-  const item = (itemDescription || '').toLowerCase();
+  const t = stripAccents(fullText || '').toLowerCase();
+  const place = stripAccents(placeRaw || '').toLowerCase().trim();
+  const item = stripAccents(itemDescription || '').toLowerCase();
 
   const fromPlace = matchPlaceToCategory(place);
+  const fromItem = matchItemKeywordToCategory(item) || matchItemKeywordToCategory(t);
   const fromText = findLongestCategoryMatch(t);
-  const fromItem = matchItemKeywordToCategory(item);
 
   if (fromPlace) {
     return { categoryDesp: fromPlace.catId, subcategoryDesp: fromPlace.sub, category: fromPlace.sub };
