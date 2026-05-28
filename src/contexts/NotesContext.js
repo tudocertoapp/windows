@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { deleteSupabaseRow } from '../utils/supabaseDelete';
 import { useAuth } from './AuthContext';
 
 const NOTES_KEY = '@tudocerto_notes';
@@ -137,22 +138,22 @@ export function NotesProvider({ children }) {
   );
 
   const deleteNote = useCallback(
-    (id) => {
+    async (id) => {
+      const rowId = String(id || '');
+      if (!rowId) return false;
       if (user?.id) {
-        supabase
-          .from('notes')
-          .delete()
-          .eq('id', id)
-          .then(() => setNotes((prev) => prev.filter((n) => n.id !== id)))
-          .catch((e) => console.warn('Erro ao excluir anotação:', e));
-        return;
+        const res = await deleteSupabaseRow('notes', rowId, user.id);
+        if (!res.ok) {
+          console.warn('Erro ao excluir anotação:', res.error);
+          return false;
+        }
       }
-
       setNotes((prev) => {
-        const next = prev.filter((n) => n.id !== id);
+        const next = prev.filter((n) => String(n.id) !== rowId);
         AsyncStorage.setItem(NOTES_KEY, JSON.stringify(next)).catch(() => {});
         return next;
       });
+      return true;
     },
     [user?.id]
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,20 @@ import { GlassCard } from '../components/GlassCard';
 import { DatePickerInput } from '../components/DatePickerInput';
 import { TimePickerInput } from '../components/TimePickerInput';
 import { playTapSound } from '../utils/sounds';
+import { MonthYearPicker } from '../components/MonthYearPicker';
+import { confirmAndDelete } from '../utils/confirm';
+import { FaturasResumoPanel } from '../components/FaturasResumoPanel';
+import { parseMoney, formatCurrency } from '../utils/format';
+import {
+  boletoMatchesMonth,
+  getBoletoDisplayDueDate,
+  formatBoletoRepeatLabel,
+  countBoletosForDisplay,
+  dedupeBoletos,
+  findBoletoSeriesSiblings,
+  sortBoletosInSeries,
+  sortBoletosForDisplay,
+} from '../utils/boletoDates';
 
 function todayStr() {
   const d = new Date();
@@ -98,10 +112,14 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   const [boletosMes, setBoletosMes] = useState(now.getMonth() + 1);
   const [boletosAno, setBoletosAno] = useState(now.getFullYear());
   const [boletosFiltroMesAno, setBoletosFiltroMesAno] = useState(true);
+  const [showFaturasResumoDetalhes, setShowFaturasResumoDetalhes] = useState(true);
+  const [faturasResumoPickMode, setFaturasResumoPickMode] = useState(false);
+  const [faturasResumoSelected, setFaturasResumoSelected] = useState(() => new Set());
 
   const { colors } = useTheme();
   const { showEmpresaFeatures, planFeatures, planLabel } = usePlan();
   const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
+  const { addBoletosBatch } = useFinance();
 
   useEffect(() => {
     if (initialSection) setSection(initialSection);
@@ -134,25 +152,73 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       setSection('produtos');
     }
   }, [showEmpresaFeatures, section]);
-  const parseBoletoDate = (str) => {
-    if (!str || !String(str).trim()) return null;
-    const parts = String(str).trim().split(/[/\-.]/);
-    if (parts.length < 2) return null;
-    const day = parseInt(parts[0], 10) || 1;
-    const month = parseInt(parts[1], 10) || 1;
-    const year = parts[2] ? parseInt(parts[2], 10) : new Date().getFullYear();
-    return { day, month, year };
-  };
   const baseBoletos = section === 'boletos'
     ? (showEmpresaFeatures ? (items || []).filter((i) => boletosTipo === 'todos' ? true : (i.tipo || 'pessoal') === boletosTipo) : (items || []))
     : [];
   const filteredItems = section === 'boletos'
-    ? (boletosFiltroMesAno ? baseBoletos.filter((i) => {
-        const d = parseBoletoDate(i.dueDate);
-        if (!d) return false;
-        return d.month === boletosMes && d.year === boletosAno;
-      }) : baseBoletos)
+    ? sortBoletosForDisplay(
+        dedupeBoletos(
+          boletosFiltroMesAno ? baseBoletos.filter((i) => boletoMatchesMonth(i, boletosMes, boletosAno)) : baseBoletos
+        )
+      )
     : (items || []);
+
+  const filteredBoletosKey = useMemo(
+    () => (section === 'boletos' ? filteredItems.map((b) => String(b.id)).join('|') : ''),
+    [section, filteredItems]
+  );
+
+  useEffect(() => {
+    if (section !== 'boletos') return;
+    setFaturasResumoSelected(new Set(filteredItems.map((b) => String(b.id))));
+  }, [section, filteredBoletosKey, filteredItems]);
+
+  const boletosParaResumo = useMemo(() => {
+    if (section !== 'boletos') return [];
+    if (!faturasResumoPickMode) return filteredItems;
+    return filteredItems.filter((b) => faturasResumoSelected.has(String(b.id)));
+  }, [section, filteredItems, faturasResumoPickMode, faturasResumoSelected]);
+
+  const toggleFaturasResumoSelect = useCallback((id) => {
+    const sid = String(id);
+    setFaturasResumoSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(sid)) next.delete(sid);
+      else next.add(sid);
+      return next;
+    });
+  }, []);
+
+  const selectAllFaturasResumo = useCallback(() => {
+    setFaturasResumoSelected(new Set(filteredItems.map((b) => String(b.id))));
+  }, [filteredItems]);
+
+  const clearFaturasResumoSelection = useCallback(() => {
+    setFaturasResumoSelected(new Set());
+  }, []);
+
+  const renderFaturaResumoCheckbox = useCallback(
+    (item) => {
+      if (section !== 'boletos' || !faturasResumoPickMode) return null;
+      const sid = String(item.id);
+      const checked = faturasResumoSelected.has(sid);
+      return (
+        <TouchableOpacity
+          onPress={() => {
+            playTapSound();
+            toggleFaturasResumoSelect(item.id);
+          }}
+          style={{ padding: 6 }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel={checked ? 'Desmarcar do resumo' : 'Incluir no resumo'}
+        >
+          <Ionicons name={checked ? 'checkbox' : 'square-outline'} size={22} color={checked ? colors.primary : colors.textSecondary} />
+        </TouchableOpacity>
+      );
+    },
+    [section, faturasResumoPickMode, faturasResumoSelected, colors.primary, colors.textSecondary, toggleFaturasResumoSelect]
+  );
+
   const { addProduct, updateProduct } = useFinance();
 
   const handleProductSave = (data) => {
@@ -184,9 +250,105 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
     setEditingItem(null);
   };
 
-  const handleFaturaSave = (data) => {
-    if (editingItem) update(editingItem.id, data);
-    else add(data);
+  const handleFaturaSave = async (data) => {
+    const { _payloads, _seriesId, repeatType, repeatCount, ...rest } = data;
+    if (editingItem) {
+      const payloads = _payloads?.length ? _payloads : null;
+
+      if (editingItem.recurring || rest.recurring) {
+        const ok = await update(editingItem.id, {
+          ...rest,
+          recurring: true,
+          repeatType: 'recurring',
+        });
+        if (ok === false) return;
+      } else if (payloads?.length) {
+        const siblings = sortBoletosInSeries(findBoletoSeriesSiblings(editingItem, items || []));
+        const targetCount = payloads.length;
+        const siblingsByDue = sortBoletosInSeries(siblings);
+        const effectiveSeriesId =
+          _seriesId ||
+          editingItem.seriesId ||
+          siblings[0]?.seriesId ||
+          payloads[0]?.seriesId ||
+          `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const shared = {
+          name: rest.name,
+          amount: rest.amount,
+          tipo: rest.tipo,
+        };
+
+        for (let i = 0; i < targetCount; i++) {
+          const p = payloads[i];
+          const row = siblingsByDue[i];
+          const patch = {
+            ...shared,
+            dueDate: p.dueDate,
+            dueDay: p.dueDay,
+            recurring: false,
+            repeatType: targetCount > 1 ? 'installments' : 'once',
+            seriesId: targetCount > 1 ? effectiveSeriesId : null,
+            installmentIndex: targetCount > 1 ? i + 1 : null,
+            installmentTotal: targetCount > 1 ? targetCount : null,
+          };
+          if (row) {
+            const paid =
+              String(row.id) === String(editingItem.id) ? rest.paid : row.paid;
+            const ok = await update(row.id, { ...patch, paid });
+            if (ok === false) return;
+          }
+        }
+
+        const toAdd = [];
+        for (let i = siblingsByDue.length; i < targetCount; i++) {
+          toAdd.push({
+            ...payloads[i],
+            ...shared,
+            seriesId: effectiveSeriesId,
+            installmentIndex: i + 1,
+            installmentTotal: targetCount,
+            paid: false,
+            recurring: false,
+            repeatType: 'installments',
+          });
+        }
+        if (toAdd.length > 0) {
+          const okAdd = await addBoletosBatch(toAdd);
+          if (okAdd === false) return;
+        }
+
+        for (let i = targetCount; i < siblingsByDue.length; i++) {
+          const okDel = await remove(siblingsByDue[i].id);
+          if (okDel === false) return;
+        }
+      } else {
+        const ok = await update(editingItem.id, rest);
+        if (ok === false) return;
+      }
+    } else {
+      const payloads = _payloads?.length ? _payloads : [rest];
+      const maxBoletosPerMonth = planFeatures?.maxBoletosPerMonth;
+      if (Number.isFinite(maxBoletosPerMonth)) {
+        for (const p of payloads) {
+          const parts = String(p.dueDate || '').split('/');
+          const mm = parts[1];
+          const yyyy = parts[2];
+          if (mm && yyyy) {
+            const monthlyCount = (items || []).filter((b) => {
+              const bp = String(b.dueDate || '').split('/');
+              return bp[1] === mm && bp[2] === yyyy;
+            }).length;
+            if (monthlyCount >= maxBoletosPerMonth) {
+              Alert.alert('Limite do plano', `Seu plano ${planLabel} permite até ${maxBoletosPerMonth} faturas por mês.`);
+              return;
+            }
+          }
+        }
+      }
+      const ok = await addBoletosBatch(payloads);
+      if (ok === false) return;
+    }
     setShowForm(false);
     setEditingItem(null);
   };
@@ -272,8 +434,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       entry.discount = isNaN(d) ? 0 : d;
     }
     if (section === 'boletos') {
-      const a = parseFloat(String(entry.amount).replace(',', '.'));
-      entry.amount = isNaN(a) ? 0 : a;
+      entry.amount = parseMoney(entry.amount);
       entry.tipo = formData.tipo || 'pessoal';
     }
     if (section === 'clientes') {
@@ -348,11 +509,16 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
     setShowForm(true);
   };
 
-  const confirmDelete = (item) => {
-    Alert.alert('Excluir', 'Remover este item?', [
-      { text: 'Cancelar' },
-      { text: 'Excluir', style: 'destructive', onPress: () => remove(item.id) },
-    ]);
+  const confirmDelete = async (item) => {
+    const label =
+      section === 'boletos' ? 'fatura' :
+      section === 'clientes' ? 'cliente' :
+      section === 'produtos' ? 'produto' :
+      section === 'servicos' ? 'serviço' :
+      section === 'fornecedores' ? 'fornecedor' :
+      section === 'tarefas' ? 'tarefa' : 'item';
+    playTapSound();
+    await confirmAndDelete('Excluir', `Remover este ${label}?`, remove, item.id);
   };
 
   const sectionInfo = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
@@ -389,45 +555,34 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         </TouchableOpacity>
       </View>
       {section === 'boletos' && (
-        <View style={{ paddingHorizontal: 16, marginBottom: 12, gap: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <View style={{ paddingHorizontal: 16, marginBottom: 12, gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity
-              style={[cs.segmentBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15), paddingHorizontal: 12 }]}
+              style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15) }]}
               onPress={() => { playTapSound(); setBoletosFiltroMesAno(true); }}
             >
               <Ionicons name="calendar-outline" size={18} color={boletosFiltroMesAno ? '#fff' : colors.text} />
-              <Text style={[cs.segmentText, { color: boletosFiltroMesAno ? '#fff' : colors.text }]}>Mês/Ano</Text>
+              <Text style={[cs.segmentText, { color: boletosFiltroMesAno ? '#fff' : colors.text }]}>Por mês</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[cs.segmentBtn, { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: !boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15), paddingHorizontal: 12 }]}
+              style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: !boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15) }]}
               onPress={() => { playTapSound(); setBoletosFiltroMesAno(false); }}
             >
               <Ionicons name="list" size={18} color={!boletosFiltroMesAno ? '#fff' : colors.text} />
               <Text style={[cs.segmentText, { color: !boletosFiltroMesAno ? '#fff' : colors.text }]}>Todos</Text>
             </TouchableOpacity>
-            {boletosFiltroMesAno && (
-              <>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxWidth: 200 }}>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => (
-                    <TouchableOpacity key={m} onPress={() => { playTapSound(); setBoletosMes(m); }} style={[cs.segmentBtn, { backgroundColor: boletosMes === m ? colors.primary : colors.primaryRgba(0.12), paddingHorizontal: 10 }]}>
-                      <Text style={[cs.segmentText, { fontSize: 12, color: boletosMes === m ? '#fff' : colors.text }]}>{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][m-1]}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <View style={{ flexDirection: 'row', gap: 4 }}>
-                  <TouchableOpacity onPress={() => { playTapSound(); setBoletosAno((a) => Math.max(2020, a - 1)); }} style={[cs.segmentBtn, { backgroundColor: colors.primaryRgba(0.12), paddingHorizontal: 10 }]}>
-                    <Ionicons name="chevron-back" size={18} color={colors.text} />
-                  </TouchableOpacity>
-                  <View style={[cs.segmentBtn, { backgroundColor: colors.primaryRgba(0.12), paddingHorizontal: 12, justifyContent: 'center' }]}>
-                    <Text style={[cs.segmentText, { color: colors.text, fontSize: 13 }]}>{boletosAno}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => { playTapSound(); setBoletosAno((a) => Math.min(2030, a + 1)); }} style={[cs.segmentBtn, { backgroundColor: colors.primaryRgba(0.12), paddingHorizontal: 10 }]}>
-                    <Ionicons name="chevron-forward" size={18} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
           </View>
+          {boletosFiltroMesAno && (
+            <MonthYearPicker
+              month={boletosMes}
+              year={boletosAno}
+              colors={colors}
+              onChange={({ month, year }) => {
+                setBoletosMes(month);
+                setBoletosAno(year);
+              }}
+            />
+          )}
           {showEmpresaFeatures && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity
@@ -453,6 +608,18 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
               </TouchableOpacity>
             </View>
           )}
+          <FaturasResumoPanel
+            boletosList={boletosParaResumo}
+            colors={colors}
+            showDetalhes={showFaturasResumoDetalhes}
+            onToggleDetalhes={setShowFaturasResumoDetalhes}
+            pickMode={faturasResumoPickMode}
+            onTogglePickMode={setFaturasResumoPickMode}
+            filterTotal={filteredItems.length}
+            selectedCount={faturasResumoSelected.size}
+            onSelectAllInFilter={selectAllFaturasResumo}
+            onClearSelection={clearFaturasResumoSelection}
+          />
         </View>
       )}
       {section === 'produtos' ? (
@@ -629,8 +796,26 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         </TouchableOpacity>
       </Modal>
       )}
+      <ScrollView
+        style={[
+          { flex: 1 },
+          Platform.OS === 'web' ? { overflowY: 'scroll' } : null,
+        ]}
+        contentContainerStyle={[
+          { paddingBottom: 100 },
+          section === 'tarefas' ? { paddingHorizontal: 16, paddingVertical: 8 } : { paddingVertical: 8 },
+        ]}
+        showsVerticalScrollIndicator
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+      >
+      {section === 'boletos' && filteredItems.length > 0 && (
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginHorizontal: 16, marginBottom: 8, letterSpacing: 0.3 }}>
+          Boletos salvos ({countBoletosForDisplay(filteredItems)})
+        </Text>
+      )}
       {section === 'tarefas' ? (
-        <View style={{ paddingVertical: 8, paddingBottom: 100, paddingHorizontal: 16 }}>
+        <View>
           {(() => {
             const prOrd = (p) => ({ urgente: 4, alta: 3, media: 2, baixa: 1 }[p] || 2);
             const parseDt = (str) => {
@@ -728,7 +913,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
           <Text style={[cs.emptyText, { color: colors.textSecondary }]}>Nenhum item cadastrado</Text>
         </View>
       ) : (
-        <View style={{ paddingVertical: 8, paddingBottom: 100 }}>
+        <>
           {isDesktopWeb && (section === 'produtos' || section === 'servicos') ? (
             <View style={[cs.gridWrap, { paddingHorizontal: 16 }]}>
               {filteredItems.map((item) => {
@@ -757,8 +942,15 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                     </View>
                     <Text style={[cs.listTitle, { color: colors.text }]} numberOfLines={1}>{item[titleKey] || '—'}</Text>
                     {subKey && item[subKey] != null && (
-                      <Text style={[cs.listSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                        {typeof item[subKey] === 'number' ? `R$ ${item[subKey].toFixed(2)}` : item[subKey]}
+                      <Text style={[cs.listSub, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {typeof item[subKey] === 'number' ? formatCurrency(item[subKey]) : item[subKey]}
+                        {section === 'boletos' && (
+                          <>
+                            {'\nVenc. '}
+                            {getBoletoDisplayDueDate(item, boletosFiltroMesAno ? boletosMes : undefined, boletosFiltroMesAno ? boletosAno : undefined) || item.dueDate || '—'}
+                            {formatBoletoRepeatLabel(item) ? ` · ${formatBoletoRepeatLabel(item)}` : ''}
+                          </>
+                        )}
                       </Text>
                     )}
                     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
@@ -775,7 +967,8 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
             </View>
           ) : (
             filteredItems.map((item) => (
-              <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }]}>
+              <View key={item.id} style={[cs.listItem, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', opacity: section === 'boletos' && item.paid ? 0.7 : 1 }, section === 'boletos' && faturasResumoPickMode && faturasResumoSelected.has(String(item.id)) ? { borderColor: colors.primary, borderWidth: 1.5 } : null]}>
+                {renderFaturaResumoCheckbox(item)}
                 {(section === 'clientes' && item.foto) || (section === 'produtos' && (item.photoUri || item.photoUris?.[0])) ? (
                   <Image source={{ uri: (section === 'clientes' ? item.foto : (item.photoUri || item.photoUris?.[0])) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
                 ) : (
@@ -792,12 +985,27 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                       </View>
                     )}
                   </View>
-                  {subKey && item[subKey] != null && <Text style={[cs.listSub, { color: colors.textSecondary }]}>{typeof item[subKey] === 'number' ? `R$ ${item[subKey].toFixed(2)}` : item[subKey]}</Text>}
+                  {subKey && item[subKey] != null && (
+                    <Text style={[cs.listSub, { color: colors.textSecondary }]}>
+                      {typeof item[subKey] === 'number' ? formatCurrency(item[subKey]) : item[subKey]}
+                      {section === 'boletos' && (
+                        <>
+                          {' · Venc. '}
+                          {getBoletoDisplayDueDate(item, boletosFiltroMesAno ? boletosMes : undefined, boletosFiltroMesAno ? boletosAno : undefined) || item.dueDate || '—'}
+                          {formatBoletoRepeatLabel(item) ? ` · ${formatBoletoRepeatLabel(item)}` : ''}
+                        </>
+                      )}
+                    </Text>
+                  )}
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   {section === 'boletos' && (
                     <TouchableOpacity onPress={() => update(item.id, { paid: !item.paid })} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
-                      <Ionicons name={item.paid ? 'checkmark-done' : 'checkmark-done-outline'} size={18} color={item.paid ? '#10b981' : colors.textSecondary} />
+                      <Ionicons
+                        name={item.paid ? 'arrow-undo' : 'checkmark-done'}
+                        size={18}
+                        color={item.paid ? colors.textSecondary : '#10b981'}
+                      />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
@@ -810,8 +1018,9 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
               </View>
             ))
           )}
-        </View>
+        </>
       )}
+      </ScrollView>
     </SafeAreaView>
   );
 }

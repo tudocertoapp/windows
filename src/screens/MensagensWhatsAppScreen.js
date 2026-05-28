@@ -30,6 +30,7 @@ import { ClienteModal } from '../components/ClienteModal';
 import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
 import { CatalogoScreen } from './CatalogoScreen';
 import { playTapSound } from '../utils/sounds';
+import { onDeletePress } from '../utils/confirm';
 import { formatCurrency } from '../utils/format';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TopBar } from '../components/TopBar';
@@ -564,7 +565,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                           </TouchableOpacity>
                         ) : null}
                         <TouchableOpacity
-                          onPress={() => Alert.alert('Excluir', 'Remover este cliente?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteClient(c.id) }])}
+                          onPress={onDeletePress('Excluir', 'Remover este cliente?', deleteClient, c.id)}
                           style={[s.actionBtn, { backgroundColor: 'transparent' }]}
                         >
                           <Ionicons name="trash-outline" size={18} color="#ef4444" />

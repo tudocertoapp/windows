@@ -10,6 +10,7 @@ import { ClienteModal } from '../components/ClienteModal';
 import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
 import { formatCurrency } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
+import { onDeletePress } from '../utils/confirm';
 
 const cls = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
@@ -144,12 +145,10 @@ export function ClientesScreen({ onClose, isModal }) {
                     </TouchableOpacity>
                   ) : null}
                   <TouchableOpacity
-                    onPress={() =>
-                      Alert.alert('Excluir', 'Remover este cliente?', [
-                        { text: 'Cancelar' },
-                        { text: 'Excluir', style: 'destructive', onPress: () => deleteClient(c.id) },
-                      ])
-                    }
+                    onPress={() => {
+                      playTapSound();
+                      onDeletePress('Excluir', 'Remover este cliente?', deleteClient, c.id)();
+                    }}
                     style={[cls.actionBtn, { backgroundColor: 'transparent' }]}
                   >
                     <Ionicons name="trash-outline" size={18} color="#ef4444" />

@@ -51,6 +51,9 @@ export function ViewModeToggle({ viewMode, setViewMode, colors, inline = false, 
         const inactiveBg = colors.card || colors.bgSecondary;
         const activeColor = '#fff';
         const inactiveColor = colors.textSecondary;
+        const segmentLikeHeader = useDesktopHeaderSplit;
+        const labelColor = segmentLikeHeader ? (active ? '#fff' : colors.text) : (active ? activeColor : inactiveColor);
+        const iconColor = segmentLikeHeader ? (active ? '#fff' : colors.text) : (active ? activeColor : inactiveColor);
         return (
           <TouchableOpacity
             key={opt.id}
@@ -77,7 +80,7 @@ export function ViewModeToggle({ viewMode, setViewMode, colors, inline = false, 
                 ? (active ? accent : `${accent}55`)
                 : (active ? accent : (colors.border || 'rgba(255,255,255,0.15)')),
               backgroundColor: useDesktopHeaderSplit
-                ? (active ? `${accent}2F` : `${accent}14`)
+                ? (active ? accent : (opt.id === 'pessoal' ? colors.primaryRgba(0.15) : 'rgba(99,102,241,0.15)'))
                 : useDesktopInlineCards
                 ? (active ? `${accent}28` : `${accent}16`)
                 : (active ? activeBg : inactiveBg),
@@ -110,13 +113,13 @@ export function ViewModeToggle({ viewMode, setViewMode, colors, inline = false, 
               <Ionicons
                 name={opt.icon}
                 size={useDesktopHeaderSplit ? scaleWebDesktop(15, true) : (useDesktopInlineCards ? 16 : (inline ? 14 : (useWebLayout ? 17 : 22)))}
-                color={(useDesktopInlineCards || useDesktopHeaderSplit) ? accent : (active ? activeColor : inactiveColor)}
+                color={segmentLikeHeader ? iconColor : ((useDesktopInlineCards) ? accent : (active ? activeColor : inactiveColor))}
               />
               <Text
                 style={{
                   fontSize: useDesktopHeaderSplit ? scaleWebDesktop(11, true) : (useDesktopInlineCards ? 12 : (inline ? 11 : (useWebLayout ? 11 : 13))),
                   fontWeight: '700',
-                  color: (useDesktopInlineCards || useDesktopHeaderSplit) ? accent : (active ? activeColor : inactiveColor),
+                  color: segmentLikeHeader ? labelColor : ((useDesktopInlineCards) ? accent : (active ? activeColor : inactiveColor)),
                   letterSpacing: 0.2,
                 }}
                 numberOfLines={1}

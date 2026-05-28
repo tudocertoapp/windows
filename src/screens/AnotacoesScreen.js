@@ -20,6 +20,7 @@ import { usePlan } from '../contexts/PlanContext';
 import { topBarStyles } from '../components/TopBar';
 import { GlassCard } from '../components/GlassCard';
 import { playTapSound } from '../utils/sounds';
+import { confirmAndDelete } from '../utils/confirm';
 
 const ans = StyleSheet.create({
   container: { flex: 1 },
@@ -128,10 +129,7 @@ export function AnotacoesScreen({ onClose, isModal, initialEditNoteId, initialCr
 
   const handleDelete = (note) => {
     playTapSound();
-    Alert.alert('Excluir', 'Quer excluir esta anotação?', [
-      { text: 'Cancelar' },
-      { text: 'Excluir', style: 'destructive', onPress: () => deleteNote(note.id) },
-    ]);
+    confirmAndDelete('Excluir', 'Quer excluir esta anotação?', deleteNote, note.id);
   };
 
   return (

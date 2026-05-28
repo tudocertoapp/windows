@@ -27,6 +27,7 @@ import { useMenu } from '../contexts/MenuContext';
 import { usePlan } from '../contexts/PlanContext';
 import { AgendaFormModal } from '../components/AgendaFormModal';
 import { playTapSound } from '../utils/sounds';
+import { onDeletePress } from '../utils/confirm';
 import { formatCurrency } from '../utils/format';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 import { TopBar } from '../components/TopBar';
@@ -1388,10 +1389,7 @@ export function AgendaScreen() {
                               onPress={(ev) => {
                                 ev?.stopPropagation?.();
                                 playTapSound();
-                                Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
-                                  { text: 'Cancelar' },
-                                  { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
-                                ]);
+                                onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)();
                               }}
                               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                               style={[as.eventActionBtn, { backgroundColor: colors.bg + 'E6' }]}

@@ -18,6 +18,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
+import { onDeletePress } from '../utils/confirm';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 
 const FUNCOES = ['Vendedor', 'Gerente', 'Serviços gerais', 'Atendimento', 'Administrativo', 'Caixa', 'Outro'];
@@ -227,7 +228,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
                   <TouchableOpacity onPress={() => openPayment(c)}><Ionicons name="cash-outline" size={20} color="#10b981" /></TouchableOpacity>
                   <TouchableOpacity onPress={() => {
                     playTapSound();
-                    Alert.alert('Excluir', 'Excluir colaborador?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteCollaborator(c.id) }]);
+                    onDeletePress('Excluir', 'Excluir colaborador?', deleteCollaborator, c.id)();
                   }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
                 </View>
               </View>

@@ -24,17 +24,28 @@ export function ScrollableCardList({
   scrollStripSide = 'right',
   /** Centraliza a mensagem quando a lista está vazia (ex.: web desktop). */
   centerEmpty = false,
+  /** No card da home: exibe só os N primeiros; o restante via Ver mais. */
+  maxPreviewItems = null,
 }) {
+  const allItems = items || [];
+  const displayItems =
+    maxPreviewItems != null && maxPreviewItems > 0
+      ? allItems.slice(0, maxPreviewItems)
+      : allItems;
+  const hasMorePreview =
+    maxPreviewItems != null && maxPreviewItems > 0 && allItems.length > maxPreviewItems;
+  const totalCount = allItems.length;
   const scrollRef = useRef(null);
   const [fillHeight, setFillHeight] = useState(VISIBLE_HEIGHT);
   const visibleHeight = fixedVisibleHeight === 'fill' ? fillHeight : VISIBLE_HEIGHT;
-  const contentHeight = items.length * (ITEM_HEIGHT_EST + itemMarginBottom);
+  const contentHeight = displayItems.length * (ITEM_HEIGHT_EST + itemMarginBottom);
   const minScrollItems = Math.max(1, Number(scrollStartsAt) || 6);
   const overflowByHeight = contentHeight > visibleHeight + 2;
   const showStrip =
-    fixedVisibleHeight === 'fill'
-      ? overflowByHeight || items.length >= minScrollItems
-      : items.length >= minScrollItems;
+    !hasMorePreview &&
+    (fixedVisibleHeight === 'fill'
+      ? overflowByHeight || displayItems.length >= minScrollItems
+      : displayItems.length >= minScrollItems);
   const maxScroll = Math.max(0, contentHeight - visibleHeight);
   const thumbHeight = maxScroll > 0 ? Math.max(20, (visibleHeight / contentHeight) * visibleHeight) : visibleHeight;
   const thumbMaxTop = visibleHeight - thumbHeight;
@@ -65,7 +76,7 @@ export function ScrollableCardList({
     return { flex: 1 };
   }, [fixedVisibleHeight, fillHeight, showStrip]);
 
-  if (items.length === 0) {
+  if (displayItems.length === 0) {
     const textNode = (
       <Text style={[s.emptyText, { color: colors.textSecondary }, centerEmpty && s.emptyTextCentered]}>{emptyText}</Text>
     );
@@ -149,7 +160,7 @@ export function ScrollableCardList({
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: 8, flexGrow: 0 }}
         >
-          {items.map((item, idx) => (
+          {displayItems.map((item, idx) => (
             <View key={item?.id ?? idx} style={{ marginBottom: itemMarginBottom }}>
               {renderItem(item)}
             </View>
@@ -181,12 +192,16 @@ export function ScrollableCardList({
           </View>
         )}
       </View>
-      {items.length > MAX_VISIBLE && onVerMais && fixedVisibleHeight !== 'fill' && (
+      {onVerMais && (hasMorePreview || (displayItems.length > MAX_VISIBLE && fixedVisibleHeight !== 'fill')) && (
         <TouchableOpacity
           onPress={onVerMais}
           style={[s.verMaisBtn, { backgroundColor: (accentColor || colors.primary) + '26', borderColor: (accentColor || colors.primary) + '50' }]}
         >
-          <Text style={[s.verMaisText, { color: accentColor || colors.primary }]}>Ver mais ({items.length} itens)</Text>
+          <Text style={[s.verMaisText, { color: accentColor || colors.primary }]}>
+            {hasMorePreview
+              ? `Ver mais (${totalCount} itens)`
+              : `Ver mais (${displayItems.length} itens)`}
+          </Text>
           <AppIcon name="expand-outline" size={20} color={accentColor || colors.primary} />
         </TouchableOpacity>
       )}

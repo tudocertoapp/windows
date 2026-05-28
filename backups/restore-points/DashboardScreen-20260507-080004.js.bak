@@ -22,10 +22,8 @@ import { CardPickerModal } from '../components/CardPickerModal';
 import { ScrollableCardList } from '../components/ScrollableCardList';
 import { CardExpandedModal } from '../components/CardExpandedModal';
 import { playTapSound } from '../utils/sounds';
-import { confirmDestructive, onDeletePress } from '../utils/confirm';
 import { openWhatsApp } from '../utils/whatsapp';
 import { formatCurrency } from '../utils/format';
-import { getBoletoDueDateObject, sortBoletosForDisplay, dedupeBoletos } from '../utils/boletoDates';
 import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
@@ -152,7 +150,6 @@ export function DashboardScreen() {
   const TRIO_CARD_HEIGHT = useWebLayout ? scaleWebDesktop(178, useWebLayout) : undefined;
   const HEADER_ICON_BOX_SIZE = useWebLayout ? scaleWebDesktop(40, useWebLayout) : 48;
   const HEADER_ICON_SIZE = useWebLayout ? scaleWebDesktop(22, useWebLayout) : 26;
-  const CARD_PREVIEW_MAX_ITEMS = 5;
   const route = useRoute();
   const navigation = useNavigation();
   const { transactions, checkListItems, agendaEvents, boletos, clients, services, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction, updateBoleto, deleteBoleto } = useFinance();
@@ -173,34 +170,9 @@ export function DashboardScreen() {
   );
   const { banks, cards, addToBank, deductFromBank, addToCardBalance, deductFromCardBalance, getBankById } = useBanks();
   const { colors, themeMode } = useTheme();
-  const isDarkTheme = themeMode === 'dark' || colors?.isDarkBg;
-  const quickRowTheme = useMemo(() => {
-    const p = colors.primary;
-    return isDarkTheme
-      ? {
-          shellBg: 'transparent',
-          shellBorder: 'transparent',
-          btnBg: 'rgba(24,24,27,0.92)',
-          btnBorder: p,
-          chipBorder: p,
-          chipText: '#a1a1aa',
-          icon: p,
-          text: '#e4e4e7',
-        }
-      : {
-          shellBg: 'transparent',
-          shellBorder: 'transparent',
-          btnBg: 'rgba(248,250,252,0.96)',
-          btnBorder: p,
-          chipBorder: p,
-          chipText: '#64748b',
-          icon: p,
-          text: '#1f2937',
-        };
-  }, [isDarkTheme, colors.primary]);
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
   const { notes, deleteNote } = useNotes();
   const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
   const { profile } = useProfile();
@@ -298,11 +270,11 @@ export function DashboardScreen() {
       { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
       { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes'), color: CARD_ICON_COLORS.aniversariantes },
       { id: 'fornecedores', label: 'Fornecedor', icon: 'business-outline', onPress: () => openCadastro?.('fornecedores'), color: CARD_ICON_COLORS.anotacoes },
-      { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => (openOrcamentos?.() || openOrcamento?.()), color: CARD_ICON_COLORS.listacompras },
+      { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => openOrcamento?.(), color: CARD_ICON_COLORS.listacompras },
       { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
       { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
     ],
-    [openAReceber, openCadastro, openEmpresa, openOrcamento, openOrcamentos, openPDV],
+    [openAReceber, openCadastro, openEmpresa, openOrcamento, openPDV],
   );
 
   useEffect(() => {
@@ -597,11 +569,11 @@ export function DashboardScreen() {
 
   /** Faturas para o card Início: pendentes por vencimento; pagas por data desc. */
   const proximasFaturasLists = useMemo(() => {
-    let list = sortBoletosForDisplay(dedupeBoletos(boletos || []));
+    let list = boletos || [];
     if (canToggleView) list = list.filter((b) => (b.tipo || 'pessoal') === viewMode);
     const unpaid = list
       .filter((b) => !b.paid)
-      .map((b) => ({ ...b, _due: getBoletoDueDateObject(b) }))
+      .map((b) => ({ ...b, _due: parseBoletoDate(b.dueDate) }))
       .sort((a, b) => {
         const ta = a._due ? a._due.getTime() : 9e15;
         const tb = b._due ? b._due.getTime() : 9e15;
@@ -614,7 +586,7 @@ export function DashboardScreen() {
         const db = parseBoletoDate(b.dueDate) || new Date(0);
         return db - da;
       });
-    return { unpaid, paid, all: list };
+    return { unpaid, paid };
   }, [boletos, canToggleView, viewMode]);
 
   const fmt = formatCurrency;
@@ -1098,8 +1070,12 @@ export function DashboardScreen() {
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity onPress={(e) => {
+                  e?.stopPropagation?.();
                   playTapSound();
-                  onDeletePress('Excluir', 'Quer realmente excluir esta tarefa?', deleteCheckListItem, t.id)(e);
+                  Alert.alert('Excluir', 'Quer realmente excluir esta tarefa?', [
+                    { text: 'Cancelar' },
+                    { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) },
+                  ]);
                 }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="trash-outline" size={22} color="#ef4444" />
                 </TouchableOpacity>
@@ -1161,8 +1137,12 @@ export function DashboardScreen() {
             <Ionicons name="checkmark-done" size={18} color="#10b981" />
           </TouchableOpacity>
           <TouchableOpacity onPress={(ev) => {
+            ev?.stopPropagation?.();
             playTapSound();
-            onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)(ev);
+            Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+              { text: 'Cancelar' },
+              { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+            ]);
           }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="trash-outline" size={18} color="#ef4444" />
           </TouchableOpacity>
@@ -1286,8 +1266,12 @@ export function DashboardScreen() {
                       )}
                       <TouchableOpacity
                         onPress={(e) => {
+                          e?.stopPropagation?.();
                           playTapSound();
-                          onDeletePress('Excluir', 'Quer realmente excluir esta tarefa?', deleteCheckListItem, t.id)(e);
+                          Alert.alert('Excluir', 'Quer realmente excluir esta tarefa?', [
+                            { text: 'Cancelar' },
+                            { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) },
+                          ]);
                         }}
                         style={{ padding: 6 }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1619,9 +1603,7 @@ export function DashboardScreen() {
                             const title = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
                             const top = (startM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
                             const rawH = (durM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
-                            const height = Math.max(rawH, 24);
-                            const compactActions = height < 52;
-                            const blockHeight = compactActions ? Math.max(height, 32) : height;
+                            const height = Math.max(useWebLayout ? 76 : 28, rawH);
                             const isEmp = showEmpresaFeatures && (e.tipo === 'empresa');
                             const t0 = e.time || e.timeStart;
                             const timeStr = `${t0 || '--:--'}${e.timeEnd ? ` - ${e.timeEnd}` : ''}`;
@@ -1632,102 +1614,90 @@ export function DashboardScreen() {
                             else if (e.type === 'orcamento') detailParts.push('Orçamento');
                             else if (e.type === 'manutencao') detailParts.push('Garantia');
                             const metaLine = [timeStr, ...detailParts, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ');
-                            const actionIconSize = compactActions ? 15 : 17;
-                            const actionRailStyle = {
-                              flexDirection: compactActions ? 'row' : 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: compactActions ? 0 : 2,
-                              backgroundColor: colors.bg + 'EE',
-                              borderRadius: 10,
-                              borderWidth: 1,
-                              borderColor: colors.border + '90',
-                              paddingVertical: compactActions ? 3 : 5,
-                              paddingHorizontal: compactActions ? 5 : 3,
-                            };
                             return (
-                              <View
+                              <TouchableOpacity
                                 key={e.id}
+                                activeOpacity={0.9}
+                                onPress={() => { playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }}
                                 style={{
                                   position: 'absolute',
                                   left: 0,
                                   right: 0,
                                   top,
-                                  height: blockHeight,
-                                  flexDirection: 'row',
-                                  alignItems: 'stretch',
+                                  height,
+                                  paddingVertical: 8,
+                                  paddingLeft: 10,
+                                  paddingRight: 44,
+                                  borderRadius: 14,
+                                  backgroundColor: accent + '1F',
+                                  borderWidth: 1,
+                                  borderColor: accent + '66',
+                                  borderLeftWidth: 4,
+                                  borderLeftColor: accent,
+                                  overflow: 'hidden',
                                 }}
                               >
-                                <TouchableOpacity
-                                  activeOpacity={0.9}
-                                  onPress={() => { playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }}
+                                <View style={{ flex: 1, minHeight: 0, justifyContent: 'flex-start' }}>
+                                  <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={2}>
+                                    {title}
+                                  </Text>
+                                  {cli?.phone ? (
+                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                                      {cli.phone}
+                                    </Text>
+                                  ) : null}
+                                  {svc?.name ? (
+                                    <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2 }} numberOfLines={1}>
+                                      {svc.name}
+                                    </Text>
+                                  ) : null}
+                                  {!!descricao && (
+                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                                      {descricao}
+                                    </Text>
+                                  )}
+                                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                                    {metaLine}
+                                  </Text>
+                                </View>
+                                <View
                                   style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    height: blockHeight,
-                                    paddingVertical: 6,
-                                    paddingLeft: 10,
-                                    paddingRight: 6,
-                                    borderRadius: 14,
-                                    backgroundColor: accent + '1F',
-                                    borderWidth: 1,
-                                    borderColor: accent + '66',
-                                    borderLeftWidth: 4,
-                                    borderLeftColor: accent,
-                                    overflow: 'hidden',
+                                    position: 'absolute',
+                                    right: 4,
+                                    top: 6,
+                                    bottom: 6,
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: 4,
                                   }}
                                 >
-                                  <View style={{ flex: 1, minHeight: 0, justifyContent: 'flex-start' }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={compactActions ? 1 : 2}>
-                                      {title}
-                                    </Text>
-                                    {!compactActions && cli?.phone ? (
-                                      <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                        {cli.phone}
-                                      </Text>
-                                    ) : null}
-                                    {!compactActions && svc?.name ? (
-                                      <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2 }} numberOfLines={1}>
-                                        {svc.name}
-                                      </Text>
-                                    ) : null}
-                                    {!compactActions && !!descricao && (
-                                      <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
-                                        {descricao}
-                                      </Text>
-                                    )}
-                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={compactActions ? 1 : 2}>
-                                      {metaLine}
-                                    </Text>
-                                  </View>
-                                </TouchableOpacity>
-                                <View style={{ width: compactActions ? 76 : 30, marginLeft: 4, justifyContent: 'center', alignItems: 'center' }}>
-                                  <View style={actionRailStyle}>
-                                    <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 3 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                      <Ionicons name="pencil" size={actionIconSize} color={colors.primary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={(ev) => {
-                                        ev?.stopPropagation?.();
-                                        playTapSound();
-                                        if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e });
-                                        else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
-                                      }}
-                                      style={{ padding: 3 }}
-                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    >
-                                      <Ionicons name="checkmark-done" size={actionIconSize} color="#10b981" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={(ev) => {
+                                  <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 4 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Ionicons name="pencil" size={18} color={colors.primary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={(ev) => {
                                       ev?.stopPropagation?.();
                                       playTapSound();
-                                      onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)();
-                                    }} style={{ padding: 3 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                      <Ionicons name="trash-outline" size={actionIconSize} color="#ef4444" />
-                                    </TouchableOpacity>
-                                  </View>
+                                      if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e });
+                                      else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
+                                    }}
+                                    style={{ padding: 4 }}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <Ionicons name="checkmark-done" size={18} color="#10b981" />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity onPress={(ev) => {
+                                    ev?.stopPropagation?.();
+                                    playTapSound();
+                                    Alert.alert('Excluir', 'Quer realmente excluir este evento?', [
+                                      { text: 'Cancelar' },
+                                      { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) },
+                                    ]);
+                                  }} style={{ padding: 4 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                                  </TouchableOpacity>
                                 </View>
-                              </View>
+                              </TouchableOpacity>
                             );
                           })}
                         </View>
@@ -2704,7 +2674,7 @@ export function DashboardScreen() {
                 </View>
               </View>
               <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
-                {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} ${notes.length === 1 ? 'anotação' : 'anotações'}`}
+                {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
               </Text>
             </View>
           ) : (
@@ -2715,7 +2685,7 @@ export function DashboardScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Minhas anotações</Text>
                 <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
-                  {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} ${notes.length === 1 ? 'anotação' : 'anotações'}`}
+                  {notes.length === 0 ? 'Suas notas e lembretes' : `${notes.length} anotação${notes.length !== 1 ? 'ões' : ''}`}
                 </Text>
               </View>
               <View style={cardHeaderActionsStyle}>
@@ -2731,7 +2701,6 @@ export function DashboardScreen() {
           <View style={useWebLayout ? { flex: 1, minHeight: 0 } : undefined}>
             <ScrollableCardList
               items={notes}
-              maxPreviewItems={CARD_PREVIEW_MAX_ITEMS}
               colors={colors}
               accentColor={colors.primary}
               emptyText="Nenhuma anotação ainda"
@@ -2746,8 +2715,12 @@ export function DashboardScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={(e) => {
+                      e?.stopPropagation?.();
                       playTapSound();
-                      onDeletePress('Excluir', 'Quer excluir esta anotação?', deleteNote, n.id)(e);
+                      Alert.alert('Excluir', 'Quer excluir esta anotação?', [
+                        { text: 'Cancelar' },
+                        { text: 'Excluir', style: 'destructive', onPress: () => deleteNote(n.id) },
+                      ]);
                     }}
                     style={{ padding: 6 }}
                   >
@@ -2882,7 +2855,6 @@ export function DashboardScreen() {
             <View style={useWebLayout ? { flex: 1, minHeight: 0 } : undefined}>
               <ScrollableCardList
                 items={displayItems}
-                maxPreviewItems={CARD_PREVIEW_MAX_ITEMS}
                 colors={colors}
                 accentColor={colors.primary}
                 emptyText={showConcluidasListaCompras ? 'Nenhuma compra concluída' : 'Nenhum item na lista'}
@@ -2912,8 +2884,12 @@ export function DashboardScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={(e) => {
+                        e?.stopPropagation?.();
                         playTapSound();
-                        onDeletePress('Excluir', 'Quer excluir este item da lista?', deleteShoppingItem, i.id)(e);
+                        Alert.alert('Excluir', 'Quer excluir este item da lista?', [
+                          { text: 'Cancelar' },
+                          { text: 'Excluir', style: 'destructive', onPress: () => deleteShoppingItem(i.id) },
+                        ]);
                       }}
                       style={{ padding: 6 }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -2964,7 +2940,6 @@ export function DashboardScreen() {
           {webProductivityTab === 'anotacoes' ? (
             <ScrollableCardList
               items={notes}
-              maxPreviewItems={CARD_PREVIEW_MAX_ITEMS}
               colors={colors}
               accentColor={colors.primary}
               emptyText="Nenhuma anotação ainda"
@@ -2995,7 +2970,6 @@ export function DashboardScreen() {
                     ? (shoppingItems || []).filter((i) => i.checked)
                     : (shoppingItems || []).filter((i) => !i.checked)
                 }
-                maxPreviewItems={CARD_PREVIEW_MAX_ITEMS}
                 colors={colors}
                 accentColor={colors.primary}
                 emptyText={showConcluidasProdCompras ? 'Nenhuma compra concluída' : 'Nenhum item na lista'}
@@ -3080,6 +3054,19 @@ export function DashboardScreen() {
                 <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '700', marginTop: 2 }}>Paga</Text>
               ) : null}
             </View>
+            {!b.paid ? (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  playTapSound();
+                  updateBoleto(b.id, { paid: true });
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Marcar como paga"
+              >
+                <Ionicons name="checkmark-circle" size={22} color="#10b981" />
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               onPress={(e) => {
                 e?.stopPropagation?.();
@@ -3087,53 +3074,24 @@ export function DashboardScreen() {
                 setExpandedCard(null);
                 openCadastro?.('boletos', { editItemId: b.id });
               }}
-              style={{ padding: 6 }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityLabel="Editar"
             >
-              <Ionicons name="pencil" size={18} color={colors.primary} />
+              <Ionicons name="pencil" size={20} color={colors.primary} />
             </TouchableOpacity>
-            {b.paid && showContasPagasProxFaturas ? (
-              <TouchableOpacity
-                onPress={(e) => {
-                  e?.stopPropagation?.();
-                  playTapSound();
-                  updateBoleto(b.id, { paid: false });
-                }}
-                style={{ padding: 6 }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Marcar como pendente"
-              >
-                <Ionicons name="arrow-undo" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            ) : !b.paid ? (
-              <TouchableOpacity
-                onPress={(e) => {
-                  e?.stopPropagation?.();
-                  playTapSound();
-                  updateBoleto(b.id, { paid: true });
-                }}
-                style={{ padding: 6 }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Marcar como paga"
-              >
-                <Ionicons name="checkmark-done" size={18} color="#10b981" />
-              </TouchableOpacity>
-            ) : null}
             <TouchableOpacity
               onPress={(e) => {
                 e?.stopPropagation?.();
                 playTapSound();
-                (async () => {
-                  const ok = await confirmDestructive('Excluir fatura', 'Excluir este registro?');
-                  if (ok) await deleteBoleto(b.id);
-                })();
+                Alert.alert('Excluir fatura', 'Excluir este registro?', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Excluir', style: 'destructive', onPress: () => deleteBoleto(b.id) },
+                ]);
               }}
-              style={{ padding: 6 }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityLabel="Excluir"
             >
-              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
             </TouchableOpacity>
           </View>
         );
@@ -3258,7 +3216,6 @@ export function DashboardScreen() {
             <View style={useWebLayout ? { flex: 1, minHeight: 0 } : undefined}>
               <ScrollableCardList
                 items={displayItems}
-                maxPreviewItems={CARD_PREVIEW_MAX_ITEMS}
                 colors={colors}
                 accentColor={CARD_ICON_COLORS.proximasfaturas}
                 emptyText={showContasPagasProxFaturas ? 'Nenhuma fatura paga' : 'Nenhuma fatura pendente'}
@@ -3339,7 +3296,58 @@ export function DashboardScreen() {
                 </View>
               );
             })()}
-            {null}
+            {useWebLayout && showEmpresaFeatures ? (
+              <View style={{ width: '100%' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
+                  {webDesktopQuickButtons.map((item, index) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => { playTapSound(); item.onPress?.(); }}
+                      activeOpacity={0.85}
+                      accessibilityLabel={`${item.label} (F${index + 1})`}
+                      style={{
+                        flex: 1,
+                        flexBasis: 0,
+                        minWidth: 0,
+                        height: scaleWebDesktop(36, true),
+                        paddingVertical: 7,
+                        paddingHorizontal: 10,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: item.color + '55',
+                        backgroundColor: item.color + '16',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        position: 'relative',
+                      }}
+                    >
+                      <View
+                        pointerEvents="none"
+                        style={{
+                          position: 'absolute',
+                          top: -5,
+                          right: 6,
+                          borderRadius: 7,
+                          paddingHorizontal: 6,
+                          paddingVertical: 1,
+                          backgroundColor: colors.bg,
+                          borderWidth: 1,
+                          borderColor: item.color,
+                        }}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: item.color }}>{`F${index + 1}`}</Text>
+                      </View>
+                      <AppIcon name={item.icon} size={16} color={item.color} />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: item.color, textAlign: 'center' }} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
             {(() => {
               const hasAgenda = webSectionTail.includes('agenda');
               if (!hasAgenda) return null;
@@ -3516,81 +3524,8 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
         )}
-        <View style={{ height: Platform.OS === 'web' ? 170 : (isWebMobile ? 140 : 100) }} />
+        <View style={{ height: isWebMobile ? 140 : 100 }} />
       </ScrollView>
-      {Platform.OS === 'web' && webDesktopQuickButtons.length > 0 ? (
-        <View
-          pointerEvents="auto"
-          style={{
-            ...(Platform.OS === 'web'
-              ? { position: 'fixed', left: '6%', right: '6%', bottom: 8, transform: [{ translateX: -15 }] }
-              : { position: 'absolute', left: WEB_DESKTOP_PAGE_PAD, right: WEB_DESKTOP_PAGE_PAD, bottom: 10 }),
-            zIndex: 9999,
-          }}
-        >
-          <View
-            style={{
-              width: '100%',
-              flexDirection: 'row',
-              alignItems: 'stretch',
-              gap: WEB_DESKTOP_ROW_GAP,
-              backgroundColor: quickRowTheme.shellBg,
-              borderWidth: 1,
-              borderColor: quickRowTheme.shellBorder,
-              borderRadius: 16,
-              paddingHorizontal: 6,
-              paddingVertical: 6,
-            }}
-          >
-            {webDesktopQuickButtons.map((item, index) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => { playTapSound(); item.onPress?.(); }}
-                activeOpacity={0.85}
-                accessibilityLabel={`${item.label} (F${index + 1})`}
-                style={{
-                  flex: 1,
-                  flexBasis: 0,
-                  minWidth: 0,
-                  height: scaleWebDesktop(36, true),
-                  paddingVertical: 7,
-                  paddingHorizontal: 8,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: quickRowTheme.btnBorder,
-                  backgroundColor: quickRowTheme.btnBg,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  position: 'relative',
-                }}
-              >
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    top: -5,
-                    right: 6,
-                    borderRadius: 7,
-                    paddingHorizontal: 6,
-                    paddingVertical: 1,
-                    backgroundColor: colors.bg,
-                    borderWidth: 1,
-                    borderColor: quickRowTheme.chipBorder,
-                  }}
-                >
-                  <Text style={{ fontSize: 9, fontWeight: '800', color: quickRowTheme.chipText }}>{`F${index + 1}`}</Text>
-                </View>
-                <AppIcon name={item.icon} size={16} color={quickRowTheme.icon} />
-                <Text style={{ fontSize: 11, fontWeight: '700', color: quickRowTheme.text, textAlign: 'center', flexShrink: 1 }} numberOfLines={1}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      ) : null}
       <CardPickerModal
         visible={showCardPicker}
         onClose={() => setShowCardPicker(false)}
@@ -3698,7 +3633,7 @@ export function DashboardScreen() {
               ) : (
                 <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: true }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
               )}
-              <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Excluir esta tarefa?', deleteCheckListItem, t.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+              <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Excluir esta tarefa?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteCheckListItem(t.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
             </View>
           </GlassCard>
         ))}
@@ -3726,7 +3661,7 @@ export function DashboardScreen() {
                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
                 <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
                 <TouchableOpacity onPress={() => { playTapSound(); const isEmp = showEmpresaFeatures && (e.tipo === 'empresa'); if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e }); else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
-                <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Quer realmente excluir este evento?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteAgendaEvent(e.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
               </View>
             </GlassCard>
           );
@@ -3735,7 +3670,7 @@ export function DashboardScreen() {
           <View key={n.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.card, marginBottom: 8 }}>
             <Text style={{ flex: 1, fontSize: 15, color: colors.text }}>{n.title || 'Sem título'}</Text>
             <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAnotacoes?.({ editNoteId: n.id }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
-            <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Quer excluir esta anotação?', deleteNote, n.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+            <TouchableOpacity onPress={() => { playTapSound(); Alert.alert('Excluir', 'Quer excluir esta anotação?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteNote(n.id) }]); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
           </View>
         ))}
         {expandedCard === 'listacompras' && (
@@ -3761,7 +3696,10 @@ export function DashboardScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       playTapSound();
-                      onDeletePress('Excluir', 'Quer excluir este item da lista?', deleteShoppingItem, i.id)();
+                      Alert.alert('Excluir', 'Quer excluir este item da lista?', [
+                        { text: 'Cancelar' },
+                        { text: 'Excluir', style: 'destructive', onPress: () => deleteShoppingItem(i.id) },
+                      ]);
                     }}
                   >
                     <Ionicons name="trash-outline" size={20} color="#ef4444" />
@@ -3802,42 +3740,24 @@ export function DashboardScreen() {
                       {vencida ? <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '800', marginTop: 2 }}>Vencida</Text> : null}
                       {b.paid ? <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '700', marginTop: 2 }}>Paga</Text> : null}
                     </View>
-                    <TouchableOpacity
-                      onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('boletos', { editItemId: b.id }); }}
-                      style={{ padding: 6 }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="pencil" size={18} color={colors.primary} />
-                    </TouchableOpacity>
-                    {b.paid && showContasPagasProxFaturas ? (
-                      <TouchableOpacity
-                        onPress={() => { playTapSound(); updateBoleto(b.id, { paid: false }); }}
-                        style={{ padding: 6 }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Ionicons name="arrow-undo" size={18} color={colors.textSecondary} />
-                      </TouchableOpacity>
-                    ) : !b.paid ? (
-                      <TouchableOpacity
-                        onPress={() => { playTapSound(); updateBoleto(b.id, { paid: true }); }}
-                        style={{ padding: 6 }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Ionicons name="checkmark-done" size={18} color="#10b981" />
+                    {!b.paid ? (
+                      <TouchableOpacity onPress={() => { playTapSound(); updateBoleto(b.id, { paid: true }); }}>
+                        <Ionicons name="checkmark-circle" size={22} color="#10b981" />
                       </TouchableOpacity>
                     ) : null}
+                    <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('boletos', { editItemId: b.id }); }}>
+                      <Ionicons name="pencil" size={20} color={colors.primary} />
+                    </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => {
                         playTapSound();
-                        (async () => {
-                          const ok = await confirmDestructive('Excluir fatura', 'Excluir este registro?');
-                          if (ok) await deleteBoleto(b.id);
-                        })();
+                        Alert.alert('Excluir fatura', 'Excluir este registro?', [
+                          { text: 'Cancelar', style: 'cancel' },
+                          { text: 'Excluir', style: 'destructive', onPress: () => deleteBoleto(b.id) },
+                        ]);
                       }}
-                      style={{ padding: 6 }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                      <Ionicons name="trash-outline" size={20} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
                 </GlassCard>

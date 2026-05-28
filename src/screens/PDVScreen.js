@@ -261,8 +261,17 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     return (clients || []).filter((c) => stripAccents(c.name || '').toLowerCase().includes(q));
   }, [clients, clienteSearch]);
 
+  const subtotalBruto = useMemo(
+    () => cart.reduce((s, i) => s + (Number(i.originalPrice ?? i.price) || 0) * (i.qty || 1), 0),
+    [cart],
+  );
+  const descontoItens = useMemo(
+    () => cart.reduce((s, i) => s + (Number(i.descontoUnit) || 0) * (i.qty || 1), 0),
+    [cart],
+  );
   const subtotal = useMemo(() => cart.reduce((s, i) => s + (i.price || 0) * (i.qty || 1), 0), [cart]);
   const descontoNum = useMemo(() => parseMoney(String(desconto)) || 0, [desconto]);
+  const descontoTotal = descontoItens + descontoNum;
   const total = Math.max(0, subtotal - descontoNum);
   const pago = useMemo(() => payments.reduce((s, p) => s + (p.valor || 0), 0), [payments]);
   const restante = Math.max(0, total - pago);
@@ -375,10 +384,16 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     playPdvAddItemSound();
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.id === selectedItem.id && c._tipo === selectedItem._tipo);
-      const itemToAdd = { ...selectedItem, price: precoFinal, qty };
+      const itemToAdd = { ...selectedItem, originalPrice: price, descontoUnit: desc, price: precoFinal, qty };
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], qty: (next[idx].qty || 1) + qty, price: precoFinal };
+        next[idx] = {
+          ...next[idx],
+          qty: (next[idx].qty || 1) + qty,
+          originalPrice: price,
+          descontoUnit: desc,
+          price: precoFinal,
+        };
         return next;
       }
       return [...prev, itemToAdd];
@@ -470,10 +485,21 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     const numero = String(saleNumber).padStart(4, '0');
     const sale = {
       numero,
-      items: cart.map((i) => ({ id: i.id, name: i.name, code: i.code, price: i.price, qty: i.qty || 1 })),
+      items: cart.map((i) => ({
+        id: i.id,
+        name: i.name,
+        code: i.code,
+        price: i.price,
+        originalPrice: Number(i.originalPrice ?? i.price) || 0,
+        descontoUnit: Number(i.descontoUnit) || 0,
+        qty: i.qty || 1,
+      })),
       cliente: cliente ? { name: cliente.name, cpf: cliente.cpf } : null,
       subtotal,
-      desconto: descontoNum,
+      subtotalBruto,
+      descontoItens,
+      descontoGeral: descontoNum,
+      desconto: descontoTotal,
       total,
       pago,
       troco,
@@ -489,7 +515,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
         date: new Date().toISOString().slice(0, 10),
         formaPagamento: payments.map((p) => `${p.forma}: ${formatCurrency(p.valor)}`).join(', '),
         tipoVenda: 'avista',
-        desconto: descontoNum,
+        desconto: descontoTotal,
       });
 
       const firstBank = banks?.find((b) => (b.tipoConta === 'debito' || b.tipoConta === 'ambos') && b.saldo !== undefined);
@@ -512,7 +538,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     } catch (e) {
       Alert.alert('Erro', 'Não foi possível finalizar a venda.');
     }
-  }, [cart, cliente, subtotal, descontoNum, total, pago, payments, saleNumber, addTransaction, banks, addToBank, topSalesByItem, operatorLogged?.nome, profile?.nome]);
+  }, [cart, cliente, subtotal, subtotalBruto, descontoItens, descontoNum, descontoTotal, total, pago, payments, saleNumber, addTransaction, banks, addToBank, topSalesByItem, operatorLogged?.nome, profile?.nome]);
 
   const handlePrint = useCallback(() => {
     if (typeof window !== 'undefined' && window.print) {
@@ -685,18 +711,20 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       const hasModifier = !!(e.ctrlKey || e.shiftKey || e.altKey || e.metaKey);
       if (!hasModifier && e.key === 'F1') { e.preventDefault(); setActiveTab('produtos'); setTimeout(() => searchRef.current?.focus?.(), 50); return; }
       if (!hasModifier && e.key === 'F2') { e.preventDefault(); if (selectedItem) setSelectedItem(null); return; }
-      if (!hasModifier && e.key === 'F3') { e.preventDefault(); setActiveTab('cliente'); return; }
-      if (!hasModifier && e.key === 'F4') { e.preventDefault(); setActiveTab('finalizacao'); return; }
-      if (!hasModifier && e.key === 'F5') { e.preventDefault(); if (cart.length > 0 && pago >= total - 0.01) handleConfirmSale(); return; }
-      if (!hasModifier && e.key === 'F6') { e.preventDefault(); if (completedSale) handlePrint(); return; }
-      if (!hasModifier && e.key === 'F7') { e.preventDefault(); handleNovaVenda(); return; }
+      if (!hasModifier && e.key === 'F3') { e.preventDefault(); requestCancelAction('item'); return; }
+      if (!hasModifier && e.key === 'F4') { e.preventDefault(); requestCancelAction('pedido'); return; }
+      if (!hasModifier && e.key === 'F5') { e.preventDefault(); setActiveTab('cliente'); return; }
+      if (!hasModifier && e.key === 'F6') { e.preventDefault(); setActiveTab('finalizacao'); return; }
+      if (!hasModifier && e.key === 'F7') { e.preventDefault(); if (cart.length > 0 && pago >= total - 0.01) handleConfirmSale(); return; }
+      if (!hasModifier && e.key === 'F8') { e.preventDefault(); if (completedSale) handlePrint(); return; }
+      if (!hasModifier && e.key === 'F9') { e.preventDefault(); setShowPdvConfigModal(true); return; }
       if (e.key === 'Escape') { e.preventDefault(); setSelectedItem(null); setShowPaymentAdd(false); return; }
       if (e.key === 'Enter' && selectedItem && activeTab === 'produtos') { e.preventDefault(); confirmAddItem(); return; }
       if (e.ctrlKey && e.key === 'p') { e.preventDefault(); if (completedSale) handlePrint(); return; }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedItem, activeTab, cart, pago, total, completedSale, handleNovaVenda, handleConfirmSale, handlePrint, confirmAddItem]);
+  }, [selectedItem, activeTab, cart, pago, total, completedSale, handleConfirmSale, handlePrint, confirmAddItem, requestCancelAction]);
 
   useEffect(() => {
     if (!mustRequireOperatorLogin) return;
@@ -710,6 +738,9 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
   const empresaInfo = { empresa: profile?.empresa, cnpj: profile?.cnpj, endereco: profile?.endereco };
   const dataHora = currentTime.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const footerBtnBg = colors?.isDarkBg ? 'rgba(24,24,27,0.92)' : 'rgba(248,250,252,0.96)';
+  const footerBtnText = colors?.isDarkBg ? '#e4e4e7' : '#1f2937';
+  const footerChipText = colors?.isDarkBg ? '#a1a1aa' : '#64748b';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -718,6 +749,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
         <View style={styles.headerStatusWrap}>
           <Ionicons name="cart-outline" size={28} color="#fff" />
           <Text style={styles.headerStatus}>CAIXA LIVRE</Text>
+          <Image source={AUTH_LOGO_SOURCE} style={styles.headerTopLogo} resizeMode="contain" />
         </View>
         <View style={[styles.headerMetaRow, narrowLayout && styles.headerMetaRowWrap]}>
           <View style={[styles.headerLeft, narrowLayout && styles.headerLeftWrap]}>
@@ -728,14 +760,6 @@ export function PDVScreen({ onClose, lockedMode = false }) {
             <Text style={styles.headerValue} numberOfLines={1}>{operatorLogged?.nome || profile?.nome || 'Operador'}</Text>
           </View>
           <View style={[styles.headerRight, narrowLayout && styles.headerRightWrap]}>
-            <TouchableOpacity style={styles.headerBtn} onPress={handleNovaVenda}>
-              <Ionicons name="add-circle-outline" size={20} color="#fff" />
-              <Text style={styles.headerBtnText}>Nova venda (F7)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerBtn} onPress={() => setShowPdvConfigModal(true)}>
-              <Ionicons name="settings-outline" size={18} color="#fff" />
-              <Text style={styles.headerBtnText}>Config. PDV</Text>
-            </TouchableOpacity>
             {completedSale && (
               <TouchableOpacity style={styles.headerBtn} onPress={handlePrint}>
                 <Ionicons name="print-outline" size={20} color="#fff" />
@@ -1071,6 +1095,9 @@ export function PDVScreen({ onClose, lockedMode = false }) {
             </GlassCard>
             </ScrollView>
           )}
+          <View style={styles.leftBrandFooter}>
+            <Image source={AUTH_LOGO_SOURCE} style={styles.produtosBrandLogo} resizeMode="contain" />
+          </View>
         </View>
 
         {/* Painel direito - Carrinho e Total */}
@@ -1081,7 +1108,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
           {cart.length === 0 ? (
             <View style={styles.cartListEmpty}>
               <View style={styles.cartEmpty}>
-                <Image source={AUTH_LOGO_SOURCE} style={styles.cartEmptyLogo} resizeMode="contain" />
+                <Ionicons name="cart-outline" size={110} color={colors.textSecondary} style={styles.cartEmptyIcon} />
                 <Text style={[styles.cartEmptyText, { color: colors.textSecondary }]}>Carrinho vazio</Text>
               </View>
             </View>
@@ -1121,11 +1148,11 @@ export function PDVScreen({ onClose, lockedMode = false }) {
           <View style={[styles.totalsBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.totalRow, { borderBottomColor: colors.border }]}>
               <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>{currencySym} Bruto</Text>
-              <Text style={[styles.totalVal, { color: colors.text }]}>{formatCurrency(subtotal)}</Text>
+              <Text style={[styles.totalVal, { color: colors.text }]}>{formatCurrency(subtotalBruto)}</Text>
             </View>
             <View style={[styles.totalRow, { borderBottomColor: colors.border }]}>
               <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>{currencySym} Desconto</Text>
-              <Text style={[styles.totalVal, { color: colors.text }]}>{formatCurrency(descontoNum)}</Text>
+              <Text style={[styles.totalVal, { color: colors.text }]}>{formatCurrency(descontoTotal)}</Text>
             </View>
             <View style={[styles.totalRow, { borderBottomColor: colors.border }]}>
               <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Pago</Text>
@@ -1147,41 +1174,72 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
       {/* Barra inferior - Atalhos */}
       <View style={[styles.footer, { backgroundColor: '#111827', borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#22c55e' }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
-          <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.footerBtnText}>Item (F1)</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F1</Text>
+          </View>
+          <Ionicons name="add" size={18} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Item</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#ec4899' }]} onPress={() => selectedItem && setSelectedItem(null)}>
-          <Ionicons name="create-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Editar item (F2)</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => selectedItem && setSelectedItem(null)}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F2</Text>
+          </View>
+          <Ionicons name="create-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Editar item</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#ef4444' }]} onPress={() => requestCancelAction('item')}>
-          <Ionicons name="remove-circle-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Cancelar item</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => requestCancelAction('item')}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F3</Text>
+          </View>
+          <Ionicons name="remove-circle-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cancelar item</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#f97316' }]} onPress={() => requestCancelAction('pedido')}>
-          <Ionicons name="close-circle-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Cancelar pedido</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => requestCancelAction('pedido')}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F4</Text>
+          </View>
+          <Ionicons name="close-circle-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cancelar pedido</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#3b82f6' }]} onPress={() => { setActiveTab('cliente'); playTapSound(); }}>
-          <Ionicons name="person-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Cliente (F3)</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('cliente'); playTapSound(); }}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F5</Text>
+          </View>
+          <Ionicons name="person-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cliente</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#8b5cf6' }]} onPress={() => { setActiveTab('finalizacao'); playTapSound(); }}>
-          <Ionicons name="settings-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Pagamento (F4)</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('finalizacao'); playTapSound(); }}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F6</Text>
+          </View>
+          <Ionicons name="settings-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Pagamento</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.footerBtn, styles.footerFinalizar, { backgroundColor: colors.primary }]}
+          style={[styles.footerBtn, styles.footerFinalizar, { backgroundColor: footerBtnBg, borderColor: colors.primary }, (cart.length === 0 || pago < total - 0.01) && styles.footerBtnDisabled]}
           onPress={handleConfirmSale}
           disabled={cart.length === 0 || pago < total - 0.01}
         >
-          <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.footerBtnText} numberOfLines={1}>Faturar (F5)</Text>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F7</Text>
+          </View>
+          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]} numberOfLines={1}>Faturar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#0ea5e9' }]} onPress={handlePrint} disabled={!completedSale}>
-          <Ionicons name="print-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Imprimir (F6)</Text>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }, !completedSale && styles.footerBtnDisabled]} onPress={handlePrint} disabled={!completedSale}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F8</Text>
+          </View>
+          <Ionicons name="print-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Imprimir</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => setShowPdvConfigModal(true)}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+            <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F9</Text>
+          </View>
+          <Ionicons name="settings-outline" size={16} color={colors.primary} />
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Config. PDV</Text>
         </TouchableOpacity>
       </View>
 
@@ -1432,6 +1490,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerStatusWrap: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1465,11 +1524,18 @@ const styles = StyleSheet.create({
   headerRightWrap: { flexBasis: '100%', justifyContent: 'center' },
   headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerBtnText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+  headerTopLogo: {
+    position: 'absolute',
+    left: 0,
+    width: 220,
+    height: 68,
+    opacity: 0.95,
+  },
   headerTime: { fontSize: 11, color: 'rgba(255,255,255,0.9)', maxWidth: 200 },
   headerClose: { padding: 4 },
   main: { flex: 1, flexDirection: 'row', minHeight: 0 },
   mainColumn: { flexDirection: 'column' },
-  leftPanel: { minHeight: 0, padding: 12 },
+  leftPanel: { minHeight: 0, padding: 12, position: 'relative' },
   leftPanelWide: { width: 380, maxWidth: '42%', borderRightWidth: 1, borderBottomWidth: 0 },
   leftPanelNarrow: {
     width: '100%',
@@ -1607,10 +1673,23 @@ const styles = StyleSheet.create({
   cartHeader: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   cartHeaderText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
   cartList: { flex: 1 },
-  cartListEmpty: { flex: 1, overflow: 'hidden' },
-  cartEmpty: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 24, paddingBottom: 0 },
-  cartEmptyLogo: { width: 420, height: 138, opacity: 0.92 },
+  cartListEmpty: { flex: 1, minHeight: 140, maxHeight: 250, overflow: 'hidden' },
+  cartEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 16, paddingBottom: 10 },
+  cartEmptyIcon: { opacity: 0.6 },
+  cartEmptyLogo: { width: 300, height: 96, opacity: 0.92 },
   cartEmptyText: { fontSize: 16, marginTop: 8 },
+  leftBrandFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 2,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    paddingBottom: 0,
+  },
+  produtosBrandLogo: { width: 250, height: 78, opacity: 0.9 },
   cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   cartRowLeft: { flex: 1 },
   cartName: { fontSize: 14 },
@@ -1626,10 +1705,13 @@ const styles = StyleSheet.create({
   totalFinalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 12, marginTop: 12 },
   totalFinalLabel: { fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
   totalFinalVal: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1 },
+  footer: { flexDirection: 'row', alignItems: 'stretch', justifyContent: 'space-between', gap: 6, paddingVertical: 6, paddingHorizontal: 6, borderTopWidth: 1 },
   footerWrap: { flexWrap: 'wrap', rowGap: 8 },
-  footerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, height: 48, paddingHorizontal: 10, borderRadius: 10, minWidth: 0, justifyContent: 'center' },
-  footerBtnText: { fontSize: 12, color: '#fff', fontWeight: '600' },
+  footerBtn: { flex: 1, flexBasis: 0, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 14, justifyContent: 'center', borderWidth: 1, position: 'relative' },
+  footerBtnText: { fontSize: 11, color: '#fff', fontWeight: '700' },
+  footerShortcutChip: { position: 'absolute', top: -6, right: 6, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1 },
+  footerShortcutChipText: { fontSize: 9, fontWeight: '800' },
+  footerBtnDisabled: { opacity: 0.45 },
   footerFinalizar: { flex: 1 },
   successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   successBox: { width: '100%', maxWidth: 360, padding: 24, borderRadius: 20, borderWidth: 1, alignItems: 'center' },

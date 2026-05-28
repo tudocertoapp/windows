@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { deleteSupabaseRow } from '../utils/supabaseDelete';
 import { useAuth } from './AuthContext';
 
 const SHOPPING_LIST_KEY = '@tudocerto_shopping_list';
@@ -172,22 +173,22 @@ export function ShoppingListProvider({ children }) {
   );
 
   const deleteItem = useCallback(
-    (id) => {
+    async (id) => {
+      const rowId = String(id || '');
+      if (!rowId) return false;
       if (user?.id) {
-        supabase
-          .from('shopping_list_items')
-          .delete()
-          .eq('id', id)
-          .then(() => setItems((prev) => prev.filter((i) => i.id !== id)))
-          .catch((e) => console.warn('Erro ao excluir item da lista:', e));
-        return;
+        const res = await deleteSupabaseRow('shopping_list_items', rowId, user.id);
+        if (!res.ok) {
+          console.warn('Erro ao excluir item da lista:', res.error);
+          return false;
+        }
       }
-
       setItems((prev) => {
-        const next = prev.filter((i) => i.id !== id);
+        const next = prev.filter((i) => String(i.id) !== rowId);
         AsyncStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(next)).catch(() => {});
         return next;
       });
+      return true;
     },
     [user?.id]
   );

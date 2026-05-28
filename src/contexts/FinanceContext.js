@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { deleteSupabaseRow, isUuid } from '../utils/supabaseDelete';
+import { dedupeBoletos, sortBoletosForDisplay } from '../utils/boletoDates';
 import { useAuth } from './AuthContext';
 import { useBanks } from './BanksContext';
 
@@ -124,20 +126,35 @@ function toSupplier(r) {
     estado: r.estado,
   };
 }
+function toBoleto(r) {
+  if (!r) return null;
+  const data = r.data && typeof r.data === 'object' ? { ...r.data } : {};
+  delete data.id;
+  return { id: r.id, ...data };
+}
+
+function toCompositeProduct(r) {
+  if (!r) return null;
+  const data = r.data && typeof r.data === 'object' ? { ...r.data } : {};
+  delete data.id;
+  return { id: r.id, name: r.name || data.name, ...data };
+}
+
 function toAReceber(r) {
   if (!r) return null;
   return { id: r.id, description: r.description, amount: Number(r.amount), dueDate: r.due_date, parcel: r.parcel, total: r.total, status: r.status };
 }
 function toCollaborator(r) {
   if (!r) return null;
-  const data = r.data || r;
+  const data = { ...(r.data || {}) };
+  delete data.id;
   const rawOpAtivo = data.operadorCaixaAtivo ?? data.operador_caixa_ativo;
   const operadorCaixaAtivo =
     rawOpAtivo === true || rawOpAtivo === 'true' || rawOpAtivo === 1 || rawOpAtivo === '1';
   const operadorCaixaId = data.operadorCaixaId ?? data.operador_caixa_id ?? '';
   const operadorCaixaSenha = data.operadorCaixaSenha ?? data.operador_caixa_senha ?? '';
   return {
-    id: r.id || data.id,
+    id: r.id,
     nome: data.nome || data.name || '',
     funcao: data.funcao || data.role || 'Vendedor',
     salarioBase: Number(data.salarioBase ?? data.salaryBase ?? 0),
@@ -219,6 +236,7 @@ export function FinanceProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const realtimeReloadTimerRef = useRef(null);
   const realtimeReloadInFlightRef = useRef(false);
+  const boletosBatchInFlightRef = useRef(false);
 
   const loadAll = useCallback(async () => {
     if (!user) {
@@ -294,7 +312,7 @@ export function FinanceProvider({ children }) {
       setCheckListItems((chData || []).map(toCheckList));
       setClients((clData || []).map(toClient));
       setProducts((prData || []).map(toProduct));
-      setCompositeProducts((compData || []).map((r) => ({ id: r.id, ...r.data })));
+      setCompositeProducts((compData || []).map(toCompositeProduct).filter(Boolean));
       setServices((svData || []).map(toService));
       setSuppliers((suData || []).map(toSupplier));
       try {
@@ -313,7 +331,7 @@ export function FinanceProvider({ children }) {
       }
       setAReceber((arData || []).map(toAReceber));
       setOrcamentos((orcData || []).map(toOrcamento));
-      setBoletos((blData || []).map((r) => ({ id: r.id, ...r.data })));
+      setBoletos(sortBoletosForDisplay(dedupeBoletos((blData || []).map(toBoleto).filter(Boolean))));
     } catch (e) {
       console.warn('Erro ao carregar dados Supabase:', e);
     } finally {
@@ -341,6 +359,7 @@ export function FinanceProvider({ children }) {
 
   const scheduleRealtimeReload = useCallback(() => {
     if (!user?.id) return;
+    if (boletosBatchInFlightRef.current) return;
     if (realtimeReloadTimerRef.current) {
       clearTimeout(realtimeReloadTimerRef.current);
     }
@@ -453,9 +472,17 @@ export function FinanceProvider({ children }) {
     setTransactions((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteTransaction = async (id) => {
-    if (!user) return setTransactions((prev) => prev.filter((t) => t.id !== id));
-    await supabase.from('transactions').delete().eq('id', id);
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('transactions', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir transação');
+        return false;
+      }
+    }
+    setTransactions((prev) => prev.filter((t) => String(t.id) !== rowId));
+    return true;
   };
 
   const addAgendaEvent = async (e) => {
@@ -527,13 +554,21 @@ export function FinanceProvider({ children }) {
     });
   };
   const deleteAgendaEvent = async (id) => {
-    if (!user) return setAgendaEvents((prev) => prev.filter((e) => e.id !== id));
-    await supabase.from('agenda_events').delete().eq('id', id);
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('agenda_events', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir evento');
+        return false;
+      }
+    }
     setAgendaEvents((prev) => {
-      const next = prev.filter((e) => e.id !== id);
+      const next = prev.filter((e) => String(e.id) !== rowId);
       if (user?.id) AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(next)).catch(() => {});
       return next;
     });
+    return true;
   };
 
   const addCheckListItem = async (item) => {
@@ -574,9 +609,17 @@ export function FinanceProvider({ children }) {
     setCheckListItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...data } : i)));
   };
   const deleteCheckListItem = async (id) => {
-    if (!user) return setCheckListItems((prev) => prev.filter((i) => i.id !== id));
-    await supabase.from('check_list_items').delete().eq('id', id);
-    setCheckListItems((prev) => prev.filter((i) => i.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('check_list_items', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir tarefa');
+        return false;
+      }
+    }
+    setCheckListItems((prev) => prev.filter((i) => String(i.id) !== rowId));
+    return true;
   };
 
   const addClient = async (c) => {
@@ -613,9 +656,17 @@ export function FinanceProvider({ children }) {
     setClients((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteClient = async (id) => {
-    if (!user) return setClients((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('clients').delete().eq('id', id);
-    setClients((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('clients', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir cliente');
+        return false;
+      }
+    }
+    setClients((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const addProduct = async (p) => {
@@ -678,9 +729,17 @@ export function FinanceProvider({ children }) {
     setProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...merged } : x)));
   };
   const deleteProduct = async (id) => {
-    if (!user) return setProducts((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('products').delete().eq('id', id);
-    setProducts((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('products', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir produto');
+        return false;
+      }
+    }
+    setProducts((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const addCompositeProduct = async (p) => {
@@ -694,7 +753,7 @@ export function FinanceProvider({ children }) {
       data: p.data || p,
     }).select('*').single();
     if (error) return showDbError(error, 'cadastrar produto composto');
-    if (data) setCompositeProducts((prev) => [...prev, { id: data.id, ...data.data }]);
+    if (data) setCompositeProducts((prev) => [...prev, toCompositeProduct(data)]);
   };
   const updateCompositeProduct = async (id, data) => {
     if (!user) return setCompositeProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
@@ -702,9 +761,17 @@ export function FinanceProvider({ children }) {
     setCompositeProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteCompositeProduct = async (id) => {
-    if (!user) return setCompositeProducts((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('composite_products').delete().eq('id', id);
-    setCompositeProducts((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('composite_products', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir produto composto');
+        return false;
+      }
+    }
+    setCompositeProducts((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const addService = async (s) => {
@@ -733,9 +800,17 @@ export function FinanceProvider({ children }) {
     setServices((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteService = async (id) => {
-    if (!user) return setServices((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('services').delete().eq('id', id);
-    setServices((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('services', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir serviço');
+        return false;
+      }
+    }
+    setServices((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const addSupplier = async (s) => {
@@ -781,9 +856,17 @@ export function FinanceProvider({ children }) {
     setSuppliers((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteSupplier = async (id) => {
-    if (!user) return setSuppliers((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('suppliers').delete().eq('id', id);
-    setSuppliers((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('suppliers', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir fornecedor');
+        return false;
+      }
+    }
+    setSuppliers((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const saveCollaboratorsCache = async (nextList) => {
@@ -849,12 +932,19 @@ export function FinanceProvider({ children }) {
   };
 
   const deleteCollaborator = async (id) => {
-    const next = collaborators.filter((x) => x.id !== id);
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user && isUuid(rowId)) {
+      const res = await deleteSupabaseRow('collaborators', rowId, user.id);
+      if (!res.ok && !isMissingTableError(res.error)) {
+        showDbError(res.error, 'excluir colaborador');
+        return false;
+      }
+    }
+    const next = collaborators.filter((x) => String(x.id) !== rowId);
     setCollaborators(next);
     saveCollaboratorsCache(next);
-    if (!user) return;
-    const { error } = await supabase.from('collaborators').delete().eq('id', id);
-    if (error && !isMissingTableError(error)) showDbError(error, 'excluir colaborador');
+    return true;
   };
 
   const addCollaboratorPayment = async (collaboratorId, payment) => {
@@ -905,12 +995,15 @@ export function FinanceProvider({ children }) {
           item = { ...item, paidTransactionId: txId };
         }
       }
-      setBoletos((prev) => [...prev, item]);
-      return;
+      setBoletos((prev) => sortBoletosForDisplay(dedupeBoletos([...prev, item])));
+      return true;
     }
     const { data, error } = await supabase.from('boletos').insert({ user_id: user.id, data: base }).select('*').single();
-    if (error) return showDbError(error, 'cadastrar boleto');
-    if (!data) return;
+    if (error) {
+      showDbError(error, 'cadastrar boleto');
+      return false;
+    }
+    if (!data) return false;
     let item = { id: data.id, ...(data.data || {}) };
     if (item.paid && amount > 0) {
       const txId = await addTransaction({
@@ -930,12 +1023,51 @@ export function FinanceProvider({ children }) {
         if (upErr) showDbError(upErr, 'atualizar boleto');
       }
     }
-    setBoletos((prev) => [...prev, item]);
+    setBoletos((prev) => sortBoletosForDisplay(dedupeBoletos([...prev, item])));
+    return true;
+  };
+
+  const addBoletosBatch = async (payloads) => {
+    const list = (payloads || []).filter(Boolean);
+    if (!list.length) return true;
+
+    boletosBatchInFlightRef.current = true;
+    try {
+      const prepared = list.map((b) => {
+        const base = { ...b };
+        delete base.id;
+        delete base.paidTransactionId;
+        return base;
+      });
+
+      if (!user) {
+        const items = prepared.map((base, i) => ({
+          ...base,
+          id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+        }));
+        setBoletos((prev) => sortBoletosForDisplay(dedupeBoletos([...prev, ...items])));
+        return true;
+      }
+
+      const { data, error } = await supabase
+        .from('boletos')
+        .insert(prepared.map((base) => ({ user_id: user.id, data: base })))
+        .select('*');
+      if (error) {
+        showDbError(error, 'cadastrar boletos');
+        return false;
+      }
+      const items = (data || []).map((r) => toBoleto(r)).filter(Boolean);
+      setBoletos((prev) => sortBoletosForDisplay(dedupeBoletos([...prev, ...items])));
+      return true;
+    } finally {
+      boletosBatchInFlightRef.current = false;
+    }
   };
 
   const updateBoleto = async (id, patch) => {
     const prev = boletos.find((x) => x.id === id);
-    if (!prev) return;
+    if (!prev) return false;
 
     let next = { ...prev, ...patch };
     const rowId = prev.id;
@@ -969,26 +1101,52 @@ export function FinanceProvider({ children }) {
     const { id: _omit, ...dataForDb } = next;
     if (!user) {
       setBoletos((p) => p.map((x) => (x.id === rowId ? next : x)));
-      return;
+      return true;
     }
     const { error } = await supabase.from('boletos').update({ data: dataForDb }).eq('id', rowId);
-    if (error) return showDbError(error, 'atualizar boleto');
+    if (error) {
+      showDbError(error, 'atualizar boleto');
+      return false;
+    }
     setBoletos((p) => p.map((x) => (x.id === rowId ? next : x)));
+    return true;
   };
 
   const deleteBoleto = async (id) => {
-    const prev = boletos.find((x) => x.id === id);
-    if (prev?.paidTransactionId) {
-      const tx = transactions.find((t) => t.id === prev.paidTransactionId);
-      if (tx) syncBankForAutoExpense(tx, true);
-      await deleteTransaction(prev.paidTransactionId);
+    const rowId = String(id || '');
+    if (!rowId) return false;
+
+    const prev = boletos.find((x) => String(x.id) === rowId);
+    if (!prev) {
+      showDbError({ message: 'Fatura não encontrada.' }, 'excluir fatura');
+      return false;
     }
+
+    try {
+      if (prev.paidTransactionId) {
+        const tx = transactions.find((t) => t.id === prev.paidTransactionId);
+        if (tx) syncBankForAutoExpense(tx, true);
+        await deleteTransaction(prev.paidTransactionId);
+      }
+    } catch (e) {
+      console.warn('Erro ao remover transação vinculada à fatura:', e);
+    }
+
     if (!user) {
-      setBoletos((p) => p.filter((x) => x.id !== id));
-      return;
+      setBoletos((p) => p.filter((x) => String(x.id) !== rowId));
+      return true;
     }
-    await supabase.from('boletos').delete().eq('id', id);
-    setBoletos((p) => p.filter((x) => x.id !== id));
+
+    if (user) {
+      const res = await deleteSupabaseRow('boletos', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir fatura');
+        return false;
+      }
+    }
+
+    setBoletos((p) => p.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const addAReceber = async (r) => {
@@ -1021,9 +1179,17 @@ export function FinanceProvider({ children }) {
     setAReceber((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteAReceber = async (id) => {
-    if (!user) return setAReceber((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('a_receber').delete().eq('id', id);
-    setAReceber((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('a_receber', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir parcela');
+        return false;
+      }
+    }
+    setAReceber((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   const getNextOrcamentoNumero = useCallback(async () => {
@@ -1086,9 +1252,17 @@ export function FinanceProvider({ children }) {
     setOrcamentos((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };
   const deleteOrcamento = async (id) => {
-    if (!user) return setOrcamentos((prev) => prev.filter((x) => x.id !== id));
-    await supabase.from('orcamentos').delete().eq('id', id);
-    setOrcamentos((prev) => prev.filter((x) => x.id !== id));
+    const rowId = String(id || '');
+    if (!rowId) return false;
+    if (user) {
+      const res = await deleteSupabaseRow('orcamentos', rowId, user.id);
+      if (!res.ok) {
+        showDbError(res.error, 'excluir orçamento');
+        return false;
+      }
+    }
+    setOrcamentos((prev) => prev.filter((x) => String(x.id) !== rowId));
+    return true;
   };
 
   return (
@@ -1141,6 +1315,7 @@ export function FinanceProvider({ children }) {
         deleteCollaborator,
         addCollaboratorPayment,
         addBoleto,
+        addBoletosBatch,
         updateBoleto,
         deleteBoleto,
         addAReceber,

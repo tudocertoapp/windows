@@ -8,6 +8,7 @@ import { openWhatsApp } from '../utils/whatsapp';
 import { PessoaModal } from '../components/PessoaModal';
 import { ClienteModal } from '../components/ClienteModal';
 import { playTapSound } from '../utils/sounds';
+import { onDeletePress } from '../utils/confirm';
 
 const s = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
@@ -151,7 +152,10 @@ export function AniversariantesScreen({ onClose, isModal }) {
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
-                    onPress={() => Alert.alert('Excluir', isEmpresa ? 'Remover este cliente?' : 'Remover esta pessoa?', [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => deleteClient(c.id) }])}
+                    onPress={() => {
+                      playTapSound();
+                      onDeletePress('Excluir', isEmpresa ? 'Remover este cliente?' : 'Remover esta pessoa?', deleteClient, c.id)();
+                    }}
                     style={[s.actionBtn, { backgroundColor: 'transparent' }]}
                   >
                     <Ionicons name="trash-outline" size={18} color="#ef4444" />

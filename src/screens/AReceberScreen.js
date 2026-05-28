@@ -9,6 +9,7 @@ import { DatePickerInput } from '../components/DatePickerInput';
 import { MoneyInput } from '../components/MoneyInput';
 import { formatCurrency, parseMoney } from '../utils/format';
 import { playTapSound } from '../utils/sounds';
+import { confirmAndDelete } from '../utils/confirm';
 
 const ars = StyleSheet.create({
   header: { padding: 20, borderBottomWidth: 1 },
@@ -81,10 +82,7 @@ export function AReceberScreen({ onClose, isModal }) {
   };
 
   const handleExcluir = (r) => {
-    Alert.alert('Excluir', `Excluir parcela "${r.description || 'Parcela'}"?`, [
-      { text: 'Cancelar' },
-      { text: 'Excluir', style: 'destructive', onPress: () => { playTapSound(); deleteAReceber(r.id); } },
-    ]);
+    confirmAndDelete('Excluir', `Excluir parcela "${r.description || 'Parcela'}"?`, deleteAReceber, r.id);
   };
 
   return (

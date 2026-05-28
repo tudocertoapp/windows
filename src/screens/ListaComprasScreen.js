@@ -25,6 +25,7 @@ import { useFinance } from '../contexts/FinanceContext';
 import { topBarStyles } from '../components/TopBar';
 import { GlassCard } from '../components/GlassCard';
 import { playTapSound } from '../utils/sounds';
+import { confirmAndDelete } from '../utils/confirm';
 
 const lcs = StyleSheet.create({
   container: { flex: 1 },
@@ -138,10 +139,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
 
   const handleDelete = (item) => {
     playTapSound();
-    Alert.alert('Excluir', 'Quer excluir este item da lista?', [
-      { text: 'Cancelar' },
-      { text: 'Excluir', style: 'destructive', onPress: () => deleteItem(item.id) },
-    ]);
+    confirmAndDelete('Excluir', 'Quer excluir este item da lista?', deleteItem, item.id);
   };
 
   const handleConvertToTask = (item) => {
