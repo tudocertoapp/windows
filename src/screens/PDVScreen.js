@@ -1174,7 +1174,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       {/* Barra inferior - Atalhos */}
       <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
         <FooterShortcutButton
-          label="Adicionar item"
+          label="Adicionar Item"
           shortcut="F1"
           icon="add"
           color="#22c55e"
