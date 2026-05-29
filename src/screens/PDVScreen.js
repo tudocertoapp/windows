@@ -1149,7 +1149,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#22c55e' }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
           <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.footerBtnText}>Item (F1)</Text>
+          <Text style={styles.footerBtnText}>Adicionar item (F1)</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#ec4899' }]} onPress={() => selectedItem && setSelectedItem(null)}>
           <Ionicons name="create-outline" size={18} color="#fff" />
