@@ -119,6 +119,32 @@ function isOperatorEnabled(c) {
   return raw === true || raw === 'true' || raw === 1 || raw === '1';
 }
 
+function FooterShortcutButton({ label, shortcut, icon, color, onPress, disabled, colors, style }) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.footerShortcutBtn,
+        { borderColor: color, backgroundColor: colors.card },
+        disabled && styles.footerShortcutBtnDisabled,
+        style,
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.85}
+    >
+      <Ionicons name={icon} size={18} color={color} />
+      <Text style={[styles.footerShortcutLabel, { color: colors.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+      {shortcut ? (
+        <View style={[styles.footerShortcutKey, { borderColor: `${color}99`, backgroundColor: `${color}22` }]}>
+          <Text style={[styles.footerShortcutKeyText, { color }]}>{shortcut}</Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
 /** Alinha ao MoneyInput / idioma (milhar e decimal do perfil de idioma). */
 function amountToLocalizedInputString(n, lang) {
   const num = Number(n) || 0;
@@ -1147,42 +1173,72 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
       {/* Barra inferior - Atalhos */}
       <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#22c55e' }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
-          <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.footerBtnText}>Adicionar item (F1)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#ec4899' }]} onPress={() => selectedItem && setSelectedItem(null)}>
-          <Ionicons name="create-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Editar item (F2)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#ef4444' }]} onPress={() => requestCancelAction('item')}>
-          <Ionicons name="remove-circle-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Cancelar item</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#f97316' }]} onPress={() => requestCancelAction('pedido')}>
-          <Ionicons name="close-circle-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Cancelar pedido</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#3b82f6' }]} onPress={() => { setActiveTab('cliente'); playTapSound(); }}>
-          <Ionicons name="person-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Cliente (F3)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#8b5cf6' }]} onPress={() => { setActiveTab('finalizacao'); playTapSound(); }}>
-          <Ionicons name="settings-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Pagamento (F4)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.footerBtn, styles.footerFinalizar, { backgroundColor: colors.primary }]}
+        <FooterShortcutButton
+          label="Adicionar item"
+          shortcut="F1"
+          icon="add"
+          color="#22c55e"
+          colors={colors}
+          onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}
+        />
+        <FooterShortcutButton
+          label="Editar item"
+          shortcut="F2"
+          icon="create-outline"
+          color="#ec4899"
+          colors={colors}
+          onPress={() => selectedItem && setSelectedItem(null)}
+          disabled={!selectedItem}
+        />
+        <FooterShortcutButton
+          label="Cancelar item"
+          icon="remove-circle-outline"
+          color="#ef4444"
+          colors={colors}
+          onPress={() => requestCancelAction('item')}
+        />
+        <FooterShortcutButton
+          label="Cancelar pedido"
+          icon="close-circle-outline"
+          color="#f97316"
+          colors={colors}
+          onPress={() => requestCancelAction('pedido')}
+        />
+        <FooterShortcutButton
+          label="Cliente"
+          shortcut="F3"
+          icon="person-outline"
+          color="#3b82f6"
+          colors={colors}
+          onPress={() => { setActiveTab('cliente'); playTapSound(); }}
+        />
+        <FooterShortcutButton
+          label="Pagamento"
+          shortcut="F4"
+          icon="settings-outline"
+          color="#8b5cf6"
+          colors={colors}
+          onPress={() => { setActiveTab('finalizacao'); playTapSound(); }}
+        />
+        <FooterShortcutButton
+          label="Faturar"
+          shortcut="F5"
+          icon="checkmark-circle"
+          color={colors.primary}
+          colors={colors}
+          style={styles.footerShortcutFinalizar}
           onPress={handleConfirmSale}
           disabled={cart.length === 0 || pago < total - 0.01}
-        >
-          <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.footerBtnText} numberOfLines={1}>Faturar (F5)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.footerBtn, { backgroundColor: '#0ea5e9' }]} onPress={handlePrint} disabled={!completedSale}>
-          <Ionicons name="print-outline" size={18} color="#fff" />
-          <Text style={styles.footerBtnText}>Imprimir (F6)</Text>
-        </TouchableOpacity>
+        />
+        <FooterShortcutButton
+          label="Imprimir"
+          shortcut="F6"
+          icon="print-outline"
+          color="#0ea5e9"
+          colors={colors}
+          onPress={handlePrint}
+          disabled={!completedSale}
+        />
       </View>
 
       <Modal visible={showPdvConfigModal} animationType="fade" transparent>
@@ -1626,11 +1682,37 @@ const styles = StyleSheet.create({
   totalFinalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 12, marginTop: 12 },
   totalFinalLabel: { fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
   totalFinalVal: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1 },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 12, borderTopWidth: 1 },
   footerWrap: { flexWrap: 'wrap', rowGap: 8 },
-  footerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minWidth: 110, justifyContent: 'center' },
-  footerBtnText: { fontSize: 12, color: '#fff', fontWeight: '600' },
-  footerFinalizar: { paddingHorizontal: 18, minWidth: 140, flexShrink: 1 },
+  footerShortcutBtn: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingRight: 22,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    minWidth: 108,
+    justifyContent: 'center',
+  },
+  footerShortcutBtnDisabled: { opacity: 0.45 },
+  footerShortcutLabel: { fontSize: 12, fontWeight: '600' },
+  footerShortcutKey: {
+    position: 'absolute',
+    top: -7,
+    right: -4,
+    minWidth: 24,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerShortcutKeyText: { fontSize: 9, fontWeight: '800' },
+  footerShortcutFinalizar: { minWidth: 120, flexShrink: 1 },
   successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   successBox: { width: '100%', maxWidth: 360, padding: 24, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
   successIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
