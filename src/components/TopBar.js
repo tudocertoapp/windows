@@ -183,7 +183,7 @@ export function TopBar({
           <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
         </TouchableOpacity>
       ) : null}
-      {isWebDesktop && !hideMenu ? (
+      {isWebDesktop && !hideMenu && !isHome ? (
         <TouchableOpacity
           style={{ padding: 8, backgroundColor: 'transparent' }}
           onPress={() => { playTapSound(); openMenu?.(); }}
