@@ -26,26 +26,29 @@ export function LineChartSaldo({ monthlyData, colors, showTitle = true }) {
   return (
     <View style={styles.container}>
       {showTitle && <Text style={[styles.title, { color: colors.text }]}>Evolução do Saldo Mensal</Text>}
-      <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-        <Path d={d} fill="none" stroke={colors.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((p, i) => (
-          <Circle key={i} cx={p.x} cy={p.y} r={4} fill={colors.primary} />
-        ))}
-      </Svg>
-      <View style={styles.labelsRow}>
-        {monthlyData.map((m, i) => (
-          <Text key={i} style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
-            {m.label}
-          </Text>
-        ))}
+      <View style={styles.chartBody}>
+        <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+          <Path d={d} fill="none" stroke={colors.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((p, i) => (
+            <Circle key={i} cx={p.x} cy={p.y} r={4} fill={colors.primary} />
+          ))}
+        </Svg>
+        <View style={styles.labelsRow}>
+          {monthlyData.map((m, i) => (
+            <Text key={i} style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
+              {m.label}
+            </Text>
+          ))}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { marginVertical: 8 },
-  title: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  container: { marginVertical: 8, width: '100%', alignItems: 'center' },
+  chartBody: { width: CHART_WIDTH, maxWidth: '100%', alignSelf: 'center' },
+  title: { fontSize: 14, fontWeight: '600', marginBottom: 8, textAlign: 'center', alignSelf: 'stretch' },
   labelsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: PADDING.left - 8, marginTop: 4 },
   label: { fontSize: 10, width: 36, textAlign: 'center' },
 });

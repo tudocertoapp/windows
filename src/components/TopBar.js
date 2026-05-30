@@ -9,6 +9,7 @@ import { getGreeting, getFinancePromptByTime } from '../utils/quotes';
 import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
+import { getWebDesktopGridButtonMetrics, VIEW_MODE_TOGGLE_TOP_GAP } from './ViewModeToggle';
 import { WEB_DESKTOP_RAIL_WIDTH, WEB_DESKTOP_RAIL_VIEWPORT_MARGIN } from './navigation/RightSideTabBar';
 
 /** Padding direito da coluna da rail no AppNavigator — centraliza o botão na faixa da tabbar. */
@@ -80,16 +81,14 @@ export function TopBar({
   const isWeb = Platform.OS === 'web';
   const isWebDesktop = isWeb && isDesktopLayout;
   const { width: winWidth } = useWindowDimensions();
-  const desktopPagePad = scaleWebDesktop(10, true);
-  const desktopRowGap = scaleWebDesktop(8, true);
-  const desktopCardW = Math.max(90, ((Math.max(200, winWidth - (2 * desktopPagePad))) - (desktopRowGap * 7)) / 8);
-  const desktopToggleTrackW = (desktopCardW * 2) + desktopRowGap;
+  const gridMetrics = getWebDesktopGridButtonMetrics(winWidth, isWebDesktop);
   const inlineToggleWrapStyle = isWebDesktop
     ? {
-        width: desktopToggleTrackW,
-        marginRight: -(scaleWebDesktop(16, true) - desktopPagePad),
+        width: gridMetrics.trackW,
+        marginRight: -(scaleWebDesktop(16, true) - gridMetrics.desktopPagePad),
         position: 'relative',
         flexShrink: 0,
+        overflow: 'visible',
       }
     : null;
   // Web desktop: menu lateral sumiu — o botão de menu no cabeçalho abre o modal (igual mobile).
@@ -153,6 +152,15 @@ export function TopBar({
   const homeDesktopDefer = isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
   const showPromptOutsideHeader = !isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
   const showInlineToggleBottomRow = isWebDesktop && !!inlineToggle;
+  const stickyHeaderWithToggle = isWebDesktop && showInlineToggleBottomRow && Platform.OS === 'web';
+  const stickyHeaderStyle = stickyHeaderWithToggle
+    ? ({
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        overflow: 'visible',
+      })
+    : null;
   const hasCustomProfilePhoto = !!(profile?.fotoLocal || profile?.foto);
 
   const homeTrailingActions = (
@@ -175,7 +183,16 @@ export function TopBar({
           <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
         </TouchableOpacity>
       ) : null}
-      {onCalculadora ? (
+      {isWebDesktop && !hideMenu ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); openMenu?.(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Abrir menu"
+        >
+          <Ionicons name="menu" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      ) : onCalculadora && !isWebDesktop ? (
         <TouchableOpacity
           style={{ padding: 8, backgroundColor: 'transparent' }}
           onPress={() => { playTapSound(); onCalculadora(); }}
@@ -213,7 +230,7 @@ export function TopBar({
             />
           </TouchableOpacity>
         )}
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
+        <View style={{ flex: 1, minWidth: 0, paddingRight: 4, justifyContent: 'center' }}>
           <Text style={{ color: colors.textSecondary, fontSize: scaleWebDesktop(12, true), fontWeight: '600' }} numberOfLines={1}>
             {getGreeting()}, {profile?.nome || 'você'}!
           </Text>
@@ -278,7 +295,7 @@ export function TopBar({
                 />
               </TouchableOpacity>
             )}
-            <View style={{ flex: 1, minWidth: 0, paddingRight: 6 }}>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: 6, justifyContent: 'center' }}>
               <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                 {getGreeting()}, {profile?.nome || 'você'}!
               </Text>
@@ -392,14 +409,19 @@ export function TopBar({
       <>
         {manageCardsRailButton}
         {organizeRailButton}
-        <View style={{ paddingTop: insets.top, backgroundColor: colors.bg }}>
-          {Bar}
+        <View style={[{ paddingTop: insets.top, overflow: 'visible' }, stickyHeaderStyle]}>
+          <View style={{ backgroundColor: colors.bg, position: 'relative', zIndex: 30 }}>{Bar}</View>
           {showInlineToggleBottomRow ? (
             <View
               style={{
                 paddingHorizontal: scaleWebDesktop(10, true),
-                paddingBottom: scaleWebDesktop(2, true),
+                paddingBottom: 0,
                 paddingTop: 0,
+                overflow: 'visible',
+                position: 'relative',
+                zIndex: 20,
+                marginTop: scaleWebDesktop(VIEW_MODE_TOGGLE_TOP_GAP, true),
+                alignItems: 'stretch',
               }}
             >
               {inlineToggle}
@@ -423,19 +445,25 @@ export function TopBar({
     <>
       {manageCardsRailButton}
       {organizeRailButton}
-      {Bar}
-      {showInlineToggleBottomRow ? (
-        <View
-          style={{
-            paddingHorizontal: scaleWebDesktop(10, true),
-            paddingBottom: scaleWebDesktop(2, true),
-            paddingTop: 0,
-            backgroundColor: colors.bg,
-          }}
-        >
-          {inlineToggle}
-        </View>
-      ) : null}
+      <View style={[{ overflow: 'visible' }, stickyHeaderStyle]}>
+        <View style={{ backgroundColor: colors.bg, position: 'relative', zIndex: 30 }}>{Bar}</View>
+        {showInlineToggleBottomRow ? (
+          <View
+            style={{
+              paddingHorizontal: scaleWebDesktop(10, true),
+              paddingBottom: 0,
+              paddingTop: 0,
+              overflow: 'visible',
+              position: 'relative',
+              zIndex: 20,
+              marginTop: scaleWebDesktop(VIEW_MODE_TOGGLE_TOP_GAP, true),
+              alignItems: 'stretch',
+            }}
+          >
+            {inlineToggle}
+          </View>
+        ) : null}
+      </View>
       {showPromptOutsideHeader ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 8, backgroundColor: colors.bg }}>
           <Text

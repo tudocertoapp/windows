@@ -25,6 +25,7 @@ import { DatePickerInput } from '../../components/DatePickerInput';
 import { playTapSound } from '../../utils/sounds';
 import { formatCurrency } from '../../utils/format';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { buildEmpresaInfo } from '../../utils/empresaProfile';
 import { buildEmpresaRelatorioWorkbook } from '../../utils/empresaRelatorioXlsx';
 import { canUseWebDocument, printHtmlInBrowser, downloadXlsxInBrowser } from '../../utils/webRelatorioExport';
 import { DEFAULT_PDV_CONFIG, readPdvConfig, writePdvConfig } from '../../utils/pdvConfig';
@@ -284,13 +285,15 @@ export function EmpresaRelatorioScreen({ onClose }) {
   const buildHtmlRelatorio = (tipo) => {
     const dDe = formatDate(dateDe);
     const dAte = formatDate(dateAte);
-    const emp = profile?.empresa || profile?.nome || 'Empresa';
-    const cnpjCpf = profile?.cnpj || profile?.cpf || '';
-    const resp = profile?.nome || '';
-    const profissao = profile?.profissao || '';
-    const endereco = profile?.endereco || profile?.address || '';
-    const telefone = profile?.telefone || profile?.phone || '';
-    const email = profile?.email || '';
+    const info = buildEmpresaInfo(profile);
+    const emp = info.empresa || 'Empresa';
+    const cnpjCpf = info.cnpj || '';
+    const resp = info.nome || '';
+    const profissao = info.profissao || '';
+    const endereco = info.endereco || '';
+    const telefone = info.telefone || '';
+    const email = info.email || '';
+    const instagram = info.instagram || '';
     const empresaBlock = `
       <div class="empresa-header">
         <h2 class="empresa-nome">${escapeHtml(emp)}</h2>
@@ -299,6 +302,7 @@ export function EmpresaRelatorioScreen({ onClose }) {
         ${profissao ? `<p><b>Atividade:</b> ${escapeHtml(profissao)}</p>` : ''}
         ${endereco ? `<p><b>Endereço:</b> ${escapeHtml(endereco)}</p>` : ''}
         ${telefone ? `<p><b>Telefone:</b> ${escapeHtml(telefone)}</p>` : ''}
+        ${instagram ? `<p><b>Instagram:</b> ${escapeHtml(instagram)}</p>` : ''}
         ${email ? `<p><b>E-mail:</b> ${escapeHtml(email)}</p>` : ''}
       </div>
     `;

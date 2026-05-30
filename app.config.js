@@ -67,7 +67,7 @@ const config = {
         {
           android: {
             timePicker: {
-              numbersSelectorColor: { light: '#10b981', dark: '#10b981' },
+              numbersSelectorColor: { light: '#6cba16', dark: '#6cba16' },
               numbersTextColor: { light: '#1f2937', dark: '#f9fafb' },
             },
           },
@@ -125,6 +125,10 @@ const config = {
       'expo-navigation-bar': { backgroundColor: '#00000000', position: 'relative', visibility: 'visible', barStyle: 'auto' },
       eas: { projectId: 'a78ed1ea-e90c-4080-b124-2536a33f7b5b' },
       googleVisionApiKey: process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY || '',
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://azvfiuvggppnulfepwbc.supabase.co',
+      supabaseAnonKey:
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dmZpdXZnZ3BwbnVsZmVwd2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTc1OTUsImV4cCI6MjA4NTE5MzU5NX0.eZUbc2sveWDRCu_Nm6z0chP7T6-hqDJf7omatgiB2Pk',
     },
   },
 };

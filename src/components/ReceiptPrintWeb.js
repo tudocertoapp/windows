@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { formatLine, truncateText, formatReceiptCurrency } from '../utils/receiptUtils';
+import { buildEmpresaDocumentLines } from '../utils/empresaProfile';
 
 const RECEIPT_WIDTH = 48;
 
@@ -39,9 +40,10 @@ export function ReceiptPrintWeb({ sale, empresa }) {
   const dataStr = hoje.toLocaleDateString('pt-BR');
   const horaStr = hoje.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  const nomeEmpresa = truncateText(empresa?.empresa || empresa?.nome || 'Empresa', RECEIPT_WIDTH);
-  const cnpjCpf = truncateText(empresa?.cnpj || empresa?.cpf || '', RECEIPT_WIDTH);
-  const endereco = truncateText(empresa?.endereco || '', RECEIPT_WIDTH);
+  const empresaLines = buildEmpresaDocumentLines(empresa).map((line) => truncateText(line, RECEIPT_WIDTH));
+  const headerBlock = empresaLines.length
+    ? empresaLines.join('\n')
+    : truncateText(empresa?.empresa || empresa?.nome || 'Empresa', RECEIPT_WIDTH);
 
   const clienteNome = truncateText(sale.cliente?.name || 'Consumidor Final', RECEIPT_WIDTH);
   const clienteDoc = truncateText(sale.cliente?.cpf || sale.cliente?.cnpj || '', RECEIPT_WIDTH);
@@ -56,9 +58,7 @@ export function ReceiptPrintWeb({ sale, empresa }) {
     <View id="print-area" style={styles.container} aria-hidden="true">
       <pre style={styles.pre}>
         {`${'='.repeat(RECEIPT_WIDTH)}
-${nomeEmpresa}
-${cnpjCpf}
-${endereco}
+${headerBlock}
 ${'='.repeat(RECEIPT_WIDTH)}
       CUPOM NAO FISCAL
 ${formatLine('Venda:', `#${sale.numero || '001'}`)}

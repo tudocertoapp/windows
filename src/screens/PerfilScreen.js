@@ -5,7 +5,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { useAuth } from '../contexts/AuthContext';
+import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
+import { buildEnderecoCompleto, pickEmpresaEnderecoFromProfile } from '../utils/empresaProfile';
 
 const logoImage = require('../../assets/logo.png');
 
@@ -13,23 +15,44 @@ const ps = StyleSheet.create({
   avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 16 },
   form: { paddingHorizontal: 16, paddingVertical: 20, gap: 16 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15 },
+  inputHalf: { flex: 1, minWidth: 0 },
+  row: { flexDirection: 'row', gap: 12 },
   label: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', marginTop: 4 },
+  sectionHint: { fontSize: 12, lineHeight: 17, marginBottom: 4 },
   btn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, borderRadius: 12, borderWidth: 1 },
 });
 
+function Field({ label, colors, children }) {
+  return (
+    <View>
+      <Text style={[ps.label, { color: colors.textSecondary }]}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
 export function PerfilScreen({ onClose, isModal }) {
   const { colors } = useTheme();
   const { profile, updateProfile, getLastFoto } = useProfile();
+  const { showEmpresaFeatures } = usePlan();
   const { user, signOut } = useAuth();
   const [nome, setNome] = useState(profile.nome || '');
   const [profissao, setProfissao] = useState(profile.profissao || '');
   const [empresa, setEmpresa] = useState(profile.empresa || '');
   const [cnpj, setCnpj] = useState(profile.cnpj || '');
-  const [endereco, setEndereco] = useState(profile.endereco || '');
   const [telefone, setTelefone] = useState(profile.telefone || '');
   const [email, setEmail] = useState(profile.email || user?.email || '');
+  const [instagram, setInstagram] = useState(profile.instagram || '');
+  const [enderecoRua, setEnderecoRua] = useState(profile.endereco_rua || '');
+  const [enderecoNumero, setEnderecoNumero] = useState(profile.endereco_numero || '');
+  const [enderecoComplemento, setEnderecoComplemento] = useState(profile.endereco_complemento || '');
+  const [enderecoBairro, setEnderecoBairro] = useState(profile.endereco_bairro || '');
+  const [enderecoCidade, setEnderecoCidade] = useState(profile.endereco_cidade || '');
+  const [enderecoEstado, setEnderecoEstado] = useState(profile.endereco_estado || '');
+  const [enderecoCep, setEnderecoCep] = useState(profile.endereco_cep || '');
   const [foto, setFoto] = useState(profile.foto || null);
   const [lastFoto, setLastFoto] = useState(null);
   const hasCustomProfilePhoto = !!(profile.fotoLocal || foto);
@@ -39,33 +62,68 @@ export function PerfilScreen({ onClose, isModal }) {
     setProfissao(profile.profissao || '');
     setEmpresa(profile.empresa || '');
     setCnpj(profile.cnpj || '');
-    setEndereco(profile.endereco || '');
     setTelefone(profile.telefone || '');
     setEmail(profile.email || user?.email || '');
+    const addr = pickEmpresaEnderecoFromProfile(profile);
+    setInstagram(addr.instagram);
+    setEnderecoRua(addr.endereco_rua);
+    setEnderecoNumero(addr.endereco_numero);
+    setEnderecoComplemento(addr.endereco_complemento);
+    setEnderecoBairro(addr.endereco_bairro);
+    setEnderecoCidade(addr.endereco_cidade);
+    setEnderecoEstado(addr.endereco_estado);
+    setEnderecoCep(addr.endereco_cep);
     setFoto(profile.foto || null);
-  }, [profile.nome, profile.foto, profile.profissao, profile.empresa, profile.cnpj, profile.endereco, profile.telefone, profile.email, user?.email]);
+  }, [
+    profile,
+    user?.email,
+  ]);
 
   useEffect(() => {
     getLastFoto().then((v) => setLastFoto(v || null));
   }, [profile.foto, getLastFoto]);
 
+  const inputStyle = [ps.input, { borderColor: colors.border, color: colors.text }];
+
   const handleSalvar = async () => {
-    try {
-      await updateProfile({
-        nome: nome.trim(),
-        profissao: profissao.trim(),
+    const payload = {
+      nome: nome.trim(),
+      profissao: profissao.trim(),
+      telefone: telefone.trim(),
+      email: email.trim(),
+      foto,
+    };
+    if (showEmpresaFeatures) {
+      Object.assign(payload, {
         empresa: empresa.trim(),
         cnpj: cnpj.trim(),
-        endereco: endereco.trim(),
-        telefone: telefone.trim(),
-        email: email.trim(),
-        foto,
+        instagram: instagram.trim(),
+        endereco_rua: enderecoRua.trim(),
+        endereco_numero: enderecoNumero.trim(),
+        endereco_complemento: enderecoComplemento.trim(),
+        endereco_bairro: enderecoBairro.trim(),
+        endereco_cidade: enderecoCidade.trim(),
+        endereco_estado: enderecoEstado.trim().toUpperCase(),
+        endereco_cep: enderecoCep.trim(),
+        endereco: buildEnderecoCompleto({
+          endereco_rua: enderecoRua.trim(),
+          endereco_numero: enderecoNumero.trim(),
+          endereco_complemento: enderecoComplemento.trim(),
+          endereco_bairro: enderecoBairro.trim(),
+          endereco_cidade: enderecoCidade.trim(),
+          endereco_estado: enderecoEstado.trim(),
+          endereco_cep: enderecoCep.trim(),
+          endereco: profile.endereco,
+        }),
       });
+    }
+    try {
+      await updateProfile(payload);
       Alert.alert('Salvo', 'Perfil atualizado com sucesso!');
     } catch (e) {
       const msg = e?.message || '';
-      const hint = msg.includes('profissao') || msg.includes('empresa') || msg.includes('cnpj') || msg.includes('column')
-        ? '\n\nExecute no Supabase o arquivo supabase-profiles-empresa-dados.sql para habilitar CNPJ, endereço e telefone.'
+      const hint = msg.includes('column') || msg.includes('cnpj') || msg.includes('endereco')
+        ? '\n\nExecute no Supabase o arquivo supabase-profiles-empresa-dados.sql para habilitar os campos da empresa.'
         : '';
       Alert.alert('Erro ao salvar', msg + hint);
     }
@@ -146,34 +204,72 @@ export function PerfilScreen({ onClose, isModal }) {
           <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 8 }}>Logo do app como padrão para novos usuários</Text>
         </View>
         <View style={[ps.form, { backgroundColor: colors.bg }]}>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>Nome</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Seu nome" value={nome} onChangeText={setNome} placeholderTextColor={colors.textSecondary} />
-          </View>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>Profissão</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Sua profissão" value={profissao} onChangeText={setProfissao} placeholderTextColor={colors.textSecondary} />
-          </View>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>Empresa</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Nome da empresa" value={empresa} onChangeText={setEmpresa} placeholderTextColor={colors.textSecondary} />
-          </View>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>CNPJ / CPF</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="00.000.000/0000-00 ou CPF" value={cnpj} onChangeText={setCnpj} placeholderTextColor={colors.textSecondary} keyboardType="numeric" />
-          </View>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>Endereço</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="Endereço completo" value={endereco} onChangeText={setEndereco} placeholderTextColor={colors.textSecondary} />
-          </View>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>Telefone</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="(00) 00000-0000" value={telefone} onChangeText={setTelefone} placeholderTextColor={colors.textSecondary} keyboardType="phone-pad" />
-          </View>
-          <View>
-            <Text style={[ps.label, { color: colors.textSecondary }]}>E-mail (contato / relatórios)</Text>
-            <TextInput style={[ps.input, { borderColor: colors.border, color: colors.text }]} placeholder="E-mail para contato" value={email} onChangeText={setEmail} placeholderTextColor={colors.textSecondary} keyboardType="email-address" autoCapitalize="none" />
-          </View>
+          <Field label="Nome" colors={colors}>
+            <TextInput style={inputStyle} placeholder="Seu nome" value={nome} onChangeText={setNome} placeholderTextColor={colors.textSecondary} />
+          </Field>
+          <Field label="Profissão" colors={colors}>
+            <TextInput style={inputStyle} placeholder="Sua profissão" value={profissao} onChangeText={setProfissao} placeholderTextColor={colors.textSecondary} />
+          </Field>
+          <Field label="Celular" colors={colors}>
+            <TextInput style={inputStyle} placeholder="(00) 00000-0000" value={telefone} onChangeText={setTelefone} placeholderTextColor={colors.textSecondary} keyboardType="phone-pad" />
+          </Field>
+          <Field label="E-mail (contato / relatórios)" colors={colors}>
+            <TextInput style={inputStyle} placeholder="E-mail para contato" value={email} onChangeText={setEmail} placeholderTextColor={colors.textSecondary} keyboardType="email-address" autoCapitalize="none" />
+          </Field>
+
+          {showEmpresaFeatures ? (
+            <>
+              <Text style={[ps.sectionTitle, { color: colors.text }]}>Dados da empresa</Text>
+              <Text style={[ps.sectionHint, { color: colors.textSecondary }]}>
+                Usados em comprovantes, cupom não fiscal, ordem de serviço, orçamentos e relatórios.
+              </Text>
+              <Field label="Razão social / nome fantasia" colors={colors}>
+                <TextInput style={inputStyle} placeholder="Nome da empresa" value={empresa} onChangeText={setEmpresa} placeholderTextColor={colors.textSecondary} />
+              </Field>
+              <Field label="CNPJ" colors={colors}>
+                <TextInput style={inputStyle} placeholder="00.000.000/0000-00" value={cnpj} onChangeText={setCnpj} placeholderTextColor={colors.textSecondary} keyboardType="numeric" />
+              </Field>
+              <Field label="Instagram" colors={colors}>
+                <TextInput style={inputStyle} placeholder="@usuario ou link" value={instagram} onChangeText={setInstagram} placeholderTextColor={colors.textSecondary} autoCapitalize="none" />
+              </Field>
+
+              <Text style={[ps.sectionTitle, { color: colors.text, marginTop: 8 }]}>Endereço</Text>
+              <Field label="Rua / logradouro" colors={colors}>
+                <TextInput style={inputStyle} placeholder="Rua, avenida..." value={enderecoRua} onChangeText={setEnderecoRua} placeholderTextColor={colors.textSecondary} />
+              </Field>
+              <View style={ps.row}>
+                <View style={ps.inputHalf}>
+                  <Field label="Número" colors={colors}>
+                    <TextInput style={inputStyle} placeholder="123" value={enderecoNumero} onChangeText={setEnderecoNumero} placeholderTextColor={colors.textSecondary} />
+                  </Field>
+                </View>
+                <View style={ps.inputHalf}>
+                  <Field label="Complemento" colors={colors}>
+                    <TextInput style={inputStyle} placeholder="Sala, loja..." value={enderecoComplemento} onChangeText={setEnderecoComplemento} placeholderTextColor={colors.textSecondary} />
+                  </Field>
+                </View>
+              </View>
+              <Field label="Bairro" colors={colors}>
+                <TextInput style={inputStyle} placeholder="Bairro" value={enderecoBairro} onChangeText={setEnderecoBairro} placeholderTextColor={colors.textSecondary} />
+              </Field>
+              <View style={ps.row}>
+                <View style={[ps.inputHalf, { flex: 2 }]}>
+                  <Field label="Cidade" colors={colors}>
+                    <TextInput style={inputStyle} placeholder="Cidade" value={enderecoCidade} onChangeText={setEnderecoCidade} placeholderTextColor={colors.textSecondary} />
+                  </Field>
+                </View>
+                <View style={ps.inputHalf}>
+                  <Field label="Estado (UF)" colors={colors}>
+                    <TextInput style={inputStyle} placeholder="SP" value={enderecoEstado} onChangeText={setEnderecoEstado} placeholderTextColor={colors.textSecondary} autoCapitalize="characters" maxLength={2} />
+                  </Field>
+                </View>
+              </View>
+              <Field label="CEP" colors={colors}>
+                <TextInput style={inputStyle} placeholder="00000-000" value={enderecoCep} onChangeText={setEnderecoCep} placeholderTextColor={colors.textSecondary} keyboardType="numeric" />
+              </Field>
+            </>
+          ) : null}
+
           <TouchableOpacity style={[ps.btn, { backgroundColor: colors.primary }]} onPress={handleSalvar}>
             <Text style={ps.btnText}>Salvar</Text>
           </TouchableOpacity>

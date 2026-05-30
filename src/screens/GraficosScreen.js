@@ -13,6 +13,7 @@ import { LineChartSaldo } from '../components/charts/LineChartSaldo';
 import { getCategoryColor } from '../constants/colors';
 import { CARD_ICON_COLORS } from '../constants/dashboardCards';
 import { formatCurrency } from '../utils/format';
+import { transactionMatchesViewMode } from '../utils/viewModeFilter';
 
 const ds = StyleSheet.create({
   monthText: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
@@ -52,7 +53,7 @@ export function GraficosScreen() {
 
   const filteredTx = useMemo(() => {
     if (!canToggleView) return transactions;
-    return transactions.filter((t) => (t.tipoVenda || 'pessoal') === viewMode);
+    return transactions.filter((t) => transactionMatchesViewMode(t, viewMode));
   }, [transactions, viewMode, canToggleView]);
 
   const monthTx = useMemo(

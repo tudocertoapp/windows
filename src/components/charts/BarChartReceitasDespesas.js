@@ -34,15 +34,17 @@ export function BarChartReceitasDespesas({ monthlyData, colors, showTitle = true
           <Text style={[styles.title, { color: colors.text }]}>Receitas vs Despesas - Últimos meses</Text>
         </View>
       )}
-      <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-        {bars}
-      </Svg>
-      <View style={styles.labelsRow}>
-        {monthlyData.map((m, i) => (
-          <Text key={i} style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
-            {m.label}
-          </Text>
-        ))}
+      <View style={styles.chartBody}>
+        <Svg width={CHART_WIDTH} height={CHART_HEIGHT} viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+          {bars}
+        </Svg>
+        <View style={styles.labelsRow}>
+          {monthlyData.map((m, i) => (
+            <Text key={i} style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
+              {m.label}
+            </Text>
+          ))}
+        </View>
       </View>
       <View style={styles.legend}>
         <View style={styles.legendItem}>
@@ -59,9 +61,10 @@ export function BarChartReceitasDespesas({ monthlyData, colors, showTitle = true
 }
 
 const styles = StyleSheet.create({
-  container: { marginVertical: 8 },
-  header: { marginBottom: 8 },
-  title: { fontSize: 14, fontWeight: '600' },
+  container: { marginVertical: 8, width: '100%', alignItems: 'center' },
+  chartBody: { width: CHART_WIDTH, maxWidth: '100%', alignSelf: 'center' },
+  header: { marginBottom: 8, alignSelf: 'stretch' },
+  title: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
   labelsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: PADDING.left - 8, marginTop: 4 },
   label: { fontSize: 10, width: 36, textAlign: 'center' },
   legend: { flexDirection: 'row', gap: 16, marginTop: 12, justifyContent: 'center' },

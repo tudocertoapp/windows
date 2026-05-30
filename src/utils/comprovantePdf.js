@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { formatCurrency } from './format';
+import { buildEmpresaDocumentHtml } from './empresaProfile';
 
 function formatDate(str) {
   if (!str) return '—';
@@ -31,7 +32,7 @@ export function buildComprovanteHtml({ numero, data, cliente, items, total, form
 <body>
   <div class="header">
     <h1>COMPROVANTE DE VENDA</h1>
-    <p>${profile?.empresa || profile?.nome || 'Tudo Certo'}</p>
+    ${buildEmpresaDocumentHtml(profile)}
   </div>
   <p><b>Nº da venda:</b> ${(numero || '—').replace(/</g, '&lt;')}</p>
   <p><b>Data:</b> ${formatDate(data)}</p>

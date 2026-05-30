@@ -14,7 +14,7 @@ import { useMenu } from '../contexts/MenuContext';
 import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
 import { TopBar } from '../components/TopBar';
 import { BanksCarousel } from '../components/BanksCarousel';
-import { ViewModeToggle } from '../components/ViewModeToggle';
+import { ViewModeToggle, getViewModeToggleScrollStyle } from '../components/ViewModeToggle';
 import { BalanceCard } from '../components/BalanceCard';
 import { ContasDoMesCard } from '../components/ContasDoMesCard';
 import { ResumoDoMesCard } from '../components/ResumoDoMesCard';
@@ -27,6 +27,7 @@ import { BarChartReceitasDespesas } from '../components/charts/BarChartReceitasD
 import { LineChartSaldo } from '../components/charts/LineChartSaldo';
 import { getCategoryColor } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
+import { transactionMatchesViewMode } from '../utils/viewModeFilter';
 import { playTapSound } from '../utils/sounds';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CardExpandedModal } from '../components/CardExpandedModal';
@@ -170,7 +171,7 @@ export function DinheiroScreen({ route }) {
 
   const filteredTx = useMemo(() => {
     if (!canToggleView) return transactions;
-    return transactions.filter((t) => (t.tipoVenda || 'pessoal') === viewMode);
+    return transactions.filter((t) => transactionMatchesViewMode(t, viewMode));
   }, [transactions, viewMode, canToggleView]);
 
   const parseDateStr = useCallback((str) => {
@@ -579,7 +580,10 @@ export function DinheiroScreen({ route }) {
         );
       })()}
       {!(useWebLayout && canToggleView) && canToggleView && <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} colors={colors} />}
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={getViewModeToggleScrollStyle(canToggleView, useWebLayout)}
+      >
         {useWebLayout ? (
           <>
             <View

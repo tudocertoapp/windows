@@ -21,6 +21,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { useBanks } from '../contexts/BanksContext';
 import { GlassCard } from '../components/GlassCard';
 import { ReceiptPrintWeb } from '../components/ReceiptPrintWeb';
+import { buildEmpresaInfo } from '../utils/empresaProfile';
 import { formatCurrency, parseMoney } from '../utils/format';
 import {
   playTapSound,
@@ -33,9 +34,18 @@ import { MoneyInput } from '../components/MoneyInput';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AUTH_LOGO_SOURCE } from '../shared/authUi';
 import { DEFAULT_PDV_CONFIG, readPdvConfig, writePdvConfig } from '../utils/pdvConfig';
+import {
+  EMPTY_PDV_FAVORITES,
+  itemFavoriteKey,
+  clientFavoriteKey,
+  readPdvFavorites,
+  writePdvFavorites,
+} from '../utils/pdvFavorites';
 
 const PDV_SALE_KEY = '@tudocerto_pdv_ultima_venda';
 const PDV_TOP_ITEMS_KEY = '@tudocerto_pdv_top_itens_v1';
+const LEFT_BRAND_LOGO_HEIGHT = 78;
+const LEFT_BRAND_FOOTER_BOTTOM = 32;
 
 const FORMAS_PAG = [
   { id: 'pix', label: 'PIX', icon: 'phone-portrait-outline' },
@@ -47,11 +57,34 @@ const FORMAS_PAG = [
 const TABS = [
   { id: 'produtos', label: 'PRODUTOS E SERVIÇOS', icon: 'cube-outline' },
   { id: 'cliente', label: 'CLIENTE', icon: 'person-outline' },
+  { id: 'favoritos', label: 'FAVORITOS', icon: 'star-outline' },
   { id: 'finalizacao', label: 'PAGAMENTO', icon: 'card-outline' },
 ];
 
 function stripAccents(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function getClienteNameParts(name) {
+  return stripAccents(String(name || ''))
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/** 1 letra: primeiro/segundo nome começa com a letra; 2+ letras: contém no primeiro ou segundo nome. */
+function matchClienteSearch(name, queryRaw) {
+  const q = stripAccents(String(queryRaw || '')).toLowerCase().trim();
+  if (!q) return false;
+  const parts = getClienteNameParts(name);
+  if (parts.length === 0) return false;
+  const first = parts[0];
+  const second = parts[1] || '';
+  if (q.length === 1) {
+    return first.startsWith(q) || second.startsWith(q);
+  }
+  return first.includes(q) || second.includes(q);
 }
 
 function normalizeLoginText(v) {
@@ -183,7 +216,9 @@ export function PDVScreen({ onClose, lockedMode = false }) {
   const [loginDebug, setLoginDebug] = useState(null);
   const [showPdvConfigModal, setShowPdvConfigModal] = useState(false);
   const [pdvConfig, setPdvConfig] = useState(DEFAULT_PDV_CONFIG);
+  const [pdvFavorites, setPdvFavorites] = useState(EMPTY_PDV_FAVORITES);
   const searchRef = useRef(null);
+  const clienteSearchRef = useRef(null);
 
   const isWeb = Platform.OS === 'web';
 
@@ -256,10 +291,101 @@ export function PDVScreen({ onClose, lockedMode = false }) {
   const shouldShowGridResults = !showProductSuggest && !selectedItem;
 
   const clienteSuggestions = useMemo(() => {
-    if (!clienteSearch.trim()) return clients || [];
-    const q = stripAccents(clienteSearch).toLowerCase();
-    return (clients || []).filter((c) => stripAccents(c.name || '').toLowerCase().includes(q));
+    const q = clienteSearch.trim();
+    if (!q) return [];
+    return (clients || []).filter((c) => matchClienteSearch(c.name, q));
   }, [clients, clienteSearch]);
+
+  const confirmCliente = useCallback(() => {
+    playTapSound();
+    if (cliente) {
+      setClienteSearch('');
+      setShowClienteSuggest(false);
+      return;
+    }
+    const q = clienteSearch.trim();
+    if (!q) {
+      setCliente(null);
+      setClienteSearch('');
+      setShowClienteSuggest(false);
+      return;
+    }
+    if (clienteSuggestions.length === 1) {
+      setCliente(clienteSuggestions[0]);
+      setClienteSearch('');
+      setShowClienteSuggest(false);
+      return;
+    }
+    Alert.alert('Cliente', 'Selecione um cliente na lista ou deixe o campo vazio para consumidor final.');
+  }, [cliente, clienteSearch, clienteSuggestions]);
+
+  const changeCliente = useCallback(() => {
+    playTapSound();
+    setCliente(null);
+    setClienteSearch('');
+    setShowClienteSuggest(false);
+    clienteSearchRef.current?.focus();
+  }, []);
+
+  const isItemFavorite = useCallback(
+    (item) => pdvFavorites.items.includes(itemFavoriteKey(item)),
+    [pdvFavorites.items],
+  );
+
+  const isClientFavorite = useCallback(
+    (client) => pdvFavorites.clients.includes(clientFavoriteKey(client)),
+    [pdvFavorites.clients],
+  );
+
+  const toggleItemFavorite = useCallback((item) => {
+    const key = itemFavoriteKey(item);
+    setPdvFavorites((prev) => {
+      const items = prev.items.includes(key)
+        ? prev.items.filter((k) => k !== key)
+        : [...prev.items, key];
+      const next = { ...prev, items };
+      writePdvFavorites(profile, next).catch(() => {});
+      return next;
+    });
+    playTapSound();
+  }, [profile]);
+
+  const toggleClientFavorite = useCallback((client) => {
+    const key = clientFavoriteKey(client);
+    if (!key) return;
+    setPdvFavorites((prev) => {
+      const clients = prev.clients.includes(key)
+        ? prev.clients.filter((k) => k !== key)
+        : [...prev.clients, key];
+      const next = { ...prev, clients };
+      writePdvFavorites(profile, next).catch(() => {});
+      return next;
+    });
+    playTapSound();
+  }, [profile]);
+
+  const favoriteItems = useMemo(() => {
+    const keys = new Set(pdvFavorites.items);
+    return allItems.filter((item) => keys.has(itemFavoriteKey(item)));
+  }, [allItems, pdvFavorites.items]);
+
+  const favoriteClients = useMemo(() => {
+    const keys = new Set(pdvFavorites.clients);
+    return (clients || []).filter((client) => keys.has(clientFavoriteKey(client)));
+  }, [clients, pdvFavorites.clients]);
+
+  const renderFavoriteStar = useCallback((active, onToggle, size = 20) => (
+    <TouchableOpacity
+      onPress={(e) => {
+        if (e?.stopPropagation) e.stopPropagation();
+        onToggle();
+      }}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={styles.favoriteStarBtn}
+    >
+      <Ionicons name={active ? 'star' : 'star-outline'} size={size} color={active ? '#f59e0b' : colors.textSecondary} />
+    </TouchableOpacity>
+  ), [colors.textSecondary]);
 
   const subtotalBruto = useMemo(
     () => cart.reduce((s, i) => s + (Number(i.originalPrice ?? i.price) || 0) * (i.qty || 1), 0),
@@ -312,6 +438,13 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     (async () => {
       const cfg = await readPdvConfig(profile);
       setPdvConfig(cfg);
+    })();
+  }, [profile?.email]);
+
+  useEffect(() => {
+    (async () => {
+      const fav = await readPdvFavorites(profile);
+      setPdvFavorites(fav);
     })();
   }, [profile?.email]);
 
@@ -507,16 +640,21 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     };
 
     try {
-      await addTransaction({
-        type: 'receita',
+      const clientLabel = cliente?.name ? ` - Cliente: ${cliente.name}` : '';
+      const txId = await addTransaction({
+        type: 'income',
         amount: total,
-        description: `Venda PDV #${numero} - Operador: ${operatorLogged?.nome || profile?.nome || 'Operador'}`,
+        description: `Venda PDV #${numero}${clientLabel} - Operador: ${operatorLogged?.nome || profile?.nome || 'Operador'}`,
         category: 'Venda PDV',
         date: new Date().toISOString().slice(0, 10),
         formaPagamento: payments.map((p) => `${p.forma}: ${formatCurrency(p.valor)}`).join(', '),
-        tipoVenda: 'avista',
+        tipoVenda: 'empresa',
         desconto: descontoTotal,
       });
+      if (!txId) {
+        Alert.alert('Erro', 'Não foi possível registrar a venda no fluxo de caixa.');
+        return;
+      }
 
       const firstBank = banks?.find((b) => (b.tipoConta === 'debito' || b.tipoConta === 'ambos') && b.saldo !== undefined);
       if (firstBank?.id) addToBank(firstBank.id, total);
@@ -705,10 +843,49 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     }
   }, [loading, mustRequireOperatorLogin, operatorLogged, profile?.nome]);
 
+  const handlePdvEscape = useCallback(() => {
+    if (cancelAuthOpen) {
+      setCancelAuthOpen(false);
+      setCancelActionType(null);
+      setCancelOperatorLogin('');
+      setCancelOperatorPass('');
+      return true;
+    }
+    if (showPdvConfigModal) {
+      setShowPdvConfigModal(false);
+      return true;
+    }
+    if (selectedItem) {
+      setSelectedItem(null);
+      return true;
+    }
+    if (showPaymentAdd) {
+      setShowPaymentAdd(false);
+      return true;
+    }
+    return false;
+  }, [cancelAuthOpen, showPdvConfigModal, selectedItem, showPaymentAdd]);
+
+  const handleProductFieldKeyDown = useCallback((e) => {
+    const key = e?.key ?? e?.nativeEvent?.key;
+    if (key !== 'Escape' && key !== 'Esc') return;
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    handlePdvEscape();
+  }, [handlePdvEscape]);
+
   useEffect(() => {
     if (!isWeb) return;
     const onKey = (e) => {
       const hasModifier = !!(e.ctrlKey || e.shiftKey || e.altKey || e.metaKey);
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (handlePdvEscape()) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation?.();
+        }
+        return;
+      }
       if (!hasModifier && e.key === 'F1') { e.preventDefault(); setActiveTab('produtos'); setTimeout(() => searchRef.current?.focus?.(), 50); return; }
       if (!hasModifier && e.key === 'F2') { e.preventDefault(); if (selectedItem) setSelectedItem(null); return; }
       if (!hasModifier && e.key === 'F3') { e.preventDefault(); requestCancelAction('item'); return; }
@@ -718,13 +895,19 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       if (!hasModifier && e.key === 'F7') { e.preventDefault(); if (cart.length > 0 && pago >= total - 0.01) handleConfirmSale(); return; }
       if (!hasModifier && e.key === 'F8') { e.preventDefault(); if (completedSale) handlePrint(); return; }
       if (!hasModifier && e.key === 'F9') { e.preventDefault(); setShowPdvConfigModal(true); return; }
-      if (e.key === 'Escape') { e.preventDefault(); setSelectedItem(null); setShowPaymentAdd(false); return; }
       if (e.key === 'Enter' && selectedItem && activeTab === 'produtos') { e.preventDefault(); confirmAddItem(); return; }
       if (e.ctrlKey && e.key === 'p') { e.preventDefault(); if (completedSale) handlePrint(); return; }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selectedItem, activeTab, cart, pago, total, completedSale, handleConfirmSale, handlePrint, confirmAddItem, requestCancelAction]);
+    const onTcEscape = (e) => {
+      if (handlePdvEscape()) e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('tc:escape', onTcEscape);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('tc:escape', onTcEscape);
+    };
+  }, [selectedItem, activeTab, cart, pago, total, completedSale, handleConfirmSale, handlePrint, confirmAddItem, requestCancelAction, handlePdvEscape]);
 
   useEffect(() => {
     if (!mustRequireOperatorLogin) return;
@@ -736,7 +919,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
   if (Platform.OS !== 'web') return null;
 
-  const empresaInfo = { empresa: profile?.empresa, cnpj: profile?.cnpj, endereco: profile?.endereco };
+  const empresaInfo = buildEmpresaInfo(profile);
   const dataHora = currentTime.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const footerBtnBg = colors?.isDarkBg ? 'rgba(24,24,27,0.92)' : 'rgba(248,250,252,0.96)';
   const footerBtnText = colors?.isDarkBg ? '#e4e4e7' : '#1f2937';
@@ -749,7 +932,6 @@ export function PDVScreen({ onClose, lockedMode = false }) {
         <View style={styles.headerStatusWrap}>
           <Ionicons name="cart-outline" size={28} color="#fff" />
           <Text style={styles.headerStatus}>CAIXA LIVRE</Text>
-          <Image source={AUTH_LOGO_SOURCE} style={styles.headerTopLogo} resizeMode="contain" />
         </View>
         <View style={[styles.headerMetaRow, narrowLayout && styles.headerMetaRowWrap]}>
           <View style={[styles.headerLeft, narrowLayout && styles.headerLeftWrap]}>
@@ -794,7 +976,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                 <Ionicons name={t.icon} size={16} color={activeTab === t.id ? '#fff' : colors.textSecondary} />
                 <Text
                   style={[styles.tabLabel, { color: activeTab === t.id ? '#fff' : colors.textSecondary }]}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {t.label}
                 </Text>
@@ -811,10 +993,11 @@ export function PDVScreen({ onClose, lockedMode = false }) {
               showsVerticalScrollIndicator
             >
               <View style={[styles.searchRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons name="search-outline" size={20} color={colors.textSecondary} />
                 <TextInput
                   ref={searchRef}
                   style={[styles.searchInput, { color: colors.text }]}
-                  placeholder="Busque por um produto..."
+                  placeholder="Digite o nome ou código do produto para buscar."
                   placeholderTextColor={colors.textSecondary}
                   value={search}
                   onChangeText={(t) => { setSearch(t); setShowProductSuggest(!!String(t || '').trim()); }}
@@ -830,12 +1013,15 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                         style={[styles.productSuggestItem, { borderBottomColor: colors.border }]}
                         onPress={() => selectItem(item)}
                       >
-                        <Text style={[styles.productSuggestName, { color: colors.text }]} numberOfLines={1}>
-                          {item.name}
-                        </Text>
-                        <Text style={[styles.productSuggestCode, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {item.code ? `Cod: ${item.code}` : item._tipo === 'servico' ? 'Serviço' : 'Produto'}
-                        </Text>
+                        <View style={styles.productSuggestMain}>
+                          <Text style={[styles.productSuggestName, { color: colors.text }]} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={[styles.productSuggestCode, { color: colors.textSecondary }]} numberOfLines={1}>
+                            {item.code ? `Cod: ${item.code}` : item._tipo === 'servico' ? 'Serviço' : 'Produto'}
+                          </Text>
+                        </View>
+                        {renderFavoriteStar(isItemFavorite(item), () => toggleItemFavorite(item), 18)}
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -852,15 +1038,6 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                   </Text>
                 </TouchableOpacity>
               </View>
-              {!search.trim() ? (
-                <View style={[styles.emptySearchState, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                  <Ionicons name="search-outline" size={24} color={colors.textSecondary} />
-                  <Text style={[styles.emptySearchText, { color: colors.textSecondary }]}>
-                    Digite o nome ou código do produto para buscar.
-                  </Text>
-                </View>
-              ) : null}
-
               {selectedItem ? (
                 <GlassCard colors={colors} solid style={[styles.itemDetailCard, { borderColor: colors.border }]}>
                   <View style={styles.itemDetailHeader}>
@@ -877,6 +1054,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                         {selectedItem.code ? `Cod: ${selectedItem.code}` : selectedItem._tipo === 'servico' ? 'Serviço' : 'Produto'}
                       </Text>
                     </View>
+                    {renderFavoriteStar(isItemFavorite(selectedItem), () => toggleItemFavorite(selectedItem))}
                   </View>
 
                   <View style={styles.itemDetailRow}>
@@ -887,6 +1065,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                         value={selectedQty}
                         onChangeText={setSelectedQty}
                         keyboardType="number-pad"
+                        onKeyDown={handleProductFieldKeyDown}
                       />
                     </View>
                     <View style={styles.itemDetailFieldCol}>
@@ -895,6 +1074,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                         value={selectedPrice}
                         onChange={setSelectedPrice}
                         containerStyle={[styles.moneyInputWrap, { backgroundColor: colors.bg }]}
+                        onKeyDown={handleProductFieldKeyDown}
                       />
                     </View>
                     <View style={styles.itemDetailFieldCol}>
@@ -903,6 +1083,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                         value={selectedDesconto}
                         onChange={setSelectedDesconto}
                         containerStyle={[styles.moneyInputWrap, { backgroundColor: colors.bg }]}
+                        onKeyDown={handleProductFieldKeyDown}
                       />
                     </View>
                   </View>
@@ -952,6 +1133,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                         </Text>
                         <Text style={[styles.gridPrice, { color: colors.primary }]}>{formatCurrency(item.price || 0)}</Text>
                       </View>
+                      {renderFavoriteStar(isItemFavorite(item), () => toggleItemFavorite(item), 18)}
                     </TouchableOpacity>
                   ))}
                   {search.trim() && filteredItems.length === 0 ? (
@@ -968,36 +1150,150 @@ export function PDVScreen({ onClose, lockedMode = false }) {
           )}
 
           {activeTab === 'cliente' && (
-            <View style={[styles.clienteTab, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.clienteInput, { color: colors.text, borderColor: colors.border }]}
-                placeholder="Buscar cliente..."
-                placeholderTextColor={colors.textSecondary}
-                value={cliente ? cliente.name : clienteSearch}
-                onChangeText={(t) => { setClienteSearch(t); setCliente(null); setShowClienteSuggest(!!t.trim()); }}
-                onFocus={() => setShowClienteSuggest(true)}
-              />
-              <TouchableOpacity
-                style={[styles.consumidorBtn, { borderColor: colors.border }]}
-                onPress={() => { setCliente(null); setClienteSearch(''); setShowClienteSuggest(false); playTapSound(); }}
-              >
-                <Text style={[styles.consumidorText, { color: colors.text }]}>Consumidor final</Text>
-              </TouchableOpacity>
-              {showClienteSuggest && clienteSuggestions.length > 0 && (
-                <ScrollView style={styles.suggestList}>
-                  {clienteSuggestions.map((c) => (
-                    <TouchableOpacity
+            <ScrollView
+              style={styles.favoritosScroll}
+              contentContainerStyle={styles.favoritosScrollContent}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
+              <View style={[styles.searchRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons name="search-outline" size={20} color={colors.textSecondary} />
+                <TextInput
+                  ref={clienteSearchRef}
+                  style={[styles.searchInput, { color: colors.text }]}
+                  placeholder="Buscar cliente..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={cliente ? cliente.name : clienteSearch}
+                  onChangeText={(t) => { setClienteSearch(t); setCliente(null); setShowClienteSuggest(!!t.trim()); }}
+                  onFocus={() => setShowClienteSuggest(!!clienteSearch.trim())}
+                />
+              </View>
+              <View style={styles.clienteActionsRow}>
+                <TouchableOpacity
+                  style={[styles.clienteActionBtn, { backgroundColor: colors.primary }]}
+                  onPress={confirmCliente}
+                >
+                  <Text style={styles.clienteConfirmText}>Confirmar cliente</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.clienteActionBtn, styles.clienteChangeBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                  onPress={changeCliente}
+                >
+                  <Text style={[styles.clienteChangeText, { color: colors.text }]}>Mudar cliente</Text>
+                </TouchableOpacity>
+              </View>
+              {cliente ? (
+                <View style={[styles.clienteSelectedRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <Text style={[styles.clienteSelectedLabel, { color: colors.textSecondary }]}>Selecionado:</Text>
+                  <Text style={[styles.clienteSelectedName, { color: colors.text }]} numberOfLines={1}>{cliente.name}</Text>
+                  {renderFavoriteStar(isClientFavorite(cliente), () => toggleClientFavorite(cliente))}
+                </View>
+              ) : null}
+              {showClienteSuggest && clienteSuggestions.length > 0
+                ? clienteSuggestions.map((c) => (
+                    <View
                       key={c.id}
-                      style={[styles.suggestItem, { borderBottomColor: colors.border }]}
-                      onPress={() => { setCliente(c); setClienteSearch(''); setShowClienteSuggest(false); playTapSound(); }}
+                      style={[
+                        styles.suggestItem,
+                        styles.suggestItemRow,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          marginBottom: 8,
+                          paddingHorizontal: 12,
+                        },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={styles.suggestItemMain}
+                        onPress={() => { setCliente(c); setClienteSearch(''); setShowClienteSuggest(false); playTapSound(); }}
+                      >
+                        <Text style={[styles.suggestName, { color: colors.text }]}>{c.name}</Text>
+                        {c.cpf && <Text style={[styles.suggestCpf, { color: colors.textSecondary }]}>{c.cpf}</Text>}
+                      </TouchableOpacity>
+                      {renderFavoriteStar(isClientFavorite(c), () => toggleClientFavorite(c), 18)}
+                    </View>
+                  ))
+                : null}
+            </ScrollView>
+          )}
+
+          {activeTab === 'favoritos' && (
+            <ScrollView
+              style={styles.favoritosScroll}
+              contentContainerStyle={styles.favoritosScrollContent}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
+              <Text style={[styles.favoritosSectionTitle, { color: colors.text }]}>Produtos e serviços</Text>
+              {favoriteItems.length === 0 ? (
+                <View style={[styles.emptySearchState, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <Ionicons name="star-outline" size={22} color={colors.textSecondary} />
+                  <Text style={[styles.emptySearchText, { color: colors.textSecondary }]}>
+                    Nenhum produto ou serviço favorito. Toque na estrela ao buscar itens.
+                  </Text>
+                </View>
+              ) : (
+                favoriteItems.map((item) => (
+                  <TouchableOpacity
+                    key={`fav-item-${item._tipo}-${item.id}`}
+                    style={[styles.gridItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => { playTapSound(); selectItem(item); setActiveTab('produtos'); }}
+                    onLongPress={() => addToCartQuick(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.gridThumb, { backgroundColor: colors.border }]}>
+                      {item.photoUri ? (
+                        <Image source={{ uri: item.photoUri }} style={styles.gridImg} resizeMode="cover" />
+                      ) : (
+                        <Ionicons name={item._tipo === 'produto' ? 'cube-outline' : 'construct-outline'} size={28} color={colors.textSecondary} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.gridName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                      <Text style={[styles.gridCode, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {item.code ? `Cod: ${item.code}` : item._tipo === 'servico' ? 'Serviço' : 'Produto'}
+                      </Text>
+                      <Text style={[styles.gridPrice, { color: colors.primary }]}>{formatCurrency(item.price || 0)}</Text>
+                    </View>
+                    {renderFavoriteStar(isItemFavorite(item), () => toggleItemFavorite(item), 18)}
+                  </TouchableOpacity>
+                ))
+              )}
+
+              <Text style={[styles.favoritosSectionTitle, { color: colors.text, marginTop: 16 }]}>Clientes</Text>
+              {favoriteClients.length === 0 ? (
+                <View style={[styles.emptySearchState, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <Ionicons name="star-outline" size={22} color={colors.textSecondary} />
+                  <Text style={[styles.emptySearchText, { color: colors.textSecondary }]}>
+                    Nenhum cliente favorito. Toque na estrela ao buscar clientes.
+                  </Text>
+                </View>
+              ) : (
+                favoriteClients.map((c) => (
+                  <View key={`fav-client-${c.id}`} style={[styles.suggestItem, styles.suggestItemRow, { borderBottomColor: colors.border, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, marginBottom: 8, paddingHorizontal: 12 }]}>
+                    <TouchableOpacity
+                      style={styles.suggestItemMain}
+                      onPress={() => {
+                        playTapSound();
+                        setCliente(c);
+                        setClienteSearch('');
+                        setShowClienteSuggest(false);
+                        setActiveTab('cliente');
+                      }}
                     >
                       <Text style={[styles.suggestName, { color: colors.text }]}>{c.name}</Text>
                       {c.cpf && <Text style={[styles.suggestCpf, { color: colors.textSecondary }]}>{c.cpf}</Text>}
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                    {renderFavoriteStar(isClientFavorite(c), () => toggleClientFavorite(c), 18)}
+                  </View>
+                ))
               )}
-            </View>
+            </ScrollView>
           )}
 
           {activeTab === 'finalizacao' && (
@@ -1095,7 +1391,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
             </GlassCard>
             </ScrollView>
           )}
-          <View style={styles.leftBrandFooter}>
+          <View style={styles.leftBrandFooter} pointerEvents="none">
             <Image source={AUTH_LOGO_SOURCE} style={styles.produtosBrandLogo} resizeMode="contain" />
           </View>
         </View>
@@ -1173,13 +1469,13 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       </View>
 
       {/* Barra inferior - Atalhos */}
-      <View style={[styles.footer, { backgroundColor: '#111827', borderTopColor: colors.border }, narrowLayout && styles.footerWrap]}>
+      <View style={[styles.footer, { backgroundColor: 'transparent', borderTopWidth: 0 }, narrowLayout && styles.footerWrap]}>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F1</Text>
           </View>
           <Ionicons name="add" size={18} color={colors.primary} />
-          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Item</Text>
+          <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Adicionar Item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => selectedItem && setSelectedItem(null)}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
@@ -1391,7 +1687,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
               >
                 <Text style={styles.printBtnText}>Entrar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.authBtn, styles.novaBtn, { borderColor: colors.border }]} onPress={onClose}>
+              <TouchableOpacity style={[styles.authBtn, styles.novaBtn, { borderColor: colors.border, backgroundColor: colors.bg }]} onPress={onClose}>
                 <Text style={[styles.novaBtnText, { color: colors.text }]}>Fechar</Text>
               </TouchableOpacity>
             </View>
@@ -1459,12 +1755,12 @@ export function PDVScreen({ onClose, lockedMode = false }) {
               autoComplete="off"
               textContentType="none"
             />
-            <View style={styles.successBtns}>
-              <TouchableOpacity style={[styles.printBtn, { backgroundColor: colors.primary }]} onPress={confirmCancelByOperator}>
+            <View style={styles.authBtnsRow}>
+              <TouchableOpacity style={[styles.printBtn, styles.authBtn, { backgroundColor: colors.primary }]} onPress={confirmCancelByOperator}>
                 <Text style={styles.printBtnText}>Confirmar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.novaBtn, { borderColor: colors.border }]}
+                style={[styles.authBtn, styles.novaBtn, { borderColor: colors.border, backgroundColor: colors.bg }]}
                 onPress={() => {
                   setCancelAuthOpen(false);
                   setCancelActionType(null);
@@ -1524,19 +1820,21 @@ const styles = StyleSheet.create({
   headerRightWrap: { flexBasis: '100%', justifyContent: 'center' },
   headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerBtnText: { fontSize: 11, color: '#fff', fontWeight: '600' },
-  headerTopLogo: {
-    position: 'absolute',
-    left: 0,
-    width: 220,
-    height: 68,
-    opacity: 0.95,
-  },
   headerTime: { fontSize: 11, color: 'rgba(255,255,255,0.9)', maxWidth: 200 },
   headerClose: { padding: 4 },
-  main: { flex: 1, flexDirection: 'row', minHeight: 0 },
+  main: { flex: 1, flexDirection: 'row', minHeight: 0, width: '100%', alignSelf: 'stretch' },
   mainColumn: { flexDirection: 'column' },
   leftPanel: { minHeight: 0, padding: 12, position: 'relative' },
-  leftPanelWide: { width: 380, maxWidth: '42%', borderRightWidth: 1, borderBottomWidth: 0 },
+  leftPanelWide: {
+    flexBasis: 520,
+    width: 520,
+    minWidth: 460,
+    maxWidth: '56%',
+    flexShrink: 0,
+    flexGrow: 0,
+    borderRightWidth: 1,
+    borderBottomWidth: 0,
+  },
   leftPanelNarrow: {
     width: '100%',
     maxWidth: '100%',
@@ -1547,27 +1845,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     padding: 10,
   },
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  tabs: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6, marginBottom: 12 },
   produtosScroll: { flex: 1, minHeight: 0 },
   produtosScrollContent: { paddingBottom: 12 },
   tab: {
     flex: 1,
+    flexBasis: 0,
     minWidth: 0,
-    flexDirection: 'row',
+    minHeight: 48,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
+    gap: 3,
+    paddingHorizontal: 4,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
   },
-  tabLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3, flexShrink: 1 },
+  tabLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.1, textAlign: 'center', lineHeight: 11 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
   searchInput: { flex: 1, fontSize: 14 },
   productSuggestWrap: { borderWidth: 1, borderRadius: 10, marginBottom: 8, maxHeight: 210 },
   productSuggestList: { maxHeight: 200 },
-  productSuggestItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  productSuggestItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  productSuggestMain: { flex: 1, minWidth: 0 },
   productSuggestName: { fontSize: 13, fontWeight: '700' },
   productSuggestCode: { fontSize: 11, marginTop: 2 },
   productFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 8 },
@@ -1603,20 +1904,29 @@ const styles = StyleSheet.create({
   itemGrid: { flex: 1, minHeight: 120 },
   itemGridNarrow: { maxHeight: 320 },
   itemGridContent: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
-  gridItem: { width: '100%', minWidth: 180, flexGrow: 1, maxWidth: '100%', padding: 10, borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
-  gridThumb: { width: 56, height: 56, borderRadius: 8, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
-  gridImg: { width: 56, height: 56 },
-  gridName: { fontSize: 12, fontWeight: '600', marginBottom: 2 },
-  gridCode: { fontSize: 10, marginBottom: 2 },
-  gridPrice: { fontSize: 13, fontWeight: '700' },
-  clienteTab: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1 },
-  clienteInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 12 },
-  consumidorBtn: { paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', marginBottom: 12 },
-  consumidorText: { fontSize: 14, fontWeight: '600' },
-  suggestList: { maxHeight: 200 },
-  suggestItem: { paddingVertical: 10, borderBottomWidth: 1 },
+  gridItem: { width: '100%', minWidth: 210, flexGrow: 1, maxWidth: '100%', padding: 12, borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
+  gridThumb: { width: 60, height: 60, borderRadius: 8, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  gridImg: { width: 60, height: 60 },
+  gridName: { fontSize: 13, fontWeight: '600', marginBottom: 2 },
+  gridCode: { fontSize: 11, marginBottom: 2 },
+  gridPrice: { fontSize: 14, fontWeight: '700' },
+  clienteActionsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  clienteActionBtn: { flex: 1, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  clienteConfirmText: { color: '#fff', fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  clienteChangeBtn: { borderWidth: 1 },
+  clienteChangeText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  clienteSelectedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
+  clienteSelectedLabel: { fontSize: 12, fontWeight: '600' },
+  clienteSelectedName: { flex: 1, fontSize: 14, fontWeight: '700' },
+  suggestItem: { paddingVertical: 10 },
+  suggestItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
+  suggestItemMain: { flex: 1, minWidth: 0 },
   suggestName: { fontSize: 14 },
   suggestCpf: { fontSize: 11, marginTop: 2 },
+  favoritosScroll: { flex: 1, minHeight: 0, zIndex: 2 },
+  favoritosScrollContent: { paddingBottom: 12, gap: 8 },
+  favoritosSectionTitle: { fontSize: 13, fontWeight: '800', letterSpacing: 0.4, marginBottom: 10 },
+  favoriteStarBtn: { padding: 4 },
   finalizacaoScroll: { flex: 1, minHeight: 0 },
   finalizacaoScrollContent: { flexGrow: 1, paddingBottom: 12 },
   finalizacaoCard: {},
@@ -1668,7 +1978,7 @@ const styles = StyleSheet.create({
   },
   descontoLabel: { fontSize: 13, flexShrink: 0 },
   descontoMoneyWrap: { flex: 1, minWidth: 160, maxWidth: 280, minHeight: 44 },
-  rightPanel: { flex: 1, flexDirection: 'column', minWidth: 0, minHeight: 0 },
+  rightPanel: { flex: 1, flexDirection: 'column', minWidth: 240, minHeight: 0, alignSelf: 'stretch' },
   rightPanelNarrow: { minHeight: 260, flex: 1 },
   cartHeader: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   cartHeaderText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
@@ -1682,14 +1992,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 2,
+    bottom: LEFT_BRAND_FOOTER_BOTTOM,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 8,
     paddingBottom: 0,
   },
-  produtosBrandLogo: { width: 250, height: 78, opacity: 0.9 },
+  produtosBrandLogo: { width: 250, height: LEFT_BRAND_LOGO_HEIGHT, opacity: 0.9 },
   cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   cartRowLeft: { flex: 1 },
   cartName: { fontSize: 14 },
@@ -1719,13 +2029,34 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
   successSub: { fontSize: 14, marginBottom: 8 },
   successTotal: { fontSize: 24, fontWeight: '800', marginBottom: 20 },
-  successBtns: { flexDirection: 'row', gap: 12 },
-  authBtnsRow: { flexDirection: 'row', gap: 12, width: '100%' },
-  authBtn: { flex: 1, minWidth: 0, paddingHorizontal: 0 },
-  printBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
-  printBtnText: { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  novaBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
-  novaBtnText: { fontSize: 15, fontWeight: '600' },
+  successBtns: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 8, alignSelf: 'stretch', alignItems: 'stretch' },
+  authBtnsRow: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 8, alignSelf: 'stretch', alignItems: 'stretch' },
+  authBtn: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
+  printBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minHeight: 48,
+  },
+  printBtnText: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  novaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 48,
+  },
+  novaBtnText: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
   senhaInput: { width: '100%', borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, marginVertical: 16 },
   operatorInputRow: { width: '100%', flexDirection: 'row', gap: 8, alignItems: 'stretch', marginVertical: 16 },
   operatorInput: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },

@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BRAND_GREEN } from '../constants/brandColors';
 
 const THEME_STORAGE_KEY = '@tudocerto_theme';
 const FAVORITES_STORAGE_KEY = '@tudocerto_theme_favorites';
 
 export const FREE_COLORS = [
-  { id: 'green', hex: '#10b981', name: 'Verde' },
+  { id: 'green', hex: BRAND_GREEN, name: 'Verde' },
   { id: 'blue', hex: '#3b82f6', name: 'Azul' },
 ];
 
 export const PRIMARY_COLOR_OPTIONS = [
-  { id: 'green', hex: '#10b981', name: 'Verde' },
+  { id: 'green', hex: BRAND_GREEN, name: 'Verde' },
   { id: 'emerald', hex: '#059669', name: 'Esmeralda' },
   { id: 'teal', hex: '#06b6d4', name: 'Ciano' },
   { id: 'cyan', hex: '#0891b2', name: 'Ciano escuro' },
@@ -65,25 +66,120 @@ export const BACKGROUND_COLORS = [
 export const THEME_PRESETS = {
   light: {
     id: 'light',
-    name: 'Claro',
-    icon: 'sunny',
-    bg: '#f9fafb',
-    bgSecondary: '#fff',
-    card: '#fff',
-    border: '#e5e7eb',
-    text: '#000000',
-    textSecondary: '#4b5563',
+    name: 'Claro padrão',
+    description: 'Fundo claro, textos escuros e azul clássico',
+    icon: 'sunny-outline',
+    bg: '#F8FAFC',
+    bgSecondary: '#FFFFFF',
+    card: '#FFFFFF',
+    border: '#E2E8F0',
+    text: '#0F172A',
+    textSecondary: '#64748B',
+    primary: '#2563EB',
   },
   dark: {
     id: 'dark',
-    name: 'Escuro',
-    icon: 'moon',
-    bg: '#111827',
-    bgSecondary: '#1f2937',
-    card: '#1f2937',
-    border: '#374151',
-    text: '#ffffff',
-    textSecondary: '#f3f4f6',
+    name: 'Escuro padrão',
+    description: 'Fundo escuro, textos claros e azul suave',
+    icon: 'moon-outline',
+    bg: '#0F172A',
+    bgSecondary: '#1E293B',
+    card: '#1E293B',
+    border: '#334155',
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    primary: '#60A5FA',
+  },
+  black: {
+    id: 'black',
+    name: 'Preto',
+    description: 'Fundo preto puro, cards discretos e alto contraste',
+    icon: 'contrast-outline',
+    bg: '#000000',
+    bgSecondary: '#0A0A0A',
+    card: '#141414',
+    border: '#262626',
+    text: '#FFFFFF',
+    textSecondary: '#A3A3A3',
+    primary: BRAND_GREEN,
+  },
+  petala: {
+    id: 'petala',
+    name: 'Pétala',
+    description: 'Tons claros e acentos suaves para um visual leve',
+    icon: 'flower-outline',
+    bg: '#FDF2F4',
+    bgSecondary: '#FFF5F7',
+    card: '#FFFFFF',
+    border: '#F9D0DD',
+    text: '#4A2035',
+    textSecondary: '#9F4568',
+    primary: '#DB2777',
+  },
+  perola: {
+    id: 'perola',
+    name: 'Pérola',
+    description: 'Base quente e neutra com detalhes discretos',
+    icon: 'ellipse-outline',
+    bg: '#FAF7F2',
+    bgSecondary: '#FFFBF5',
+    card: '#FFFFFF',
+    border: '#E8DFD0',
+    text: '#3D3428',
+    textSecondary: '#78716C',
+    primary: '#B45309',
+  },
+  orquidea: {
+    id: 'orquidea',
+    name: 'Orquídea',
+    description: 'Lilás suave com contraste elegante',
+    icon: 'sparkles-outline',
+    bg: '#F5F0FF',
+    bgSecondary: '#FAF5FF',
+    card: '#FFFFFF',
+    border: '#DDD6FE',
+    text: '#2E1065',
+    textSecondary: '#7C3AED',
+    primary: '#9333EA',
+  },
+  grafite: {
+    id: 'grafite',
+    name: 'Grafite',
+    description: 'Cinza profundo com azul aço nos destaques',
+    icon: 'cube-outline',
+    bg: '#1C1C1E',
+    bgSecondary: '#2C2C2E',
+    card: '#3A3A3C',
+    border: '#48484A',
+    text: '#F5F5F7',
+    textSecondary: '#AEAEB2',
+    primary: '#0A84FF',
+  },
+  marinho: {
+    id: 'marinho',
+    name: 'Marinho',
+    description: 'Azul noturno com superfícies em camadas',
+    icon: 'boat-outline',
+    bg: '#0B1929',
+    bgSecondary: '#122640',
+    card: '#1A3352',
+    border: '#2A4A6B',
+    text: '#E8F0FA',
+    textSecondary: '#94A3B8',
+    primary: '#38BDF8',
+  },
+  carvao: {
+    id: 'carvao',
+    name: 'Carvão',
+    description: 'Escuro quente com acentos em cobre',
+    icon: 'flame-outline',
+    bg: '#18181B',
+    bgSecondary: '#27272A',
+    card: '#3F3F46',
+    border: '#52525B',
+    text: '#FAFAFA',
+    textSecondary: '#A1A1AA',
+    primary: '#D97706',
   },
   archipelago: {
     id: 'archipelago',
@@ -108,6 +204,15 @@ export const THEME_PRESETS = {
     textSecondary: '#431407',
   },
 };
+
+/** Temas prontos exibidos na tela Temas */
+export const MARKET_THEME_PRESET_IDS = ['light', 'dark', 'black'];
+
+/** Coleções estéticas — tons suaves */
+export const STYLE_THEME_SOFT_PRESET_IDS = ['petala', 'perola', 'orquidea'];
+
+/** Coleções estéticas — tons profundos */
+export const STYLE_THEME_BOLD_PRESET_IDS = ['grafite', 'marinho', 'carvao'];
 
 function blendWithWhite(hex, amount) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -146,7 +251,15 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
     return `rgba(${r},${g},${b},${a})`;
   };
   const bg = customBg || preset.bg;
-  const bgSecondary = customBg ? blendWithWhite(customBg, 0.12) : preset.bgSecondary;
+  const usePresetSurfaces =
+    preset.card &&
+    preset.border &&
+    (!customBg || customBg.toLowerCase() === preset.bg.toLowerCase());
+  const bgSecondary = usePresetSurfaces
+    ? preset.bgSecondary
+    : customBg
+    ? blendWithWhite(customBg, 0.12)
+    : preset.bgSecondary;
   const darkBg = isDarkBg(bg);
   const hexToRgba = (hex, a) => {
     if (!hex || !hex.startsWith('#')) return darkBg ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.35)';
@@ -155,10 +268,22 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r},${g},${b},${a})`;
   };
-  const card = darkBg ? blendWithWhite(bg, 0.1) : blendWithBlack(bg, 0.06);
-  const text = darkBg ? '#ffffff' : '#000000';
-  const textSecondary = darkBg ? '#f3f4f6' : '#4b5563';
-  const border = darkBg ? blendWithWhite(bg, 0.18) : blendWithBlack(bg, 0.12);
+  const card = usePresetSurfaces
+    ? preset.card
+    : darkBg
+    ? blendWithWhite(bg, 0.1)
+    : blendWithBlack(bg, 0.06);
+  const text = usePresetSurfaces && preset.text ? preset.text : darkBg ? '#ffffff' : '#000000';
+  const textSecondary = usePresetSurfaces && preset.textSecondary
+    ? preset.textSecondary
+    : darkBg
+    ? '#f3f4f6'
+    : '#4b5563';
+  const border = usePresetSurfaces
+    ? preset.border
+    : darkBg
+    ? blendWithWhite(bg, 0.18)
+    : blendWithBlack(bg, 0.12);
   /** Cor do ícone do título dos cards: claro em fundo escuro, escuro em fundo claro (branco/preto com opacidade) */
   const cardIconColor = darkBg ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)';
   return {
@@ -178,7 +303,7 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
   };
 }
 
-const DEFAULT_PRIMARY = '#10b981';
+const DEFAULT_PRIMARY = BRAND_GREEN;
 
 const ThemeContext = createContext(undefined);
 
@@ -190,7 +315,7 @@ export function ThemeProvider({ children }) {
   const [favoriteColors, setFavoriteColors] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
-  const darkMode = themeMode === 'dark';
+  const darkMode = themeMode === 'dark' || themeMode === 'black';
   const setDarkMode = (v) => setThemeMode(v ? 'dark' : 'light');
 
   useEffect(() => {

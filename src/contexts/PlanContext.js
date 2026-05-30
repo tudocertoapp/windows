@@ -1,10 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { PLANS, PLAN_ID_TO_PLAN, PLAN_LABELS, PLAN_IDS_CUSTOM_COLORS } from '../constants/plans';
 import { getPlanFeatures } from '../constants/planFeatures';
 import { supabase } from '../lib/supabase';
-import { getUserSubscription, isPaidSubscriptionActive } from '../lib/subscription';
+import {
+  getUserSubscription,
+  isPaidSubscriptionActive,
+  isSubscriptionPastDue,
+} from '../lib/subscription';
 
 const PLAN_STORAGE_BASE = '@tudocerto_plan';
 const DEFAULT_PLAN_ID = 'pessoal';
@@ -25,9 +30,49 @@ export function PlanProvider({ children }) {
   const [planId, setPlanId] = useState(DEFAULT_PLAN_ID);
   const [viewMode, setViewMode] = useState('pessoal');
   const [loaded, setLoaded] = useState(false);
+  const [subscription, setSubscription] = useState(null);
 
   const storageKey = `${PLAN_STORAGE_BASE}_${user?.id || 'guest'}`;
-  const plan = PLAN_ID_TO_PLAN[planId] || PLANS.pessoal;
+
+  const subscriptionPastDue = isSubscriptionPastDue(subscription);
+  const hasPaidPlanAccess = isPaidSubscriptionActive(subscription);
+  const subscribedPlanId = subscriptionPastDue ? subscription?.plan || null : null;
+  const subscribedPlanLabel = subscribedPlanId ? (PLAN_LABELS[subscribedPlanId] || subscribedPlanId) : null;
+
+  const effectivePlanId = useMemo(() => {
+    if (hasPaidPlanAccess && subscription?.plan) return subscription.plan;
+    if (subscriptionPastDue && subscription?.plan) return fallbackFreePlanId(subscription.plan);
+    return planId;
+  }, [hasPaidPlanAccess, subscriptionPastDue, subscription?.plan, planId]);
+
+  const plan = PLAN_ID_TO_PLAN[effectivePlanId] || PLANS.pessoal;
+
+  const applySubscriptionToPlan = useCallback((sub) => {
+    setSubscription(sub);
+    if (isPaidSubscriptionActive(sub) && sub?.plan && PLAN_ID_TO_PLAN[sub.plan]) {
+      setPlanId(sub.plan);
+      return;
+    }
+    if (isSubscriptionPastDue(sub) && sub?.plan) {
+      setPlanId(fallbackFreePlanId(sub.plan));
+      return;
+    }
+    setPlanId((prev) => {
+      if (!prev) return 'pessoal';
+      const isPaid = !['pessoal', 'pessoal_free', 'pe_free', 'emp_free'].includes(prev);
+      return isPaid ? fallbackFreePlanId(prev) : prev;
+    });
+  }, []);
+
+  const refreshSubscription = useCallback(async () => {
+    if (!user?.id) {
+      setSubscription(null);
+      return null;
+    }
+    const sub = await getUserSubscription(supabase, user.id);
+    applySubscriptionToPlan(sub);
+    return sub;
+  }, [user?.id, applySubscriptionToPlan]);
 
   useEffect(() => {
     setLoaded(false);
@@ -43,20 +88,22 @@ export function PlanProvider({ children }) {
         }
         if (user?.id) {
           const sub = await getUserSubscription(supabase, user.id);
-          if (isPaidSubscriptionActive(sub) && sub?.plan && PLAN_ID_TO_PLAN[sub.plan]) {
-            setPlanId(sub.plan);
-          } else {
-            setPlanId((prev) => {
-              if (!prev) return 'pessoal';
-              const isPaid = !['pessoal', 'pessoal_free', 'pe_free', 'emp_free'].includes(prev);
-              return isPaid ? fallbackFreePlanId(prev) : prev;
-            });
-          }
+          applySubscriptionToPlan(sub);
+        } else {
+          setSubscription(null);
         }
       } catch (_) {}
       setLoaded(true);
     })();
-  }, [user?.id]);
+  }, [user?.id, storageKey, applySubscriptionToPlan]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshSubscription().catch(() => {});
+    });
+    return () => sub?.remove?.();
+  }, [user?.id, refreshSubscription]);
 
   useEffect(() => {
     if (plan === PLANS.pessoal && viewMode === 'empresa') setViewMode('pessoal');
@@ -64,20 +111,20 @@ export function PlanProvider({ children }) {
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(storageKey, JSON.stringify({ planId, plan, viewMode }));
-  }, [loaded, planId, plan, viewMode, storageKey]);
+    AsyncStorage.setItem(storageKey, JSON.stringify({ planId: effectivePlanId, plan, viewMode }));
+  }, [loaded, effectivePlanId, plan, viewMode, storageKey]);
 
   const isEmpresa = plan === PLANS.empresa || plan === PLANS.pessoal_empresa;
   const showEmpresaFeatures = isEmpresa;
   const canToggleView = isEmpresa;
-  const planLabel = PLAN_LABELS[planId] || PLAN_LABELS.pessoal;
-  const canUseCustomColors = PLAN_IDS_CUSTOM_COLORS.includes(planId);
-  const planFeatures = getPlanFeatures(planId);
+  const planLabel = PLAN_LABELS[effectivePlanId] || PLAN_LABELS.pessoal;
+  const canUseCustomColors = hasPaidPlanAccess && PLAN_IDS_CUSTOM_COLORS.includes(subscription?.plan || effectivePlanId);
+  const planFeatures = getPlanFeatures(effectivePlanId);
 
   return (
     <PlanContext.Provider
       value={{
-        planId,
+        planId: effectivePlanId,
         setPlanId,
         plan,
         setPlan: (p) => {
@@ -93,6 +140,12 @@ export function PlanProvider({ children }) {
         planLabel,
         canUseCustomColors,
         planFeatures,
+        subscription,
+        subscriptionPastDue,
+        subscribedPlanId,
+        subscribedPlanLabel,
+        hasPaidPlanAccess,
+        refreshSubscription,
         PLANS,
       }}
     >
@@ -116,9 +169,13 @@ export function usePlan() {
       isEmpresa: false,
       showEmpresaFeatures: false,
       canToggleView: false,
-      planLabel: PLAN_LABELS.pessoal,
-      canUseCustomColors: false,
       planFeatures: getPlanFeatures(DEFAULT_PLAN_ID),
+      subscription: null,
+      subscriptionPastDue: false,
+      subscribedPlanId: null,
+      subscribedPlanLabel: null,
+      hasPaidPlanAccess: false,
+      refreshSubscription: async () => null,
       PLANS,
     };
   }

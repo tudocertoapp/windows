@@ -17,6 +17,7 @@ import { DinheiroScreen } from '../screens/DinheiroScreen';
 import { CadastrosScreen } from '../screens/CadastrosScreen';
 import { PerfilScreen } from '../screens/PerfilScreen';
 import { AssinaturaScreen } from '../screens/AssinaturaScreen';
+import { SubscriptionPastDueBanner } from '../components/SubscriptionPastDueBanner';
 import { IndiqueScreen } from '../screens/IndiqueScreen';
 import { AReceberScreen } from '../screens/AReceberScreen';
 import { MotivationalImageScreen } from '../screens/MotivationalImageScreen';
@@ -55,6 +56,7 @@ import {
   WEB_DESKTOP_RAIL_LAYOUT_RESERVE,
   WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
   WEB_DESKTOP_RAIL_VERTICAL_INSET,
+  DesktopRailMenuButton,
 } from '../components/navigation/RightSideTabBar';
 import { useIsDesktopLayout, isElectronWebClient, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -715,6 +717,7 @@ export function AppNavigator() {
                 }}
               >
               <StatusBar style={isDarkBg ? 'light' : 'dark'} backgroundColor={colors.bg} />
+              <SubscriptionPastDueBanner onRegularize={() => setAssinaturaModal(true)} />
               <Tab.Navigator
                 sceneContainerStyle={{ flex: 1, minHeight: 0 }}
                 tabBar={
@@ -819,6 +822,14 @@ export function AppNavigator() {
               </View>
             </NavigationContainer>
 
+            {isWebDesktop ? (
+              <DesktopRailMenuButton
+                onPress={() => setMenuModalOpen((open) => !open)}
+                active={menuModalOpen}
+                colors={colors}
+              />
+            ) : null}
+
             {/* Web mobile + nativo: seta e calculadora na mesma linha horizontal, centro vertical da tela */}
             {(isNativeMobile || isWebMobile) && !calculadoraModal && (
               <View
@@ -917,10 +928,10 @@ export function AppNavigator() {
                 <RightSideTabBar
                   mode="side"
                   activeRouteName={desktopTabRoute}
-                  menuActive={menuModalOpen}
                   onNavigate={(name) => navigationRef.current?.navigate?.(name)}
                   onAdd={() => { setMenuOpen(!menuOpen); }}
-                  onMenu={() => setMenuModalOpen(true)}
+                  onCalculadora={menuActions.openCalculadoraFull}
+                  calculatorActive={calculadoraFloating || calculadoraModal}
                 />
               </View>
             ) : null}

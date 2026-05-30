@@ -91,9 +91,22 @@ const as = StyleSheet.create({
 
 export function AssinaturaScreen({ onClose, isModal }) {
   const { colors } = useTheme();
-  const { planId, setPlanId, plan } = usePlan();
+  const {
+    planId,
+    setPlanId,
+    plan,
+    subscriptionPastDue,
+    subscribedPlanId,
+    subscribedPlanLabel,
+    hasPaidPlanAccess,
+    refreshSubscription,
+  } = usePlan();
   const [checkoutLoadingPlanId, setCheckoutLoadingPlanId] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState(plan === PLANS.empresa ? 'empresa' : plan === PLANS.pessoal_empresa ? 'pessoal_empresa' : 'pessoal');
+
+  useEffect(() => {
+    refreshSubscription?.().catch(() => {});
+  }, [refreshSubscription]);
 
   const planosCategoria = PLANOS[categoriaAtiva];
   const mensagemUpgrade = MENSAGENS_UPGRADE[categoriaAtiva];
@@ -128,6 +141,15 @@ export function AssinaturaScreen({ onClose, isModal }) {
     }
   };
 
+  const handleRegularizePayment = () => {
+    const targetPlan = subscribedPlanId || planId;
+    if (targetPlan && STRIPE_CHECKOUT_PLAN_IDS.has(targetPlan)) {
+      handlePlanSubscribe(targetPlan);
+      return;
+    }
+    Alert.alert('Regularizar', 'Selecione o plano da sua assinatura abaixo para pagar novamente.');
+  };
+
   const handlePlanoPress = async (plano) => {
     const isGratis = plano.preco === 'Grátis';
     const isSelected = planId === plano.id;
@@ -150,12 +172,18 @@ export function AssinaturaScreen({ onClose, isModal }) {
         if (plano.id === 'pe_teste_real') {
           Alert.alert(
             'Plano de teste',
-            'Não encontramos assinatura ativa deste plano nesta conta. Se você já pagou com esta conta, toque em Restaurar. Caso contrário, toque em Pagar.',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              { text: 'Restaurar', onPress: () => handleSelecionar('pe_teste_real') },
-              { text: 'Pagar', onPress: () => handlePlanSubscribe(plano.id) },
-            ]
+            subscriptionPastDue
+              ? 'Sua assinatura está com pagamento pendente. Toque em Regularizar pagamento para concluir a cobrança.'
+              : 'Não encontramos assinatura ativa deste plano nesta conta. Se você já pagou com esta conta, aguarde alguns minutos ou toque em Pagar.',
+            subscriptionPastDue
+              ? [
+                  { text: 'Fechar', style: 'cancel' },
+                  { text: 'Regularizar pagamento', onPress: handleRegularizePayment },
+                ]
+              : [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Pagar', onPress: () => handlePlanSubscribe(plano.id) },
+                ]
           );
           return;
         }
@@ -185,14 +213,28 @@ export function AssinaturaScreen({ onClose, isModal }) {
         <TopBar title="Planos" colors={colors} />
       )}
       <ScrollView showsVerticalScrollIndicator={false} style={{ paddingTop: 16 }}>
-        {isPlanoGratuito && (
+        {subscriptionPastDue && !hasPaidPlanAccess ? (
+          <View style={[as.upgradeBanner, { backgroundColor: '#fffbeb', borderColor: '#f59e0b', marginTop: 0 }]}>
+            <Text style={[as.upgradeTitle, { color: '#b45309' }]}>⚠️ Pagamento em atraso</Text>
+            <Text style={[as.upgradeText, { color: colors.text }]}>
+              {`Regularize a assinatura${subscribedPlanLabel ? ` (${subscribedPlanLabel})` : ''} para voltar a usar os recursos pagos. Enquanto isso, você está no plano gratuito.`}
+            </Text>
+            <TouchableOpacity
+              style={[as.ctaBtn, { backgroundColor: '#d97706', marginTop: 12 }]}
+              onPress={handleRegularizePayment}
+            >
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Regularizar pagamento</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {isPlanoGratuito && !subscriptionPastDue ? (
           <View style={[as.upgradeBanner, { backgroundColor: colors.primaryRgba(0.08), borderColor: colors.primary + '50' }]}>
             <Text style={[as.upgradeTitle, { color: colors.primary }]}>✨ Atualize e desbloqueie mais</Text>
             <Text style={[as.upgradeText, { color: colors.text }]}>
               Você está no plano gratuito. Faça upgrade para cores personalizadas, gestão empresarial e muito mais. Escolha o plano ideal abaixo!
             </Text>
           </View>
-        )}
+        ) : null}
 
         <View style={as.tabRow}>
           {CATEGORIAS.map((cat) => {

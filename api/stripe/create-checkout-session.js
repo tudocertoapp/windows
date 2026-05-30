@@ -1,5 +1,6 @@
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
+const { readStripeSecretKey, readSupabaseAdminConfig, FALLBACK_SUPABASE_URL } = require('./env');
 
 const PLAN_TO_PRICE_ID = {
   pessoal_plus: 'price_1TUotKECYmuevOzFnccC3opK',
@@ -13,7 +14,6 @@ const PLAN_TO_PRICE_ID = {
   emp_medium: 'price_1TUotPECYmuevOzFXYhEBiGu',
   emp_enterprise: 'price_1TUotQECYmuevOzFuC5OHj8m',
 };
-const FALLBACK_SUPABASE_URL = 'https://azvfiuvggppnulfepwbc.supabase.co';
 const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dmZpdXZnZ3BwbnVsZmVwd2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTc1OTUsImV4cCI6MjA4NTE5MzU5NX0.eZUbc2sveWDRCu_Nm6z0chP7T6-hqDJf7omatgiB2Pk';
 
 function getSiteUrl(req) {
@@ -27,10 +27,9 @@ function getSiteUrl(req) {
 }
 
 function getSupabaseAdmin() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+  const cfg = readSupabaseAdminConfig();
+  if (cfg.error) return null;
+  return createClient(cfg.url, cfg.serviceRoleKey, { auth: { persistSession: false } });
 }
 
 function getSupabasePublicVerifier() {
@@ -70,9 +69,9 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const secret = process.env.STRIPE_SECRET_KEY;
-  if (!secret) {
-    return res.status(500).json({ error: 'Stripe not configured' });
+  const { key: stripeSecret, error: stripeConfigError } = readStripeSecretKey();
+  if (stripeConfigError) {
+    return res.status(500).json({ error: stripeConfigError });
   }
 
   let body = req.body;
@@ -109,7 +108,7 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Auth verification failed' });
   }
 
-  const stripe = new Stripe(secret);
+  const stripe = new Stripe(stripeSecret);
 
   const base = getSiteUrl(req);
   const success_url = `${base}/sucesso?session_id={CHECKOUT_SESSION_ID}`;

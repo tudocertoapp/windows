@@ -7,6 +7,78 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { usePlan } from '../../contexts/PlanContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
+import { scaleWebDesktop } from '../../utils/platformLayout';
+
+/** Botões redondos da rail (tab bar + menu flutuante): 42×42. */
+export const WEB_DESKTOP_RAIL_ROUND_BTN = 42;
+const RAIL_ICON_SIZE = 21;
+
+export function getWebDesktopRailCalcPosition(quickBtnHeight = scaleWebDesktop(36, true)) {
+  const size = WEB_DESKTOP_RAIL_ROUND_BTN;
+  const quickRowTotalH = WEB_DESKTOP_QUICK_ROW_SHELL_PAD_V * 2 + quickBtnHeight;
+  const bottom = WEB_DESKTOP_QUICK_ROW_BOTTOM + quickRowTotalH / 2 - size / 2;
+  const right = WEB_DESKTOP_RAIL_VIEWPORT_MARGIN + (WEB_DESKTOP_RAIL_WIDTH - size) / 2;
+  return { bottom, right, size };
+}
+
+/** Botão redondo do menu — coluna da tab bar, alinhado à fileira F1–F8. */
+export function DesktopRailMenuButton({ onPress, active, colors, quickBtnHeight }) {
+  if (Platform.OS !== 'web') return null;
+  const { bottom, right, size } = getWebDesktopRailCalcPosition(
+    quickBtnHeight ?? scaleWebDesktop(36, true),
+  );
+  return (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={() => {
+        playTapSound();
+        onPress?.();
+      }}
+      accessibilityLabel={active ? 'Fechar menu' : 'Abrir menu'}
+      accessibilityRole="button"
+      style={{
+        position: 'fixed',
+        bottom,
+        right,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: active ? colors.primaryRgba(0.14) : colors.card,
+        borderWidth: 1,
+        borderColor: active ? colors.primary + '44' : colors.border,
+        zIndex: 2147483646,
+        ...(Platform.OS === 'web'
+          ? { display: 'flex', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', cursor: 'pointer' }
+          : {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.18,
+              shadowRadius: 12,
+              elevation: 12,
+            }),
+      }}
+    >
+      <View
+        style={{
+          width: RAIL_ICON_SIZE,
+          height: RAIL_ICON_SIZE,
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...(Platform.OS === 'web' ? { display: 'flex' } : {}),
+        }}
+      >
+        <Ionicons
+          name="menu"
+          size={RAIL_ICON_SIZE}
+          color={active ? colors.primary : colors.textSecondary}
+          style={Platform.OS === 'web' ? { lineHeight: RAIL_ICON_SIZE, textAlign: 'center' } : undefined}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 /** Margem da rail à borda direita da janela (não encosta no canto). */
 export const WEB_DESKTOP_RAIL_VIEWPORT_MARGIN = 12;
@@ -14,6 +86,9 @@ export const WEB_DESKTOP_RAIL_VIEWPORT_MARGIN = 12;
 export const WEB_DESKTOP_RAIL_CONTENT_GAP = 12;
 /** Margem vertical da rail em relação ao topo/fundo da viewport. */
 export const WEB_DESKTOP_RAIL_VERTICAL_INSET = 12;
+/** Fileira de atalhos F1–F8 (Início desktop): mesma linha vertical do menu flutuante na rail. */
+export const WEB_DESKTOP_QUICK_ROW_BOTTOM = 8;
+export const WEB_DESKTOP_QUICK_ROW_SHELL_PAD_V = 6;
 /**
  * Largura da coluna dos botões (layout desktop web).
  * Reservada no flex do AppNavigator + folgas — ver WEB_DESKTOP_RAIL_LAYOUT_RESERVE.
@@ -24,9 +99,9 @@ export const WEB_DESKTOP_RAIL_LAYOUT_RESERVE =
   WEB_DESKTOP_RAIL_VIEWPORT_MARGIN + WEB_DESKTOP_RAIL_WIDTH + WEB_DESKTOP_RAIL_CONTENT_GAP;
 
 const ISLAND_RADIUS = 28;
-const BTN = 42;
+const BTN = WEB_DESKTOP_RAIL_ROUND_BTN;
 const ADD_BTN = 50;
-const ICON_SIZE = 21;
+const ICON_SIZE = RAIL_ICON_SIZE;
 const ADD_ICON_SIZE = 28;
 
 function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
@@ -54,7 +129,14 @@ function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
   );
 }
 
-export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mode = 'side', menuActive = false }) {
+export function RightSideTabBar({
+  activeRouteName,
+  onNavigate,
+  onAdd,
+  onCalculadora,
+  mode = 'side',
+  calculatorActive = false,
+}) {
   const { colors } = useTheme();
   const { showEmpresaFeatures } = usePlan();
   const insets = useSafeAreaInsets();
@@ -91,18 +173,23 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mo
     });
   }
   tabItems.push({
-    key: 'menu',
-    label: 'Menu',
-    ionIcon: 'menu',
-    onPress: () => onMenu?.(),
+    key: 'calculadora',
+    label: 'Calculadora',
+    icon: 'calculator-outline',
+    onPress: () => onCalculadora?.(),
   });
 
   /** Safe area; altura útil = viewport entre paddings. O + fica no centro vertical dessa área. */
   const padTop = insets.top || 0;
   const padBottom = Math.max(12, insets.bottom || 0);
 
+  const isItemActive = (it) => {
+    if (it.key === 'calculadora') return calculatorActive;
+    return activeRouteName === it.key;
+  };
+
   const renderRailEntry = (it) => {
-    const active = it.key === 'menu' ? menuActive : activeRouteName === it.key;
+    const active = isItemActive(it);
     return (
       <RailItem
         key={it.key}
@@ -166,7 +253,7 @@ export function RightSideTabBar({ activeRouteName, onNavigate, onAdd, onMenu, mo
                 </TouchableOpacity>
               );
             }
-            const active = it.key === 'menu' ? menuActive : activeRouteName === it.key;
+            const active = isItemActive(it);
             return (
               <TouchableOpacity
                 key={it.key}

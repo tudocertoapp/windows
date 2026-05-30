@@ -12,6 +12,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useMenu } from '../contexts/MenuContext';
 import { MeusGastosChat } from '../components/MeusGastosChat';
+import { VisionOcrStatusBadge } from '../components/VisionOcrStatusBadge';
 import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { useIsDesktopLayout } from '../utils/platformLayout';
@@ -72,6 +73,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
               Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
             </Text>
+            <VisionOcrStatusBadge colors={colors} />
           </View>
           <View
             style={[

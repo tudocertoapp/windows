@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Modal, TextInput, Alert, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme, BACKGROUND_COLORS } from '../contexts/ThemeContext';
+import { useTheme, BACKGROUND_COLORS, THEME_PRESETS, MARKET_THEME_PRESET_IDS, STYLE_THEME_SOFT_PRESET_IDS, STYLE_THEME_BOLD_PRESET_IDS } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 import { FREE_COLORS } from '../contexts/ThemeContext';
+import { BRAND_GREEN } from '../constants/brandColors';
 import { isFreePlanId } from '../constants/planFeatures';
 
 /** Fundos neutros escuros na paleta (mesmo preset “Escuro” #111827 e variantes) */
@@ -64,6 +65,10 @@ const ts = StyleSheet.create({
   colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 16, justifyContent: 'flex-start' },
   colorGridItem: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
   colorGridItemSelected: { borderColor: '#fff', elevation: 2 },
+  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, paddingBottom: 16 },
+  presetCard: { flexGrow: 1, flexBasis: '30%', minWidth: 100, borderRadius: 14, borderWidth: 2, padding: 12, minHeight: 132 },
+  presetPreview: { borderRadius: 10, padding: 10, marginTop: 10, borderWidth: 1 },
+  presetDot: { width: 10, height: 10, borderRadius: 5 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
   modalContent: { borderRadius: 20, padding: 24, maxWidth: 360, alignSelf: 'center', width: '100%' },
   hexInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
@@ -106,7 +111,7 @@ function CustomSlider({ value, minimumValue, maximumValue, onValueChange, minimu
       {...panResponder.panHandlers}
     >
       <View style={{ height: 8, borderRadius: 4, backgroundColor: maximumTrackTintColor || '#e5e7eb', overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', left: 0, width: `${ratio * 100}%`, height: '100%', backgroundColor: minimumTrackTintColor || '#10b981' }} />
+        <View style={{ position: 'absolute', left: 0, width: `${ratio * 100}%`, height: '100%', backgroundColor: minimumTrackTintColor || BRAND_GREEN }} />
       </View>
       <View
         style={{
@@ -134,6 +139,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
     primaryColor,
     setPrimaryColor,
     themeMode,
+    setThemeMode,
     customBgColor,
     setCustomBgColor,
     colors,
@@ -151,7 +157,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
   const PICKER_LIGHTNESS = 50;
   const [pickerHue, setPickerHue] = useState(142);
   const [pickerSat, setPickerSat] = useState(65);
-  const [customHex, setCustomHex] = useState('#10b981');
+  const [customHex, setCustomHex] = useState(BRAND_GREEN);
   const [customName, setCustomName] = useState('');
 
   const freeColors = FREE_COLORS.filter((c) => ['blue', 'green'].includes(c.id));
@@ -180,6 +186,65 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
       custom_bg: updates.custom_bg ?? customBgColor,
     }).catch(() => {});
   };
+
+  const applyMarketPreset = (presetId) => {
+    const preset = THEME_PRESETS[presetId];
+    if (!preset) return;
+    playTapSound();
+    setThemeMode(presetId);
+    setCustomBgColor(preset.bg);
+    if (preset.primary) setPrimaryColor(preset.primary);
+    saveThemeToProfile({
+      theme_mode: presetId,
+      custom_bg: preset.bg,
+      primary_color: preset.primary || primaryColor,
+    });
+  };
+
+  const isMarketPresetSelected = (presetId) => themeMode === presetId;
+
+  const renderPresetGrid = (presetIds) => (
+    <View style={ts.presetRow}>
+      {presetIds.map((presetId) => {
+        const preset = THEME_PRESETS[presetId];
+        if (!preset) return null;
+        const selected = isMarketPresetSelected(presetId);
+        return (
+          <TouchableOpacity
+            key={presetId}
+            activeOpacity={0.85}
+            style={[
+              ts.presetCard,
+              {
+                backgroundColor: preset.bg,
+                borderColor: selected ? preset.primary : preset.border,
+              },
+            ]}
+            onPress={() => applyMarketPreset(presetId)}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                <Ionicons name={preset.icon} size={18} color={preset.primary} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: preset.text }} numberOfLines={1}>{preset.name}</Text>
+              </View>
+              {selected ? <Ionicons name="checkmark-circle" size={22} color={preset.primary} /> : null}
+            </View>
+            <Text style={{ fontSize: 11, color: preset.textSecondary, marginTop: 4, lineHeight: 15 }} numberOfLines={2}>
+              {preset.description}
+            </Text>
+            <View style={[ts.presetPreview, { backgroundColor: preset.card, borderColor: preset.border }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <View style={[ts.presetDot, { backgroundColor: preset.primary }]} />
+                <View style={{ height: 6, flex: 1, borderRadius: 3, backgroundColor: preset.border }} />
+              </View>
+              <View style={{ height: 6, width: '70%', borderRadius: 3, backgroundColor: preset.border, marginBottom: 4 }} />
+              <View style={{ height: 6, width: '45%', borderRadius: 3, backgroundColor: preset.border }} />
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 
   const handleSelectColor = (hex, isLocked) => {
     if (isLocked) {
@@ -266,7 +331,32 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
           <Text style={[ts.rowSub, { color: colors.textSecondary, marginBottom: 16 }]}>Seu app no seu estilo - deixe o aplicativo com a sua cara!</Text>
           <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
-              <Text style={[ts.rowLabel, { color: colors.text }]}>Escolha seu tema</Text>
+              <Text style={[ts.rowLabel, { color: colors.text }]}>Temas prontos</Text>
+              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Claro, escuro ou fundo preto</Text>
+            </View>
+            {renderPresetGrid(MARKET_THEME_PRESET_IDS)}
+          </View>
+
+          <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+              <Text style={[ts.rowLabel, { color: colors.text }]}>Tons suaves</Text>
+              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Paletas claras com acabamento delicado</Text>
+            </View>
+            {renderPresetGrid(STYLE_THEME_SOFT_PRESET_IDS)}
+          </View>
+
+          <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+              <Text style={[ts.rowLabel, { color: colors.text }]}>Tons profundos</Text>
+              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Contraste forte e visual marcante</Text>
+            </View>
+            {renderPresetGrid(STYLE_THEME_BOLD_PRESET_IDS)}
+          </View>
+
+          <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+              <Text style={[ts.rowLabel, { color: colors.text }]}>Cor de fundo</Text>
+              <Text style={[ts.rowSub, { color: colors.textSecondary }]}>Personalize além dos temas prontos</Text>
             </View>
             <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16 }]}>
               {freeBgThemes.map((item) => {
@@ -382,7 +472,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
                   style={[ts.hexInput, { borderColor: colors.border, color: colors.text }]}
                   value={customHex}
                   onChangeText={handleHexInputChange}
-                  placeholder="#10b981"
+                  placeholder={BRAND_GREEN}
                   placeholderTextColor={colors.textSecondary}
                   autoCapitalize="characters"
                   maxLength={7}

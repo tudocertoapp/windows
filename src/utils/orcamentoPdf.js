@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { formatCurrency } from './format';
+import { buildEmpresaDocumentHtml } from './empresaProfile';
 
 function formatDate(str) {
   if (!str) return '—';
@@ -33,7 +34,7 @@ export function buildOrcamentoHtml(orcamento, cliente, profile) {
 </style></head>
 <body>
   <h1>ORÇAMENTO</h1>
-  <p style="margin:0;color:#666">${profile?.empresa || profile?.nome || 'Tudo Certo'}</p>
+  ${buildEmpresaDocumentHtml(profile)}
   <div class="header">
     <div>
       <p><b>Nº:</b> ${(orcamento.numero || '—').replace(/</g, '&lt;')}</p>

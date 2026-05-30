@@ -19,6 +19,12 @@ export function getApiOrigin() {
   return '';
 }
 
+export const SUBSCRIPTION_STATUS = {
+  ATIVO: 'ativo',
+  PENDENTE: 'pendente',
+  CANCELADO: 'cancelado',
+};
+
 /**
  * Assinatura do usuário (RLS: só a própria linha).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -28,7 +34,7 @@ export async function getUserSubscription(supabase, userId) {
   if (!userId || !supabase) return null;
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('id,user_id,stripe_customer_id,stripe_subscription_id,price_id,plan,status,created_at')
+    .select('id,user_id,stripe_customer_id,stripe_subscription_id,price_id,plan,status,created_at,current_period_end')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) {
@@ -43,12 +49,27 @@ export async function getUserSubscription(supabase, userId) {
  */
 export function hasActiveBusinessSubscription(sub) {
   if (!sub) return false;
-  return sub.plan === STRIPE_BUSINESS_PLAN_KEY && sub.status === 'ativo';
+  return sub.plan === STRIPE_BUSINESS_PLAN_KEY && sub.status === SUBSCRIPTION_STATUS.ATIVO;
 }
 
 export function isPaidSubscriptionActive(sub) {
   if (!sub) return false;
-  return sub.status === 'ativo' && !!sub.plan;
+  return sub.status === SUBSCRIPTION_STATUS.ATIVO && !!sub.plan;
+}
+
+/** Pagamento em atraso — recursos pagos bloqueados até regularizar. */
+export function isSubscriptionPastDue(sub) {
+  if (!sub) return false;
+  return sub.status === SUBSCRIPTION_STATUS.PENDENTE && !!sub.plan;
+}
+
+export function formatSubscriptionPeriodEnd(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch (_) {
+    return null;
+  }
 }
 
 /**

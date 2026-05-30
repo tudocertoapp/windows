@@ -39,10 +39,19 @@ npx expo run:android
 
 ## 3. Dados sensíveis
 
-As credenciais (URL e anon key) estão em `src/lib/supabase.js`.
+O app lê Supabase de `.env` via `src/lib/supabaseConfig.js` (fallback no código se faltar).
 
-Para produção, use variáveis de ambiente:
-- Crie um arquivo `.env` com `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- Atualize `src/lib/supabase.js` para ler de `process.env.EXPO_PUBLIC_*` ou `Constants.expoConfig?.extra`
+## Variáveis de ambiente
+
+Copie `.env.example` para `.env` e preencha. **Replique as mesmas variáveis na Vercel** (Settings → Environment Variables).
+
+### App (`.env`)
+- `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` — cliente Supabase no app
+- `EXPO_PUBLIC_SITE_URL` / `EXPO_PUBLIC_STRIPE_API_URL` — checkout Stripe e OCR
+
+### Servidor (Vercel + `.env` local)
+- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — webhook grava assinaturas
+- `STRIPE_SECRET_KEY` — **sk_live_** ou **sk_test_** (não use **rk_** Restricted)
+- `STRIPE_WEBHOOK_SECRET` — **whsec_...** do endpoint `/api/stripe/webhook`
 
 **Nunca commite a DATABASE_URL ou a service_role key no app** – use apenas a anon key no cliente.

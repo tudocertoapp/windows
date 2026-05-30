@@ -272,6 +272,17 @@ export function CalculatorScreenPro({
   const funcBtn = isDark ? DARK_STYLE.funcBtn : colors.textSecondary + '40';
   const btnTextColor = (t: 'num' | 'op' | 'func') => (t === 'num' ? colors.text : t === 'op' ? '#fff' : colors.text);
 
+  const centeredIcon = (name: React.ComponentProps<typeof Ionicons>['name'], size: number, color: string) => (
+    <View style={[styles.btnIconWrap, { width: size, height: size }]}>
+      <Ionicons
+        name={name}
+        size={size}
+        color={color}
+        style={isWeb ? ({ lineHeight: size, textAlign: 'center' } as object) : undefined}
+      />
+    </View>
+  );
+
   const Btn = ({
     label,
     onPress,
@@ -303,7 +314,16 @@ export function CalculatorScreenPro({
           webFloatingBtnStyle,
         ]}
       >
-        <Text style={[styles.btnText, { color: type === 'op' ? '#fff' : btnTextColor(type), fontSize }]}>
+        <Text
+          style={[
+            styles.btnText,
+            {
+              color: type === 'op' ? '#fff' : btnTextColor(type),
+              fontSize,
+              lineHeight: fontSize,
+            },
+          ]}
+        >
           {label}
         </Text>
       </TouchableOpacity>
@@ -333,7 +353,7 @@ export function CalculatorScreenPro({
             activeOpacity={0.7}
             accessibilityLabel="Histórico"
           >
-            <Ionicons name="time-outline" size={22} color={colors.textSecondary} />
+            {centeredIcon('time-outline', 22, colors.textSecondary)}
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -346,7 +366,7 @@ export function CalculatorScreenPro({
               activeOpacity={0.7}
               accessibilityLabel={compact ? 'Tela cheia' : 'Minimizar'}
             >
-              <Ionicons name={compact ? 'expand' : 'contract'} size={24} color={colors.textSecondary} />
+              {centeredIcon(compact ? 'expand' : 'contract', 24, colors.textSecondary)}
             </TouchableOpacity>
           )}
           {isModal && onClose && (
@@ -358,7 +378,7 @@ export function CalculatorScreenPro({
               activeOpacity={0.7}
               accessibilityLabel="Fechar"
             >
-              <Ionicons name="close" size={24} color={colors.text} />
+              {centeredIcon('close', 24, colors.text)}
             </TouchableOpacity>
           )}
         </View>
@@ -430,7 +450,7 @@ export function CalculatorScreenPro({
               webFloatingBtnStyle,
             ]}
           >
-            <Ionicons name="backspace-outline" size={compact ? 18 : 22} color="#fff" />
+            {centeredIcon('backspace-outline', compact ? 18 : 22, '#fff')}
           </TouchableOpacity>
         </View>
         <View style={[styles.row, { gap: BTN_GAP, marginBottom: BTN_GAP, justifyContent: compact ? 'center' : 'space-between' }]}>
@@ -505,9 +525,9 @@ export function CalculatorScreenPro({
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: 'hidden' },
   headerBtnsWrap: { position: 'absolute', top: 0, left: 0, right: 0, height: 52, zIndex: 1000, elevation: 1000, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8 },
-  closeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  modeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  historyBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  closeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', ...(Platform.OS === 'web' ? { display: 'flex' } : {}) },
+  modeBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', ...(Platform.OS === 'web' ? { display: 'flex' } : {}) },
+  historyBtn: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', ...(Platform.OS === 'web' ? { display: 'flex' } : {}) },
   logoWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 56, marginBottom: 16 },
   logo: { width: 170, height: 170 },
   logoCompact: { width: 96, height: 96 },
@@ -520,8 +540,9 @@ const styles = StyleSheet.create({
   result: { marginTop: 10, fontWeight: '300', textAlign: 'right' },
   pad: { flex: 1, paddingTop: 8, paddingBottom: 20, justifyContent: 'flex-end', zIndex: 0 },
   row: { flexDirection: 'row', justifyContent: 'center' },
-  btn: { justifyContent: 'center', alignItems: 'center' },
-  btnText: { fontWeight: '400' },
+  btn: { justifyContent: 'center', alignItems: 'center', ...(Platform.OS === 'web' ? { display: 'flex' } : {}) },
+  btnIconWrap: { alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { display: 'flex' } : {}) },
+  btnText: { fontWeight: '400', textAlign: 'center', ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}) },
   backspace: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 8 },
   backspaceText: { fontSize: 13 },
   historyOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 16 },

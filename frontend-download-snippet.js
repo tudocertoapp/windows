@@ -34,12 +34,13 @@ function detectOS() {
 
 // 2. Configura a URL de Download final. 
 function getDownloadLink(os) {
-    const baseUrl = 'https://github.com/tudocertoapp/windows/releases/latest/download';
+    const version = '1.0.15'; // mantenha alinhado a desktop-version.json ao publicar
+    const baseUrl = 'https://github.com/tudocertoapp/windows/releases/download/latest';
 
     switch (os) {
         case 'Windows':
             return {
-                url: `${baseUrl}/TudoCerto-Setup-1.0.0.exe`,
+                url: `${baseUrl}/Tudo-Certo-Setup-${version}.exe`,
                 label: 'Baixar para Windows (.exe)'
             };
         case 'MacOS':
@@ -55,7 +56,7 @@ function getDownloadLink(os) {
             };
         default:
             return {
-                url: 'https://github.com/tudocertoapp/windows/releases/latest',
+                url: 'https://github.com/tudocertoapp/windows/releases/tag/latest',
                 label: 'Ver todos os downloads'
             };
     }

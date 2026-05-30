@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { View, Text, ScrollView, StyleSheet, Image, ImageBackground, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform, Alert, Modal, TextInput, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Image, ImageBackground, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform, Alert, Modal, TextInput, KeyboardAvoidingView, useWindowDimensions, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFinance } from '../contexts/FinanceContext';
 import { useBanks } from '../contexts/BanksContext';
@@ -14,9 +14,10 @@ import { useNotes } from '../contexts/NotesContext';
 import { useShoppingList } from '../contexts/ShoppingListContext';
 import { useValuesVisibility } from '../contexts/ValuesVisibilityContext';
 import { TopBar } from '../components/TopBar';
-import { ViewModeToggle } from '../components/ViewModeToggle';
+import { ViewModeToggle, getViewModeToggleScrollStyle } from '../components/ViewModeToggle';
 import { GlassCard } from '../components/GlassCard';
 import { MeusGastosChat } from '../components/MeusGastosChat';
+import { VisionOcrStatusBadge } from '../components/VisionOcrStatusBadge';
 import { DraggableCard } from '../components/DraggableCard';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { ScrollableCardList } from '../components/ScrollableCardList';
@@ -25,6 +26,7 @@ import { playTapSound } from '../utils/sounds';
 import { confirmDestructive, onDeletePress } from '../utils/confirm';
 import { openWhatsApp } from '../utils/whatsapp';
 import { formatCurrency } from '../utils/format';
+import { transactionMatchesViewMode } from '../utils/viewModeFilter';
 import { getBoletoDueDateObject, sortBoletosForDisplay, dedupeBoletos } from '../utils/boletoDates';
 import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +34,12 @@ import { AppIcon } from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS } from '../constants/dashboardCards';
 import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
+import {
+  DESKTOP_RELEASE_PAGE,
+  getLinuxSetupDownloadUrl,
+  getMacSetupDownloadUrl,
+  getWindowsSetupDownloadUrl,
+} from '../constants/desktopDownload';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -99,8 +107,8 @@ const ds = StyleSheet.create({
   greeting: { fontSize: 14, fontWeight: '500', marginTop: 4 },
   carousel: { marginTop: 8, height: 205, marginHorizontal: 0, paddingVertical: 8, overflow: 'visible' },
   carouselItem: { height: 165, borderRadius: 20, padding: 20, borderWidth: 1 },
-  carouselTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  carouselText: { fontSize: 12, lineHeight: 18 },
+  carouselTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  carouselText: { fontSize: 12, lineHeight: 16 },
   quoteCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
   quoteText: {
     fontSize: 12,
@@ -131,6 +139,59 @@ function parseDateKey(str) {
   const month = (parseInt(parts[1], 10) || 1) - 1;
   const year = parseInt(parts[2], 10) || new Date().getFullYear();
   return new Date(year, month, day);
+}
+
+function CarouselDesktopDownloadActions({ colors, compact, fontSize = 14, btnPadV = 10, btnPadH = 16 }) {
+  const resolveDownloadUrl = (platform) => {
+    if (platform === 'mac') return getMacSetupDownloadUrl();
+    if (platform === 'linux') return getLinuxSetupDownloadUrl();
+    return getWindowsSetupDownloadUrl();
+  };
+  const openDownload = (platform) => (e) => {
+    e?.stopPropagation?.();
+    playTapSound();
+    const url = resolveDownloadUrl(platform);
+    Linking.openURL(url).catch(() => Linking.openURL(DESKTOP_RELEASE_PAGE));
+  };
+  const btnStyle = {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: btnPadV,
+    paddingHorizontal: btnPadH,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  };
+  const platforms = [
+    { id: 'windows', label: 'Windows', icon: 'logo-windows', a11y: 'Baixar para Windows' },
+    { id: 'mac', label: 'Mac', icon: 'logo-apple', a11y: 'Baixar para Mac' },
+    { id: 'linux', label: 'Linux', icon: 'logo-tux', a11y: 'Baixar para Linux' },
+  ];
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: compact ? 10 : 12, width: '100%' }}>
+      {platforms.map((p) => (
+        <TouchableOpacity
+          key={p.id}
+          onPress={openDownload(p.id)}
+          activeOpacity={0.85}
+          style={btnStyle}
+          accessibilityRole="button"
+          accessibilityLabel={p.a11y}
+        >
+          <Ionicons name={p.icon} size={18} color={colors.primary} />
+          <Text style={{ fontWeight: '600', color: colors.primary, fontSize }} numberOfLines={1}>
+            {p.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
 }
 
 export function DashboardScreen() {
@@ -178,8 +239,6 @@ export function DashboardScreen() {
     const p = colors.primary;
     return isDarkTheme
       ? {
-          shellBg: 'transparent',
-          shellBorder: 'transparent',
           btnBg: 'rgba(24,24,27,0.92)',
           btnBorder: p,
           chipBorder: p,
@@ -188,8 +247,6 @@ export function DashboardScreen() {
           text: '#e4e4e7',
         }
       : {
-          shellBg: 'transparent',
-          shellBorder: 'transparent',
           btnBg: 'rgba(248,250,252,0.96)',
           btnBorder: p,
           chipBorder: p,
@@ -416,7 +473,7 @@ export function DashboardScreen() {
 
   const filteredTx = useMemo(() => {
     if (!canToggleView) return transactions;
-    return transactions.filter((t) => (t.tipoVenda || 'pessoal') === viewMode);
+    return transactions.filter((t) => transactionMatchesViewMode(t, viewMode));
   }, [transactions, viewMode, canToggleView]);
 
   const parseDateStr = useCallback((str) => {
@@ -629,16 +686,29 @@ export function DashboardScreen() {
   const carouselItems = useMemo(() => {
     const isEmpresa = viewMode === 'empresa' && showEmpresaFeatures;
     const base = [
+      ...(Platform.OS === 'web'
+        ? [{
+            id: 'desktop',
+            title: 'Baixe o Tudo Certo',
+            text: 'Instale no Windows, Mac ou Linux: PDV, agenda e finanças com atalhos de teclado.',
+            icon: 'desktop-outline',
+            color: colors.primary,
+            onPress: 'desktopDownload',
+            image: CAROUSEL_IMAGES.upgrade,
+          }]
+        : []),
       { id: '1', title: 'Gerencie suas finanças', text: 'Receitas, despesas e controle total em um só lugar.', icon: 'wallet-outline', color: '#10b981', onPress: 'dinheiro', image: CAROUSEL_IMAGES.financas },
       { id: '2', title: 'Limite seu orçamento', text: 'Mantenha sua vida organizada.', icon: 'cash-outline', color: '#dc2626', onPress: 'orcamento', image: CAROUSEL_IMAGES.orcamento },
       ...(isEmpresa ? [{ id: 'whatsapp', title: 'Envie mensagem para seus clientes', text: 'Use o WhatsApp para conversar, enviar lembretes e templates aos seus clientes.', icon: 'logo-whatsapp', color: '#25D366', onPress: 'whatsapp', image: CAROUSEL_IMAGES.whatsapp }] : []),
       { id: '3', title: 'Faça upgrade do seu plano', text: 'Plano Empresa: CRM, produtos compostos e muito mais.', icon: 'rocket-outline', color: '#8b5cf6', onPress: 'assinatura', image: CAROUSEL_IMAGES.upgrade },
       { id: '4', title: 'Indique um amigo e ganhe', text: 'Convide amigos e ganhe benefícios exclusivos.', icon: 'people-outline', color: '#f59e0b', onPress: 'indique', image: CAROUSEL_IMAGES.indique },
       { id: '5', title: 'Agenda', text: 'Agende seus clientes e eventos.', icon: 'calendar-outline', color: '#06b6d4', onPress: 'agenda', image: CAROUSEL_IMAGES.agenda },
-      { id: '6', title: 'Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899', onPress: 'cards', image: CAROUSEL_IMAGES.cards },
+      ...(!useWebLayout
+        ? [{ id: '6', title: 'Cards personalizáveis', text: 'Toque no ícone de grade ao lado para gerenciar os cards do Início.', icon: 'grid-outline', color: '#ec4899', onPress: 'cards', image: CAROUSEL_IMAGES.cards }]
+        : []),
     ];
     return base;
-  }, [viewMode, showEmpresaFeatures]);
+  }, [viewMode, showEmpresaFeatures, colors.primary, useWebLayout]);
 
   const carouselItemsExtended = useMemo(() => {
     const n = carouselItems.length;
@@ -660,6 +730,8 @@ export function DashboardScreen() {
       case 'agenda': navigation?.navigate?.('Agenda'); break;
       case 'cards': setShowCardPicker(true); break;
       case 'whatsapp': openMensagensWhatsApp?.(); break;
+      case 'desktopDownload':
+        break;
       default: break;
     }
   }, [navigation, openOrcamento, openAssinatura, openIndique, openMensagensWhatsApp]);
@@ -1835,6 +1907,11 @@ export function DashboardScreen() {
             const iconTop = 20;
             const iconLeft = 20;
             const iconBox = useWebLayout ? scaleWebDesktop(52, true) : 48;
+            const isDesktopDownloadCard = item.onPress === 'desktopDownload';
+            const CarouselCardWrapper = isDesktopDownloadCard ? View : TouchableOpacity;
+            const carouselCardWrapperProps = isDesktopDownloadCard
+              ? {}
+              : { onPress: () => handleCarouselPress(item), activeOpacity: 0.9 };
             return (
               <View
                 style={{
@@ -1866,9 +1943,8 @@ export function DashboardScreen() {
                       : { width: '100%', alignItems: 'center' }
                   }
                 >
-                  <TouchableOpacity
-                    onPress={() => handleCarouselPress(item)}
-                    activeOpacity={0.9}
+                  <CarouselCardWrapper
+                    {...carouselCardWrapperProps}
                     style={
                       useWebLayout
                         ? { width: '100%', height: carouselCardFixedH, minHeight: carouselCardFixedH, maxHeight: carouselCardFixedH }
@@ -1919,13 +1995,14 @@ export function DashboardScreen() {
                         height: '100%',
                         borderRadius: scaleWebDesktop(20, useWebLayout),
                         padding: useWebLayout ? scaleWebDesktop(20, true) : 20,
+                        paddingBottom: useWebLayout ? scaleWebDesktop(36, true) : 20,
                         justifyContent: useWebLayout ? 'center' : 'flex-end',
                         alignItems: useWebLayout ? 'center' : 'stretch',
                         overflow: useWebLayout ? 'hidden' : 'visible',
                       }}
                     >
                       {useWebLayout ? (
-                        <View style={{ alignItems: 'center', width: '100%', maxWidth: '100%', gap: scaleWebDesktop(12, true) }}>
+                        <View style={{ alignItems: 'center', width: '100%', maxWidth: '100%' }}>
                           <View
                             style={{
                               width: iconBox,
@@ -1934,44 +2011,59 @@ export function DashboardScreen() {
                               backgroundColor: (item.color || colors.primary) + 'E6',
                               justifyContent: 'center',
                               alignItems: 'center',
+                              marginBottom: scaleWebDesktop(8, true),
                             }}
                           >
                             <AppIcon name={item.icon} size={scaleWebDesktop(26, true)} color="#fff" />
                           </View>
-                          <Text
-                            style={[
-                              ds.carouselTitle,
-                              {
-                                color: '#fff',
-                                fontSize: scaleWebDesktop(16, true),
-                                textAlign: 'center',
-                                width: '100%',
-                              },
-                            ]}
-                            numberOfLines={2}
-                          >
-                            {item.title}
-                          </Text>
-                          <Text
-                            style={[
-                              ds.carouselText,
-                              {
-                                color: '#fff',
-                                fontSize: scaleWebDesktop(12, true),
-                                lineHeight: scaleWebDesktop(18, true),
-                                textAlign: 'center',
-                                width: '100%',
-                              },
-                            ]}
-                            numberOfLines={3}
-                          >
-                            {item.text}
-                          </Text>
+                          <View style={{ alignItems: 'center', width: '100%', gap: scaleWebDesktop(3, true) }}>
+                            <Text
+                              style={[
+                                ds.carouselTitle,
+                                {
+                                  color: '#fff',
+                                  fontSize: scaleWebDesktop(16, true),
+                                  textAlign: 'center',
+                                  width: '100%',
+                                  marginBottom: 0,
+                                },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {item.title}
+                            </Text>
+                            <Text
+                              style={[
+                                ds.carouselText,
+                                {
+                                  color: '#fff',
+                                  fontSize: scaleWebDesktop(12, true),
+                                  lineHeight: scaleWebDesktop(16, true),
+                                  textAlign: 'center',
+                                  width: '100%',
+                                },
+                              ]}
+                              numberOfLines={3}
+                            >
+                              {item.text}
+                            </Text>
+                            {isDesktopDownloadCard ? (
+                              <CarouselDesktopDownloadActions
+                                colors={colors}
+                                fontSize={scaleWebDesktop(13, true)}
+                                btnPadV={scaleWebDesktop(9, true)}
+                                btnPadH={scaleWebDesktop(14, true)}
+                              />
+                            ) : null}
+                          </View>
                         </View>
                       ) : (
                         <>
                           <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
                           <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
+                          {isDesktopDownloadCard ? (
+                            <CarouselDesktopDownloadActions colors={colors} compact fontSize={13} btnPadV={8} btnPadH={12} />
+                          ) : null}
                         </>
                       )}
                     </LinearGradient>
@@ -1982,7 +2074,7 @@ export function DashboardScreen() {
                       </>
                     ) : null}
                   </ImageBackground>
-                </TouchableOpacity>
+                </CarouselCardWrapper>
                 {useWebLayout && carouselItems.length > 1 ? (
                   <View
                     pointerEvents="box-none"
@@ -2101,6 +2193,7 @@ export function DashboardScreen() {
             onMomentumScrollEnd={onCarouselScrollSettled}
             getItemLayout={(_, index) => ({ length: SNAP_INTERVAL, offset: index * SNAP_INTERVAL, index })}
             renderItem={({ item }) => {
+              const isDesktopDownloadCard = item.onPress === 'desktopDownload';
               const cardContent = (
                 <ImageBackground
                   source={item.image}
@@ -2125,12 +2218,15 @@ export function DashboardScreen() {
                   <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
                     <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
                     <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
+                    {isDesktopDownloadCard ? (
+                      <CarouselDesktopDownloadActions colors={colors} compact fontSize={12} btnPadV={7} btnPadH={10} />
+                    ) : null}
                   </LinearGradient>
                   <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
                   <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
                 </ImageBackground>
               );
-              return item.onPress ? (
+              return item.onPress && !isDesktopDownloadCard ? (
                 <TouchableOpacity key={item.id} onPress={() => handleCarouselPress(item)} activeOpacity={0.9} style={{ width: SNAP_INTERVAL, alignItems: 'center', justifyContent: 'center' }}>
                   {cardContent}
                 </TouchableOpacity>
@@ -2645,6 +2741,7 @@ export function DashboardScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Meus gastos</Text>
                 <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>Conversa por texto, voz e foto da notinha</Text>
+                <VisionOcrStatusBadge colors={colors} compact />
               </View>
               <View style={cardHeaderActionsStyle}>
                 <TouchableOpacity
@@ -3304,7 +3401,12 @@ export function DashboardScreen() {
           <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>Modo visitante: os dados não são salvos. Faça login para persistir.</Text>
         </View>
       )}
-      <ScrollView showsVerticalScrollIndicator={false} scrollEnabled nestedScrollEnabled={isWebMobile}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollEnabled
+        nestedScrollEnabled={isWebMobile}
+        style={getViewModeToggleScrollStyle(canToggleView, useWebLayout)}
+      >
         {useWebLayout ? (
           <View
             style={{
@@ -3534,12 +3636,9 @@ export function DashboardScreen() {
               flexDirection: 'row',
               alignItems: 'stretch',
               gap: WEB_DESKTOP_ROW_GAP,
-              backgroundColor: quickRowTheme.shellBg,
-              borderWidth: 1,
-              borderColor: quickRowTheme.shellBorder,
-              borderRadius: 16,
-              paddingHorizontal: 6,
-              paddingVertical: 6,
+              backgroundColor: 'transparent',
+              paddingHorizontal: 0,
+              paddingVertical: 0,
             }}
           >
             {webDesktopQuickButtons.map((item, index) => (
@@ -3602,7 +3701,7 @@ export function DashboardScreen() {
         onAddCard={(id) => { playTapSound(); setSectionOrder((prev) => [...prev, id]); }}
         onRemoveCard={(id) => { playTapSound(); setSectionOrder((prev) => prev.filter((x) => x !== id)); }}
       />
-      {/* Web desktop: botão flutuante removido (fica no cabeçalho). */}
+      {/* Web desktop: menu na coluna da tab bar (DesktopRailMenuButton). */}
       <Modal visible={!!parabensModalClient} transparent animationType="fade">
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setParabensModalClient(null)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
