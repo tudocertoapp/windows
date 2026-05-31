@@ -1,6 +1,6 @@
 /**
- * Envia instalador Windows + latest.yml + .blockmap para a release GitHub
- * com tag "latest" em tudocertoapp/windows (URL usada pelo electron-updater).
+ * Envia instaladores desktop para a release GitHub com tag "latest" em tudocertoapp/windows:
+ * Windows (.exe + latest.yml + .blockmap) e, se presentes na pasta, Mac (.dmg) e Linux (.AppImage).
  *
  * Token (por ordem): variável GH_TOKEN / GITHUB_TOKEN, ficheiro .github-publish-token
  * (uma linha), ou linha GH_TOKEN=… / GITHUB_TOKEN=… no .env na raiz do projeto.
@@ -88,12 +88,24 @@ function findArtifacts(version) {
   if (!fs.existsSync(ymlPath)) {
     throw new Error('Falta release/latest.yml. Rode antes: npm run build:win');
   }
+
+  const optional = [];
+  const dmgName = `Tudo-Certo-Setup-${version}.dmg`;
+  const appImageName = `Tudo-Certo-Setup-${version}.AppImage`;
+  if (files.includes(dmgName)) {
+    optional.push({ path: path.join(RELEASE_DIR, dmgName), name: dmgName });
+  }
+  if (files.includes(appImageName)) {
+    optional.push({ path: path.join(RELEASE_DIR, appImageName), name: appImageName });
+  }
+
   return {
     exe: path.join(RELEASE_DIR, exeName),
     blockmap: path.join(RELEASE_DIR, blockmapName),
     latestYml: ymlPath,
     exeName,
     blockmapName,
+    optional,
   };
 }
 
@@ -198,6 +210,7 @@ async function main() {
   console.log(`  - ${path.basename(art.latestYml)}`);
   console.log(`  - ${art.exeName}`);
   console.log(`  - ${art.blockmapName}`);
+  art.optional.forEach((o) => console.log(`  - ${o.name}`));
 
   if (!token) {
     if (dryRun) {
@@ -226,7 +239,12 @@ async function main() {
   );
   console.log(`Release "${TAG}" id=${release.id} url=${release.html_url}`);
 
-  const namesToReplace = ['latest.yml', art.exeName, art.blockmapName];
+  const namesToReplace = [
+    'latest.yml',
+    art.exeName,
+    art.blockmapName,
+    ...art.optional.map((o) => o.name),
+  ];
   const assets = await listAllReleaseAssets(release.id, token);
   const toDelete = assets.filter((a) => namesToReplace.includes(a.name));
 
@@ -278,6 +296,11 @@ async function main() {
   await tryUpload(art.exe, art.exeName);
   console.log(`A enviar ${art.blockmapName}...`);
   await tryUpload(art.blockmap, art.blockmapName);
+
+  for (const opt of art.optional) {
+    console.log(`A enviar ${opt.name} (${(fs.statSync(opt.path).size / 1e6).toFixed(1)} MB)...`);
+    await tryUpload(opt.path, opt.name);
+  }
 
   console.log('Concluído. O electron-updater vai ler:');
   console.log(

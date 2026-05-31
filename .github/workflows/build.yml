@@ -79,11 +79,88 @@ jobs:
             release/latest*.yml
             release/*.blockmap
 
-  release-desktop:
-    name: Publicar feed desktop (release latest)
-    needs: desktop-build
+  desktop-build-mac:
+    name: Build instalador macOS
+    runs-on: macos-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sincronizar versão desktop
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.desktop_version }}" ]; then
+            node scripts/set-desktop-version.js "${{ inputs.desktop_version }}"
+          else
+            node scripts/set-desktop-version.js
+          fi
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar e empacotar macOS
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          npm ci
+          npm run build:mac
+
+      - name: Artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-macos-latest
+          path: release/*.dmg
+
+  desktop-build-linux:
+    name: Build instalador Linux
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sincronizar versão desktop
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.desktop_version }}" ]; then
+            node scripts/set-desktop-version.js "${{ inputs.desktop_version }}"
+          else
+            node scripts/set-desktop-version.js
+          fi
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar e empacotar Linux
+        run: |
+          npm ci
+          npm run build:linux:ci
+
+      - name: Artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-linux-latest
+          path: release/*.AppImage
+
+  release-desktop:
+    name: Publicar feed desktop (release latest)
+    needs: [desktop-build, desktop-build-mac, desktop-build-linux]
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      needs.desktop-build.result == 'success' &&
+      (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout
@@ -94,27 +171,45 @@ jobs:
         with:
           node-version: 20
 
-      - name: Download artefatos
+      - name: Download artefatos Windows
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts-windows-latest
-          path: artifacts
+          path: artifacts/win
 
-      # softprops não substitui ficheiros na release; com milhares de assets o latest.yml ficou em 1.0.12.
-      # publish-windows-update.js remove os 3 nomes antigos na release `latest` e envia os novos (electron-updater).
-      - name: Atualizar release latest (latest.yml + Setup + blockmap)
+      - name: Download artefatos macOS
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: build-artifacts-macos-latest
+          path: artifacts/mac
+
+      - name: Download artefatos Linux
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: build-artifacts-linux-latest
+          path: artifacts/linux
+
+      # publish-windows-update.js remove os nomes antigos na release `latest` e envia os novos (electron-updater + dmg/AppImage).
+      - name: Atualizar release latest (latest.yml + Setup + blockmap + Mac/Linux)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          YML=$(find "$GITHUB_WORKSPACE/artifacts" -name 'latest.yml' | head -1)
+          MERGED="$GITHUB_WORKSPACE/artifacts/merged"
+          mkdir -p "$MERGED"
+          cp -v artifacts/win/* "$MERGED/" 2>/dev/null || true
+          cp -v artifacts/mac/*.dmg "$MERGED/" 2>/dev/null || true
+          cp -v artifacts/linux/*.AppImage "$MERGED/" 2>/dev/null || true
+          YML=$(find "$MERGED" -name 'latest.yml' | head -1)
           if [ -z "$YML" ]; then
-            echo "::error::latest.yml não encontrado em artifacts/"
+            echo "::error::latest.yml não encontrado em artifacts/merged/"
             find "$GITHUB_WORKSPACE/artifacts" -type f | head -50 || true
             exit 1
           fi
-          export WINDOWS_RELEASE_DIR="$(dirname "$YML")"
+          export WINDOWS_RELEASE_DIR="$MERGED"
           echo "WINDOWS_RELEASE_DIR=$WINDOWS_RELEASE_DIR"
           ls -la "$WINDOWS_RELEASE_DIR"
           node scripts/publish-windows-update.js

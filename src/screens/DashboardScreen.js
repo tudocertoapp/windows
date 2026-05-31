@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { View, Text, ScrollView, StyleSheet, Image, ImageBackground, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform, Alert, Modal, TextInput, KeyboardAvoidingView, useWindowDimensions, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Image, ImageBackground, TouchableOpacity, Dimensions, FlatList, LayoutAnimation, UIManager, Platform, Alert, Modal, TextInput, KeyboardAvoidingView, useWindowDimensions, Linking, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFinance } from '../contexts/FinanceContext';
 import { useBanks } from '../contexts/BanksContext';
@@ -36,9 +36,8 @@ import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIR
 import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import {
   DESKTOP_RELEASE_PAGE,
-  getLinuxSetupDownloadUrl,
-  getMacSetupDownloadUrl,
-  getWindowsSetupDownloadUrl,
+  resolveDesktopDownloadUrls,
+  triggerDesktopDownload,
 } from '../constants/desktopDownload';
 
 const logoImage = require('../../assets/logo.png');
@@ -141,18 +140,59 @@ function parseDateKey(str) {
   return new Date(year, month, day);
 }
 
-function CarouselDesktopDownloadActions({ colors, compact, fontSize = 14, btnPadV = 10, btnPadH = 16 }) {
-  const resolveDownloadUrl = (platform) => {
-    if (platform === 'mac') return getMacSetupDownloadUrl();
-    if (platform === 'linux') return getLinuxSetupDownloadUrl();
-    return getWindowsSetupDownloadUrl();
-  };
+function CarouselDesktopDownloadActions({
+  colors,
+  quickRowTheme,
+  compact,
+  fontSize = 10,
+  btnPadV = 5,
+  btnPadH = 6,
+  iconSize = 13,
+  rowGap = 5,
+}) {
+  const [downloads, setDownloads] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveDesktopDownloadUrls()
+      .then((resolved) => {
+        if (!cancelled) setDownloads(resolved);
+      })
+      .catch(() => {
+        if (!cancelled) setDownloads(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const openDownload = (platform) => (e) => {
     e?.stopPropagation?.();
     playTapSound();
-    const url = resolveDownloadUrl(platform);
-    Linking.openURL(url).catch(() => Linking.openURL(DESKTOP_RELEASE_PAGE));
+    if (!downloads) return;
+    if (!downloads.available?.[platform]) {
+      Alert.alert(
+        'Download indisponível',
+        platform === 'mac'
+          ? 'O instalador para Mac ainda não está na release. Use Windows ou abra a página de releases.'
+          : platform === 'linux'
+            ? 'O instalador para Linux ainda não está na release. Use Windows ou abra a página de releases.'
+            : 'Instalador não encontrado. Abra a página de releases.',
+        [
+          { text: 'Página de releases', onPress: () => Linking.openURL(DESKTOP_RELEASE_PAGE) },
+          { text: 'OK', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+    const entry = downloads[platform];
+    const ok = triggerDesktopDownload(entry?.url);
+    if (!ok) Linking.openURL(DESKTOP_RELEASE_PAGE);
   };
+  const btnBorder = quickRowTheme?.btnBorder ?? colors.primary;
+  const btnBg = quickRowTheme?.btnBg ?? 'rgba(248,250,252,0.96)';
+  const iconColor = quickRowTheme?.icon ?? colors.primary;
+  const textColor = quickRowTheme?.text ?? colors.primary;
   const btnStyle = {
     flex: 1,
     flexBasis: 0,
@@ -160,13 +200,13 @@ function CarouselDesktopDownloadActions({ colors, compact, fontSize = 14, btnPad
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
     paddingVertical: btnPadV,
     paddingHorizontal: btnPadH,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 14,
+    backgroundColor: btnBg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: btnBorder,
   };
   const platforms = [
     { id: 'windows', label: 'Windows', icon: 'logo-windows', a11y: 'Baixar para Windows' },
@@ -174,22 +214,25 @@ function CarouselDesktopDownloadActions({ colors, compact, fontSize = 14, btnPad
     { id: 'linux', label: 'Linux', icon: 'logo-tux', a11y: 'Baixar para Linux' },
   ];
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: compact ? 10 : 12, width: '100%' }}>
-      {platforms.map((p) => (
+    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: rowGap, marginTop: compact ? 6 : 8, width: '100%' }}>
+      {platforms.map((p) => {
+        const unavailable = downloads && downloads.available?.[p.id] === false;
+        return (
         <TouchableOpacity
           key={p.id}
           onPress={openDownload(p.id)}
           activeOpacity={0.85}
-          style={btnStyle}
+          style={[btnStyle, unavailable ? { opacity: 0.45 } : null]}
           accessibilityRole="button"
           accessibilityLabel={p.a11y}
         >
-          <Ionicons name={p.icon} size={18} color={colors.primary} />
-          <Text style={{ fontWeight: '600', color: colors.primary, fontSize }} numberOfLines={1}>
+          <Ionicons name={p.icon} size={iconSize} color={iconColor} />
+          <Text style={{ fontWeight: '700', color: textColor, fontSize }} numberOfLines={1}>
             {p.label}
           </Text>
         </TouchableOpacity>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -348,8 +391,20 @@ export function DashboardScreen() {
     return { quoteBody: raw, quoteSource: '' };
   }, [quote]);
 
+  const handleShareQuote = useCallback(async () => {
+    const label = quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia';
+    const message = quoteSource
+      ? `"${quoteBody}"\n\n— ${quoteSource}\n\nAgenda e finanças em um app. Tudo Certo.`
+      : `"${quoteBody}"\n\nAgenda e finanças em um app. Tudo Certo.`;
+    try {
+      await Share.share({ message, title: `Tudo Certo — ${label}` });
+    } catch (_) {
+      openImageGenerator?.({ quote, quoteType });
+    }
+  }, [quoteBody, quoteSource, quoteType, quote, openImageGenerator]);
+
   const webDesktopQuickButtons = useMemo(
-    () => [
+    () => (useWebLayout && showEmpresaFeatures ? [
       { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
       { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
       { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
@@ -358,8 +413,8 @@ export function DashboardScreen() {
       { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => (openOrcamentos?.() || openOrcamento?.()), color: CARD_ICON_COLORS.listacompras },
       { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
       { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
-    ],
-    [openAReceber, openCadastro, openEmpresa, openOrcamento, openOrcamentos, openPDV],
+    ] : []),
+    [useWebLayout, showEmpresaFeatures, openAReceber, openCadastro, openEmpresa, openOrcamento, openOrcamentos, openPDV],
   );
 
   useEffect(() => {
@@ -1034,8 +1089,65 @@ export function DashboardScreen() {
   const webDesktopCarouselBlockH = useWebLayout ? Math.round(scaleWebDesktop(300, true)) : null;
   /** Mantido por compatibilidade de escala visual dos cards superiores. */
   const webDesktopCarouselTrioMinH = useWebLayout ? Math.round(scaleWebDesktop(178, true)) : null;
-  /** Desktop: carrossel e frase dividem a linha (50/50); aniversariantes desce para linha própria (100%). */
-  const desktopHomeCarouselQuoteAniv = false;
+  /** Rodapé: gap acima dos botões; altura fixa para alinhar colunas frase/carrossel. */
+  const webDesktopPairFooterMinH = useWebLayout
+    ? Math.max(0, Math.round(scaleWebDesktop(28, true)) - 2)
+    : null;
+  const webDesktopQuoteCarouselRowH = useWebLayout && webDesktopCarouselTrioMinH != null && webDesktopPairFooterMinH != null
+    ? webDesktopCarouselTrioMinH + WEB_DESKTOP_ROW_GAP + webDesktopPairFooterMinH
+    : null;
+  const webCarouselFooterStyle = useWebLayout
+    ? {
+        marginTop: WEB_DESKTOP_ROW_GAP,
+        minHeight: webDesktopPairFooterMinH,
+        paddingBottom: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: WEB_DESKTOP_ROW_GAP,
+        alignSelf: 'stretch',
+      }
+    : null;
+  const renderWebCarouselDots = useCallback(() => {
+    if (carouselItems.length <= 1) return null;
+    return carouselItems.map((_, i) => (
+      <TouchableOpacity
+        key={i}
+        onPress={(e) => {
+          e?.stopPropagation?.();
+          playTapSound();
+          jumpToCarouselIndex(i);
+        }}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={{ paddingVertical: 2, paddingHorizontal: 2 }}
+      >
+        <View
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 4,
+            backgroundColor:
+              i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '55',
+          }}
+        />
+      </TouchableOpacity>
+    ));
+  }, [carouselItems, carouselIndex, colors, jumpToCarouselIndex, playTapSound]);
+  /** Desktop: frase + carrossel + aniversariantes na mesma linha (1/3 cada). */
+  const desktopHomeCarouselQuoteAniv = useWebLayout
+    && sectionOrder.includes('quote')
+    && sectionOrder.includes('carousel')
+    && sectionOrder.includes('aniversariantes');
+
+  /** Carrossel: ícone e título iguais em todos os slides (referência: Baixe o Tudo Certo). */
+  const useCarouselHeroLayout = useWebLayout || isWebMobile;
+  const carouselHeroIconBox = useWebLayout ? scaleWebDesktop(52, true) : 52;
+  const carouselHeroIconSize = useWebLayout ? scaleWebDesktop(26, true) : 26;
+  const carouselHeroTitleSize = useWebLayout ? scaleWebDesktop(16, true) : 16;
+  const carouselHeroTitleLineH = useWebLayout ? scaleWebDesktop(20, true) : 20;
+  const carouselHeroTextSize = useWebLayout ? scaleWebDesktop(12, true) : 12;
+  const carouselHeroTextLineH = useWebLayout ? scaleWebDesktop(16, true) : 16;
+  const carouselHeroIconMb = useWebLayout ? scaleWebDesktop(8, true) : 8;
 
   /** Altura mínima da linha agenda (combo esquerda + agenda) = mesma fórmula do GRID_H no layout. */
   const WEB_AGENDA_ROW_MIN_H =
@@ -1871,7 +1983,6 @@ export function DashboardScreen() {
             paddingVertical: 0,
             height: undefined,
             minHeight: 0,
-            flex: 1,
           },
         ]}
       >
@@ -1882,10 +1993,12 @@ export function DashboardScreen() {
             const carouselSlideW = useWebLayout ? '100%' : CARD_WIDTH;
             const slideH = useWebLayout ? scaleWebDesktop(208, true) : 165;
             /** Desktop: mantém a altura visual anterior do topo, mesmo com layout 50/50. */
-            const carouselCardMinH = useWebLayout ? webDesktopCarouselTrioMinH : 0;
+            const carouselCardMinH = useWebLayout ? webDesktopCarouselTrioMinH : (isWebMobile ? 165 : 0);
             /** Altura fixa no desktop: todos os slides com o mesmo tamanho (evita um card “crescer” com o conteúdo). */
-            const carouselCardFixedH = useWebLayout ? carouselCardMinH : null;
-            const carouselCardRadius = scaleWebDesktop(20, true);
+            const carouselCardFixedH = useCarouselHeroLayout
+              ? (useWebLayout ? carouselCardMinH : 165)
+              : null;
+            const carouselCardRadius = scaleWebDesktop(20, useWebLayout);
             const carouselImageStyle = useWebLayout
               ? Platform.OS === 'web'
                 ? {
@@ -1906,7 +2019,7 @@ export function DashboardScreen() {
               : { borderRadius: 20, opacity: 0.8 };
             const iconTop = 20;
             const iconLeft = 20;
-            const iconBox = useWebLayout ? scaleWebDesktop(52, true) : 48;
+            const iconBox = carouselHeroIconBox;
             const isDesktopDownloadCard = item.onPress === 'desktopDownload';
             const CarouselCardWrapper = isDesktopDownloadCard ? View : TouchableOpacity;
             const carouselCardWrapperProps = isDesktopDownloadCard
@@ -1916,19 +2029,18 @@ export function DashboardScreen() {
               <View
                 style={{
                   position: 'relative',
-                  ...(useWebLayout
+                  width: '100%',
+                  ...(useCarouselHeroLayout
                     ? {
-                        width: '100%',
                         alignSelf: 'stretch',
-                        flex: 1,
-                        minHeight: 0,
+                        flexDirection: 'column',
                       }
-                    : { width: '100%', alignItems: 'center' }),
+                    : { alignItems: 'center' }),
                 }}
               >
                 <View
                   style={
-                    useWebLayout
+                    useCarouselHeroLayout
                       ? {
                           width: '100%',
                           height: carouselCardFixedH,
@@ -1946,7 +2058,7 @@ export function DashboardScreen() {
                   <CarouselCardWrapper
                     {...carouselCardWrapperProps}
                     style={
-                      useWebLayout
+                      useCarouselHeroLayout
                         ? { width: '100%', height: carouselCardFixedH, minHeight: carouselCardFixedH, maxHeight: carouselCardFixedH }
                         : { alignSelf: 'center' }
                     }
@@ -1954,8 +2066,8 @@ export function DashboardScreen() {
                     <ImageBackground
                       source={item.image}
                       style={[
-                        !useWebLayout ? ds.carouselItem : null,
-                        useWebLayout
+                        !useCarouselHeroLayout ? ds.carouselItem : null,
+                        useCarouselHeroLayout
                           ? {
                               width: '100%',
                               height: carouselCardFixedH,
@@ -1977,31 +2089,31 @@ export function DashboardScreen() {
                       resizeMode="cover"
                     >
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: scaleWebDesktop(20, useWebLayout), backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
-                    {!useWebLayout ? (
+                    {!useCarouselHeroLayout ? (
                       <View style={{ position: 'absolute', top: iconTop, left: iconLeft, width: iconBox, height: iconBox, borderRadius: iconBox / 2, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                        <AppIcon name={item.icon} size={24} color="#fff" />
+                        <AppIcon name={item.icon} size={carouselHeroIconSize} color="#fff" />
                       </View>
                     ) : null}
                     <LinearGradient
                       colors={
-                        useWebLayout
-                          ? ['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.62)']
+                        useCarouselHeroLayout
+                          ? ['rgba(0,0,0,0.12)', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.38)']
                           : ['transparent', 'transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.78)']
                       }
-                      locations={useWebLayout ? [0, 0.45, 1] : [0, 0.4, 0.75, 1]}
+                      locations={useCarouselHeroLayout ? [0, 0.55, 1] : [0, 0.4, 0.75, 1]}
                       style={{
                         flex: 1,
                         width: '100%',
                         height: '100%',
                         borderRadius: scaleWebDesktop(20, useWebLayout),
-                        padding: useWebLayout ? scaleWebDesktop(20, true) : 20,
-                        paddingBottom: useWebLayout ? scaleWebDesktop(36, true) : 20,
-                        justifyContent: useWebLayout ? 'center' : 'flex-end',
-                        alignItems: useWebLayout ? 'center' : 'stretch',
-                        overflow: useWebLayout ? 'hidden' : 'visible',
+                        padding: useCarouselHeroLayout ? scaleWebDesktop(20, useWebLayout) : 20,
+                        paddingBottom: useCarouselHeroLayout ? scaleWebDesktop(16, useWebLayout) : 20,
+                        justifyContent: useCarouselHeroLayout ? 'center' : 'flex-end',
+                        alignItems: useCarouselHeroLayout ? 'center' : 'stretch',
+                        overflow: useCarouselHeroLayout ? 'hidden' : 'visible',
                       }}
                     >
-                      {useWebLayout ? (
+                      {useCarouselHeroLayout ? (
                         <View style={{ alignItems: 'center', width: '100%', maxWidth: '100%' }}>
                           <View
                             style={{
@@ -2011,18 +2123,19 @@ export function DashboardScreen() {
                               backgroundColor: (item.color || colors.primary) + 'E6',
                               justifyContent: 'center',
                               alignItems: 'center',
-                              marginBottom: scaleWebDesktop(8, true),
+                              marginBottom: carouselHeroIconMb,
                             }}
                           >
-                            <AppIcon name={item.icon} size={scaleWebDesktop(26, true)} color="#fff" />
+                            <AppIcon name={item.icon} size={carouselHeroIconSize} color="#fff" />
                           </View>
-                          <View style={{ alignItems: 'center', width: '100%', gap: scaleWebDesktop(3, true) }}>
+                          <View style={{ alignItems: 'center', width: '100%', gap: scaleWebDesktop(3, useWebLayout) }}>
                             <Text
                               style={[
                                 ds.carouselTitle,
                                 {
                                   color: '#fff',
-                                  fontSize: scaleWebDesktop(16, true),
+                                  fontSize: carouselHeroTitleSize,
+                                  lineHeight: carouselHeroTitleLineH,
                                   textAlign: 'center',
                                   width: '100%',
                                   marginBottom: 0,
@@ -2037,8 +2150,8 @@ export function DashboardScreen() {
                                 ds.carouselText,
                                 {
                                   color: '#fff',
-                                  fontSize: scaleWebDesktop(12, true),
-                                  lineHeight: scaleWebDesktop(16, true),
+                                  fontSize: carouselHeroTextSize,
+                                  lineHeight: carouselHeroTextLineH,
                                   textAlign: 'center',
                                   width: '100%',
                                 },
@@ -2050,9 +2163,12 @@ export function DashboardScreen() {
                             {isDesktopDownloadCard ? (
                               <CarouselDesktopDownloadActions
                                 colors={colors}
-                                fontSize={scaleWebDesktop(13, true)}
-                                btnPadV={scaleWebDesktop(9, true)}
-                                btnPadH={scaleWebDesktop(14, true)}
+                                quickRowTheme={quickRowTheme}
+                                fontSize={scaleWebDesktop(9, true)}
+                                btnPadV={scaleWebDesktop(4, true)}
+                                btnPadH={scaleWebDesktop(5, true)}
+                                iconSize={scaleWebDesktop(12, true)}
+                                rowGap={scaleWebDesktop(4, true)}
                               />
                             ) : null}
                           </View>
@@ -2062,7 +2178,16 @@ export function DashboardScreen() {
                           <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
                           <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
                           {isDesktopDownloadCard ? (
-                            <CarouselDesktopDownloadActions colors={colors} compact fontSize={13} btnPadV={8} btnPadH={12} />
+                            <CarouselDesktopDownloadActions
+                              colors={colors}
+                              quickRowTheme={quickRowTheme}
+                              compact
+                              fontSize={12}
+                              btnPadV={6}
+                              btnPadH={7}
+                              iconSize={14}
+                              rowGap={6}
+                            />
                           ) : null}
                         </>
                       )}
@@ -2075,51 +2200,12 @@ export function DashboardScreen() {
                     ) : null}
                   </ImageBackground>
                 </CarouselCardWrapper>
-                {useWebLayout && carouselItems.length > 1 ? (
-                  <View
-                    pointerEvents="box-none"
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      paddingTop: scaleWebDesktop(8, true),
-                      paddingBottom: scaleWebDesktop(12, true),
-                      flexDirection: 'row',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      gap: 8,
-                      zIndex: 8,
-                      backgroundColor: 'rgba(0,0,0,0.28)',
-                      borderBottomLeftRadius: carouselCardRadius,
-                      borderBottomRightRadius: carouselCardRadius,
-                    }}
-                  >
-                    {carouselItems.map((_, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={(e) => {
-                          e?.stopPropagation?.();
-                          playTapSound();
-                          jumpToCarouselIndex(i);
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={{ paddingVertical: 4, paddingHorizontal: 2 }}
-                      >
-                        <View
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 4,
-                            backgroundColor:
-                              i === carouselIndex ? (carouselItems[i]?.color || colors.primary) : colors.textSecondary + '60',
-                          }}
-                        />
-                      </TouchableOpacity>
-                    ))}
+                </View>
+                {useWebLayout ? (
+                  <View pointerEvents="box-none" style={webCarouselFooterStyle}>
+                    {carouselItems.length > 1 ? renderWebCarouselDots() : null}
                   </View>
                 ) : null}
-                </View>
 
                 {/* setas/bordas clicáveis */}
                 {carouselItems.length > 1 && (
@@ -2131,7 +2217,7 @@ export function DashboardScreen() {
                             top: 0,
                             left: 0,
                             right: 0,
-                            bottom: 0,
+                            height: carouselCardFixedH,
                             width: '100%',
                           }
                         : {
@@ -2212,15 +2298,52 @@ export function DashboardScreen() {
                   resizeMode="cover"
                 >
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: ((item.color || colors.primary) + '25'), pointerEvents: 'none', zIndex: 1 }} />
-                  <View style={{ position: 'absolute', top: 20, left: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: (item.color || colors.primary) + 'E6', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
-                    <AppIcon name={item.icon} size={24} color="#fff" />
-                  </View>
-                  <LinearGradient colors={['transparent', 'transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.75)']} locations={[0, 0.4, 0.75, 1]} style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, justifyContent: 'flex-end', overflow: 'visible' }}>
-                    <Text style={[ds.carouselTitle, { color: '#fff' }]}>{item.title}</Text>
-                    <Text style={[ds.carouselText, { color: '#fff' }]}>{item.text}</Text>
-                    {isDesktopDownloadCard ? (
-                      <CarouselDesktopDownloadActions colors={colors} compact fontSize={12} btnPadV={7} btnPadH={10} />
-                    ) : null}
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0.12)', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.38)']}
+                    locations={[0, 0.55, 1]}
+                    style={{ flex: 1, width: '100%', height: '100%', borderRadius: 20, padding: 20, paddingBottom: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+                  >
+                    <View style={{ alignItems: 'center', width: '100%', maxWidth: '100%' }}>
+                      <View
+                        style={{
+                          width: carouselHeroIconBox,
+                          height: carouselHeroIconBox,
+                          borderRadius: carouselHeroIconBox / 2,
+                          backgroundColor: (item.color || colors.primary) + 'E6',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          marginBottom: carouselHeroIconMb,
+                        }}
+                      >
+                        <AppIcon name={item.icon} size={carouselHeroIconSize} color="#fff" />
+                      </View>
+                      <View style={{ alignItems: 'center', width: '100%', gap: 3 }}>
+                        <Text
+                          style={[ds.carouselTitle, { color: '#fff', fontSize: carouselHeroTitleSize, lineHeight: carouselHeroTitleLineH, textAlign: 'center', width: '100%', marginBottom: 0 }]}
+                          numberOfLines={2}
+                        >
+                          {item.title}
+                        </Text>
+                        <Text
+                          style={[ds.carouselText, { color: '#fff', fontSize: carouselHeroTextSize, lineHeight: carouselHeroTextLineH, textAlign: 'center', width: '100%' }]}
+                          numberOfLines={3}
+                        >
+                          {item.text}
+                        </Text>
+                        {isDesktopDownloadCard ? (
+                          <CarouselDesktopDownloadActions
+                            colors={colors}
+                            quickRowTheme={quickRowTheme}
+                            compact
+                            fontSize={10}
+                            btnPadV={5}
+                            btnPadH={6}
+                            iconSize={12}
+                            rowGap={5}
+                          />
+                        ) : null}
+                      </View>
+                    </View>
                   </LinearGradient>
                   <View style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.15)' }} />
                   <View style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
@@ -2276,7 +2399,7 @@ export function DashboardScreen() {
           )}
         </View>
         )}
-        {!useWebLayout ? (
+        {!useWebLayout && carouselItems.length > 1 ? (
           <View
             style={{
               flexDirection: 'row',
@@ -2301,14 +2424,137 @@ export function DashboardScreen() {
       </View>
     ),
     quote: (
+      useWebLayout ? (
+        <View key="quote" style={{ width: '100%', alignSelf: 'stretch', flexDirection: 'column' }}>
+          <TouchableOpacity
+            onPress={() => openImageGenerator?.({ quote, quoteType })}
+            activeOpacity={0.8}
+            style={{ height: webDesktopCarouselTrioMinH, width: '100%' }}
+          >
+            <GlassCard
+              colors={colors}
+              solid
+              style={[
+                ds.card,
+                {
+                  padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true),
+                  height: '100%',
+                  width: '100%',
+                  borderRadius: scaleWebDesktop(20, true),
+                  overflow: 'hidden',
+                },
+              ]}
+              contentStyle={{
+                padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true),
+                height: '100%',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
+                  overflow: 'visible',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true), paddingTop: scaleWebDesktop(2, true) }}>
+                  <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>
+                      {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flex: 1, minHeight: 0, justifyContent: 'center' }}>
+                  <Text
+                    style={[ds.quoteText, { color: colors.text, fontSize: 13, fontWeight: '400', textAlign: 'center', width: '100%', lineHeight: 20 }]}
+                    numberOfLines={2}
+                  >
+                    "{quoteBody}"
+                  </Text>
+                  {quoteSource ? (
+                    <Text
+                      style={{
+                        marginTop: scaleWebDesktop(1, true),
+                        fontSize: scaleWebDesktop(9, true),
+                        fontWeight: '500',
+                        color: colors.textSecondary,
+                        textAlign: 'center',
+                        width: '100%',
+                      }}
+                      numberOfLines={1}
+                    >
+                      {quoteSource}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+          <View style={webCarouselFooterStyle}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: WEB_DESKTOP_ROW_GAP, flexWrap: 'wrap' }}>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: scaleWebDesktop(5, true),
+                  paddingVertical: scaleWebDesktop(4, true),
+                  paddingHorizontal: scaleWebDesktop(10, true),
+                  borderRadius: 999,
+                  backgroundColor: colors.primary + '12',
+                  borderWidth: 1,
+                  borderColor: colors.primary + '28',
+                }}
+              >
+                <Ionicons
+                  name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'}
+                  size={scaleWebDesktop(14, true)}
+                  color={colors.primary}
+                />
+                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>
+                  {quoteType === 'motivacional' ? 'Versículo do dia' : 'Frase do dia'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { playTapSound(); handleShareQuote(); }}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: scaleWebDesktop(5, true),
+                  paddingVertical: scaleWebDesktop(4, true),
+                  paddingHorizontal: scaleWebDesktop(10, true),
+                  borderRadius: 999,
+                  backgroundColor: colors.primary + '18',
+                  borderWidth: 1,
+                  borderColor: colors.primary + '33',
+                }}
+              >
+                <Ionicons name="share-social-outline" size={scaleWebDesktop(14, true)} color={colors.primary} />
+                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>
+                  {quoteType === 'motivacional' ? 'Compartilhar frase' : 'Compartilhar versículo'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : (
       <TouchableOpacity
         key="quote"
         onPress={() => openImageGenerator?.({ quote, quoteType })}
         activeOpacity={0.8}
         style={{
           marginHorizontal: WEB_CARD_MARGIN_H,
-          marginTop: useWebLayout ? 0 : WEB_CARD_MARGIN_TOP,
-          ...(useWebLayout ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : null),
+          marginTop: WEB_CARD_MARGIN_TOP,
         }}
       >
         <GlassCard
@@ -2317,31 +2563,19 @@ export function DashboardScreen() {
           style={[
             ds.card,
             {
-              padding: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true)) : WEB_CARD_PADDING,
-              minHeight: useWebLayout ? 0 : undefined,
-              ...(useWebLayout ? { flex: 1, minHeight: 0, overflow: 'visible' } : { minHeight: scaleWebDesktop(112, true) }),
+              padding: WEB_CARD_PADDING,
+              minHeight: scaleWebDesktop(112, true),
             },
           ]}
-          contentStyle={{
-            padding: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true)) : WEB_CARD_PADDING,
-            ...(useWebLayout ? { flex: 1, minHeight: 0, flexDirection: 'column', overflow: 'visible' } : null),
-          }}
+          contentStyle={{ padding: WEB_CARD_PADDING }}
         >
-          <View
-            style={{
-              flex: useWebLayout ? 1 : undefined,
-              minHeight: useWebLayout ? 0 : undefined,
-              flexDirection: 'column',
-              justifyContent: useWebLayout ? 'flex-start' : undefined,
-              ...(useWebLayout ? { overflow: 'visible' } : null),
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: useWebLayout ? (desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true)) : 12, paddingTop: useWebLayout ? scaleWebDesktop(2, true) : 0 }}>
+          <View style={{ flexDirection: 'column' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: 12 }}>
             <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
               <AppIcon name={quoteType === 'motivacional' ? 'chatbubble-outline' : 'book-outline'} size={HEADER_ICON_SIZE} color={cardIconColor} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: useWebLayout ? 13 : 15, fontWeight: '700', color: colors.text }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
                 {quoteType === 'motivacional' ? 'Frase do dia' : 'Versículo do dia'}
               </Text>
             </View>
@@ -2360,76 +2594,32 @@ export function DashboardScreen() {
               </TouchableOpacity>
             </View>
             </View>
-            {desktopHomeCarouselQuoteAniv ? (
-              <View
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  paddingVertical: scaleWebDesktop(2, true),
-                }}
+            <View style={{ justifyContent: 'center' }}>
+              <Text
+                style={[ds.quoteText, { color: colors.text, fontSize: ds.quoteText.fontSize, fontWeight: ds.quoteText.fontWeight, textAlign: 'left', lineHeight: ds.quoteText.lineHeight }]}
+                numberOfLines={3}
               >
+                "{quoteBody}"
+              </Text>
+              {quoteSource ? (
                 <Text
-                  style={[
-                    ds.quoteText,
-                    {
-                      color: colors.text,
-                      fontSize: useWebLayout ? scaleWebDesktop(11, true) : ds.quoteText.fontSize,
-                      fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight,
-                      textAlign: 'center',
-                      width: '100%',
-                    },
-                  ]}
-                  numberOfLines={useWebLayout ? 2 : 3}
+                  style={{
+                    marginTop: 4,
+                    fontSize: 10,
+                    fontWeight: '500',
+                    color: colors.textSecondary,
+                    textAlign: 'left',
+                  }}
+                  numberOfLines={1}
                 >
-                  "{quoteBody}"
+                  {quoteSource}
                 </Text>
-                {quoteSource ? (
-                  <Text
-                    style={{
-                      marginTop: useWebLayout ? scaleWebDesktop(4, true) : 4,
-                      fontSize: useWebLayout ? scaleWebDesktop(9, true) : 10,
-                      fontWeight: '500',
-                      color: colors.textSecondary,
-                      textAlign: 'center',
-                      width: '100%',
-                    }}
-                    numberOfLines={1}
-                  >
-                    {quoteSource}
-                  </Text>
-                ) : null}
-              </View>
-            ) : (
-              <View style={{ flex: useWebLayout ? 1 : undefined, minHeight: 0, justifyContent: 'center' }}>
-                <Text
-                  style={[ds.quoteText, { color: colors.text, fontSize: useWebLayout ? 13 : ds.quoteText.fontSize, fontWeight: useWebLayout ? '400' : ds.quoteText.fontWeight, textAlign: useWebLayout ? 'center' : 'left', width: useWebLayout ? '100%' : undefined, alignSelf: useWebLayout ? 'center' : undefined, lineHeight: useWebLayout ? 20 : ds.quoteText.lineHeight }]}
-                  numberOfLines={useWebLayout ? 2 : 3}
-                >
-                  "{quoteBody}"
-                </Text>
-                {quoteSource ? (
-                  <Text
-                    style={{
-                      marginTop: useWebLayout ? scaleWebDesktop(1, true) : 4,
-                      fontSize: useWebLayout ? scaleWebDesktop(9, true) : 10,
-                      fontWeight: '500',
-                      color: colors.textSecondary,
-                      textAlign: useWebLayout ? 'center' : 'left',
-                      width: useWebLayout ? '100%' : undefined,
-                      alignSelf: useWebLayout ? 'center' : undefined,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {quoteSource}
-                  </Text>
-                ) : null}
-              </View>
-            )}
+              ) : null}
+            </View>
           </View>
         </GlassCard>
       </TouchableOpacity>
+      )
     ),
     aniversariantes: (() => {
       const parseBirthDate = (str) => {
@@ -2492,7 +2682,9 @@ export function DashboardScreen() {
           style={{
             marginHorizontal: WEB_CARD_MARGIN_H,
             marginTop: desktopHomeCarouselQuoteAniv ? 0 : WEB_CARD_MARGIN_TOP,
-            ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' } : null),
+            ...(desktopHomeCarouselQuoteAniv
+              ? { width: '100%', alignSelf: 'stretch', flexDirection: 'column' }
+              : null),
           }}
         >
           <GlassCard
@@ -2500,16 +2692,33 @@ export function DashboardScreen() {
             solid
             style={[
               ds.card,
-              {
-                padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : WEB_CARD_PADDING,
-                minHeight: useWebLayout ? scaleWebDesktop(96, true) : (desktopHomeCarouselQuoteAniv ? 0 : TRIO_CARD_HEIGHT),
-                ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
-              },
+              desktopHomeCarouselQuoteAniv
+                ? {
+                    padding: scaleWebDesktop(7, true),
+                    height: webDesktopCarouselTrioMinH,
+                    minHeight: webDesktopCarouselTrioMinH,
+                    maxHeight: webDesktopCarouselTrioMinH,
+                    width: '100%',
+                    borderRadius: scaleWebDesktop(20, true),
+                    overflow: 'hidden',
+                  }
+                : {
+                    padding: WEB_CARD_PADDING,
+                    minHeight: useWebLayout ? scaleWebDesktop(96, true) : TRIO_CARD_HEIGHT,
+                  },
             ]}
-            contentStyle={{
-              padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : WEB_CARD_PADDING,
-              ...(desktopHomeCarouselQuoteAniv ? { flex: 1, minHeight: 0, overflow: 'hidden' } : null),
-            }}
+            contentStyle={
+              desktopHomeCarouselQuoteAniv
+                ? {
+                    padding: scaleWebDesktop(7, true),
+                    height: '100%',
+                    overflow: 'hidden',
+                    flexDirection: 'column',
+                  }
+                : {
+                    padding: WEB_CARD_PADDING,
+                  }
+            }
           >
             {desktopHomeCarouselQuoteAniv ? (
               <View style={{ flex: 1, minHeight: 0, flexDirection: 'column' }}>
@@ -2518,23 +2727,15 @@ export function DashboardScreen() {
                     <View style={{ width: HEADER_ICON_BOX_SIZE, height: HEADER_ICON_BOX_SIZE, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                       <Ionicons name="gift-outline" size={HEADER_ICON_SIZE} color={cardIconColor} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }}>Aniversariantes da semana</Text>
-                      <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: useWebLayout ? 14 : 16, fontWeight: '700', color: colors.text }} numberOfLines={1}>Aniversariantes da semana</Text>
+                      <Text style={{ fontSize: useWebLayout ? 11 : 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }} numberOfLines={1}>
                         {aniversariantesSemana.length > 0
                           ? (isEmpresa ? `${aniversariantesSemana.length} cliente${aniversariantesSemana.length !== 1 ? 's' : ''} (empresa)` : `${aniversariantesSemana.length} família e amigos (pessoal)`)
                           : (isEmpresa ? 'Cadastre data de nascimento dos clientes' : 'Cadastre data de nascimento')}
                       </Text>
                     </View>
                   </TouchableOpacity>
-                  <View style={cardHeaderActionsStyle}>
-                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={cardActionButtonStyle}>
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={cardActionButtonStyle}>
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
-                    </TouchableOpacity>
-                  </View>
                 </View>
                 <View style={{ flex: 1, minHeight: 0 }}>
                   {useWebLayout ? (
@@ -2727,6 +2928,50 @@ export function DashboardScreen() {
               </>
             )}
           </GlassCard>
+          {desktopHomeCarouselQuoteAniv ? (
+            <View style={webCarouselFooterStyle}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
+                <TouchableOpacity
+                  onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }}
+                  activeOpacity={0.85}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: scaleWebDesktop(5, true),
+                    paddingVertical: scaleWebDesktop(4, true),
+                    paddingHorizontal: scaleWebDesktop(10, true),
+                    borderRadius: 999,
+                    backgroundColor: colors.primary + '12',
+                    borderWidth: 1,
+                    borderColor: colors.primary + '28',
+                  }}
+                >
+                  <Ionicons name="add" size={scaleWebDesktop(14, true)} color={colors.primary} />
+                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>Cliente</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }}
+                  activeOpacity={0.85}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: scaleWebDesktop(5, true),
+                    paddingVertical: scaleWebDesktop(4, true),
+                    paddingHorizontal: scaleWebDesktop(10, true),
+                    borderRadius: 999,
+                    backgroundColor: colors.primary + '18',
+                    borderWidth: 1,
+                    borderColor: colors.primary + '33',
+                  }}
+                >
+                  <AppIcon name="expand-outline" size={scaleWebDesktop(14, true)} color={colors.primary} />
+                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>Ver todos</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
         </View>
       );
     })(),
@@ -3418,64 +3663,104 @@ export function DashboardScreen() {
             {(() => {
               const carouselContent = sectionMap.carousel;
               const quoteContent = sectionMap.quote;
-              if (!carouselContent && !quoteContent) return null;
-              if (!carouselContent) {
-                return quoteContent ? <View style={{ width: '100%' }}>{quoteContent}</View> : null;
+              const aniversariantesContent = desktopHomeCarouselQuoteAniv ? sectionMap.aniversariantes : null;
+              const hasAgenda = webSectionTail.includes('agenda') && webSectionTail.includes('proximos');
+
+              let quoteCarouselRow = null;
+              if (carouselContent && quoteContent) {
+                if (desktopHomeCarouselQuoteAniv && aniversariantesContent) {
+                  quoteCarouselRow = (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        width: '100%',
+                        gap: WEB_DESKTOP_ROW_GAP,
+                        alignItems: 'flex-start',
+                        height: webDesktopQuoteCarouselRowH ?? undefined,
+                      }}
+                    >
+                      <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined }}>
+                        {quoteContent}
+                      </View>
+                      <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined, flexDirection: 'column' }}>
+                        {carouselContent}
+                      </View>
+                      <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined, alignItems: 'stretch' }}>
+                        {aniversariantesContent}
+                      </View>
+                    </View>
+                  );
+                } else {
+                quoteCarouselRow = (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      width: '100%',
+                      gap: WEB_DESKTOP_ROW_GAP,
+                      alignItems: 'flex-start',
+                      height: webDesktopQuoteCarouselRowH ?? undefined,
+                    }}
+                  >
+                    <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined }}>
+                      {quoteContent}
+                    </View>
+                    <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined, flexDirection: 'column' }}>
+                      {carouselContent}
+                    </View>
+                  </View>
+                );
+                }
+              } else if (carouselContent) {
+                quoteCarouselRow = <View style={{ width: '100%' }}>{carouselContent}</View>;
+              } else if (quoteContent) {
+                quoteCarouselRow = <View style={{ width: '100%' }}>{quoteContent}</View>;
               }
-              if (!quoteContent) {
-                return <View style={{ width: '100%' }}>{carouselContent}</View>;
+
+              let agendaBlock = null;
+              if (hasAgenda) {
+                agendaBlock = (
+                  <View style={{ width: '100%', gap: WEB_DESKTOP_ROW_GAP, marginTop: 0 }}>
+                    {(() => {
+                      const GAP = WEB_DESKTOP_ROW_GAP;
+                      const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
+                      return (
+                        <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP, minHeight: GRID_H, height: GRID_H }}>
+                          <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
+                            <View style={{ minHeight: GRID_H, height: GRID_H }}>
+                              {sectionMap.agenda}
+                            </View>
+                          </View>
+                          <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column', gap: GAP }}>
+                            <View style={{ flex: 1, minHeight: 0 }}>
+                              {sectionMap.agendamentos}
+                            </View>
+                            <View style={{ flex: 1, minHeight: 0, ...(Platform.OS === 'web' ? { overflow: 'visible' } : { overflow: 'hidden' }) }}>
+                              {sectionMap.leftAgendaCombo}
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })()}
+                    {webSectionTail.includes('aniversariantes') && !desktopHomeCarouselQuoteAniv ? (
+                      <View style={{ width: '100%' }}>
+                        {sectionMap.aniversariantes}
+                      </View>
+                    ) : null}
+                  </View>
+                );
               }
+
+              if (!quoteCarouselRow && !agendaBlock) return null;
+
               return (
                 <View
                   style={{
-                    flexDirection: 'row',
                     width: '100%',
-                    gap: WEB_DESKTOP_ROW_GAP,
-                    alignItems: 'stretch',
+                    ...(quoteCarouselRow && agendaBlock ? { gap: WEB_DESKTOP_ROW_GAP } : null),
                   }}
                 >
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>{quoteContent}</View>
-                  <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column' }}>
-                    {carouselContent}
-                  </View>
-                </View>
-              );
-            })()}
-            {null}
-            {(() => {
-              const hasAgenda = webSectionTail.includes('agenda');
-              if (!hasAgenda) return null;
-              // Layout: Agenda (esq.) + coluna direita com Agendamentos e Próximas tarefas.
-              if (!webSectionTail.includes('proximos')) return null;
-              return (
-                <View style={{ width: '100%', gap: WEB_DESKTOP_ROW_GAP }}>
-                  {/* Três colunas: esquerda Próximos eventos; meio Agenda; direita Próximas tarefas. Mesma altura (stretch). */}
-                  {(() => {
-                    const GAP = WEB_DESKTOP_ROW_GAP;
-                    const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
-                    return (
-                      <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP, minHeight: GRID_H, height: GRID_H }}>
-                        <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
-                          <View style={{ minHeight: GRID_H, height: GRID_H }}>
-                            {sectionMap.agenda}
-                          </View>
-                        </View>
-                        <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column', gap: GAP }}>
-                          <View style={{ flex: 1, minHeight: 0 }}>
-                            {sectionMap.agendamentos}
-                          </View>
-                          <View style={{ flex: 1, minHeight: 0, ...(Platform.OS === 'web' ? { overflow: 'visible' } : { overflow: 'hidden' }) }}>
-                            {sectionMap.leftAgendaCombo}
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })()}
-                  {webSectionTail.includes('aniversariantes') ? (
-                    <View style={{ width: '100%' }}>
-                      {sectionMap.aniversariantes}
-                    </View>
-                  ) : null}
+                  {quoteCarouselRow}
+                  {agendaBlock}
                 </View>
               );
             })()}
@@ -3618,9 +3903,9 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
         )}
-        <View style={{ height: Platform.OS === 'web' ? 170 : (isWebMobile ? 140 : 100) }} />
+        <View style={{ height: useWebLayout && showEmpresaFeatures ? 170 : (isWebMobile ? 140 : 100) }} />
       </ScrollView>
-      {Platform.OS === 'web' && webDesktopQuickButtons.length > 0 ? (
+      {useWebLayout && showEmpresaFeatures && webDesktopQuickButtons.length > 0 ? (
         <View
           pointerEvents="auto"
           style={{
