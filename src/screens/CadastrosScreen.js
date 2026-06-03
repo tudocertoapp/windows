@@ -34,6 +34,8 @@ import { playTapSound } from '../utils/sounds';
 import { MonthYearPicker } from '../components/MonthYearPicker';
 import { confirmAndDelete } from '../utils/confirm';
 import { FaturasResumoPanel } from '../components/FaturasResumoPanel';
+import { ProductCategoriesModal } from '../components/catalogo/ProductCategoriesModal';
+import { useAuth } from '../contexts/AuthContext';
 import { parseMoney, formatCurrency } from '../utils/format';
 import {
   boletoMatchesMonth,
@@ -115,11 +117,13 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
   const [showFaturasResumoDetalhes, setShowFaturasResumoDetalhes] = useState(true);
   const [faturasResumoPickMode, setFaturasResumoPickMode] = useState(false);
   const [faturasResumoSelected, setFaturasResumoSelected] = useState(() => new Set());
+  const [categoriesModalOpen, setCategoriesModalOpen] = useState(false);
 
   const { colors } = useTheme();
+  const { user } = useAuth();
   const { showEmpresaFeatures, planFeatures, planLabel } = usePlan();
   const { items, add, update, remove, fields, labels, titleKey, subKey, hasFoto, hasNivel, hasPaid } = useSectionData(section);
-  const { addBoletosBatch } = useFinance();
+  const { addBoletosBatch, products, services } = useFinance();
 
   useEffect(() => {
     if (initialSection) setSection(initialSection);
@@ -550,9 +554,19 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       )}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{sectionInfo.label}</Text>
-        <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }} onPress={openAdd}>
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {section === 'produtos' && showEmpresaFeatures && (
+            <TouchableOpacity
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba?.(0.15), justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => { playTapSound(); setCategoriesModalOpen(true); }}
+            >
+              <Ionicons name="folder-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }} onPress={openAdd}>
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
       {section === 'boletos' && (
         <View style={{ paddingHorizontal: 16, marginBottom: 12, gap: 10 }}>
@@ -623,12 +637,22 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         </View>
       )}
       {section === 'produtos' ? (
+        <>
         <ProductFormModal
           visible={showForm}
           onClose={() => { setShowForm(false); setEditingItem(null); setFormData({}); }}
           onSave={handleProductSave}
           editingItem={editingItem}
         />
+        <ProductCategoriesModal
+          visible={categoriesModalOpen}
+          onClose={() => setCategoriesModalOpen(false)}
+          user={user}
+          products={products}
+          services={services}
+          colors={colors}
+        />
+        </>
       ) : section === 'fornecedores' ? (
         <FornecedorModal
           visible={showForm}

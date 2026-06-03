@@ -6,7 +6,12 @@ import { usePlan, PLANS } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 import { supabase } from '../lib/supabase';
-import { getUserSubscription, handleSubscribe, isPaidSubscriptionActive } from '../lib/subscription';
+import {
+  getUserSubscription,
+  handleSubscribe,
+  isPaidSubscriptionActive,
+  syncSubscriptionFromStripe,
+} from '../lib/subscription';
 
 const CATEGORIAS = [
   { id: 'pessoal', label: 'Pessoal', icon: 'person-outline' },
@@ -102,6 +107,7 @@ export function AssinaturaScreen({ onClose, isModal }) {
     refreshSubscription,
   } = usePlan();
   const [checkoutLoadingPlanId, setCheckoutLoadingPlanId] = useState('');
+  const [syncingSubscription, setSyncingSubscription] = useState(false);
   const [categoriaAtiva, setCategoriaAtiva] = useState(plan === PLANS.empresa ? 'empresa' : plan === PLANS.pessoal_empresa ? 'pessoal_empresa' : 'pessoal');
 
   useEffect(() => {
@@ -150,6 +156,44 @@ export function AssinaturaScreen({ onClose, isModal }) {
     Alert.alert('Regularizar', 'Selecione o plano da sua assinatura abaixo para pagar novamente.');
   };
 
+  const handleAtivarAssinaturaPaga = async (targetPlanId = 'pe_teste_real') => {
+    playTapSound();
+    if (syncingSubscription) return;
+    setSyncingSubscription(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) {
+        Alert.alert('Login necessário', 'Entre com o mesmo e-mail usado no pagamento do Stripe.');
+        return;
+      }
+      const result = await syncSubscriptionFromStripe(supabase);
+      await refreshSubscription?.();
+      const sub = await getUserSubscription(supabase, user.id);
+      if (isPaidSubscriptionActive(sub) && sub?.plan) {
+        handleSelecionar(sub.plan);
+        Alert.alert('Plano ativo', `Assinatura ${sub.plan} ativada nesta conta.`);
+        return;
+      }
+      if (result?.stripeStatus && !result?.activated) {
+        Alert.alert(
+          'Pagamento pendente',
+          'Encontramos assinatura no Stripe, mas o status ainda não está ativo. Aguarde ou regularize no Stripe.',
+        );
+        return;
+      }
+      Alert.alert(
+        'Não encontrado',
+        'Não achamos assinatura no Stripe para este e-mail. Confira se pagou logado nesta conta ou configure o webhook na Vercel.',
+      );
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(msg);
+      else Alert.alert('Ativar plano', msg);
+    } finally {
+      setSyncingSubscription(false);
+    }
+  };
+
   const handlePlanoPress = async (plano) => {
     const isGratis = plano.preco === 'Grátis';
     const isSelected = planId === plano.id;
@@ -169,20 +213,22 @@ export function AssinaturaScreen({ onClose, isModal }) {
           handleSelecionar(plano.id);
           return;
         }
-        if (plano.id === 'pe_teste_real') {
+        if (plano.id === 'pe_teste_real' && !alreadyActive) {
           Alert.alert(
-            'Plano de teste',
+            'Plano de teste R$ 1',
             subscriptionPastDue
-              ? 'Sua assinatura está com pagamento pendente. Toque em Regularizar pagamento para concluir a cobrança.'
-              : 'Não encontramos assinatura ativa deste plano nesta conta. Se você já pagou com esta conta, aguarde alguns minutos ou toque em Pagar.',
+              ? 'Pagamento pendente no sistema. Regularize ou sincronize com o Stripe.'
+              : 'Já pagou no Stripe? Toque em "Ativar plano pago" (mesmo e-mail da conta). Caso contrário, pague de novo.',
             subscriptionPastDue
               ? [
                   { text: 'Fechar', style: 'cancel' },
-                  { text: 'Regularizar pagamento', onPress: handleRegularizePayment },
+                  { text: 'Regularizar', onPress: handleRegularizePayment },
+                  { text: 'Ativar plano pago', onPress: () => handleAtivarAssinaturaPaga(plano.id) },
                 ]
               : [
                   { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Pagar', onPress: () => handlePlanSubscribe(plano.id) },
+                  { text: 'Ativar plano pago', onPress: () => handleAtivarAssinaturaPaga(plano.id) },
+                  { text: 'Pagar R$ 1', onPress: () => handlePlanSubscribe(plano.id) },
                 ]
           );
           return;
@@ -254,6 +300,30 @@ export function AssinaturaScreen({ onClose, isModal }) {
 
         <View style={[as.upgradeBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[as.upgradeText, { color: colors.text }]}>{mensagemUpgrade}</Text>
+          {!hasPaidPlanAccess ? (
+            <TouchableOpacity
+              onPress={() => handleAtivarAssinaturaPaga()}
+              disabled={syncingSubscription}
+              style={{
+                marginTop: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: colors.primaryRgba(0.15),
+                borderWidth: 1,
+                borderColor: colors.primary + '55',
+                alignItems: 'center',
+              }}
+            >
+              {syncingSubscription ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
+                  Já paguei no Stripe — ativar plano nesta conta
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {planosCategoria.map((p) => {

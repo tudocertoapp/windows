@@ -21,6 +21,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { FornecedorModal } from './FornecedorModal';
 import { useIsDesktopLayout } from '../utils/platformLayout';
+import { useAuth } from '../contexts/AuthContext';
+import { loadProductCategories } from '../utils/productCategoriesPersist';
+import { DEFAULT_CATEGORIAS_PRODUTOS, findCategory } from '../utils/productCategories';
+import { playTapSound } from '../utils/sounds';
 
 const { width: SW } = Dimensions.get('window');
 const GAP = 20;
@@ -64,6 +68,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { colors } = useTheme();
   const { suppliers, products, addCompositeProduct, addSupplier } = useFinance();
   const { showEmpresaFeatures } = usePlan();
+  const { user } = useAuth();
   const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState(editingItem?.name || '');
   const [costPrice, setCostPrice] = useState(editingItem?.costPrice != null ? String(editingItem.costPrice) : '');
@@ -82,6 +87,16 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [isCompositeProduct, setIsCompositeProduct] = useState(!!(editingItem?.isComposite));
   const [compositeItems, setCompositeItems] = useState(editingItem?.compositeItems || []);
+  const [categoryId, setCategoryId] = useState(editingItem?.categoryId || null);
+  const [subcategoryId, setSubcategoryId] = useState(editingItem?.subcategoryId || null);
+  const [categoriasProdutos, setCategoriasProdutos] = useState(DEFAULT_CATEGORIAS_PRODUTOS);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    loadProductCategories(user, products, [])
+      .then(setCategoriasProdutos)
+      .catch(() => setCategoriasProdutos(DEFAULT_CATEGORIAS_PRODUTOS));
+  }, [visible, user?.id]);
 
   React.useEffect(() => {
     if (visible && editingItem) {
@@ -101,6 +116,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setShowSupplierCreateModal(false);
       setIsCompositeProduct(!!editingItem.isComposite);
       setCompositeItems(editingItem.compositeItems || []);
+      setCategoryId(editingItem.categoryId || null);
+      setSubcategoryId(editingItem.subcategoryId || null);
     } else if (visible && !editingItem) {
       setName('');
       setCostPrice('');
@@ -118,6 +135,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setShowSupplierCreateModal(false);
       setIsCompositeProduct(false);
       setCompositeItems([]);
+      setCategoryId(null);
+      setSubcategoryId(null);
     }
   }, [visible, editingItem]);
 
@@ -158,6 +177,8 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
         stock: st,
         minStock: minSt,
         supplierId: supplierId || null,
+        categoryId: categoryId || null,
+        subcategoryId: subcategoryId || null,
       };
       onSave(payload);
     }
@@ -222,6 +243,51 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
 
               <Text style={[s.label, { color: colors.textSecondary }]}>NOME (EX: CAMISA)</Text>
               <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Camisa, Calça..." value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+
+              {categoriasProdutos.enabled && !isCompositeProduct && (
+                <View style={sectionGap}>
+                  <Text style={[s.label, { color: colors.textSecondary }]}>CATEGORIA (OPCIONAL)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                    <TouchableOpacity
+                      onPress={() => { playTapSound(); setCategoryId(null); setSubcategoryId(null); }}
+                      style={[s.chip, { borderColor: !categoryId ? colors.primary : colors.border, backgroundColor: !categoryId ? colors.primary + '22' : colors.bg }]}
+                    >
+                      <Text style={{ color: !categoryId ? colors.primary : colors.text, fontWeight: '600', fontSize: 12 }}>Sem categoria</Text>
+                    </TouchableOpacity>
+                    {(categoriasProdutos.items || []).map((cat) => (
+                      <TouchableOpacity
+                        key={cat.id}
+                        onPress={() => { playTapSound(); setCategoryId(cat.id); setSubcategoryId(null); }}
+                        style={[s.chip, { borderColor: String(categoryId) === String(cat.id) ? colors.primary : colors.border, backgroundColor: String(categoryId) === String(cat.id) ? colors.primary + '22' : colors.bg }]}
+                      >
+                        <Text style={{ color: String(categoryId) === String(cat.id) ? colors.primary : colors.text, fontWeight: '600', fontSize: 12 }}>{cat.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  {categoryId && (findCategory(categoriasProdutos, categoryId)?.subcategorias?.length > 0) && (
+                    <>
+                      <Text style={[s.label, { color: colors.textSecondary, marginTop: 10 }]}>SUBCATEGORIA (OPCIONAL)</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => { playTapSound(); setSubcategoryId(null); }}
+                          style={[s.chip, { borderColor: !subcategoryId ? colors.primary : colors.border, backgroundColor: !subcategoryId ? colors.primary + '22' : colors.bg }]}
+                        >
+                          <Text style={{ color: !subcategoryId ? colors.primary : colors.text, fontWeight: '600', fontSize: 12 }}>Todas</Text>
+                        </TouchableOpacity>
+                        {(findCategory(categoriasProdutos, categoryId)?.subcategorias || []).map((sub) => (
+                          <TouchableOpacity
+                            key={sub.id}
+                            onPress={() => { playTapSound(); setSubcategoryId(sub.id); }}
+                            style={[s.chip, { borderColor: String(subcategoryId) === String(sub.id) ? colors.primary : colors.border, backgroundColor: String(subcategoryId) === String(sub.id) ? colors.primary + '22' : colors.bg }]}
+                          >
+                            <Text style={{ color: String(subcategoryId) === String(sub.id) ? colors.primary : colors.text, fontWeight: '600', fontSize: 12 }}>{sub.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </>
+                  )}
+                </View>
+              )}
 
               {showEmpresaFeatures && (
                 <>
@@ -459,6 +525,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 6,
   },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   saveBtn: { borderRadius: 12, paddingVertical: 18, alignItems: 'center', marginTop: GAP },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

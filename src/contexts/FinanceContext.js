@@ -106,6 +106,8 @@ function toProduct(r) {
     stock: data.stock ?? 0,
     minStock: data.min_stock ?? 0,
     supplierId: data.supplier_id,
+    categoryId: data.category_id || null,
+    subcategoryId: data.subcategory_id || null,
   };
 }
 function toService(r) {
@@ -684,6 +686,8 @@ export function FinanceProvider({ children }) {
       ...(p.stock != null && { stock: p.stock }),
       ...(p.minStock != null && { min_stock: p.minStock }),
       ...(p.supplierId != null && { supplier_id: p.supplierId }),
+      ...(p.categoryId != null && { category_id: p.categoryId }),
+      ...(p.subcategoryId != null && { subcategory_id: p.subcategoryId }),
       ...(photoUris.length > 0 && { photo_uris: photoUris }),
     };
     const { data, error } = await supabase.from('products').insert({
@@ -707,8 +711,8 @@ export function FinanceProvider({ children }) {
     if (data.costPrice != null) up.cost_price = data.costPrice;
     if (data.discount != null) up.discount = data.discount;
     if (data.unit != null) up.unit = data.unit;
-    if (data.photoUri != null) up.photo_uri = data.photoUri;
-    if (data.code !== undefined || data.barcode !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.photoUris !== undefined) {
+    if (data.photoUri !== undefined) up.photo_uri = data.photoUri;
+    if (data.code !== undefined || data.barcode !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.categoryId !== undefined || data.subcategoryId !== undefined || data.photoUris !== undefined) {
       const curr = (await supabase.from('products').select('data').eq('id', id).single()).data?.data || {};
       const photoUris = data.photoUris !== undefined ? (data.photoUris?.length ? data.photoUris : []) : undefined;
       up.data = {
@@ -719,6 +723,8 @@ export function FinanceProvider({ children }) {
         ...(data.stock !== undefined && { stock: data.stock }),
         ...(data.minStock !== undefined && { min_stock: data.minStock }),
         ...(data.supplierId !== undefined && { supplier_id: data.supplierId }),
+        ...(data.categoryId !== undefined && { category_id: data.categoryId || null }),
+        ...(data.subcategoryId !== undefined && { subcategory_id: data.subcategoryId || null }),
         ...(photoUris !== undefined && { photo_uris: photoUris }),
       };
     }
@@ -795,7 +801,7 @@ export function FinanceProvider({ children }) {
       ...(data.name != null && { name: data.name }),
       ...(data.price != null && { price: data.price }),
       ...(data.discount != null && { discount: data.discount }),
-      ...(data.photoUri != null && { photo_uri: data.photoUri }),
+      ...(data.photoUri !== undefined && { photo_uri: data.photoUri }),
     }).eq('id', id);
     setServices((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
   };

@@ -39,6 +39,8 @@ import { OrdemServicoScreen } from '../screens/OrdemServicoScreen';
 import { OrcamentosMainScreen } from '../screens/orcamentos/OrcamentosMainScreen';
 import { PDVScreen } from '../screens/PDVScreen';
 import { ColaboradoresScreen } from '../screens/ColaboradoresScreen';
+import { CatalogoScreen } from '../screens/CatalogoScreen';
+import { MeusProfissionaisScreen } from '../screens/MeusProfissionaisScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
 import { AddModal } from '../components/AddModal';
@@ -58,7 +60,7 @@ import {
   WEB_DESKTOP_RAIL_VERTICAL_INSET,
   DesktopRailMenuButton,
 } from '../components/navigation/RightSideTabBar';
-import { useIsDesktopLayout, isElectronWebClient, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
+import { useIsDesktopLayout, isElectronWebClient, WEB_MOBILE_TAB_BAR_RESERVE, isDesktopOnlyFeatureClient } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createAppWebLinking, isWebCadastroPathSlug } from './webNavigationLinking';
 import { useWebModalUrlSync } from './useWebModalUrlSync';
@@ -161,6 +163,8 @@ export function AppNavigator() {
   const [colaboradoresModal, setColaboradoresModal] = useState(false);
   const [ordemServicoModal, setOrdemServicoModal] = useState(false);
   const [orcamentosModal, setOrcamentosModal] = useState(false);
+  const [catalogoModal, setCatalogoModal] = useState(false);
+  const [meusProfissionaisModal, setMeusProfissionaisModal] = useState(false);
   const [pdvModal, setPdvModal] = useState(false);
   const [calculadoraModal, setCalculadoraModal] = useState(false);
   const [calculadoraFloating, setCalculadoraFloating] = useState(false);
@@ -269,12 +273,13 @@ export function AppNavigator() {
       return;
     }
     if (isElectronWebClient()) return;
+    if (!isDesktopLayout) return;
     if (window.location.hash !== '#pdv') return;
     setPdvStandaloneWeb(true);
     setPdvModal(true);
     const cleanUrl = `${window.location.pathname}${window.location.search || ''}`;
     window.history.replaceState(window.history.state, '', cleanUrl);
-  }, []);
+  }, [isDesktopLayout]);
 
   const linking = useMemo(
     () => createAppWebLinking({ isWeb, showEmpresaFeatures, cadastroUrlRef }),
@@ -287,6 +292,8 @@ export function AppNavigator() {
     setCalculadoraFloating(false);
     setPdvModal(false);
     setOrcamentosModal(false);
+    setCatalogoModal(false);
+    setMeusProfissionaisModal(false);
     setOrdemServicoModal(false);
     setEmpresaModal(false);
     setColaboradoresModal(false);
@@ -417,7 +424,7 @@ export function AppNavigator() {
           setCalculadoraFloating(true);
           break;
         case 'pdv':
-          setPdvModal(true);
+          if (isDesktopOnlyFeatureClient(isWebDesktop)) setPdvModal(true);
           break;
         case 'orcamentos':
           setOrcamentosModal(true);
@@ -507,7 +514,7 @@ export function AppNavigator() {
           break;
       }
     },
-    [resetAllWebOverlayModals]
+    [resetAllWebOverlayModals, isWebDesktop]
   );
 
   const isDarkBg = colors.isDarkBg ?? (colors.text === '#ffffff');
@@ -563,8 +570,17 @@ export function AppNavigator() {
       openColaboradores: () => { setMenuModalOpen(false); setColaboradoresModal(true); },
       openOrdemServico: () => { setMenuModalOpen(false); setOrdemServicoModal(true); },
       openOrcamentos: () => { setMenuModalOpen(false); setOrcamentosModal(true); },
+      openCatalogo: () => { setMenuModalOpen(false); setCatalogoModal(true); },
+      openMeusProfissionais: () => { setMenuModalOpen(false); setMeusProfissionaisModal(true); },
       openPDV: () => {
         setMenuModalOpen(false);
+        if (!isDesktopOnlyFeatureClient(isWebDesktop)) {
+          Alert.alert(
+            'Disponível no desktop',
+            'Abrir caixa (PDV) está disponível apenas no Tudo Certo para desktop — navegador em tela grande ou app instalado.',
+          );
+          return;
+        }
         if (Platform.OS === 'web' && typeof window !== 'undefined' && !isElectronWebClient()) {
           window.open('/inicio#pdv', '_blank', 'noopener,noreferrer');
           return;
@@ -629,6 +645,8 @@ export function AppNavigator() {
       return true;
     }
     if (orcamentosModal) { setOrcamentosModal(false); return true; }
+    if (catalogoModal) { setCatalogoModal(false); return true; }
+    if (meusProfissionaisModal) { setMeusProfissionaisModal(false); return true; }
     if (ordemServicoModal) { setOrdemServicoModal(false); return true; }
     if (empresaModal) { setEmpresaModal(false); return true; }
     if (colaboradoresModal) { setColaboradoresModal(false); return true; }
@@ -1041,6 +1059,8 @@ export function AppNavigator() {
                 onOpenListaCompras={menuActions.openListaCompras}
                 onOpenMetasSonhos={menuActions.openMetasSonhos}
                 onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+                onOpenCatalogo={menuActions.openCatalogo}
+                onOpenMeusProfissionais={menuActions.openMeusProfissionais}
                 onOpenEmpresa={menuActions.openEmpresa}
                 onOpenColaboradores={menuActions.openColaboradores}
                 onOpenOrdemServico={menuActions.openOrdemServico}
@@ -1088,6 +1108,8 @@ export function AppNavigator() {
                 onOpenListaCompras={menuActions.openListaCompras}
                 onOpenMetasSonhos={menuActions.openMetasSonhos}
                 onOpenMensagensWhatsApp={menuActions.openMensagensWhatsApp}
+                onOpenCatalogo={menuActions.openCatalogo}
+                onOpenMeusProfissionais={menuActions.openMeusProfissionais}
                 onOpenEmpresa={menuActions.openEmpresa}
                 onOpenColaboradores={menuActions.openColaboradores}
                 onOpenOrdemServico={menuActions.openOrdemServico}
@@ -1195,6 +1217,14 @@ export function AppNavigator() {
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <OrcamentosMainScreen onClose={() => setOrcamentosModal(false)} />
         </SafeAreaView>
+      </Modal>
+      <Modal visible={catalogoModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <CatalogoScreen onClose={() => setCatalogoModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={meusProfissionaisModal} animationType="slide">
+        <MeusProfissionaisScreen onClose={() => setMeusProfissionaisModal(false)} isModal />
       </Modal>
       {isWeb && (
         <Modal visible={pdvModal} animationType="slide">

@@ -31,6 +31,7 @@ import {
 import VoiceRecorder from './VoiceRecorder';
 import { processReceipt } from '../services/receiptOcr/processReceipt';
 import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
+import { getVisionConfigHint } from '../lib/visionStatus';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 
 /** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
@@ -296,7 +297,7 @@ function brDateToIso(dateStr) {
   return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
-export function MeusGastosChat({ embedded = false, transparentBg = false }) {
+export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEnabled = true }) {
   const { colors } = useTheme();
   const { transactions, addTransaction } = useFinance();
   const { openAddModal } = useMenu();
@@ -920,8 +921,11 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
   };
 
   const openCameraChoice = () => {
-    // Mantemos para quem quiser usar em outro lugar, mas no input principal vamos direto.
     playTapSound();
+    if (!ocrEnabled) {
+      Alert.alert('OCR indisponível', getVisionConfigHint());
+      return;
+    }
     setCameraChoiceVisible(true);
   };
 
@@ -1195,7 +1199,11 @@ export function MeusGastosChat({ embedded = false, transparentBg = false }) {
                 ]}
                 accessibilityLabel="Enviar comprovante"
               >
-                <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                <Ionicons
+                  name="camera-outline"
+                  size={22}
+                  color={ocrEnabled ? colors.primary : colors.textSecondary}
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleMicPress}

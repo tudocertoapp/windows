@@ -29,6 +29,8 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { CadastroClientePublicoScreen } from './src/screens/CadastroClientePublicoScreen';
 import { playBrandIntroSound } from './src/utils/sounds';
 import { CLIENT_REGISTRATION_PATH } from './src/utils/clientRegistrationLink';
+import { LOJA_PUBLIC_PATH } from './src/utils/lojaPublicLink';
+import { LojaPublicaScreen } from './src/screens/LojaPublicaScreen';
 
 const BRAND_INTRO_ONCE_KEY = '@tudocerto_brand_intro_once_v1';
 
@@ -53,8 +55,16 @@ function getPublicCadastroOwnerId() {
   return new URLSearchParams(window.location.search).get('ref') || '';
 }
 
+function getPublicLojaOwnerId() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const path = (window.location.pathname || '').replace(/\/$/, '') || '/';
+  if (path !== LOJA_PUBLIC_PATH && !path.endsWith(LOJA_PUBLIC_PATH)) return null;
+  return new URLSearchParams(window.location.search).get('ref') || '';
+}
+
 function AppContent() {
   const publicCadastroOwnerId = getPublicCadastroOwnerId();
+  const publicLojaOwnerId = getPublicLojaOwnerId();
   const { user, isGuest, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
@@ -73,7 +83,8 @@ function AppContent() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
-    if (path === '/sucesso' || path === '/cancelado') {
+    // /sucesso: PlanContext sincroniza session_id antes de limpar a URL
+    if (path === '/cancelado') {
       window.history.replaceState({}, '', '/');
     }
   }, [user?.id]);
@@ -133,6 +144,14 @@ function AppContent() {
     return (
       <ThemeProvider>
         <CadastroClientePublicoScreen ownerUserId={publicCadastroOwnerId} />
+      </ThemeProvider>
+    );
+  }
+
+  if (publicLojaOwnerId !== null) {
+    return (
+      <ThemeProvider>
+        <LojaPublicaScreen ownerUserId={publicLojaOwnerId} />
       </ThemeProvider>
     );
   }

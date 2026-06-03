@@ -39,6 +39,7 @@ import {
   resolveDesktopDownloadUrls,
   triggerDesktopDownload,
 } from '../constants/desktopDownload';
+import { loadCatalogoConfig } from '../utils/catalogoPersist';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -259,7 +260,7 @@ export function DashboardScreen() {
   const CARD_PREVIEW_MAX_ITEMS = 5;
   const route = useRoute();
   const navigation = useNavigation();
-  const { transactions, checkListItems, agendaEvents, boletos, clients, services, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction, updateBoleto, deleteBoleto } = useFinance();
+  const { transactions, checkListItems, agendaEvents, boletos, clients, products, services, aReceber, updateCheckListItem, deleteCheckListItem, updateAgendaEvent, deleteAgendaEvent, addCheckListItem, deleteTransaction, updateTransaction, updateBoleto, deleteBoleto } = useFinance();
 
   const agendaClientFor = useCallback(
     (e) => {
@@ -299,8 +300,8 @@ export function DashboardScreen() {
         };
   }, [isDarkTheme, colors.primary]);
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
-  const { isGuest } = useAuth();
-  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV } = useMenu();
+  const { isGuest, user } = useAuth();
+  const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV, openCatalogo } = useMenu();
   const { notes, deleteNote } = useNotes();
   const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
   const { profile } = useProfile();
@@ -403,9 +404,44 @@ export function DashboardScreen() {
     }
   }, [quoteBody, quoteSource, quoteType, quote, openImageGenerator]);
 
-  const webDesktopQuickButtons = useMemo(
-    () => (useWebLayout && showEmpresaFeatures ? [
+  const [catalogoLojaAtiva, setCatalogoLojaAtiva] = useState(false);
+
+  useEffect(() => {
+    if (!showEmpresaFeatures || !user?.id) {
+      setCatalogoLojaAtiva(false);
+      return undefined;
+    }
+    let cancelled = false;
+    loadCatalogoConfig(user, products, services)
+      .then((cfg) => {
+        if (!cancelled) setCatalogoLojaAtiva(cfg?.lojaPublica !== false);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogoLojaAtiva(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEmpresaFeatures, user?.id, products?.length, services?.length]);
+
+  const showMinhaLojaQuickButton =
+    useWebLayout && showEmpresaFeatures && viewMode === 'empresa' && catalogoLojaAtiva;
+
+  const webDesktopQuickButtons = useMemo(() => {
+    if (!useWebLayout || !showEmpresaFeatures) return [];
+    const buttons = [
       { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
+    ];
+    if (showMinhaLojaQuickButton) {
+      buttons.push({
+        id: 'minha-loja',
+        label: 'Minha Loja',
+        icon: 'storefront-outline',
+        onPress: () => openCatalogo?.(),
+        color: CARD_ICON_COLORS.meusgastos,
+      });
+    }
+    buttons.push(
       { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
       { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
       { id: 'clientes', label: 'Clientes', icon: 'people-outline', onPress: () => openCadastro?.('clientes'), color: CARD_ICON_COLORS.aniversariantes },
@@ -413,9 +449,20 @@ export function DashboardScreen() {
       { id: 'orcamentos', label: 'Orçamentos', icon: 'document-text-outline', onPress: () => (openOrcamentos?.() || openOrcamento?.()), color: CARD_ICON_COLORS.listacompras },
       { id: 'a-receber', label: 'A receber', icon: 'card-outline', onPress: () => openAReceber?.(), color: CARD_ICON_COLORS.quote },
       { id: 'relatorios', label: 'Relatórios', icon: 'stats-chart-outline', onPress: () => openEmpresa?.(), color: CARD_ICON_COLORS.proximasfaturas },
-    ] : []),
-    [useWebLayout, showEmpresaFeatures, openAReceber, openCadastro, openEmpresa, openOrcamento, openOrcamentos, openPDV],
-  );
+    );
+    return buttons;
+  }, [
+    useWebLayout,
+    showEmpresaFeatures,
+    showMinhaLojaQuickButton,
+    openAReceber,
+    openCadastro,
+    openCatalogo,
+    openEmpresa,
+    openOrcamento,
+    openOrcamentos,
+    openPDV,
+  ]);
 
   useEffect(() => {
     if (!(isWeb && useWebLayout)) return undefined;

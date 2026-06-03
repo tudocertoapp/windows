@@ -7,26 +7,22 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { usePlan } from '../../contexts/PlanContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
-import { scaleWebDesktop } from '../../utils/platformLayout';
 
 /** Botões redondos da rail (tab bar + menu flutuante): 42×42. */
 export const WEB_DESKTOP_RAIL_ROUND_BTN = 42;
 const RAIL_ICON_SIZE = 21;
 
-export function getWebDesktopRailCalcPosition(quickBtnHeight = scaleWebDesktop(36, true)) {
+export function getWebDesktopRailMenuPosition() {
   const size = WEB_DESKTOP_RAIL_ROUND_BTN;
-  const quickRowTotalH = WEB_DESKTOP_QUICK_ROW_SHELL_PAD_V * 2 + quickBtnHeight;
-  const bottom = WEB_DESKTOP_QUICK_ROW_BOTTOM + quickRowTotalH / 2 - size / 2;
+  const top = WEB_DESKTOP_RAIL_VERTICAL_INSET;
   const right = WEB_DESKTOP_RAIL_VIEWPORT_MARGIN + (WEB_DESKTOP_RAIL_WIDTH - size) / 2;
-  return { bottom, right, size };
+  return { top, right, size };
 }
 
-/** Botão redondo do menu — coluna da tab bar, alinhado à fileira F1–F8. */
-export function DesktopRailMenuButton({ onPress, active, colors, quickBtnHeight }) {
+/** Botão redondo do menu — coluna da tab bar, no topo da rail (mesma linha vertical). */
+export function DesktopRailMenuButton({ onPress, active, colors }) {
   if (Platform.OS !== 'web') return null;
-  const { bottom, right, size } = getWebDesktopRailCalcPosition(
-    quickBtnHeight ?? scaleWebDesktop(36, true),
-  );
+  const { top, right, size } = getWebDesktopRailMenuPosition();
   return (
     <TouchableOpacity
       activeOpacity={0.88}
@@ -38,7 +34,7 @@ export function DesktopRailMenuButton({ onPress, active, colors, quickBtnHeight 
       accessibilityRole="button"
       style={{
         position: 'fixed',
-        bottom,
+        top,
         right,
         width: size,
         height: size,
@@ -86,7 +82,7 @@ export const WEB_DESKTOP_RAIL_VIEWPORT_MARGIN = 12;
 export const WEB_DESKTOP_RAIL_CONTENT_GAP = 12;
 /** Margem vertical da rail em relação ao topo/fundo da viewport. */
 export const WEB_DESKTOP_RAIL_VERTICAL_INSET = 12;
-/** Fileira de atalhos F1–F8 (Início desktop): mesma linha vertical do menu flutuante na rail. */
+/** Fileira de atalhos F1–F8 (Início desktop). */
 export const WEB_DESKTOP_QUICK_ROW_BOTTOM = 8;
 export const WEB_DESKTOP_QUICK_ROW_SHELL_PAD_V = 6;
 /**

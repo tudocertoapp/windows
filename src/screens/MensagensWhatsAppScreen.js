@@ -28,7 +28,6 @@ import { openWhatsApp as openWhatsAppUtil, formatPhoneForWhatsApp } from '../uti
 import { buildClientRegistrationUrl, getClientRegistrationWhatsAppMessage } from '../utils/clientRegistrationLink';
 import { ClienteModal } from '../components/ClienteModal';
 import { ClienteDetalheModal } from '../components/ClienteDetalheModal';
-import { CatalogoScreen } from './CatalogoScreen';
 import { playTapSound } from '../utils/sounds';
 import { onDeletePress } from '../utils/confirm';
 import { formatCurrency } from '../utils/format';
@@ -362,15 +361,6 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
         )}
         <Text style={[s.tabText, { color: tab === 'contatos' ? '#fff' : colors.text }]} numberOfLines={1}>Contatos</Text>
       </TouchableOpacity>
-      {showEmpresaFeatures && (
-        <TouchableOpacity
-          style={[s.tabEqual, tab === 'catalogo' && { backgroundColor: colors.primary }]}
-          onPress={() => { playTapSound(); setTab('catalogo'); }}
-        >
-          <Ionicons name="grid-outline" size={18} color={tab === 'catalogo' ? '#fff' : colors.primary} />
-          <Text style={[s.tabText, { color: tab === 'catalogo' ? '#fff' : colors.text }]} numberOfLines={1}>Catálogo</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 
@@ -410,9 +400,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
         </>
       )}
 
-      {tab === 'catalogo' ? (
-        <CatalogoScreen isModal={false} />
-      ) : tab === 'contatos' ? (
+      {tab === 'contatos' ? (
         <FlatList
           style={{ flex: 1 }}
           data={filteredContacts}

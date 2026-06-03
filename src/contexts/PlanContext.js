@@ -7,8 +7,10 @@ import { getPlanFeatures } from '../constants/planFeatures';
 import { supabase } from '../lib/supabase';
 import {
   getUserSubscription,
+  getStripeCheckoutSessionIdFromUrl,
   isPaidSubscriptionActive,
   isSubscriptionPastDue,
+  syncSubscriptionFromStripe,
 } from '../lib/subscription';
 
 const PLAN_STORAGE_BASE = '@tudocerto_plan';
@@ -103,6 +105,35 @@ export function PlanProvider({ children }) {
       if (state === 'active') refreshSubscription().catch(() => {});
     });
     return () => sub?.remove?.();
+  }, [user?.id, refreshSubscription]);
+
+  /** Após pagamento no Stripe (web): sincroniza antes de limpar a URL. */
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const sessionId = getStripeCheckoutSessionIdFromUrl();
+    const path =
+      typeof window !== 'undefined'
+        ? (window.location.pathname || '/').replace(/\/$/, '') || '/'
+        : '';
+    const onSuccessPath = path === '/sucesso';
+    if (!sessionId && !onSuccessPath) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await syncSubscriptionFromStripe(supabase, { sessionId });
+        if (!cancelled) await refreshSubscription();
+      } catch (e) {
+        console.warn('[PlanContext] sync pós-checkout:', e?.message || e);
+      } finally {
+        if (typeof window !== 'undefined' && !cancelled) {
+          window.history.replaceState({}, '', '/');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, refreshSubscription]);
 
   useEffect(() => {

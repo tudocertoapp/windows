@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -24,6 +24,10 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
   const useWebLayout = isWeb && isDesktopLayout;
+  const [ocrReady, setOcrReady] = useState(null);
+  const onOcrStatusChange = useCallback((result) => {
+    setOcrReady(result?.status === 'ok');
+  }, []);
   const now = new Date();
   const headerDate = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
 
@@ -73,7 +77,15 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
               Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
             </Text>
-            <VisionOcrStatusBadge colors={colors} />
+            <VisionOcrStatusBadge colors={colors} onStatusChange={onOcrStatusChange} />
+            {isWeb && ocrReady === false ? (
+              <Text style={{ color: '#b45309', fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+                Para ler comprovantes no PC: abra um terminal na pasta do projeto e execute{' '}
+                <Text style={{ fontWeight: '700' }}>npm run web:dev</Text>
+                {' '}(ou <Text style={{ fontWeight: '700' }}>npm run web:api</Text> junto com o app). Reinicie o Expo com{' '}
+                <Text style={{ fontWeight: '700' }}>npx expo start --clear</Text> após alterar o .env.
+              </Text>
+            ) : null}
           </View>
           <View
             style={[
@@ -81,7 +93,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
               useWebLayout && isWeb ? { height: 0, overflow: 'hidden' } : null,
             ]}
           >
-            <MeusGastosChat transparentBg={false} />
+            <MeusGastosChat transparentBg={false} ocrEnabled={ocrReady !== false} />
           </View>
         </>
       )}

@@ -47,6 +47,12 @@ export function useIsDesktopLayout() {
   }, [width]);
 }
 
+/** PDV e fileira de atalhos F1–F8: apenas web desktop ou app Electron instalado. */
+export function isDesktopOnlyFeatureClient(isWebDesktop) {
+  if (isElectronWebClient()) return true;
+  return Boolean(isWebDesktop);
+}
+
 /**
  * Retorna a chave de storage apropriada para a plataforma atual.
  * Web usa sufixo _web, mobile usa a chave original.

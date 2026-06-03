@@ -10,6 +10,8 @@ export const MenuContext = createContext({
   openReceiptScanner: () => {},
   openCalculadoraFull: () => {},
   openMensagensWhatsApp: () => {},
+  openCatalogo: () => {},
+  openMeusProfissionais: () => {},
 });
 
 export function useMenu() {

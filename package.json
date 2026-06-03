@@ -7,6 +7,8 @@
     "web": "expo start --web --port 8081",
     "web:api": "node scripts/vision-dev-server.js",
     "vision:check": "node scripts/check-vision-env.js",
+    "stripe:check": "node scripts/check-stripe-env.js",
+    "web:dev": "concurrently -k \"npm run web:api\" \"npm run web\"",
     "web:build": "expo export --platform web && node scripts/ensure-dist-assets.js && node scripts/patch-web-index.js && node scripts/patch-web-bundle-assets.js",
     "sync:desktop-version": "node scripts/set-desktop-version.js",
     "sync:mobile-version": "node scripts/set-mobile-version.js",

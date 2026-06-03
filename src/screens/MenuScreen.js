@@ -33,7 +33,7 @@ const ms = StyleSheet.create({
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenPrivacidade, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, onOpenColaboradores, compact }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenCatalogo, onOpenMeusProfissionais, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenPrivacidade, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, onOpenColaboradores, compact }) {
   const { clients, products, services, boletos, checkListItems, suppliers, collaborators } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures, planLabel, planId, planFeatures } = usePlan();
@@ -203,8 +203,9 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
               </TouchableOpacity>
               {empresaDropdownOpen && (
                 <>
-                  {isWeb && planFeatures?.canUsePDV && <MenuItem icon="cart-outline" label="Abrir Caixa" subtitle="Ponto de venda e vendas" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
+                  {isWebDesktop && planFeatures?.canUsePDV && <MenuItem icon="cart-outline" label="Abrir Caixa" subtitle="Ponto de venda e vendas" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
                   <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads e mensagens" badge={`${clients.length}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenMensagensWhatsApp?.(); }} />
+                  <MenuItem icon="storefront-outline" label="Minha Loja" subtitle="Vitrine de produtos e serviços" badge={`${(products?.length || 0) + (services?.length || 0)}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenCatalogo?.(); }} />
                   <MenuItem icon="document-text-outline" label="Ordem de serviço" subtitle="Cadastro e gestão de OS" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrdemServico?.(); }} />
                   <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />
                   <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('produtos'); }} />
@@ -253,6 +254,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: sectionPadH, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>PRODUTIVIDADE</Text>
         <GlassCard colors={colors} solid style={[ms.sectionCard, { borderColor: colors.border, borderWidth: 1, marginHorizontal: cardMargin, marginTop: 4 }]} contentStyle={{ padding: 0 }}>
+          <MenuItem icon="people-outline" label="Meus Profissionais" subtitle="Lojas favoritas · agendar e comprar no app" onPress={() => onOpenMeusProfissionais?.()} />
           <MenuItem icon="heart-outline" label="Metas e sonhos" subtitle="Cofrinhos e progresso" onPress={onOpenMetasSonhos || comingSoon} />
         </GlassCard>
         <Text style={[ms.sectionLabel, { color: colors.textSecondary, paddingHorizontal: sectionPadH, paddingTop: isCompact ? 12 : 20, paddingBottom: isCompact ? 6 : 8, fontSize: isCompact ? 10 : 11 } ]}>CONTA</Text>

@@ -132,3 +132,50 @@ export async function handleSubscribe(supabase, planId) {
   const { Linking } = require('react-native');
   await Linking.openURL(checkoutUrl);
 }
+
+/**
+ * Busca assinatura paga no Stripe e grava em public.subscriptions (quando webhook ainda não rodou).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ sessionId?: string }} [options]
+ */
+export async function syncSubscriptionFromStripe(supabase, options = {}) {
+  const origin = getApiOrigin();
+  if (!origin) {
+    throw new Error('Defina EXPO_PUBLIC_STRIPE_API_URL para sincronizar a assinatura.');
+  }
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData?.session?.user) {
+    throw new Error('Faça login com a mesma conta usada no pagamento.');
+  }
+
+  const user = sessionData.session.user;
+  const accessToken = sessionData.session.access_token;
+  if (!accessToken) throw new Error('Sessão inválida. Entre novamente.');
+
+  const res = await fetch(`${origin}/api/stripe/sync-subscription`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      userId: user.id,
+      email: user.email || '',
+      sessionId: options.sessionId || '',
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `Erro ${res.status}`);
+  }
+  return json;
+}
+
+/** session_id na URL após checkout Stripe (web). */
+export function getStripeCheckoutSessionIdFromUrl() {
+  if (typeof window === 'undefined') return '';
+  const params = new URLSearchParams(window.location.search);
+  return params.get('session_id') || '';
+}
