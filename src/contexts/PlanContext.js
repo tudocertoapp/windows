@@ -137,8 +137,9 @@ export function PlanProvider({ children }) {
   }, [user?.id, refreshSubscription]);
 
   useEffect(() => {
-    if (plan === PLANS.pessoal && viewMode === 'empresa') setViewMode('pessoal');
-  }, [plan]);
+    if (plan === PLANS.pessoal && viewMode !== 'pessoal') setViewMode('pessoal');
+    if (plan === PLANS.empresa && viewMode !== 'empresa') setViewMode('empresa');
+  }, [plan, viewMode]);
 
   useEffect(() => {
     if (!loaded) return;

@@ -44,7 +44,7 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp }) {
     }
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/loja/store?ref=${encodeURIComponent(ownerUserId)}`);
+        const res = await fetch(`${apiBase}/api/loja/store?ref=${encodeURIComponent(ownerUserId)}`, { cache: 'no-store' });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
           setError(json.error || 'Não foi possível carregar a loja.');
@@ -177,7 +177,7 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   contactFab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 84,
     left: 24,
     width: 52,
     height: 52,

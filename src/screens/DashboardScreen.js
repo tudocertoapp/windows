@@ -299,7 +299,7 @@ export function DashboardScreen() {
           text: '#1f2937',
         };
   }, [isDarkTheme, colors.primary]);
-  const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
+  const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, plan, PLANS } = usePlan();
   const { isGuest, user } = useAuth();
   const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV, openCatalogo } = useMenu();
   const { notes, deleteNote } = useNotes();
@@ -435,7 +435,7 @@ export function DashboardScreen() {
     if (showMinhaLojaQuickButton) {
       buttons.push({
         id: 'minha-loja',
-        label: 'Minha Loja',
+        label: 'Meu Catálogo',
         icon: 'storefront-outline',
         onPress: () => openCatalogo?.(),
         color: CARD_ICON_COLORS.meusgastos,
@@ -485,6 +485,7 @@ export function DashboardScreen() {
       const fnNumber = Number(match[1]);
       if (!Number.isFinite(fnNumber)) return;
       if (canToggleView && (fnNumber === 9 || fnNumber === 10)) {
+        if (plan === PLANS.empresa && fnNumber === 9) return;
         event.preventDefault();
         playTapSound();
         setViewMode(fnNumber === 9 ? 'pessoal' : 'empresa');
@@ -498,7 +499,7 @@ export function DashboardScreen() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWeb, useWebLayout, showEmpresaFeatures, canToggleView, webDesktopQuickButtons, setViewMode]);
+  }, [isWeb, useWebLayout, showEmpresaFeatures, canToggleView, plan, PLANS, webDesktopQuickButtons, setViewMode]);
 
 
   useEffect(() => {

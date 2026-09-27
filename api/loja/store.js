@@ -47,6 +47,38 @@ function resolvePublicItems(config, products, services) {
   if (tipo === 'produtos') rows = rows.filter((r) => r._tipo === 'produto');
   if (tipo === 'servicos') rows = rows.filter((r) => r._tipo === 'servico');
 
+  if (!rows.length) {
+    const pushProduct = (src) => {
+      const cats = productCategoryIds(src);
+      rows.push({
+        id: src.id,
+        name: src.name,
+        price: Number(src.price) || 0,
+        discount: Number(src.discount) || 0,
+        photoUri: src.photo_uri || src.photoUri || (Array.isArray(src.photo_uris) ? src.photo_uris[0] : null) || src.photoUris?.[0] || null,
+        categoryId: cats.categoryId || null,
+        subcategoryId: cats.subcategoryId || null,
+        _tipo: 'produto',
+        _rowId: itemKey('produto', src.id),
+      });
+    };
+    const pushService = (src) => {
+      rows.push({
+        id: src.id,
+        name: src.name,
+        price: Number(src.price) || 0,
+        discount: Number(src.discount) || 0,
+        photoUri: src.photo_uri || null,
+        categoryId: null,
+        subcategoryId: null,
+        _tipo: 'servico',
+        _rowId: itemKey('servico', src.id),
+      });
+    };
+    if (tipo !== 'servicos') (products || []).forEach(pushProduct);
+    if (tipo !== 'produtos') (services || []).forEach(pushService);
+  }
+
   const max = Number(config?.maxItensVisiveis) || 0;
   if (max > 0) rows = rows.slice(0, max);
   return rows;
@@ -76,6 +108,7 @@ module.exports = async function handler(req, res) {
   }
 
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
   const supabase = getSupabaseAdmin();
   if (!supabase) return res.status(500).json({ error: 'Servidor não configurado.' });
 

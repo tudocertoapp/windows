@@ -129,6 +129,11 @@ const config = {
       supabaseAnonKey:
         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6dmZpdXZnZ3BwbnVsZmVwd2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTc1OTUsImV4cCI6MjA4NTE5MzU5NX0.eZUbc2sveWDRCu_Nm6z0chP7T6-hqDJf7omatgiB2Pk',
+      siteUrl: process.env.EXPO_PUBLIC_SITE_URL || 'https://tudocerto-web.vercel.app',
+      stripeApiUrl:
+        process.env.EXPO_PUBLIC_STRIPE_API_URL ||
+        process.env.EXPO_PUBLIC_SITE_URL ||
+        'https://tudocerto-web.vercel.app',
     },
   },
 };

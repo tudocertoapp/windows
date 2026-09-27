@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { TabShortcutChip } from './RightSideTabBar';
 
 const SPRING_CONFIG = { damping: 18, stiffness: 180 };
 const ICON_MAP = {
@@ -29,7 +30,7 @@ const ICON_MAP = {
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiveColor, isDark, icon, label, showLabel }) {
+function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiveColor, isDark, icon, label, showLabel, shortcut, colors }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(isFocused ? 1 : 0.85);
   const iconName = ICON_MAP[route.name] || 'ellipse-outline';
@@ -90,14 +91,17 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
       <TouchableOpacity
         accessible
         accessibilityRole="button"
-        accessibilityLabel={displayLabel}
+        accessibilityLabel={shortcut ? `${displayLabel} (${shortcut})` : displayLabel}
         accessibilityState={isFocused ? { selected: true } : {}}
         onPress={onPress}
         onLongPress={onLongPress}
-        style={styles.tabItem}
+        style={[styles.tabItem, { overflow: 'visible', position: 'relative' }]}
         activeOpacity={0.85}
       >
-        {tabInner}
+        <View style={{ position: 'relative', overflow: 'visible' }}>
+          {tabInner}
+          <TabShortcutChip label={shortcut} colors={colors} />
+        </View>
       </TouchableOpacity>
     );
   }
@@ -106,7 +110,7 @@ function TabItem({ route, isFocused, onPress, onLongPress, primaryColor, inactiv
     <AnimatedTouchable
       accessible
       accessibilityRole="button"
-      accessibilityLabel={displayLabel}
+      accessibilityLabel={shortcut ? `${displayLabel} (${shortcut})` : displayLabel}
       accessibilityState={isFocused ? { selected: true } : {}}
       onPress={handlePress}
       onLongPress={onLongPress}
@@ -124,6 +128,7 @@ const TabItemMemo = memo(TabItem);
 
 function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, inactiveColor, isDark, customHandlers = {}, showLabel = false, hiddenRouteNames = [] }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const paddingBottom = Math.max(insets.bottom, 8);
 
   return (
@@ -149,6 +154,7 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
             const isAddButton = route.name === 'Adicionar';
+            const shortcut = Platform.OS === 'web' ? String(index + 1) : null;
 
             if (isAddButton) {
               const onAdd = customHandlers[route.name];
@@ -158,9 +164,13 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
                   onPress={() => (onAdd ? onAdd() : navigation.emit({ type: 'tabPress', target: route.key }))}
                   style={styles.addButtonWrap}
                   activeOpacity={0.8}
+                  accessibilityLabel={shortcut ? `Adicionar (${shortcut})` : 'Adicionar'}
                 >
-                  <View style={[styles.addButton, { backgroundColor: primaryColor }]}>
-                    <Ionicons name="add" size={28} color="#fff" />
+                  <View style={{ position: 'relative', overflow: 'visible' }}>
+                    <View style={[styles.addButton, { backgroundColor: primaryColor }]}>
+                      <Ionicons name="add" size={28} color="#fff" />
+                    </View>
+                    <TabShortcutChip label={shortcut} colors={colors} />
                   </View>
                 </TouchableOpacity>
               );
@@ -193,6 +203,8 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
                 primaryColor={primaryColor}
                 inactiveColor={inactiveColor}
                 isDark={isDark}
+                shortcut={shortcut}
+                colors={colors}
               />
             );
           })}
@@ -311,6 +323,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 16,
     position: 'relative',
+    overflow: 'visible',
     backgroundColor: 'rgba(9,9,11,0.96)',
     borderWidth: 1,
     borderColor: '#27272a',
@@ -340,6 +353,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    overflow: 'visible',
     // Menos agressivo no nativo para reduzir risco de recorte pelo conteúdo acima.
     marginTop: Platform.OS === 'web' ? -32 : -26,
   },

@@ -337,20 +337,26 @@ export function getLojaLogoUri(config, profile, options = {}) {
 
 export function buildCartWhatsAppMessage(cart, config, profile, extras = {}) {
   const loja = getLojaDisplayName(config, profile);
+  const logo = getLojaLogoUri(config, profile);
   const { schedule, clientName, clientPhone, clientNotes } = extras || {};
-  let text = `🛒 *Pedido — ${loja}*\n\n`;
-  if (clientName?.trim()) text += `👤 Cliente: ${clientName.trim()}\n`;
-  if (clientPhone?.trim()) text += `📱 Telefone: ${clientPhone.trim()}\n`;
+  let text = `*Pedido — ${loja}*\n`;
+  if (logo && /^https?:\/\//i.test(String(logo))) text += `${logo}\n`;
+  text += '\n';
+  if (clientName?.trim()) text += `Cliente: ${clientName.trim()}\n`;
+  if (clientPhone?.trim()) text += `Telefone: ${clientPhone.trim()}\n`;
   if (clientName || clientPhone) text += '\n';
   let total = 0;
   cart.forEach((line, idx) => {
+    const qty = line.qty || 1;
     const unit = getEffectivePrice(line.item);
-    const sub = unit * (line.qty || 1);
+    const sub = unit * qty;
     total += sub;
-    const tipo = line.item._tipo === 'servico' ? '🔧' : '📦';
-    text += `${idx + 1}. ${tipo} ${line.item.name} x${line.qty || 1} — ${formatCurrency(sub)}\n`;
+    text += `${idx + 1}. *${line.item.name}*\n`;
+    text += `Qtd: ${qty}\n`;
+    text += `Unidade: ${formatCurrency(unit)}\n`;
+    text += `Total: ${formatCurrency(sub)}\n\n`;
   });
-  text += `\n*Total: ${formatCurrency(total)}*`;
+  text += `*Total do pedido: ${formatCurrency(total)}*`;
   if (schedule?.date && schedule?.time) {
     text += `\n\n📅 *Agendamento:* ${schedule.date} às ${schedule.time}`;
     text += '\n_Produtos e serviços serão atendidos na data agendada._';

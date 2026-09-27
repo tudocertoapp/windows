@@ -37,7 +37,7 @@ export async function shareLojaPublicLink(ownerUserId, lojaNome) {
   const message = getLojaPublicWhatsAppMessage(url, lojaNome);
   try {
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.share) {
-      await navigator.share({ title: lojaNome || 'Minha Loja', text: message, url });
+      await navigator.share({ title: lojaNome || 'Meu Catálogo', text: message, url });
       return url;
     }
     await Share.share({ message, title: 'Link da loja' });

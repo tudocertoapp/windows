@@ -6,7 +6,7 @@ export const PLAN_FEATURES = {
   pessoal_pro: { maxProducts: 0, maxServices: 0, canUsePDV: false, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 10 },
 
   pe_free: { maxProducts: 5, maxServices: 5, canUsePDV: true, maxAgendaPerMonth: 10, maxTasksPerMonth: 20, maxBirthdays: 2, maxNotesTotal: 5, maxBoletosPerMonth: 5, canUseMeusGastos: false, notesPerDay: 0 },
-  pe_teste_real: { maxProducts: null, maxServices: null, canUsePDV: true, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 10 },
+  pe_teste_real: { maxProducts: 400, maxServices: 400, canUsePDV: true, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 4 },
   pe_starter: { maxProducts: 80, maxServices: 80, canUsePDV: true, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 2 },
   pe_pro: { maxProducts: 400, maxServices: 400, canUsePDV: true, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 4 },
   pe_business: { maxProducts: null, maxServices: null, canUsePDV: true, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 10 },

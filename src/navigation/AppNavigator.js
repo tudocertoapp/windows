@@ -59,6 +59,8 @@ import {
   WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
   WEB_DESKTOP_RAIL_VERTICAL_INSET,
   DesktopRailMenuButton,
+  buildDesktopRailShortcuts,
+  buildGlassTabShortcuts,
 } from '../components/navigation/RightSideTabBar';
 import { useIsDesktopLayout, isElectronWebClient, WEB_MOBILE_TAB_BAR_RESERVE, isDesktopOnlyFeatureClient } from '../utils/platformLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -623,6 +625,53 @@ export function AppNavigator() {
     [isWebDesktop, showEmpresaFeatures, calculadoraFloating, calculadoraModal]
   );
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const isTypingTarget = (target) => {
+      const tag = target?.tagName?.toLowerCase?.();
+      return (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable
+      );
+    };
+    const onKeyDown = (event) => {
+      if (event.repeat) return;
+      if (isTypingTarget(event.target)) return;
+      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+      if (pdvModal) return;
+      const key = String(event.key || '');
+      if (isWebDesktop && key.toLowerCase() === 'm') {
+        event.preventDefault();
+        playTapSound();
+        setMenuModalOpen((open) => !open);
+        return;
+      }
+      if (!/^[1-9]$/.test(key)) return;
+      const shortcuts = isWebDesktop
+        ? buildDesktopRailShortcuts(showEmpresaFeatures)
+        : buildGlassTabShortcuts();
+      const hit = shortcuts.find((item) => item.key === key);
+      if (!hit) return;
+      event.preventDefault();
+      playTapSound();
+      if (hit.id === 'add') {
+        setMenuOpen((open) => !open);
+        return;
+      }
+      setMenuOpen(false);
+      setMenuModalOpen(false);
+      if (hit.id === 'calculadora') {
+        menuActions.openCalculadoraFull();
+        return;
+      }
+      navigationRef.current?.navigate(hit.id);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isWebDesktop, showEmpresaFeatures, pdvModal, menuActions]);
+
   /** Seta + calculadora: mesma linha, centro vertical da tela (viewport), respeitando safe area e tab bar. */
   const calcEdgeCalcRowTop = useMemo(() => {
     const h = windowHeight > 0 ? windowHeight : Dimensions.get('window').height;
@@ -931,6 +980,7 @@ export function AppNavigator() {
                         width: WEB_DESKTOP_RAIL_WIDTH,
                         backgroundColor: 'transparent',
                         alignItems: 'stretch',
+                        overflow: 'visible',
                       }
                     : {
                         position: 'absolute',

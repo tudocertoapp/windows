@@ -279,7 +279,7 @@ export function CatalogoStoreView({
               activeOpacity={0.85}
             >
               <Ionicons name="cart-outline" size={16} color="#fff" />
-              <Text style={st.addBtnText}>Adicionar</Text>
+              <Text style={st.addBtnText}>Adicionar ao carrinho</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -502,16 +502,15 @@ export function CatalogoStoreView({
       {interactive && config.mostrarCarrinho !== false && (
         <>
           <TouchableOpacity
-            style={[st.cartFab, { backgroundColor: config.corPrincipal }]}
+            style={[st.cartBar, { backgroundColor: config.corPrincipal }]}
             onPress={() => { playTapSound(); setCartOpen(true); }}
             activeOpacity={0.9}
           >
-            <Ionicons name="cart" size={24} color="#fff" />
-            {cartCount > 0 && (
-              <View style={st.cartBadge}>
-                <Text style={st.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
-              </View>
-            )}
+            <Ionicons name="cart" size={22} color="#fff" />
+            <Text style={st.cartBarText}>
+              {cartCount > 0 ? `Acessar carrinho (${cartCount})` : 'Acessar carrinho'}
+            </Text>
+            <Text style={st.cartBarTotal}>{cartCount > 0 ? formatCurrency(cartTotal) : ''}</Text>
           </TouchableOpacity>
 
           <Modal visible={cartOpen} transparent animationType="slide" onRequestClose={() => setCartOpen(false)}>
@@ -542,8 +541,11 @@ export function CatalogoStoreView({
                       <View key={line.key} style={[st.cartLine, { borderColor: config.corPrincipal + '22' }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={[st.cartLineName, { color: config.corTexto }]} numberOfLines={2}>{line.item.name}</Text>
+                          <Text style={{ color: config.corTexto + 'aa', fontSize: 12 }}>
+                            {`Unidade ${formatCurrency(getEffectivePrice(line.item))} · Qtd ${line.qty || 1}`}
+                          </Text>
                           <Text style={{ color: config.corPrincipal, fontWeight: '700' }}>
-                            {formatCurrency(getEffectivePrice(line.item) * (line.qty || 1))}
+                            {`Total ${formatCurrency(getEffectivePrice(line.item) * (line.qty || 1))}`}
                           </Text>
                         </View>
                         <View style={st.qtyRow}>
@@ -669,6 +671,25 @@ const st = StyleSheet.create({
   listInfo: { flex: 1 },
   listAdd: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
+  cartBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    minHeight: 52,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  cartBarText: { color: '#fff', fontSize: 15, fontWeight: '800', flex: 1 },
+  cartBarTotal: { color: '#fff', fontSize: 15, fontWeight: '800' },
   cartFab: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 },
   cartBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
   cartBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },

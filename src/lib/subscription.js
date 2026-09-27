@@ -1,22 +1,34 @@
 import { Platform } from 'react-native';
-import { STRIPE_BUSINESS_PLAN_KEY } from '../constants/stripe';
+import Constants from 'expo-constants';
+import { DEFAULT_STRIPE_API_ORIGIN, STRIPE_BUSINESS_PLAN_KEY } from '../constants/stripe';
+
+function normalizeOrigin(value) {
+  const raw = String(value || '').trim().replace(/\/$/, '');
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
+function isLocalOrigin(origin) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(String(origin || ''));
+}
 
 export function getApiOrigin() {
-  if (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_STRIPE_API_URL) {
-    return String(process.env.EXPO_PUBLIC_STRIPE_API_URL).replace(/\/$/, '');
-  }
-  if (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_SITE_URL) {
-    return String(process.env.EXPO_PUBLIC_SITE_URL).replace(/\/$/, '');
-  }
+  const extra = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
+  const fromExtra = normalizeOrigin(extra.stripeApiUrl || extra.siteUrl);
+  const fromEnv = normalizeOrigin(
+    (typeof process !== 'undefined' && (process.env?.EXPO_PUBLIC_STRIPE_API_URL || process.env?.EXPO_PUBLIC_SITE_URL)) || '',
+  );
+  if (fromExtra) return fromExtra;
+  if (fromEnv) return fromEnv;
+
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
-    const origin = window.location.origin.replace(/\/$/, '');
-    // Em localhost do Expo, geralmente não há rota /api/stripe ativa.
-    if (/^https?:\/\/localhost(?::\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(?::\d+)?$/i.test(origin)) {
-      return '';
-    }
-    return origin;
+    const origin = normalizeOrigin(window.location.origin);
+    // Localhost/Electron não tem /api/stripe — usa a API de produção.
+    if (origin && !isLocalOrigin(origin)) return origin;
   }
-  return '';
+
+  return DEFAULT_STRIPE_API_ORIGIN;
 }
 
 export const SUBSCRIPTION_STATUS = {
@@ -109,23 +121,26 @@ export async function handleSubscribe(supabase, planId) {
     }),
   });
 
-  const contentType = String(res.headers?.get?.('content-type') || '').toLowerCase();
-  const isJson = contentType.includes('application/json');
-  const json = isJson ? await res.json().catch(() => ({})) : {};
+  const rawText = await res.text().catch(() => '');
+  let json = {};
+  try {
+    json = rawText ? JSON.parse(rawText) : {};
+  } catch (_) {
+    json = {};
+  }
   if (!res.ok) {
-    throw new Error(json.error || `Erro ${res.status}`);
+    throw new Error(json.error || rawText || `Erro ${res.status} ao criar checkout`);
   }
 
   const checkoutUrl = json.url || json.checkoutUrl || json.checkout_url;
   if (!checkoutUrl) {
-    if (!isJson) {
-      throw new Error(`Endpoint Stripe inválido em ${endpoint} (resposta não JSON).`);
-    }
-    throw new Error('Resposta sem URL de checkout.');
+    throw new Error(`Resposta sem URL de checkout (${endpoint}).`);
   }
 
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.location.assign(checkoutUrl);
+    // Electron: window.open cai no openExternal; navegador: nova aba (fallback: mesma aba).
+    const opened = window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) window.location.assign(checkoutUrl);
     return;
   }
 

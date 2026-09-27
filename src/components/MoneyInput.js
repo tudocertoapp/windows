@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TextInput, View, Text, StyleSheet } from 'react-native';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { parseMoney } from '../utils/format';
 
-export function MoneyInput({ value, onChange, placeholder, style, containerStyle, ...rest }) {
+export function MoneyInput({ value, onChange, placeholder, style, containerStyle, onFocus, onBlur, ...rest }) {
   const { lang } = useLanguage();
   const { colors } = useTheme();
+  const [focused, setFocused] = useState(false);
   const prefix = lang.currency || 'R$';
   const decSep = lang.decimalSep || ',';
   const thSep = lang.thousandsSep || '.';
@@ -35,11 +36,23 @@ export function MoneyInput({ value, onChange, placeholder, style, containerStyle
   const displayVal = value === '' || value == null ? '' : formatAsCurrency(isNaN(numVal) ? 0 : numVal);
 
   return (
-    <View style={[s.wrap, containerStyle, { borderColor: colors.border }]}>
+    <View style={[s.wrap, containerStyle, { borderColor: focused ? colors.primary : colors.border, backgroundColor: colors.bg }]}>
       <Text style={[s.prefix, { color: colors.text }]}>{prefix} </Text>
       <TextInput
         {...rest}
-        style={[s.input, style, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
+        onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+        onBlur={(e) => { setFocused(false); onBlur?.(e); }}
+        style={[
+          s.input,
+          style,
+          {
+            color: colors.text,
+            backgroundColor: 'transparent',
+            outlineStyle: 'none',
+            outlineWidth: 0,
+            caretColor: colors.text,
+          },
+        ]}
         value={displayVal}
         onChangeText={handleChange}
         placeholder={placeholder || (decSep === ',' ? '0,00' : '0.00')}
@@ -53,5 +66,5 @@ export function MoneyInput({ value, onChange, placeholder, style, containerStyle
 const s = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 14 },
   prefix: { fontSize: 15, fontWeight: '600', marginRight: 4 },
-  input: { flex: 1, paddingVertical: 12, fontSize: 15, borderWidth: 0 },
+  input: { flex: 1, paddingVertical: 12, fontSize: 15, borderWidth: 0, outlineStyle: 'none', outlineWidth: 0 },
 });

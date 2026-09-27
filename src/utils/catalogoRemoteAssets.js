@@ -69,5 +69,8 @@ export async function prepareCatalogoConfigForRemote(userId, config) {
     }
   }
 
+  if (isLocalCatalogoImageUri(next.fotoCatalogo)) next.fotoCatalogo = null;
+  if (isLocalCatalogoImageUri(next.fotoCatalogoPreview)) next.fotoCatalogoPreview = null;
+  if (isLocalCatalogoImageUri(next.fotoFundo)) next.fotoFundo = null;
   return next;
 }

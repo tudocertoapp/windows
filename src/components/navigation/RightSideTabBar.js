@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,23 +19,96 @@ export function getWebDesktopRailMenuPosition() {
   return { top, right, size };
 }
 
+/** Atalho do botão de menu da rail (não usa F1–F10, reservados à página inicial). */
+export const DESKTOP_MENU_SHORTCUT = 'M';
+
+/** Ordem visual da rail desktop: Início, Dinheiro, Agenda, +, Meus gastos, WhatsApp, Calculadora. */
+export function buildDesktopRailShortcuts(showEmpresaFeatures) {
+  const items = [
+    { key: '1', id: 'Início' },
+    { key: '2', id: 'Dinheiro' },
+    { key: '3', id: 'Agenda' },
+    { key: '4', id: 'add' },
+    { key: '5', id: 'MeusGastos' },
+  ];
+  if (showEmpresaFeatures) items.push({ key: '6', id: 'WhatsApp' });
+  items.push({ key: String(items.length + 1), id: 'calculadora' });
+  return items;
+}
+
+/** Ordem visual da tab bar inferior (web sem rail): Início, Dinheiro, +, Agenda, Meus gastos. */
+export function buildGlassTabShortcuts() {
+  return [
+    { key: '1', id: 'Início' },
+    { key: '2', id: 'Dinheiro' },
+    { key: '3', id: 'add' },
+    { key: '4', id: 'Agenda' },
+    { key: '5', id: 'MeusGastos' },
+  ];
+}
+
+/** Selo igual aos atalhos F da página inicial e do PDV. Fica fora do círculo para não ser cortado. */
+export function TabShortcutChip({ label, colors, style }) {
+  if (!label || Platform.OS !== 'web') return null;
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          top: -7,
+          right: 2,
+          zIndex: 30,
+          borderRadius: 7,
+          paddingHorizontal: 6,
+          paddingVertical: 1,
+          backgroundColor: colors.bg,
+          borderWidth: 1,
+          borderColor: colors.primary,
+          ...(Platform.OS === 'web' ? { boxShadow: '0 1px 4px rgba(0,0,0,0.18)' } : { elevation: 12 }),
+        },
+        style,
+      ]}
+    >
+      <Text style={{ fontSize: 9, fontWeight: '800', color: colors.primary, lineHeight: 12 }}>{label}</Text>
+    </View>
+  );
+}
+
+function ShortcutAnchor({ shortcut, colors, children, style }) {
+  return (
+    <View style={[s.shortcutAnchor, style]}>
+      {children}
+      <TabShortcutChip label={shortcut} colors={colors} />
+    </View>
+  );
+}
+
 /** Botão redondo do menu — coluna da tab bar, no topo da rail (mesma linha vertical). */
 export function DesktopRailMenuButton({ onPress, active, colors }) {
   if (Platform.OS !== 'web') return null;
   const { top, right, size } = getWebDesktopRailMenuPosition();
   return (
+    <View
+      style={{
+        position: 'fixed',
+        top,
+        right,
+        width: size,
+        height: size,
+        overflow: 'visible',
+        zIndex: 2147483646,
+      }}
+    >
     <TouchableOpacity
       activeOpacity={0.88}
       onPress={() => {
         playTapSound();
         onPress?.();
       }}
-      accessibilityLabel={active ? 'Fechar menu' : 'Abrir menu'}
+      accessibilityLabel={active ? `Fechar menu (${DESKTOP_MENU_SHORTCUT})` : `Abrir menu (${DESKTOP_MENU_SHORTCUT})`}
       accessibilityRole="button"
       style={{
-        position: 'fixed',
-        top,
-        right,
         width: size,
         height: size,
         borderRadius: size / 2,
@@ -44,7 +117,6 @@ export function DesktopRailMenuButton({ onPress, active, colors }) {
         backgroundColor: active ? colors.primaryRgba(0.14) : colors.card,
         borderWidth: 1,
         borderColor: active ? colors.primary + '44' : colors.border,
-        zIndex: 2147483646,
         ...(Platform.OS === 'web'
           ? { display: 'flex', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', cursor: 'pointer' }
           : {
@@ -73,6 +145,8 @@ export function DesktopRailMenuButton({ onPress, active, colors }) {
         />
       </View>
     </TouchableOpacity>
+    <TabShortcutChip label={DESKTOP_MENU_SHORTCUT} colors={colors} />
+    </View>
   );
 }
 
@@ -100,28 +174,30 @@ const ADD_BTN = 50;
 const ICON_SIZE = RAIL_ICON_SIZE;
 const ADD_ICON_SIZE = 28;
 
-function RailItem({ icon, label, onPress, active, colors, ionIcon }) {
+function RailItem({ icon, label, onPress, active, colors, ionIcon, shortcut }) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() => {
-        playTapSound();
-        onPress?.();
-      }}
-      style={[
-        s.roundBtn,
-        { borderColor: colors.border },
-        active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
-      ]}
-      accessibilityLabel={label}
-      accessibilityRole="button"
-    >
-      {ionIcon ? (
-        <Ionicons name={ionIcon} size={ICON_SIZE} color={active ? colors.primary : colors.textSecondary} />
-      ) : (
-        <AppIcon name={icon} size={ICON_SIZE} color={active ? colors.primary : colors.textSecondary} />
-      )}
-    </TouchableOpacity>
+    <ShortcutAnchor shortcut={shortcut} colors={colors}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => {
+          playTapSound();
+          onPress?.();
+        }}
+        style={[
+          s.roundBtn,
+          { borderColor: colors.border },
+          active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
+        ]}
+        accessibilityLabel={shortcut ? `${label} (${shortcut})` : label}
+        accessibilityRole="button"
+      >
+        {ionIcon ? (
+          <Ionicons name={ionIcon} size={ICON_SIZE} color={active ? colors.primary : colors.textSecondary} />
+        ) : (
+          <AppIcon name={icon} size={ICON_SIZE} color={active ? colors.primary : colors.textSecondary} />
+        )}
+      </TouchableOpacity>
+    </ShortcutAnchor>
   );
 }
 
@@ -140,6 +216,12 @@ export function RightSideTabBar({
 
   if (!isWeb) return null;
   const isBottomMode = mode === 'bottom';
+  const shortcutById = Object.fromEntries(
+    buildDesktopRailShortcuts(showEmpresaFeatures).map((item) => [
+      item.id === 'add' ? 'Adicionar' : item.id,
+      item.key,
+    ])
+  );
 
   const tabItems = [
     { key: 'Início', label: 'Início', icon: 'home-outline', onPress: () => onNavigate?.('Início') },
@@ -192,6 +274,7 @@ export function RightSideTabBar({
         icon={it.icon}
         ionIcon={it.ionIcon}
         label={it.label}
+        shortcut={shortcutById[it.key]}
         onPress={it.onPress}
         active={active}
         colors={colors}
@@ -234,25 +317,26 @@ export function RightSideTabBar({
           {tabItems.map((it) => {
             if (it.isAdd) {
               return (
+                <ShortcutAnchor key="Adicionar" shortcut={shortcutById.Adicionar} colors={colors}>
                 <TouchableOpacity
-                  key="Adicionar"
                   activeOpacity={0.85}
                   onPress={() => {
                     playTapSound();
                     it.onPress?.();
                   }}
                   style={[s.bottomAddRound, { backgroundColor: colors.primary }]}
-                  accessibilityLabel="Adicionar"
+                  accessibilityLabel={`Adicionar (${shortcutById.Adicionar || ''})`}
                   accessibilityRole="button"
                 >
                   <Ionicons name="add" size={24} color="#fff" />
                 </TouchableOpacity>
+                </ShortcutAnchor>
               );
             }
             const active = isItemActive(it);
             return (
+              <ShortcutAnchor key={it.key} shortcut={shortcutById[it.key]} colors={colors}>
               <TouchableOpacity
-                key={it.key}
                 activeOpacity={0.85}
                 onPress={() => {
                   playTapSound();
@@ -263,7 +347,7 @@ export function RightSideTabBar({
                   { borderColor: colors.border },
                   active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
                 ]}
-                accessibilityLabel={it.label}
+                accessibilityLabel={shortcutById[it.key] ? `${it.label} (${shortcutById[it.key]})` : it.label}
                 accessibilityRole="button"
               >
                 {it.ionIcon ? (
@@ -272,6 +356,7 @@ export function RightSideTabBar({
                   <AppIcon name={it.icon} size={19} color={active ? colors.primary : colors.textSecondary} />
                 )}
               </TouchableOpacity>
+              </ShortcutAnchor>
             );
           })}
         </View>
@@ -309,19 +394,20 @@ export function RightSideTabBar({
             {tabItems.map((it) => {
               if (it.isAdd) {
                 return (
+                  <ShortcutAnchor key="Adicionar" shortcut={shortcutById.Adicionar} colors={colors}>
                   <TouchableOpacity
-                    key="Adicionar"
                     activeOpacity={0.85}
                     onPress={() => {
                       playTapSound();
                       it.onPress?.();
                     }}
                     style={[s.addRound, { backgroundColor: colors.primary }]}
-                    accessibilityLabel="Adicionar"
+                    accessibilityLabel={`Adicionar (${shortcutById.Adicionar || ''})`}
                     accessibilityRole="button"
                   >
                     <Ionicons name="add" size={ADD_ICON_SIZE} color="#fff" />
                   </TouchableOpacity>
+                  </ShortcutAnchor>
                 );
               }
               return renderRailEntry(it);
@@ -337,12 +423,18 @@ const GAP = 10;
 
 const s = StyleSheet.create({
   /** Coluna da rail: preenche a altura útil; justifyContent centra a pílula quando a coluna é mais alta que o conteúdo. */
+  shortcutAnchor: {
+    position: 'relative',
+    overflow: 'visible',
+    zIndex: 2,
+  },
   railOuter: {
     flex: 1,
     alignSelf: 'stretch',
     width: WEB_DESKTOP_RAIL_WIDTH,
     minHeight: 0,
     justifyContent: 'center',
+    overflow: 'visible',
   },
   wrap: {
     flex: 1,
@@ -352,6 +444,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 0,
+    overflow: 'visible',
   },
   /** Pílula compacta: altura = ícones + espaçamento (não preenche a viewport). */
   island: {
@@ -372,6 +465,7 @@ const s = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     gap: GAP,
+    overflow: 'visible',
   },
   roundBtn: {
     width: BTN,
@@ -380,6 +474,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   addRound: {
     width: ADD_BTN,
@@ -387,6 +482,7 @@ const s = StyleSheet.create({
     borderRadius: ADD_BTN / 2,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -398,7 +494,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 5,
     paddingHorizontal: 22,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   bottomInner: {
     flexDirection: 'row',
@@ -413,6 +509,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   bottomAddRound: {
     width: 44,
@@ -420,6 +517,7 @@ const s = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,

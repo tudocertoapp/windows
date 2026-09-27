@@ -20,7 +20,7 @@ import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
-import { usePlan } from '../contexts/PlanContext';
+import { PLANS, usePlan } from '../contexts/PlanContext';
 import { useAuth } from '../contexts/AuthContext';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
@@ -47,6 +47,81 @@ const SUGGESTED_TEMPLATES = [
 
 const openWhatsApp = openWhatsAppUtil;
 
+function splitContactLine(line) {
+  const sep = line.includes(';') && !line.includes(',') ? ';' : ',';
+  return line.split(sep).map((part) => part.trim().replace(/^"|"$/g, ''));
+}
+
+function parseVcfContacts(text) {
+  const unfolded = String(text || '').replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
+  const cards = unfolded.split(/BEGIN:VCARD/i).slice(1);
+  const out = [];
+  for (const card of cards) {
+    let name = '';
+    let phone = '';
+    for (const rawLine of card.split('\n')) {
+      const line = rawLine.trim();
+      if (!name && /^FN[:;]/i.test(line)) name = line.split(':').slice(1).join(':').trim();
+      else if (!name && /^N[:;]/i.test(line)) {
+        const parts = line.split(':').slice(1).join(':').split(';');
+        name = [parts[1], parts[0]].filter(Boolean).join(' ').trim();
+      } else if (!phone && /^TEL/i.test(line)) {
+        phone = line.split(':').slice(1).join(':').replace(/[^\d+]/g, '');
+      }
+    }
+    if (phone) out.push({ name: name || 'Contato', phone });
+  }
+  return out;
+}
+
+function parseCsvContacts(text) {
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  const first = splitContactLine(lines[0]).map((c) => c.toLowerCase());
+  const headerName = first.findIndex((c) => /nome|name|contato/.test(c));
+  const headerPhone = first.findIndex((c) => /tel|fone|phone|celular|whats/.test(c));
+  const hasHeader = headerName >= 0 || headerPhone >= 0;
+  const start = hasHeader ? 1 : 0;
+  const nameIdx = headerName >= 0 ? headerName : 0;
+  const phoneIdx = headerPhone >= 0 ? headerPhone : 1;
+  const out = [];
+  for (const line of lines.slice(start)) {
+    const cols = splitContactLine(line);
+    const phone = String(cols[phoneIdx] || cols.find((c) => /\d{8,}/.test(c)) || '').replace(/[^\d+]/g, '');
+    const name = String(cols[nameIdx] || '').trim();
+    if (!phone) continue;
+    out.push({ name: name && !/^\d+$/.test(name) ? name : 'Contato', phone });
+  }
+  return out;
+}
+
+function parseContactsFile(text, filename) {
+  const lower = String(filename || '').toLowerCase();
+  if (lower.endsWith('.vcf') || /BEGIN:VCARD/i.test(text)) return parseVcfContacts(text);
+  return parseCsvContacts(text);
+}
+
+function pickContactsFile() {
+  if (typeof document === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.vcf,.csv,.txt,text/vcard,text/csv,text/plain';
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, text: String(reader.result || '') });
+      reader.onerror = () => resolve(null);
+      reader.readAsText(file);
+    };
+    input.click();
+  });
+}
+
 const NIVEL_OPTIONS = [
   { id: 'novo_cliente', label: 'Novo cliente', color: '#84cc16' },
   { id: 'orcamento', label: 'Orçamento', color: '#6b7280' },
@@ -60,7 +135,8 @@ const NIVEL_OPTIONS = [
 export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
   const { colors } = useTheme();
   const { clients, addClient, updateClient, deleteClient, agendaEvents, services, products } = useFinance();
-  const { showEmpresaFeatures, viewMode, setViewMode, canToggleView } = usePlan();
+  const { showEmpresaFeatures, viewMode, setViewMode, canToggleView, plan, hasPaidPlanAccess } = usePlan();
+  const canImportContactsFile = hasPaidPlanAccess && (plan === PLANS.empresa || plan === PLANS.pessoal_empresa);
   const { user } = useAuth();
   const { openCalculadoraFull, openMeusGastos } = useMenu();
   const isDesktopLayout = useIsDesktopLayout();
@@ -70,6 +146,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
   const [nivelFilter, setNivelFilter] = useState(null);
   const [contacts, setContacts] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [importingFile, setImportingFile] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [newTemplate, setNewTemplate] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -149,6 +226,61 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
       Alert.alert('Erro', 'Não foi possível carregar os contatos.');
     }
     setLoadingContacts(false);
+  };
+
+  const importContactsFromFile = async () => {
+    if (!canImportContactsFile || importingFile) return;
+    playTapSound();
+    if (Platform.OS !== 'web') {
+      Alert.alert('Importar arquivo', 'No celular, exporte os contatos em CSV ou vCard e importe pelo app no navegador.');
+      return;
+    }
+    const file = await pickContactsFile();
+    if (!file?.text) return;
+    const parsed = parseContactsFile(file.text, file.name);
+    if (!parsed.length) {
+      Alert.alert('Arquivo vazio', 'Não encontramos nome e telefone. Use um CSV (nome, telefone) ou um vCard (.vcf).');
+      return;
+    }
+    setImportingFile(true);
+    const seen = new Set(
+      (clients || [])
+        .map((c) => formatPhoneForWhatsApp(c.phone))
+        .filter(Boolean),
+    );
+    let saved = 0;
+    let skipped = 0;
+    const imported = [];
+    try {
+      for (const row of parsed) {
+        const key = formatPhoneForWhatsApp(row.phone);
+        if (!key || seen.has(key)) {
+          skipped += 1;
+          continue;
+        }
+        seen.add(key);
+        const id = await addClient({
+          name: row.name,
+          phone: row.phone,
+          tipo: 'empresa',
+          nivel: 'novo_cliente',
+        });
+        if (!id) {
+          skipped += 1;
+          continue;
+        }
+        saved += 1;
+        imported.push({ id: `file-${id}`, name: row.name, phoneNumbers: [{ number: row.phone }] });
+      }
+      if (imported.length) setContacts((prev) => [...imported, ...prev]);
+      Alert.alert(
+        'Contatos importados',
+        `${saved} contato${saved === 1 ? '' : 's'} salvo${saved === 1 ? '' : 's'} no sistema.${skipped ? ` ${skipped} ignorado${skipped === 1 ? '' : 's'} (sem telefone ou já cadastrado).` : ''}`,
+      );
+    } catch (e) {
+      Alert.alert('Erro', e?.message || 'Não foi possível salvar os contatos.');
+    }
+    setImportingFile(false);
   };
 
   const addTemplate = () => {
@@ -420,6 +552,16 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                 {loadingContacts ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="refresh-outline" size={22} color={colors.primary} />}
                 <Text style={[s.importBtnText, { color: colors.primary }]}>{contacts.length ? 'Atualizar lista' : 'Carregar contatos'}</Text>
               </TouchableOpacity>
+              {canImportContactsFile ? (
+                <TouchableOpacity
+                  style={[s.importBtn, { backgroundColor: colors.primaryRgba?.(0.1), borderColor: colors.primary, marginTop: 8 }]}
+                  onPress={importContactsFromFile}
+                  disabled={importingFile || loadingContacts}
+                >
+                  {importingFile ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="document-attach-outline" size={22} color={colors.primary} />}
+                  <Text style={[s.importBtnText, { color: colors.primary }]}>Carregar contatos por arquivo</Text>
+                </TouchableOpacity>
+              ) : null}
               <TextInput
                 style={[s.search, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, marginTop: 12, marginBottom: 12 }]}
                 placeholder="Buscar contato..."

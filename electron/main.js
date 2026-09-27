@@ -311,6 +311,17 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // Checkout Stripe: não navegar dentro do app — abrir no navegador.
+  win.webContents.on('will-navigate', (event, url) => {
+    try {
+      const host = new URL(url).hostname || '';
+      if (host.includes('stripe.com')) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    } catch (_) {}
+  });
+
   return win;
 }
 

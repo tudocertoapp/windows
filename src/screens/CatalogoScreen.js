@@ -91,6 +91,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       const saved = result.config || toSave;
       setConfig(saved);
       setDraftConfig(saved);
+      if (result.stale) return result;
       setCloudSaveStatus(result.remote ? 'saved' : 'error');
       if (showAlert) {
         const msg = result.remote
@@ -225,19 +226,36 @@ export function CatalogoScreen({ onClose, isModal }) {
     openWhatsApp(phone, msg);
   };
 
+  const ensurePublicSave = async () => {
+    let result = await persistDraftToCloud(false);
+    if (result?.stale) result = await persistDraftToCloud(false);
+    if (!result?.remote) {
+      Alert.alert(
+        'Catálogo',
+        result?.error
+          ? `O link público ainda não recebeu esta versão. ${result.error}`
+          : 'O link público ainda não recebeu esta versão. Toque em Salvar e confira o login.'
+      );
+      return false;
+    }
+    return true;
+  };
+
   const compartilharLoja = async () => {
     playTapSound();
     if (!user?.id) {
       Alert.alert('Link da loja', 'Faça login para gerar o link público da sua loja.');
       return;
     }
-    await shareLojaPublicLink(user.id, getLojaDisplayName(config, profile));
+    if (!(await ensurePublicSave())) return;
+    await shareLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile));
   };
 
   const copiarLinkLoja = async () => {
     playTapSound();
     if (!user?.id) return Alert.alert('Link da loja', 'Faça login para copiar o link.');
-    await copyLojaPublicLink(user.id, getLojaDisplayName(config, profile));
+    if (!(await ensurePublicSave())) return;
+    await copyLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile));
   };
 
   const lojaUrl = user?.id ? buildLojaPublicUrl(user.id) : '';
@@ -287,7 +305,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       <View style={[s.container, { backgroundColor: colors.bg }]}>
         {isModal && onClose && (
           <View style={[s.topBar, { borderBottomColor: colors.border }]}>
-            <Text style={[s.topBarTitle, { color: colors.text }]}>Minha Loja</Text>
+            <Text style={[s.topBarTitle, { color: colors.text }]}>Meu Catálogo</Text>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}>
               <Ionicons name="close" size={24} color={colors.primary} />
             </TouchableOpacity>
@@ -347,7 +365,7 @@ export function CatalogoScreen({ onClose, isModal }) {
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       <View style={[s.topBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
-          <Text style={[s.topBarTitle, { color: colors.text }]}>Minha Loja</Text>
+          <Text style={[s.topBarTitle, { color: colors.text }]}>Meu Catálogo</Text>
           <Text style={[s.topBarSub, { color: colors.textSecondary }]}>
             {user?.id
               ? cloudSaveStatus === 'saving'

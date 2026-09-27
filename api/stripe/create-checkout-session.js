@@ -75,6 +75,9 @@ module.exports = async function handler(req, res) {
   }
 
   let body = req.body;
+  if (Buffer.isBuffer(body)) {
+    body = body.toString('utf8');
+  }
   if (typeof body === 'string') {
     try {
       body = JSON.parse(body || '{}');
@@ -82,7 +85,7 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid JSON' });
     }
   }
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     body = {};
   }
 

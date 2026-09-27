@@ -5,6 +5,16 @@ const PDV_CONFIG_KEY_BASE = '@tudocerto_pdv_config';
 export const DEFAULT_PDV_CONFIG = {
   requireOperatorLogin: true,
   requireFrontDeskAuth: true,
+  receiptShowLogo: true,
+  receiptShowEmail: true,
+  receiptShowDocumento: true,
+  receiptShowTelefone: true,
+  receiptShowEndereco: true,
+  receiptShowInstagram: false,
+  receiptShowNumero: true,
+  receiptShowVendedor: true,
+  receiptLogoUrl: '',
+  receiptRodape: '',
 };
 
 export function buildPdvConfigStorageKey(profile) {
@@ -18,11 +28,13 @@ export async function readPdvConfig(profile) {
     if (!raw) return { ...DEFAULT_PDV_CONFIG };
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_PDV_CONFIG };
-    return {
-      ...DEFAULT_PDV_CONFIG,
-      ...(typeof parsed.requireOperatorLogin === 'boolean' ? { requireOperatorLogin: parsed.requireOperatorLogin } : {}),
-      ...(typeof parsed.requireFrontDeskAuth === 'boolean' ? { requireFrontDeskAuth: parsed.requireFrontDeskAuth } : {}),
-    };
+    const next = { ...DEFAULT_PDV_CONFIG };
+    for (const key of Object.keys(DEFAULT_PDV_CONFIG)) {
+      const fallback = DEFAULT_PDV_CONFIG[key];
+      if (typeof fallback === 'boolean' && typeof parsed[key] === 'boolean') next[key] = parsed[key];
+      if (typeof fallback === 'string' && typeof parsed[key] === 'string') next[key] = parsed[key];
+    }
+    return next;
   } catch (_) {
     return { ...DEFAULT_PDV_CONFIG };
   }

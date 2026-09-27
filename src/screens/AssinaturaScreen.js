@@ -28,7 +28,7 @@ const PLANOS = {
   ],
   pessoal_empresa: [
     { id: 'pe_free', nome: 'Free', preco: 'Grátis', desc: ['Pessoal + Empresa no mesmo app', 'PDV liberado', 'Até 5 produtos e 5 serviços'], popular: false, cta: 'Plano atual' },
-    { id: 'pe_teste_real', nome: 'Teste Real', preco: 'R$ 1,00/mês', desc: ['Plano de teste para cobrança real', 'Ativa Pessoal + Empresa', 'Use para validar pós-pagamento'], popular: false, cta: 'Testar pagamento' },
+    { id: 'pe_teste_real', nome: 'Teste Real', preco: 'R$ 1,00/mês', desc: ['Cobrança real de R$ 1,00 no Stripe', 'Libera os recursos do Pro (Pessoal + Empresa)', 'PDV, produtos e pagamento de verdade'], popular: false, cta: 'Pagar R$ 1,00' },
     { id: 'pe_starter', nome: 'Starter', preco: 'R$ 44,90/mês', desc: ['Até 80 produtos e 80 serviços', 'PDV e vendas', 'Até 2 notas por dia'], popular: false, cta: 'Assinar Starter' },
     { id: 'pe_pro', nome: 'Pro', preco: 'R$ 64,90/mês', desc: ['Até 400 produtos e 400 serviços', 'Relatórios empresariais', 'Até 4 notas por dia'], popular: true, cta: 'Assinar Pro' },
     { id: 'pe_business', nome: 'Business', preco: 'R$ 99,90/mês', desc: ['Sem limite de produtos/serviços', 'Equipe e escala', 'Até 10 notas por dia'], popular: false, cta: 'Assinar Business' },
@@ -213,26 +213,6 @@ export function AssinaturaScreen({ onClose, isModal }) {
           handleSelecionar(plano.id);
           return;
         }
-        if (plano.id === 'pe_teste_real' && !alreadyActive) {
-          Alert.alert(
-            'Plano de teste R$ 1',
-            subscriptionPastDue
-              ? 'Pagamento pendente no sistema. Regularize ou sincronize com o Stripe.'
-              : 'Já pagou no Stripe? Toque em "Ativar plano pago" (mesmo e-mail da conta). Caso contrário, pague de novo.',
-            subscriptionPastDue
-              ? [
-                  { text: 'Fechar', style: 'cancel' },
-                  { text: 'Regularizar', onPress: handleRegularizePayment },
-                  { text: 'Ativar plano pago', onPress: () => handleAtivarAssinaturaPaga(plano.id) },
-                ]
-              : [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Ativar plano pago', onPress: () => handleAtivarAssinaturaPaga(plano.id) },
-                  { text: 'Pagar R$ 1', onPress: () => handlePlanSubscribe(plano.id) },
-                ]
-          );
-          return;
-        }
       } catch (_) {
         // se falhar leitura da assinatura, segue fluxo normal para checkout
       }
@@ -364,7 +344,7 @@ export function AssinaturaScreen({ onClose, isModal }) {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={{ fontSize: 15, fontWeight: '700', color: isSelected ? colors.textSecondary : (isGratis ? colors.textSecondary : '#fff') }}>
-                    {isSelected ? 'Plano atual' : (isGratis ? p.cta : 'Selecionar plano')}
+                    {isSelected ? 'Plano atual' : (isGratis || p.id === 'pe_teste_real' ? p.cta : 'Selecionar plano')}
                   </Text>
                 )}
               </View>

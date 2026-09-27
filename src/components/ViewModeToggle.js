@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Platform, useWindowDimensions, StyleSheet
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { playTapSound } from '../utils/sounds';
+import { PLANS, usePlan } from '../contexts/PlanContext';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 
@@ -127,6 +128,8 @@ export function ViewModeToggle({
   desktopHeaderSplit = false,
   scrollFadeBackdrop,
 }) {
+  const { plan } = usePlan();
+  const options = plan === PLANS.empresa ? OPTIONS.filter((opt) => opt.id === 'empresa') : OPTIONS;
   const isWeb = Platform.OS === 'web';
   const isDesktopLayout = useIsDesktopLayout();
   const useWebLayout = isWeb && isDesktopLayout;
@@ -190,7 +193,7 @@ export function ViewModeToggle({
         overflow: 'visible',
       }}
     >
-      {OPTIONS.map((opt) => {
+      {options.map((opt) => {
         const active = viewMode === opt.id;
         const accent = opt.id === 'pessoal' ? colors.primary : opt.color;
         const activeBg = accent;

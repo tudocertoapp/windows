@@ -34,3 +34,19 @@ export async function uploadProfilePhotoFromBase64(base64Data, userId) {
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+
+/** Logo usada só na nota não fiscal do PDV. Não substitui a foto do perfil. */
+export async function uploadCupomLogoFromBase64(base64Data, userId) {
+  if (!userId) throw new Error('userId é obrigatório');
+  if (!base64Data) throw new Error('Dados da imagem são obrigatórios');
+
+  const arrayBuffer = decode(base64Data);
+  const path = `${userId}/cupom.jpg`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, arrayBuffer, {
+    contentType: 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return `${data.publicUrl}?v=${Date.now()}`;
+}

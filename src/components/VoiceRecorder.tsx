@@ -95,6 +95,35 @@ function isRetryableVoiceError(code: string): boolean {
   );
 }
 
+/** Junta segmentos sem repetir quando o motor devolve texto cumulativo ou parcial. */
+function mergeTranscript(existing: string, incoming: string): string {
+  const prev = String(existing || '').trim();
+  const next = String(incoming || '').trim();
+  if (!next) return prev;
+  if (!prev) return next;
+  if (next === prev) return prev;
+  if (next.startsWith(prev)) return next;
+  if (prev.startsWith(next)) return prev;
+  if (prev.endsWith(next)) return prev;
+  if (prev.includes(next)) return prev;
+  return `${prev} ${next}`.trim();
+}
+
+function buildDisplayTranscript(committed: string, partial: string): string {
+  const c = String(committed || '').trim();
+  const p = String(partial || '').trim();
+  if (!c) return p;
+  if (!p) return c;
+  if (p.startsWith(c)) return p;
+  if (c.endsWith(p)) return c;
+  return `${c} ${p}`.trim();
+}
+
+/** Aguarda o motor nativo/expo emitir o último trecho após Voice.stop(). */
+function waitForFinalSpeechResult(ms = 500): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function VoiceRecorder({
   locale = 'pt-BR',
   onTranscriptChange,
@@ -109,14 +138,55 @@ export default function VoiceRecorder({
   const [error, setError] = useState<string | null>(null);
   const [engine, setEngine] = useState<'native' | 'expo' | null>(null);
   const lastTranscriptRef = useRef('');
+  const committedTranscriptRef = useRef('');
+  const partialTranscriptRef = useRef('');
   const engineRef = useRef<'native' | 'expo' | null>(null);
   const webRecognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
   const shouldKeepListeningRef = useRef(false);
   const manualStopRef = useRef(false);
+  const finalEmittedRef = useRef(false);
+
+  const syncTranscriptUi = (display: string) => {
+    const text = String(display || '').trim();
+    lastTranscriptRef.current = text;
+    setTranscript(text);
+    onTranscriptChange?.(text);
+  };
+
+  const commitSegment = (segment: string) => {
+    const merged = mergeTranscript(committedTranscriptRef.current, segment);
+    if (!merged) return;
+    committedTranscriptRef.current = merged;
+    partialTranscriptRef.current = '';
+    syncTranscriptUi(merged);
+  };
+
+  const updatePartial = (partial: string) => {
+    partialTranscriptRef.current = String(partial || '').trim();
+    syncTranscriptUi(buildDisplayTranscript(committedTranscriptRef.current, partialTranscriptRef.current));
+  };
+
+  const flushPartialToCommitted = () => {
+    if (partialTranscriptRef.current.trim()) {
+      commitSegment(partialTranscriptRef.current);
+    }
+  };
+
+  const emitFinalTranscriptOnce = () => {
+    if (finalEmittedRef.current) return;
+    flushPartialToCommitted();
+    const finalText = (lastTranscriptRef.current || committedTranscriptRef.current || '').trim();
+    if (!finalText) return;
+    finalEmittedRef.current = true;
+    lastTranscriptRef.current = finalText;
+    onFinalTranscript?.(finalText);
+  };
 
   const clearTranscript = () => {
-    setTranscript('');
+    committedTranscriptRef.current = '';
+    partialTranscriptRef.current = '';
     lastTranscriptRef.current = '';
+    setTranscript('');
   };
 
   const emitError = (message: string) => {
@@ -174,11 +244,7 @@ export default function VoiceRecorder({
           text += ev.results[i][0]?.transcript || '';
         }
         const t = text.trim();
-        if (t) {
-          lastTranscriptRef.current = t;
-          setTranscript(t);
-          onTranscriptChange?.(t);
-        }
+        if (t) syncTranscriptUi(t);
       };
       rec.onerror = (ev: any) => {
         const code = ev?.error || '';
@@ -201,8 +267,7 @@ export default function VoiceRecorder({
         webRecognitionRef.current = null;
         setIsListening(false);
         onListeningChange?.(false);
-        const ft = (lastTranscriptRef.current || '').trim();
-        if (ft) onFinalTranscript?.(ft);
+        emitFinalTranscriptOnce();
       };
       webRecognitionRef.current = rec;
       engineRef.current = 'expo';
@@ -220,6 +285,7 @@ export default function VoiceRecorder({
   const startListening = async () => {
     manualStopRef.current = false;
     shouldKeepListeningRef.current = true;
+    finalEmittedRef.current = false;
     setError(null);
     clearTranscript();
 
@@ -322,22 +388,24 @@ export default function VoiceRecorder({
   const stopListening = async () => {
     manualStopRef.current = true;
     shouldKeepListeningRef.current = false;
+    const currentEngine = engineRef.current;
     try {
       if (Platform.OS === 'web' && webRecognitionRef.current) {
         try {
           webRecognitionRef.current.stop();
         } catch (_) {}
         webRecognitionRef.current = null;
-      } else if (engineRef.current === 'native' && NativeVoice) {
+      } else if (currentEngine === 'native' && NativeVoice) {
         await NativeVoice.stop();
-      } else if (engineRef.current === 'expo' && ExpoSpeechRecognitionModule) {
+        await waitForFinalSpeechResult(500);
+      } else if (currentEngine === 'expo' && ExpoSpeechRecognitionModule) {
         ExpoSpeechRecognitionModule.stop?.();
+        await waitForFinalSpeechResult(500);
       }
     } finally {
       setIsListening(false);
       onListeningChange?.(false);
-      const finalText = (lastTranscriptRef.current || '').trim();
-      if (finalText) onFinalTranscript?.(finalText);
+      emitFinalTranscriptOnce();
     }
   };
 
@@ -361,9 +429,13 @@ export default function VoiceRecorder({
       || event?.result
       || '';
     if (!txt) return;
-    lastTranscriptRef.current = txt;
-    setTranscript(txt);
-    onTranscriptChange?.(txt);
+    const isFinal =
+      event?.isFinal
+      ?? event?.results?.[0]?.[0]?.isFinal
+      ?? event?.results?.[0]?.isFinal
+      ?? false;
+    if (isFinal) commitSegment(txt);
+    else updatePartial(txt);
   });
 
   useSpeechRecognitionEvent('end', () => {
@@ -378,10 +450,7 @@ export default function VoiceRecorder({
     }
     setIsListening(false);
     onListeningChange?.(false);
-    if (manualStopRef.current) {
-      const finalText = (lastTranscriptRef.current || '').trim();
-      if (finalText) onFinalTranscript?.(finalText);
-    }
+    if (manualStopRef.current) return;
   });
 
   useSpeechRecognitionEvent('error', (evt: any) => {
@@ -418,6 +487,7 @@ export default function VoiceRecorder({
 
     NativeVoice.onSpeechEnd = () => {
       if (engineRef.current !== 'native') return;
+      flushPartialToCommitted();
       if (!manualStopRef.current && shouldKeepListeningRef.current && NativeVoice) {
         NativeVoice.start(locale).catch(() => {});
         setIsListening(true);
@@ -426,19 +496,21 @@ export default function VoiceRecorder({
       }
       setIsListening(false);
       onListeningChange?.(false);
-      if (manualStopRef.current) {
-        const finalText = (lastTranscriptRef.current || '').trim();
-        if (finalText) onFinalTranscript?.(finalText);
-      }
+      if (manualStopRef.current) return;
+    };
+
+    NativeVoice.onSpeechPartialResults = (result: any) => {
+      if (engineRef.current !== 'native') return;
+      const txt = result?.value?.[0] || '';
+      if (!txt) return;
+      updatePartial(txt);
     };
 
     NativeVoice.onSpeechResults = (result: any) => {
       if (engineRef.current !== 'native') return;
       const txt = result?.value?.[0] || '';
       if (!txt) return;
-      lastTranscriptRef.current = txt;
-      setTranscript(txt);
-      onTranscriptChange?.(txt);
+      commitSegment(txt);
     };
 
     NativeVoice.onSpeechError = (evt: any) => {

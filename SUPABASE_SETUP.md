@@ -54,4 +54,13 @@ Copie `.env.example` para `.env` e preencha. **Replique as mesmas variáveis na 
 - `STRIPE_SECRET_KEY` — **sk_live_** ou **sk_test_** (não use **rk_** Restricted)
 - `STRIPE_WEBHOOK_SECRET` — **whsec_...** do endpoint `/api/stripe/webhook`
 
+### Webhook Stripe (ativa plano automaticamente após pagamento)
+
+1. [Stripe → Webhooks](https://dashboard.stripe.com/webhooks) → **Adicionar destino**
+2. URL: `https://tudocerto-web.vercel.app/api/stripe/webhook`
+3. Eventos: `checkout.session.completed`, `customer.subscription.updated`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`
+4. Copie o **Signing secret** (`whsec_...`) → Vercel `STRIPE_WEBHOOK_SECRET` → **Redeploy**
+
+Se já pagou e o plano não apareceu: no app, **Planos** → **Já paguei no Stripe — ativar plano nesta conta** (usa `/api/stripe/sync-subscription`).
+
 **Nunca commite a DATABASE_URL ou a service_role key no app** – use apenas a anon key no cliente.

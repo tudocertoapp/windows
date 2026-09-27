@@ -18,10 +18,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { useProfile } from '../contexts/ProfileContext';
+import { useAuth } from '../contexts/AuthContext';
+import * as ImagePicker from 'expo-image-picker';
 import { useBanks } from '../contexts/BanksContext';
 import { GlassCard } from '../components/GlassCard';
-import { ReceiptPrintWeb } from '../components/ReceiptPrintWeb';
 import { buildEmpresaInfo } from '../utils/empresaProfile';
+import { printPdvReceipt } from '../utils/pdvReceipt';
 import { formatCurrency, parseMoney } from '../utils/format';
 import {
   playTapSound,
@@ -45,7 +47,7 @@ import {
 const PDV_SALE_KEY = '@tudocerto_pdv_ultima_venda';
 const PDV_TOP_ITEMS_KEY = '@tudocerto_pdv_top_itens_v1';
 const LEFT_BRAND_LOGO_HEIGHT = 78;
-const LEFT_BRAND_FOOTER_BOTTOM = 32;
+const LEFT_BRAND_FOOTER_BOTTOM = 6;
 
 const FORMAS_PAG = [
   { id: 'pix', label: 'PIX', icon: 'phone-portrait-outline' },
@@ -71,6 +73,18 @@ function getClienteNameParts(name) {
     .trim()
     .split(/\s+/)
     .filter(Boolean);
+}
+
+/** Mesmo item e mesmo preço viram uma linha. Preço diferente fica em outra linha. */
+function samePricedCartLine(existing, incoming) {
+  if (String(existing?.id) !== String(incoming?.id)) return false;
+  if (String(existing?._tipo || '') !== String(incoming?._tipo || '')) return false;
+  const price = (item) => Number(item?.price) || 0;
+  const original = (item) => Number(item?.originalPrice ?? item?.price) || 0;
+  const desc = (item) => Number(item?.descontoUnit) || 0;
+  return Math.abs(price(existing) - price(incoming)) < 0.009
+    && Math.abs(original(existing) - original(incoming)) < 0.009
+    && Math.abs(desc(existing) - desc(incoming)) < 0.009;
 }
 
 /** 1 letra: primeiro/segundo nome começa com a letra; 2+ letras: contém no primeiro ou segundo nome. */
@@ -174,7 +188,8 @@ export function PDVScreen({ onClose, lockedMode = false }) {
   const narrowLayout = layoutW < LAYOUT_BREAKPOINT;
   const currencySym = lang?.currency || 'R$';
   const { products, services, clients, collaborators, addTransaction, loading } = useFinance();
-  const { profile } = useProfile();
+  const { profile, updateProfile } = useProfile();
+  const { user } = useAuth();
   const { banks, addToBank } = useBanks();
   const [activeTab, setActiveTab] = useState('produtos');
   const [search, setSearch] = useState('');
@@ -215,6 +230,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
   const [operatorCheckReady, setOperatorCheckReady] = useState(false);
   const [loginDebug, setLoginDebug] = useState(null);
   const [showPdvConfigModal, setShowPdvConfigModal] = useState(false);
+  const [notaDraft, setNotaDraft] = useState({ empresa: '', email: '', cnpj: '', telefone: '', rodape: '' });
   const [pdvConfig, setPdvConfig] = useState(DEFAULT_PDV_CONFIG);
   const [pdvFavorites, setPdvFavorites] = useState(EMPTY_PDV_FAVORITES);
   const searchRef = useRef(null);
@@ -453,6 +469,59 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     writePdvConfig(profile, next).catch(() => {});
   }, [profile]);
 
+  useEffect(() => {
+    if (!showPdvConfigModal) return;
+    setNotaDraft({
+      empresa: profile?.empresa || '',
+      email: profile?.email || '',
+      cnpj: profile?.cnpj || profile?.cpf || '',
+      telefone: profile?.telefone || '',
+      rodape: pdvConfig.receiptRodape || '',
+    });
+  }, [showPdvConfigModal]);
+
+  const saveNotaFiscal = useCallback(async () => {
+    try {
+      await updateProfile({
+        empresa: notaDraft.empresa.trim(),
+        email: notaDraft.email.trim(),
+        cnpj: notaDraft.cnpj.trim(),
+        telefone: notaDraft.telefone.trim(),
+      });
+      savePdvConfig({ ...pdvConfig, receiptRodape: notaDraft.rodape.trim() });
+      Alert.alert('Salvo', 'Dados da nota não fiscal atualizados.');
+    } catch (e) {
+      Alert.alert('Erro ao salvar', e?.message || 'Não foi possível salvar os dados da nota.');
+    }
+  }, [notaDraft, updateProfile, pdvConfig, savePdvConfig]);
+
+  const pickReceiptLogo = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão', 'Precisamos de acesso à galeria para a logo da nota.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    try {
+      let url = asset.uri;
+      if (user?.id && asset.base64) {
+        const { uploadCupomLogoFromBase64 } = await import('../utils/uploadProfilePhoto');
+        url = await uploadCupomLogoFromBase64(asset.base64, user.id);
+      }
+      savePdvConfig({ ...pdvConfig, receiptLogoUrl: url, receiptShowLogo: true });
+    } catch (e) {
+      Alert.alert('Erro ao enviar logo', e?.message || 'Tente novamente.');
+    }
+  }, [user?.id, pdvConfig, savePdvConfig]);
+
   const findOperatorByLogin = useCallback((loginText, selectedId) => {
     const loginNorm = normalizeLoginText(loginText);
     const loginToken = normalizeLoginToken(loginText);
@@ -516,8 +585,8 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     if (precoFinal <= 0) return;
     playPdvAddItemSound();
     setCart((prev) => {
-      const idx = prev.findIndex((c) => c.id === selectedItem.id && c._tipo === selectedItem._tipo);
       const itemToAdd = { ...selectedItem, originalPrice: price, descontoUnit: desc, price: precoFinal, qty };
+      const idx = prev.findIndex((c) => samePricedCartLine(c, itemToAdd));
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = {
@@ -559,13 +628,20 @@ export function PDVScreen({ onClose, lockedMode = false }) {
   const addToCartQuick = useCallback((item) => {
     playTapSound();
     setCart((prev) => {
-      const idx = prev.findIndex((c) => c.id === item.id && c._tipo === item._tipo);
+      const incoming = {
+        ...item,
+        qty: 1,
+        originalPrice: Number(item.originalPrice ?? item.price) || 0,
+        descontoUnit: Number(item.descontoUnit) || 0,
+        price: Number(item.price) || 0,
+      };
+      const idx = prev.findIndex((c) => samePricedCartLine(c, incoming));
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], qty: (next[idx].qty || 1) + 1 };
         return next;
       }
-      return [...prev, { ...item, qty: 1 }];
+      return [...prev, incoming];
     });
   }, []);
 
@@ -604,7 +680,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     setPayments((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleConfirmSale = useCallback(async () => {
+  const handleConfirmSale = useCallback(() => {
     if (cart.length === 0) {
       Alert.alert('Carrinho vazio', 'Adicione itens ao carrinho.');
       return;
@@ -613,11 +689,23 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       Alert.alert('Pagamento incompleto', `Falta ${formatCurrency(restante)}.`);
       return;
     }
+    Alert.alert(
+      'Faturar pedido',
+      `Deseja faturar esta venda de ${formatCurrency(total)}?`,
+      [
+        { text: 'Não', style: 'cancel' },
+        { text: 'Sim, faturar', onPress: () => { void finishSale(); } },
+      ],
+    );
+
+    async function finishSale() {
     playTapSound();
 
     const numero = String(saleNumber).padStart(4, '0');
     const sale = {
       numero,
+      soldAt: new Date().toISOString(),
+      operador: operatorLogged?.nome || profile?.nome || 'Operador',
       items: cart.map((i) => ({
         id: i.id,
         name: i.name,
@@ -627,7 +715,15 @@ export function PDVScreen({ onClose, lockedMode = false }) {
         descontoUnit: Number(i.descontoUnit) || 0,
         qty: i.qty || 1,
       })),
-      cliente: cliente ? { name: cliente.name, cpf: cliente.cpf } : null,
+      cliente: cliente
+        ? {
+            name: cliente.name,
+            cpf: cliente.cpf || cliente.cnpj || '',
+            phone: cliente.phone || cliente.telefone || '',
+            email: cliente.email || '',
+            address: cliente.address || cliente.endereco || '',
+          }
+        : null,
       subtotal,
       subtotalBruto,
       descontoItens,
@@ -655,6 +751,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
         Alert.alert('Erro', 'Não foi possível registrar a venda no fluxo de caixa.');
         return;
       }
+      sale.transacaoId = txId;
 
       const firstBank = banks?.find((b) => (b.tipoConta === 'debito' || b.tipoConta === 'ambos') && b.saldo !== undefined);
       if (firstBank?.id) addToBank(firstBank.id, total);
@@ -676,14 +773,25 @@ export function PDVScreen({ onClose, lockedMode = false }) {
     } catch (e) {
       Alert.alert('Erro', 'Não foi possível finalizar a venda.');
     }
-  }, [cart, cliente, subtotal, subtotalBruto, descontoItens, descontoNum, descontoTotal, total, pago, payments, saleNumber, addTransaction, banks, addToBank, topSalesByItem, operatorLogged?.nome, profile?.nome]);
+    }
+  }, [cart, cliente, subtotal, subtotalBruto, descontoItens, descontoNum, descontoTotal, total, pago, payments, saleNumber, addTransaction, banks, addToBank, topSalesByItem, operatorLogged?.nome, profile]);
 
   const handlePrint = useCallback(() => {
-    if (typeof window !== 'undefined' && window.print) {
-      playTapSound();
-      window.print();
-    }
-  }, []);
+    if (!completedSale) return;
+    playTapSound();
+    printPdvReceipt(completedSale, buildEmpresaInfo(profile), {
+      showLogo: pdvConfig.receiptShowLogo,
+      showEmail: pdvConfig.receiptShowEmail,
+      showDocumento: pdvConfig.receiptShowDocumento,
+      showTelefone: pdvConfig.receiptShowTelefone,
+      showEndereco: pdvConfig.receiptShowEndereco,
+      showInstagram: pdvConfig.receiptShowInstagram,
+      showNumero: pdvConfig.receiptShowNumero,
+      showVendedor: pdvConfig.receiptShowVendedor,
+      logoUrl: pdvConfig.receiptLogoUrl,
+      rodape: pdvConfig.receiptRodape,
+    });
+  }, [completedSale, profile, pdvConfig]);
 
   const handleNovaVenda = useCallback(() => {
     playTapSound();
@@ -919,7 +1027,6 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
   if (Platform.OS !== 'web') return null;
 
-  const empresaInfo = buildEmpresaInfo(profile);
   const dataHora = currentTime.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const footerBtnBg = colors?.isDarkBg ? 'rgba(24,24,27,0.92)' : 'rgba(248,250,252,0.96)';
   const footerBtnText = colors?.isDarkBg ? '#e4e4e7' : '#1f2937';
@@ -1541,45 +1648,136 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
       <Modal visible={showPdvConfigModal} animationType="fade" transparent>
         <View style={styles.successOverlay}>
-          <View style={[styles.successBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.successBox, styles.notaConfigBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.successTitle, { color: colors.text }]}>Configurações do PDV</Text>
-            <Text style={[styles.successSub, { color: colors.textSecondary, textAlign: 'center' }]}>
-              Defina as regras da frente de caixa deste comércio.
-            </Text>
-            <TouchableOpacity
-              style={[styles.configRow, { borderColor: colors.border, backgroundColor: colors.bg }]}
-              onPress={() => savePdvConfig({ ...pdvConfig, requireOperatorLogin: !pdvConfig.requireOperatorLogin })}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.configTitle, { color: colors.text }]}>Exigir login do operador ao abrir caixa</Text>
-                <Text style={[styles.configDesc, { color: colors.textSecondary }]}>Se desativado, vendedor entra direto no PDV.</Text>
-              </View>
-              <View style={[styles.configBadge, { backgroundColor: pdvConfig.requireOperatorLogin ? colors.primary : colors.border }]}>
-                <Text style={styles.configBadgeText}>{pdvConfig.requireOperatorLogin ? 'ATIVO' : 'OFF'}</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.configRow, { borderColor: colors.border, backgroundColor: colors.bg }]}
-              onPress={() => savePdvConfig({ ...pdvConfig, requireFrontDeskAuth: !pdvConfig.requireFrontDeskAuth })}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.configTitle, { color: colors.text }]}>Exigir autenticação para cancelar/fechar</Text>
-                <Text style={[styles.configDesc, { color: colors.textSecondary }]}>Controla cancelar item, cancelar pedido e fechar caixa.</Text>
-              </View>
-              <View style={[styles.configBadge, { backgroundColor: pdvConfig.requireFrontDeskAuth ? colors.primary : colors.border }]}>
-                <Text style={styles.configBadgeText}>{pdvConfig.requireFrontDeskAuth ? 'ATIVO' : 'OFF'}</Text>
-              </View>
-            </TouchableOpacity>
-            {lockedMode ? (
-              <Text style={[styles.configLockHint, { color: colors.textSecondary }]}>
-                Modo restrito ativo: esta aba foi aberta para operação exclusiva do PDV.
+            <ScrollView style={styles.notaConfigScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+              <Text style={[styles.successSub, { color: colors.textSecondary, textAlign: 'left' }]}>
+                Regras da frente de caixa e o que aparece na nota não fiscal.
               </Text>
-            ) : null}
+              <TouchableOpacity
+                style={[styles.configRow, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                onPress={() => savePdvConfig({ ...pdvConfig, requireOperatorLogin: !pdvConfig.requireOperatorLogin })}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.configTitle, { color: colors.text }]}>Exigir login do operador ao abrir caixa</Text>
+                  <Text style={[styles.configDesc, { color: colors.textSecondary }]}>Se desativado, vendedor entra direto no PDV.</Text>
+                </View>
+                <View style={[styles.configBadge, { backgroundColor: pdvConfig.requireOperatorLogin ? colors.primary : colors.border }]}>
+                  <Text style={styles.configBadgeText}>{pdvConfig.requireOperatorLogin ? 'ATIVO' : 'OFF'}</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.configRow, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                onPress={() => savePdvConfig({ ...pdvConfig, requireFrontDeskAuth: !pdvConfig.requireFrontDeskAuth })}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.configTitle, { color: colors.text }]}>Exigir autenticação para cancelar/fechar</Text>
+                  <Text style={[styles.configDesc, { color: colors.textSecondary }]}>Controla cancelar item, cancelar pedido e fechar caixa.</Text>
+                </View>
+                <View style={[styles.configBadge, { backgroundColor: pdvConfig.requireFrontDeskAuth ? colors.primary : colors.border }]}>
+                  <Text style={styles.configBadgeText}>{pdvConfig.requireFrontDeskAuth ? 'ATIVO' : 'OFF'}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <Text style={[styles.notaSectionTitle, { color: colors.text }]}>Nota não fiscal</Text>
+              <View style={styles.logoRow}>
+                {pdvConfig.receiptLogoUrl ? (
+                  <Image source={{ uri: pdvConfig.receiptLogoUrl }} style={styles.logoPreview} />
+                ) : (
+                  <View style={[styles.logoPreview, styles.logoEmpty, { borderColor: colors.border }]}>
+                    <Ionicons name="image-outline" size={22} color={colors.textSecondary} />
+                  </View>
+                )}
+                <View style={{ flex: 1, gap: 8 }}>
+                  <TouchableOpacity style={[styles.notaMiniBtn, { backgroundColor: colors.primary }]} onPress={pickReceiptLogo}>
+                    <Text style={styles.printBtnText}>Colocar logo</Text>
+                  </TouchableOpacity>
+                  {pdvConfig.receiptLogoUrl ? (
+                    <TouchableOpacity
+                      style={[styles.notaMiniBtn, { backgroundColor: colors.border }]}
+                      onPress={() => savePdvConfig({ ...pdvConfig, receiptLogoUrl: '' })}
+                    >
+                      <Text style={[styles.printBtnText, { color: colors.text }]}>Remover logo</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+              <TextInput
+                style={[styles.notaInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}
+                placeholder="Nome da empresa"
+                placeholderTextColor={colors.textSecondary}
+                value={notaDraft.empresa}
+                onChangeText={(empresa) => setNotaDraft((d) => ({ ...d, empresa }))}
+              />
+              <TextInput
+                style={[styles.notaInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}
+                placeholder="E-mail da empresa"
+                placeholderTextColor={colors.textSecondary}
+                value={notaDraft.email}
+                onChangeText={(email) => setNotaDraft((d) => ({ ...d, email }))}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TextInput
+                style={[styles.notaInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}
+                placeholder="CNPJ ou CPF"
+                placeholderTextColor={colors.textSecondary}
+                value={notaDraft.cnpj}
+                onChangeText={(cnpj) => setNotaDraft((d) => ({ ...d, cnpj }))}
+              />
+              <TextInput
+                style={[styles.notaInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}
+                placeholder="Telefone / WhatsApp"
+                placeholderTextColor={colors.textSecondary}
+                value={notaDraft.telefone}
+                onChangeText={(telefone) => setNotaDraft((d) => ({ ...d, telefone }))}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={[styles.notaInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}
+                placeholder="Mensagem do rodapé"
+                placeholderTextColor={colors.textSecondary}
+                value={notaDraft.rodape}
+                onChangeText={(rodape) => setNotaDraft((d) => ({ ...d, rodape }))}
+              />
+              {[
+                ['receiptShowLogo', 'Mostrar logo'],
+                ['receiptShowEmail', 'Mostrar e-mail'],
+                ['receiptShowDocumento', 'Mostrar CNPJ ou CPF'],
+                ['receiptShowTelefone', 'Mostrar telefone'],
+                ['receiptShowEndereco', 'Mostrar endereço'],
+                ['receiptShowInstagram', 'Mostrar Instagram'],
+                ['receiptShowNumero', 'Mostrar número da nota'],
+                ['receiptShowVendedor', 'Mostrar vendedor'],
+              ].map(([key, label]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.configRow, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                  onPress={() => savePdvConfig({ ...pdvConfig, [key]: !pdvConfig[key] })}
+                >
+                  <Text style={[styles.configTitle, { color: colors.text, flex: 1 }]}>{label}</Text>
+                  <View style={[styles.configBadge, { backgroundColor: pdvConfig[key] ? colors.primary : colors.border }]}>
+                    <Text style={styles.configBadgeText}>{pdvConfig[key] ? 'SIM' : 'NÃO'}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {lockedMode ? (
+                <Text style={[styles.configLockHint, { color: colors.textSecondary }]}>
+                  Modo restrito ativo: esta aba foi aberta para operação exclusiva do PDV.
+                </Text>
+              ) : null}
+            </ScrollView>
             <TouchableOpacity
               style={[styles.printBtn, { backgroundColor: colors.primary, width: '100%', marginTop: 8 }]}
+              onPress={saveNotaFiscal}
+            >
+              <Text style={styles.printBtnText}>Salvar dados da nota</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.novaBtn, { borderColor: colors.border, width: '100%', marginTop: 8, flex: 0 }]}
               onPress={() => setShowPdvConfigModal(false)}
             >
-              <Text style={styles.printBtnText}>Fechar</Text>
+              <Text style={[styles.novaBtnText, { color: colors.text }]}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1697,7 +1895,6 @@ export function PDVScreen({ onClose, lockedMode = false }) {
 
       {completedSale && (
         <>
-          <ReceiptPrintWeb sale={completedSale} empresa={empresaInfo} />
           <Modal visible animationType="fade" transparent>
             <View style={styles.successOverlay}>
               <View style={[styles.successBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1845,8 +2042,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     padding: 10,
   },
-  tabs: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6, marginBottom: 12 },
-  produtosScroll: { flex: 1, minHeight: 0 },
+  tabs: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6, marginBottom: 12, zIndex: 2 },
+  produtosScroll: { flex: 1, minHeight: 0, zIndex: 2 },
   produtosScrollContent: { paddingBottom: 12 },
   tab: {
     flex: 1,
@@ -1998,6 +2195,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 8,
     paddingBottom: 0,
+    zIndex: 0,
   },
   produtosBrandLogo: { width: 250, height: LEFT_BRAND_LOGO_HEIGHT, opacity: 0.9 },
   cartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
@@ -2025,6 +2223,14 @@ const styles = StyleSheet.create({
   footerFinalizar: { flex: 1 },
   successOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   successBox: { width: '100%', maxWidth: 360, padding: 24, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
+  notaConfigBox: { maxWidth: 460, alignItems: 'stretch', maxHeight: '88%' },
+  notaConfigScroll: { width: '100%', maxHeight: 460 },
+  notaSectionTitle: { fontSize: 15, fontWeight: '800', marginTop: 16, marginBottom: 8 },
+  notaInput: { width: '100%', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginTop: 8 },
+  logoRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  logoPreview: { width: 64, height: 64, borderRadius: 8 },
+  logoEmpty: { borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  notaMiniBtn: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center' },
   successIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   successTitle: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
   successSub: { fontSize: 14, marginBottom: 8 },
