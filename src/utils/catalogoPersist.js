@@ -15,19 +15,21 @@ async function saveCatalogoConfigRemote(userId, config) {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token;
   if (origin && token) {
-    const res = await fetch(`${origin}/api/loja/save-config`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ config }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (res.ok && json?.ok) return { remote: true, config: json.config || config };
-    if (res.status === 401 || res.status === 413) {
-      return { remote: false, error: json.error || 'Não foi possível salvar o catálogo na nuvem.' };
-    }
+    try {
+      const res = await fetch(`${origin}/api/loja/save-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ config }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) return { remote: true, config: json.config || config };
+      if (res.status === 401 || res.status === 413) {
+        return { remote: false, error: json.error || 'Não foi possível salvar o catálogo na nuvem.' };
+      }
+    } catch (_) {}
   }
 
   const { error } = await supabase

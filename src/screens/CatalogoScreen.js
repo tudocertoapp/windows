@@ -95,8 +95,8 @@ export function CatalogoScreen({ onClose, isModal }) {
       setCloudSaveStatus(result.remote ? 'saved' : 'error');
       if (showAlert) {
         const msg = result.remote
-          ? 'Sua loja foi salva na nuvem (configurações, textos e imagens).'
-          : 'Salvo no aparelho. Verifique login e conexão para sincronizar com a nuvem.';
+          ? 'Seu catálogo foi salvo na nuvem (configurações, textos e imagens). O link público já pode mostrar essa versão.'
+          : 'Salvo só neste aparelho. O link público ainda não recebeu o catálogo. Verifique o login e tente de novo.';
         Alert.alert('Salvo', msg);
       }
       return result;

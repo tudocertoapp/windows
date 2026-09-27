@@ -17,6 +17,30 @@ function productCategoryIds(p) {
   };
 }
 
+function firstPhoto(src) {
+  if (!src) return null;
+  const candidates = [
+    src.photo_uri,
+    src.photoUri,
+    Array.isArray(src.photos) ? src.photos[0] : null,
+    Array.isArray(src.photo_uris) ? src.photo_uris[0] : null,
+    Array.isArray(src.photoUris) ? src.photoUris[0] : null,
+  ];
+  for (const uri of candidates) {
+    if (typeof uri !== 'string' || !uri.trim()) continue;
+    const u = uri.trim();
+    if (
+      u.startsWith('blob:')
+      || u.startsWith('file:')
+      || u.startsWith('data:')
+      || u.startsWith('content:')
+      || u.startsWith('ph:')
+    ) continue;
+    return u;
+  }
+  return null;
+}
+
 function resolvePublicItems(config, products, services) {
   const tipo = config?.tipo || 'ambos';
   const itens = Array.isArray(config?.itens) ? config.itens : [];
@@ -35,7 +59,7 @@ function resolvePublicItems(config, products, services) {
         name: src.name,
         price: Number(src.price) || 0,
         discount: Number(src.discount) || 0,
-        photoUri: src.photo_uri || src.photoUri || (Array.isArray(src.photo_uris) ? src.photo_uris[0] : null) || src.photoUris?.[0] || null,
+        photoUri: firstPhoto(src),
         categoryId: cats.categoryId || null,
         subcategoryId: cats.subcategoryId || null,
         _tipo: row.tipo,
@@ -55,7 +79,7 @@ function resolvePublicItems(config, products, services) {
         name: src.name,
         price: Number(src.price) || 0,
         discount: Number(src.discount) || 0,
-        photoUri: src.photo_uri || src.photoUri || (Array.isArray(src.photo_uris) ? src.photo_uris[0] : null) || src.photoUris?.[0] || null,
+        photoUri: firstPhoto(src),
         categoryId: cats.categoryId || null,
         subcategoryId: cats.subcategoryId || null,
         _tipo: 'produto',
@@ -68,7 +92,7 @@ function resolvePublicItems(config, products, services) {
         name: src.name,
         price: Number(src.price) || 0,
         discount: Number(src.discount) || 0,
-        photoUri: src.photo_uri || null,
+        photoUri: firstPhoto(src),
         categoryId: null,
         subcategoryId: null,
         _tipo: 'servico',
@@ -116,14 +140,30 @@ module.exports = async function handler(req, res) {
   if (!ref || !UUID_RE.test(ref)) return res.status(400).json({ error: 'Link da loja inválido.' });
   if (!(await validateOwnerRef(supabase, ref))) return res.status(404).json({ error: 'Loja não encontrada.' });
 
-  const [{ data: profile }, { data: cfgRow }, { data: products }, { data: services }] = await Promise.all([
-    supabase.from('profiles').select('id,nome,empresa,foto,telefone,instagram,endereco,endereco_cidade,endereco_estado,profissao').eq('id', ref).maybeSingle(),
+  const [{ data: profileRow }, { data: cfgRow }, { data: products }, { data: services }] = await Promise.all([
+    supabase.from('profiles').select('id,nome,name,empresa,foto,phone,instagram_url,profissao').eq('id', ref).maybeSingle(),
     supabase.from('catalogo_configs').select('config').eq('user_id', ref).maybeSingle(),
-    supabase.from('products').select('id,name,price,discount,photo_uri,photo_uris,data').eq('user_id', ref),
+    supabase.from('products').select('id,name,price,discount,photo_uri,photos,data').eq('user_id', ref),
     supabase.from('services').select('id,name,price,discount,photo_uri').eq('user_id', ref),
   ]);
 
+  const profile = profileRow
+    ? {
+        ...profileRow,
+        nome: profileRow.nome || profileRow.name || null,
+        telefone: profileRow.phone || null,
+        instagram: profileRow.instagram_url || null,
+      }
+    : { id: ref };
+
   const config = { ...defaultConfig(), ...(cfgRow?.config || {}) };
+  if (!cfgRow?.config) {
+    const nome = profile.empresa || profile.nome;
+    if (nome) {
+      config.titulo = nome;
+      config.nomeLoja = nome;
+    }
+  }
   if (config.lojaPublica === false) return res.status(403).json({ error: 'Esta loja não está pública no momento.' });
 
   const items = resolvePublicItems(config, products || [], services || []);

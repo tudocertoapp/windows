@@ -499,7 +499,7 @@ export function CatalogoEditorPanel({
       </Section>
 
       <TouchableOpacity style={[st.saveBtn, { backgroundColor: colors.primary }]} onPress={onSave} disabled={saving}>
-        {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={st.saveBtnText}>Salvar loja</Text>}
+        {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={st.saveBtnText}>Salvar catálogo</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
