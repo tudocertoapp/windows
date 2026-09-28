@@ -7,6 +7,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { usePlan } from '../../contexts/PlanContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
+import { isDesktopOnlyFeatureClient, useIsDesktopLayout } from '../../utils/platformLayout';
 
 /** Botões redondos da rail (tab bar + menu flutuante): 42×42. */
 export const WEB_DESKTOP_RAIL_ROUND_BTN = 42;
@@ -49,7 +50,8 @@ export function buildGlassTabShortcuts() {
 
 /** Selo igual aos atalhos F da página inicial e do PDV. Fica fora do círculo para não ser cortado. */
 export function TabShortcutChip({ label, colors, style }) {
-  if (!label || Platform.OS !== 'web') return null;
+  const isDesktopLayout = useIsDesktopLayout();
+  if (!label || !isDesktopOnlyFeatureClient(isDesktopLayout)) return null;
   return (
     <View
       pointerEvents="none"

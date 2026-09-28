@@ -11,6 +11,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { TabShortcutChip } from './RightSideTabBar';
+import { isDesktopOnlyFeatureClient, useIsDesktopLayout } from '../../utils/platformLayout';
 
 const SPRING_CONFIG = { damping: 18, stiffness: 180 };
 const ICON_MAP = {
@@ -130,6 +131,11 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const paddingBottom = Math.max(insets.bottom, 8);
+  const routes = state?.routes;
+  const isDesktopLayout = useIsDesktopLayout();
+  const showShortcuts = isDesktopOnlyFeatureClient(isDesktopLayout);
+
+  if (!routes?.length || !descriptors || !navigation) return null;
 
   return (
     <View style={[styles.container, { paddingBottom, pointerEvents: 'box-none' }]}>
@@ -148,13 +154,15 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
           <View style={[StyleSheet.absoluteFill, styles.borderWrap, isDark ? styles.borderDark : styles.borderLight]} />
         </View>
         <View style={styles.tabsRow}>
-          {state.routes
+          {routes
             .filter((route) => !hiddenRouteNames.includes(route.name))
-            .map((route, index) => {
-            const { options } = descriptors[route.key];
+            .map((route) => {
+            const descriptor = descriptors[route.key];
+            const options = descriptor?.options || {};
+            const index = routes.findIndex((r) => r.key === route.key);
             const isFocused = state.index === index;
             const isAddButton = route.name === 'Adicionar';
-            const shortcut = Platform.OS === 'web' ? String(index + 1) : null;
+            const shortcut = showShortcuts ? String(index + 1) : null;
 
             if (isAddButton) {
               const onAdd = customHandlers[route.name];

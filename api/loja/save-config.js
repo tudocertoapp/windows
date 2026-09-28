@@ -3,6 +3,8 @@ const {
   cors,
   parseBody,
 } = require('../_lib/supabaseAdmin');
+const { normalizeLojaSlug } = require('../_lib/lojaSlug');
+const { findOwnerBySlug, userCanPublishPublicStore } = require('../_lib/lojaPublic');
 
 function isLocalImageUri(uri) {
   if (!uri || typeof uri !== 'string') return false;
@@ -67,18 +69,37 @@ module.exports = async function handler(req, res) {
   const config = sanitizeConfig(body?.config);
   if (!config) return res.status(400).json({ error: 'Configuração do catálogo inválida.' });
 
+  config.slugPublico = normalizeLojaSlug(config.slugPublico);
+  if (config.slugPublico) {
+    const canPublish = await userCanPublishPublicStore(supabase, userId);
+    if (!canPublish) {
+      return res.status(403).json({
+        error: 'O link único da loja é do plano Pro empresa. Faça upgrade para publicar.',
+      });
+    }
+    const owner = await findOwnerBySlug(supabase, config.slugPublico);
+    if (owner && owner !== userId) {
+      return res.status(409).json({ error: 'Esse nome no link já está em uso. Escolha outro.' });
+    }
+  }
+
   const payload = JSON.stringify(config);
   if (payload.length > 1500000) {
     return res.status(413).json({ error: 'O catálogo está grande demais. Use imagens enviadas para a nuvem, sem arquivo local.' });
   }
 
-  const { error } = await supabase
-    .from('catalogo_configs')
-    .upsert({
-      user_id: userId,
-      config,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+  const row = {
+    user_id: userId,
+    config,
+    updated_at: new Date().toISOString(),
+    loja_slug: config.slugPublico || null,
+  };
+  let { error } = await supabase.from('catalogo_configs').upsert(row, { onConflict: 'user_id' });
+  if (error) {
+    const fallback = { user_id: userId, config, updated_at: row.updated_at };
+    const retry = await supabase.from('catalogo_configs').upsert(fallback, { onConflict: 'user_id' });
+    error = retry.error;
+  }
 
   if (error) {
     return res.status(500).json({ error: error.message || 'Não foi possível salvar o catálogo.' });

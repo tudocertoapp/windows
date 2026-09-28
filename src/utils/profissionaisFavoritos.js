@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiOrigin } from '../lib/subscription';
-import { parseLojaRefFromInput } from './lojaPublicLink';
+import { parseLojaPublicInput } from './lojaPublicLink';
 import { getLojaDisplayName } from './catalogoStore';
 
 export const FAVORITOS_STORAGE_PREFIX = '@tudocerto_prof_favoritos_';
@@ -56,20 +56,23 @@ export async function removeProfissionalFavorito(userId, ownerUserId) {
 }
 
 export async function fetchProfissionalPreview(input) {
-  const ref = parseLojaRefFromInput(input);
-  if (!ref) throw new Error('Informe o ID ou link da loja do profissional.');
+  const parsed = parseLojaPublicInput(input);
+  const qs = parsed.ref
+    ? `ref=${encodeURIComponent(parsed.ref)}`
+    : (parsed.slug ? `slug=${encodeURIComponent(parsed.slug)}` : '');
+  if (!qs) throw new Error('Informe o nome, o ID ou o link da loja do profissional.');
 
   const apiBase = getApiOrigin();
   if (!apiBase) throw new Error('Busca indisponível offline. Conecte-se à internet.');
 
-  const res = await fetch(`${apiBase}/api/loja/store?ref=${encodeURIComponent(ref)}`);
+  const res = await fetch(`${apiBase}/api/loja/store?${qs}`);
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || 'Profissional ou loja não encontrado.');
 
   const profile = json.profile || {};
   const config = json.config || {};
   return {
-    ownerUserId: ref,
+    ownerUserId: profile.id || parsed.ref,
     nome: profile.nome || '',
     empresa: profile.empresa || '',
     foto: profile.foto || config.fotoCatalogo || null,

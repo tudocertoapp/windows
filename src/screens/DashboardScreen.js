@@ -39,6 +39,7 @@ import {
   resolveDesktopDownloadUrls,
   triggerDesktopDownload,
 } from '../constants/desktopDownload';
+import { loadCatalogoRotulosLocal } from '../utils/catalogoPersist';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -301,6 +302,7 @@ export function DashboardScreen() {
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, plan, PLANS } = usePlan();
   const { isGuest, user } = useAuth();
   const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV, openCatalogo } = useMenu();
+  const [catalogoMenuLabel, setCatalogoMenuLabel] = useState('Meu Catálogo');
   const { notes, deleteNote } = useNotes();
   const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
   const { profile } = useProfile();
@@ -403,11 +405,20 @@ export function DashboardScreen() {
     }
   }, [quoteBody, quoteSource, quoteType, quote, openImageGenerator]);
 
+  useEffect(() => {
+    if (!showEmpresaFeatures) return undefined;
+    let cancelled = false;
+    loadCatalogoRotulosLocal()
+      .then((r) => { if (!cancelled) setCatalogoMenuLabel(r.menuLabel); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showEmpresaFeatures]);
+
   const webDesktopQuickButtons = useMemo(() => {
     if (!useWebLayout || !showEmpresaFeatures) return [];
     const buttons = [
       { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
-      { id: 'minha-loja', label: 'Meu Catálogo', icon: 'storefront-outline', onPress: () => openCatalogo?.(), color: CARD_ICON_COLORS.meusgastos },
+      { id: 'minha-loja', label: catalogoMenuLabel, icon: 'storefront-outline', onPress: () => openCatalogo?.(), color: CARD_ICON_COLORS.meusgastos },
     ];
     buttons.push(
       { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
@@ -422,6 +433,7 @@ export function DashboardScreen() {
   }, [
     useWebLayout,
     showEmpresaFeatures,
+    catalogoMenuLabel,
     openAReceber,
     openCadastro,
     openCatalogo,

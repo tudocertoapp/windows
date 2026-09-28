@@ -19,6 +19,8 @@ import {
   getEffectivePrice,
   getResponsiveGridColumns,
   getCatalogoTheme,
+  getCatalogoRotulos,
+  getCatalogoFontColors,
   getLojaDisplayName,
   getLojaLogoUri,
   buildHeroPresentation,
@@ -35,8 +37,35 @@ const CATEGORIA_TABS = [
   { id: 'servicos', label: 'Serviços' },
 ];
 
+function hexLum(hex) {
+  const raw = String(hex || '').replace('#', '');
+  const n = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  if (n.length < 6) return 0.5;
+  const r = parseInt(n.slice(0, 2), 16) / 255;
+  const g = parseInt(n.slice(2, 4), 16) / 255;
+  const b = parseInt(n.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function qtyColors(theme) {
+  let bg = theme.corPrincipal || '#2563eb';
+  const cardL = hexLum(theme.cardBg);
+  if (Math.abs(hexLum(bg) - cardL) < 0.2) {
+    bg = hexLum(theme.corTexto) > 0.55 ? theme.corTexto : (cardL > 0.5 ? '#0f172a' : '#f8fafc');
+  }
+  const fg = hexLum(bg) > 0.55 ? '#0f172a' : '#ffffff';
+  return { bg, fg };
+}
+
 function getItemPhoto(item) {
-  return item.photoUri || item.photoUris?.[0] || null;
+  if (!item) return null;
+  const data = item.data && typeof item.data === 'object' ? item.data : {};
+  const list = data.photo_uris || item.photoUris || item.photos || item.photo_uris;
+  const first = (Array.isArray(list) ? list[0] : null)
+    || item.photoUri || item.photo_uri || item.foto || data.photo_uri;
+  const uri = typeof first === 'string' ? first : first?.uri;
+  if (!uri || uri.startsWith('blob:') || uri.startsWith('file:')) return null;
+  return uri;
 }
 
 export function CatalogoStoreView({
@@ -56,6 +85,8 @@ export function CatalogoStoreView({
   ownerMode = false,
   onEditItem,
   onHeroPositionChange,
+  onHeroScaleChange,
+  onHeroTextChange,
 }) {
   const [search, setSearch] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('todos');
@@ -86,13 +117,16 @@ export function CatalogoStoreView({
   }, [agendamentoAtivo, config, selectedDate]);
 
   const theme = getCatalogoTheme(config);
+  const rotulos = getCatalogoRotulos(config);
+  const fonts = getCatalogoFontColors(config, theme);
   const cardBg = theme.cardBg;
+  const qtyTone = qtyColors(theme);
   const storeW = measuredW || previewWidth || SW;
   const cols = getResponsiveGridColumns(storeW);
   const gap = 10;
-  const pad = 16;
+  const pad = 12;
   const innerW = Math.max(0, storeW - pad * 2);
-  const cardW = Math.max(1, Math.floor((innerW - gap * (cols - 1)) / cols) - 2);
+  const cardW = cols > 0 ? (innerW - gap * (cols - 1)) / cols : innerW;
 
   const lojaNome = getLojaDisplayName(config, profile);
   const logoUri = config.usaLogo !== false
@@ -125,7 +159,7 @@ export function CatalogoStoreView({
   const carouselItems = filtered.slice(0, Math.min(12, filtered.length));
   const CAROUSEL_ITEM_W = storeW - pad * 2;
   const CAROUSEL_IMG_H = 200;
-  const showCarousel = (config.layout === 'carrossel' || config.layout === 'vitrine') && carouselItems.length > 0;
+  const showCarousel = config.layout === 'carrossel' && carouselItems.length > 0;
 
   const carouselCardHeight = useMemo(() => {
     let body = 16;
@@ -220,8 +254,8 @@ export function CatalogoStoreView({
     const temPromo = config.mostrarPromocao !== false && Number(item.discount) > 0;
     return (
       <View style={st.priceRow}>
-        {temPromo && <Text style={[st.priceOld, { color: config.corTexto + '88' }]}>{formatCurrency(price)}</Text>}
-        <Text style={[st.price, { color: config.corPrincipal }]}>{formatCurrency(effective)}</Text>
+        {temPromo && <Text style={[st.priceOld, { color: fonts.produto + '88' }]}>{formatCurrency(price)}</Text>}
+        <Text style={[st.price, { color: fonts.preco }]}>{formatCurrency(effective)}</Text>
         {temPromo && (
           <View style={st.promoBadge}>
             <Text style={st.promoText}>PROMO</Text>
@@ -275,7 +309,7 @@ export function CatalogoStoreView({
           </View>
         )}
         <View style={[st.cardBody, carousel && st.cardBodyCarousel]}>
-          <Text style={[st.cardName, { color: config.corTexto }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={[st.cardName, { color: fonts.produto }]} numberOfLines={2}>{item.name}</Text>
           {renderPrice(item)}
           {interactive && config.mostrarCarrinho !== false && (
             <TouchableOpacity
@@ -316,7 +350,7 @@ export function CatalogoStoreView({
           ) : null}
         </View>
         <View style={st.listInfo}>
-          <Text style={[st.cardName, { color: config.corTexto }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={[st.cardName, { color: fonts.produto }]} numberOfLines={2}>{item.name}</Text>
           {renderPrice(item)}
         </View>
         {interactive && config.mostrarCarrinho !== false && (
@@ -329,8 +363,15 @@ export function CatalogoStoreView({
   };
 
   const renderGrid = () => (
-    <View style={[st.grid, { gap, paddingTop: showCarousel ? 2 : 8, paddingBottom: 8 }]}>
-      {filtered.map((item) => renderProductCard(item))}
+    <View style={[st.grid, { marginHorizontal: -gap / 2, paddingTop: showCarousel ? 2 : 8, paddingBottom: 8 }]}>
+      {filtered.map((item) => (
+        <View
+          key={item._rowId || item.id}
+          style={{ width: `${100 / cols}%`, paddingHorizontal: gap / 2, marginBottom: gap, boxSizing: 'border-box' }}
+        >
+          {renderProductCard(item, { fullWidth: true })}
+        </View>
+      ))}
     </View>
   );
 
@@ -355,7 +396,9 @@ export function CatalogoStoreView({
       <ScrollView
         showsVerticalScrollIndicator={false}
         scrollEnabled={!heroDragging}
+        nestedScrollEnabled
         contentContainerStyle={{ paddingBottom: interactive ? 88 : 24 }}
+        style={heroDragging ? { overflow: 'hidden' } : undefined}
       >
         <LojaHeroBanner
           config={config}
@@ -364,13 +407,16 @@ export function CatalogoStoreView({
           logoUri={logoUri}
           heroBg={heroBg}
           heroEditMode={ownerMode && config.heroPosicaoManual === true}
+          heroResizeMode={ownerMode}
           onHeroPositionChange={handleHeroPositionChange}
+          onHeroScaleChange={onHeroScaleChange}
+          onHeroTextChange={onHeroTextChange}
           onDragStateChange={setHeroDragging}
         />
 
         {config.sobreTexto ? (
           <View style={[st.about, { backgroundColor: cardBg, borderColor: config.corPrincipal + '22' }]}>
-            <Text style={[st.aboutText, { color: config.corTexto }]}>{config.sobreTexto}</Text>
+            <Text style={[st.aboutText, { color: fonts.sobre }]}>{config.sobreTexto}</Text>
           </View>
         ) : null}
 
@@ -378,19 +424,19 @@ export function CatalogoStoreView({
           {ownerMode && (
             <View style={[st.ownerHint, { backgroundColor: config.corPrincipal + '15', borderColor: config.corPrincipal + '33' }]}>
               <Ionicons name="information-circle-outline" size={18} color={config.corPrincipal} />
-              <Text style={[st.ownerHintText, { color: config.corTexto }]}>
+              <Text style={[st.ownerHintText, { color: fonts.produto }]}>
                 {config.heroPosicaoManual
-                  ? 'Arraste logo, título e textos no banner acima. Toque no lápis nos produtos para editar.'
-                  : 'Toque no lápis para editar foto, nome e preço. Salva no app e na loja.'}
+                  ? 'Toque no logo ou nos textos do cabeçalho para selecionar e editar.'
+                  : rotulos.dicaEdicao}
               </Text>
             </View>
           )}
           <View style={[st.searchWrap, { borderColor: config.corPrincipal + '33', backgroundColor: cardBg }]}>
-            <Ionicons name="search" size={18} color={config.corTexto + '66'} />
+            <Ionicons name="search" size={18} color={fonts.produto + '66'} />
             <TextInput
-              style={[st.searchInput, { color: config.corTexto }]}
-              placeholder="Buscar na loja..."
-              placeholderTextColor={config.corTexto + '55'}
+              style={[st.searchInput, { color: fonts.produto }]}
+              placeholder={rotulos.buscar}
+              placeholderTextColor={fonts.produto + '55'}
               value={search}
               onChangeText={setSearch}
               editable={interactive}
@@ -405,7 +451,7 @@ export function CatalogoStoreView({
                   onPress={() => { playTapSound(); setCategoriaAtiva(cat.id); }}
                   style={[st.tab, categoriaAtiva === cat.id && { borderBottomColor: config.corPrincipal, borderBottomWidth: 2 }]}
                 >
-                  <Text style={[st.tabText, { color: categoriaAtiva === cat.id ? config.corPrincipal : config.corTexto + '88' }]}>
+                  <Text style={[st.tabText, { color: categoriaAtiva === cat.id ? fonts.preco : fonts.produto + '88' }]}>
                     {cat.label}
                   </Text>
                 </TouchableOpacity>
@@ -498,7 +544,7 @@ export function CatalogoStoreView({
           {filtered.length === 0 ? (
             <View style={st.empty}>
               <Ionicons name="bag-outline" size={48} color={config.corTexto + '44'} />
-              <Text style={{ color: config.corTexto + '88', textAlign: 'center' }}>Nenhum item visível na loja.</Text>
+              <Text style={{ color: config.corTexto + '88', textAlign: 'center' }}>{rotulos.vazio}</Text>
             </View>
           ) : config.layout === 'horizontal' ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap, paddingVertical: 8 }}>
@@ -550,31 +596,47 @@ export function CatalogoStoreView({
                   </View>
                 ) : (
                   <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
-                    {cart.map((line) => (
+                    {cart.map((line) => {
+                      const photo = getItemPhoto(line.item);
+                      return (
                       <View key={line.key} style={[st.cartLine, { borderColor: config.corPrincipal + '22' }]}>
+                        {photo ? (
+                          <Image source={{ uri: photo }} style={st.cartThumb} resizeMode="cover" />
+                        ) : (
+                          <View style={[st.cartThumb, st.cardImgPh, { backgroundColor: config.corPrincipal + '22' }]}>
+                            <Ionicons name={line.item._tipo === 'servico' ? 'construct' : 'cube'} size={18} color={config.corPrincipal} />
+                          </View>
+                        )}
                         <View style={{ flex: 1 }}>
-                          <Text style={[st.cartLineName, { color: config.corTexto }]} numberOfLines={2}>{line.item.name}</Text>
-                          <Text style={{ color: config.corTexto + 'aa', fontSize: 12 }}>
+                          <Text style={[st.cartLineName, { color: fonts.produto }]} numberOfLines={2}>{line.item.name}</Text>
+                          <Text style={{ color: fonts.produto, opacity: 0.7, fontSize: 12 }}>
                             {`Unidade ${formatCurrency(getEffectivePrice(line.item))} · Qtd ${line.qty || 1}`}
                           </Text>
-                          <Text style={{ color: config.corPrincipal, fontWeight: '700' }}>
+                          <Text style={{ color: fonts.preco, fontWeight: '700' }}>
                             {`Total ${formatCurrency(getEffectivePrice(line.item) * (line.qty || 1))}`}
                           </Text>
                         </View>
                         <View style={st.qtyRow}>
-                          <TouchableOpacity style={st.qtyBtn} onPress={() => onUpdateQty?.(line.key, (line.qty || 1) - 1)}>
-                            <Ionicons name="remove" size={18} color={config.corTexto} />
+                          <TouchableOpacity
+                            style={[st.qtyBtn, { backgroundColor: qtyTone.bg, borderColor: qtyTone.bg }]}
+                            onPress={() => onUpdateQty?.(line.key, (line.qty || 1) - 1)}
+                          >
+                            <Ionicons name="remove" size={18} color={qtyTone.fg} />
                           </TouchableOpacity>
-                          <Text style={[st.qtyVal, { color: config.corTexto }]}>{line.qty || 1}</Text>
-                          <TouchableOpacity style={st.qtyBtn} onPress={() => onUpdateQty?.(line.key, (line.qty || 1) + 1)}>
-                            <Ionicons name="add" size={18} color={config.corTexto} />
+                          <Text style={[st.qtyVal, { color: fonts.produto }]}>{line.qty || 1}</Text>
+                          <TouchableOpacity
+                            style={[st.qtyBtn, { backgroundColor: qtyTone.bg, borderColor: qtyTone.bg }]}
+                            onPress={() => onUpdateQty?.(line.key, (line.qty || 1) + 1)}
+                          >
+                            <Ionicons name="add" size={18} color={qtyTone.fg} />
                           </TouchableOpacity>
                         </View>
                         <TouchableOpacity onPress={() => onRemoveFromCart?.(line.key)} hitSlop={8}>
                           <Ionicons name="trash-outline" size={20} color="#ef4444" />
                         </TouchableOpacity>
                       </View>
-                    ))}
+                      );
+                    })}
 
                     <Text style={[st.cartSectionLabel, { color: config.corTexto }]}>Seus dados</Text>
                     <TextInput style={[st.clientInput, { borderColor: config.corPrincipal + '33', color: config.corTexto }]} placeholder="Seu nome" placeholderTextColor={config.corTexto + '66'} value={clientName} onChangeText={setClientName} />
@@ -664,8 +726,8 @@ const st = StyleSheet.create({
   secaoTitle: { fontSize: 16, fontWeight: '800', marginBottom: 12 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 22, marginBottom: 6 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 4, boxSizing: 'border-box' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
+  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 0, width: '100%' },
   cardCarousel: { marginBottom: 0 },
   cardBodyCarousel: { paddingTop: 8, paddingHorizontal: 10, paddingBottom: 8 },
   cardImg: { width: '100%' },
@@ -712,9 +774,10 @@ const st = StyleSheet.create({
   cartTitle: { fontSize: 18, fontWeight: '800' },
   cartEmpty: { alignItems: 'center', paddingVertical: 32, gap: 8 },
   cartLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1 },
+  cartThumb: { width: 52, height: 52, borderRadius: 10 },
   cartLineName: { fontSize: 14, fontWeight: '600' },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qtyBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  qtyBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   qtyVal: { fontSize: 15, fontWeight: '700', minWidth: 24, textAlign: 'center' },
   cartFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderTopWidth: 1, marginTop: 8 },
   cartTotalLabel: { fontSize: 16, fontWeight: '600' },

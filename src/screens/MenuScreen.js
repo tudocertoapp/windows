@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
+import { loadCatalogoRotulosLocal } from '../utils/catalogoPersist';
 import { Image } from 'react-native';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 
@@ -42,6 +43,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   const [photoError, setPhotoError] = useState(false);
   const [empresaDropdownOpen, setEmpresaDropdownOpen] = useState(false);
   const [menuContaDropdownOpen, setMenuContaDropdownOpen] = useState(false);
+  const [catalogoMenuLabel, setCatalogoMenuLabel] = useState('Meu Catálogo');
   const isModal = Boolean(onClose);
   const isWeb = typeof window !== 'undefined';
   const isDesktopLayout = useIsDesktopLayout();
@@ -65,6 +67,13 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
   useEffect(() => {
     if (isWebDesktop) setMenuContaDropdownOpen(true);
   }, [isWebDesktop]);
+  useEffect(() => {
+    let cancelled = false;
+    loadCatalogoRotulosLocal()
+      .then((r) => { if (!cancelled) setCatalogoMenuLabel(r.menuLabel); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [empresaDropdownOpen]);
   const comingSoon = () => Alert.alert('Em breve!', 'Funcionalidade em desenvolvimento.');
 
   const goTo = (tabName, params) => {
@@ -205,7 +214,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
                 <>
                   {isWebDesktop && planFeatures?.canUsePDV && <MenuItem icon="cart-outline" label="Abrir Caixa" subtitle="Ponto de venda e vendas" onPress={() => { setEmpresaDropdownOpen(false); onOpenPDV?.(); }} />}
                   <MenuItem icon="logo-whatsapp" label="WhatsApp e CRM" subtitle="Clientes, leads e mensagens" badge={`${clients.length}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenMensagensWhatsApp?.(); }} />
-                  <MenuItem icon="storefront-outline" label="Meu Catálogo" subtitle="Vitrine de produtos e serviços" badge={`${(products?.length || 0) + (services?.length || 0)}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenCatalogo?.(); }} />
+                  <MenuItem icon="storefront-outline" label={catalogoMenuLabel} subtitle="Vitrine de produtos e serviços" badge={`${(products?.length || 0) + (services?.length || 0)}`} onPress={() => { setEmpresaDropdownOpen(false); onOpenCatalogo?.(); }} />
                   <MenuItem icon="document-text-outline" label="Ordem de serviço" subtitle="Cadastro e gestão de OS" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrdemServico?.(); }} />
                   <MenuItem icon="receipt-outline" label="Orçamentos" subtitle="Cotações e propostas comerciais" onPress={() => { setEmpresaDropdownOpen(false); onOpenOrcamentos?.(); }} />
                   <MenuItem icon="cube-outline" label="Produtos" subtitle="Gerenciar produtos" badge={`${products.length}`} onPress={() => { setEmpresaDropdownOpen(false); goToCadastro('produtos'); }} />

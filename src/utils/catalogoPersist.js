@@ -5,6 +5,7 @@ import {
   CATALOGO_CONFIG_KEY,
   mergeCatalogoConfig,
   syncCatalogoItens,
+  getCatalogoRotulos,
 } from './catalogoStore';
 import { prepareCatalogoConfigForRemote } from './catalogoRemoteAssets';
 
@@ -26,7 +27,7 @@ async function saveCatalogoConfigRemote(userId, config) {
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json?.ok) return { remote: true, config: json.config || config };
-      if (res.status === 401 || res.status === 413) {
+      if (!res.ok) {
         return { remote: false, error: json.error || 'Não foi possível salvar o catálogo na nuvem.' };
       }
     } catch (_) {}
@@ -73,6 +74,16 @@ export async function loadCatalogoConfig(user, products, services) {
   return synced;
 }
 
+export async function loadCatalogoRotulosLocal() {
+  try {
+    const raw = await AsyncStorage.getItem(CATALOGO_CONFIG_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return getCatalogoRotulos(parsed);
+  } catch (_) {
+    return getCatalogoRotulos();
+  }
+}
+
 export async function saveCatalogoConfig(user, config, options = {}) {
   const { skipAssetUpload = false } = options;
   const seq = ++catalogoSaveSeq;
@@ -80,6 +91,10 @@ export async function saveCatalogoConfig(user, config, options = {}) {
   if (user?.id && !skipAssetUpload) {
     prepared = await prepareCatalogoConfigForRemote(user.id, config);
   }
+  prepared = {
+    ...prepared,
+    slugPublico: String(prepared.slugPublico || '').trim().toLowerCase(),
+  };
   if (seq !== catalogoSaveSeq) return { ok: true, remote: false, stale: true, config: prepared };
 
   await AsyncStorage.setItem(CATALOGO_CONFIG_KEY, JSON.stringify(prepared));

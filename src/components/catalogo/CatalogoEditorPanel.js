@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { playTapSound } from '../../utils/sounds';
 import { ProductCategoriesEditor } from './ProductCategoriesEditor';
 import { HeroMoveDock } from './LojaHeroBanner';
+import { CatalogoColorBrush } from './CatalogoColorBrush';
+import { CatalogoSizeStepper } from './CatalogoSizeStepper';
+import { CatalogoFontPicker } from './CatalogoFontPicker';
+import { getCatalogoFonte, ensureCatalogoGoogleFonts } from '../../utils/catalogoFonts';
+import { LOJA_DEFAULT_HOST, normalizeLojaSlug, buildLojaPublicUrl } from '../../utils/lojaPublicLink';
+import { getApiOrigin } from '../../lib/subscription';
+import { supabase } from '../../lib/supabase';
 import {
   CATALOGO_LAYOUTS,
   CATALOGO_TIPOS,
-  CATALOGO_TEMAS,
   CATALOGO_CARD_SIZES,
-  CORES_CATALOGO,
-  CORES_FUNDO,
   LOGO_TAMANHOS,
   LOGO_FORMATOS,
   HERO_DISPOSICOES,
@@ -29,14 +33,17 @@ import {
   TITULO_TAMANHOS,
   HERO_ALTURAS,
   DEFAULT_HERO_POSICOES,
-  TEMAS_GRADIENTE,
   TEMAS_ESCUROS,
+  TEMAS_PRONTOS,
+  applyTemaPronto,
   GRADIENTE_DIRECOES,
   TEMA_ESTILOS,
   buildHeroPresentation,
   getHeroPosicoes,
   getCatalogoTheme,
+  getCatalogoRotulos,
   getGradientPoints,
+  ROTULO_VITRINE_OPTS,
   isHeroElementVisible,
   syncCatalogoItens,
   itemKey,
@@ -45,6 +52,7 @@ import {
   getLojaLogoUri,
   normalizeCoresTema,
   nudgeHeroPos,
+  alignHeroItems,
 } from '../../utils/catalogoStore';
 
 const TABS = [
@@ -102,6 +110,70 @@ function Field({ label, colors, children }) {
   );
 }
 
+function HeaderTextBlock({
+  children,
+  colorValue,
+  onColorChange,
+  sizeValue,
+  onSizeChange,
+  visible,
+  onVisibleChange,
+  fontId,
+  onFontChange,
+  colors,
+  accent,
+}) {
+  const [fontOpen, setFontOpen] = useState(false);
+  const fonte = getCatalogoFonte(fontId);
+  return (
+    <View style={st.headerTextBlock}>
+      {children}
+      <View style={[st.headerEditRow, { borderColor: colors.border, backgroundColor: colors.bg }]}>
+        <Text style={[st.headerEditLabel, { color: colors.textSecondary }]}>Cor</Text>
+        <CatalogoColorBrush
+          inline
+          value={colorValue}
+          onChange={onColorChange}
+          colors={colors}
+          accent={accent}
+        />
+        <View style={st.headerEditGap} />
+        <CatalogoSizeStepper
+          compact
+          value={sizeValue}
+          onChange={onSizeChange}
+          colors={colors}
+          accent={accent}
+        />
+        <View style={st.headerEditGap} />
+        <TouchableOpacity
+          onPress={() => { playTapSound(); setFontOpen(true); }}
+          style={[st.headerFontBtn, { borderColor: colors.border }]}
+        >
+          <Ionicons name="text" size={16} color={accent} />
+          <Text style={[st.headerEditLabel, { color: colors.text, marginBottom: 0 }]} numberOfLines={1}>
+            {fonte.label}
+          </Text>
+        </TouchableOpacity>
+        <View style={st.headerEditGap} />
+        <View style={st.headerShow}>
+          <Text style={[st.headerEditLabel, { color: colors.textSecondary }]}>Mostrar</Text>
+          <Switch value={visible} onValueChange={onVisibleChange} trackColor={{ true: accent }} />
+        </View>
+      </View>
+      <CatalogoFontPicker
+        compact
+        live
+        visible={fontOpen}
+        title="Fonte"
+        value={fontId}
+        onSelect={onFontChange}
+        onClose={() => setFontOpen(false)}
+      />
+    </View>
+  );
+}
+
 export function CatalogoEditorPanel({
   draftConfig,
   updateDraft,
@@ -121,13 +193,73 @@ export function CatalogoEditorPanel({
   onShareLink,
   onEditItem,
   onOpenPreview,
+  canPublishPublicStore = false,
 }) {
   const [tab, setTab] = useState('visual');
   const [heroFocus, setHeroFocus] = useState('titulo');
   const [colorSlot, setColorSlot] = useState(0);
+  const [slugCheck, setSlugCheck] = useState({ status: 'idle', message: '' });
   const accent = draftConfig.corPrincipal || colors.primary;
   const theme = getCatalogoTheme(draftConfig);
+  const rotulos = getCatalogoRotulos(draftConfig);
   const estilo = theme.estilo;
+
+  useEffect(() => {
+    ensureCatalogoGoogleFonts();
+  }, []);
+
+  useEffect(() => {
+    if (!canPublishPublicStore) {
+      setSlugCheck({ status: 'idle', message: '' });
+      return undefined;
+    }
+    const raw = String(draftConfig.slugPublico || '').trim().toLowerCase();
+    if (!raw) {
+      setSlugCheck({ status: 'idle', message: '' });
+      return undefined;
+    }
+    const normalized = normalizeLojaSlug(raw);
+    if (!normalized) {
+      setSlugCheck({ status: 'invalid', message: 'Use 3 a 40 caracteres: letras, números e hífen.' });
+      return undefined;
+    }
+    let cancelled = false;
+    setSlugCheck({ status: 'checking', message: 'Verificando disponibilidade…' });
+    const timer = setTimeout(async () => {
+      try {
+        const origin = getApiOrigin()
+          || (typeof window !== 'undefined' ? String(window.location.origin || '').replace(/\/$/, '') : '');
+        if (!origin) {
+          if (!cancelled) setSlugCheck({ status: 'idle', message: '' });
+          return;
+        }
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`${origin}/api/loja/check-slug?slug=${encodeURIComponent(normalized)}`, {
+          cache: 'no-store',
+          headers,
+        });
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setSlugCheck({ status: 'idle', message: '' });
+          return;
+        }
+        setSlugCheck({
+          status: json.available ? 'available' : 'taken',
+          message: json.available ? 'Disponível' : (json.reason || 'Esse nome no link já está em uso.'),
+        });
+      } catch (_) {
+        if (!cancelled) setSlugCheck({ status: 'idle', message: '' });
+      }
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [draftConfig.slugPublico, canPublishPublicStore]);
 
   const itemRows = useMemo(() => {
     const synced = syncCatalogoItens(draftConfig, products, services);
@@ -145,26 +277,25 @@ export function CatalogoEditorPanel({
   const applyEstilo = (next) => {
     if (next === estilo) return;
     if (next === 'solido') {
-      const tema = CATALOGO_TEMAS.find((t) => t.id === draftConfig.tema) || CATALOGO_TEMAS[0];
+      const cor = normalizeCoresTema(draftConfig)[0];
       updateDraft({
         temaEstilo: 'solido',
-        tema: tema.id,
-        corPrincipal: tema.cor,
-        coresTema: [tema.cor],
-        corFundo: '#f8fafc',
-        corTexto: '#0f172a',
+        corPrincipal: cor,
+        coresTema: [cor],
+        corFundo: draftConfig.corFundo || '#f8fafc',
+        corTexto: draftConfig.corTexto || '#0f172a',
       });
       return;
     }
     if (next === 'gradiente') {
-      const g = TEMAS_GRADIENTE.find((t) => t.id === draftConfig.tema) || TEMAS_GRADIENTE[0];
+      const cores = normalizeCoresTema(draftConfig);
+      const pack = cores.length >= 2 ? cores : [cores[0], '#a855f7'];
       updateDraft({
         temaEstilo: 'gradiente',
-        tema: g.id,
-        coresTema: g.cores,
-        corPrincipal: g.cores[0],
-        corFundo: '#f8fafc',
-        corTexto: '#0f172a',
+        coresTema: pack,
+        corPrincipal: pack[0],
+        corFundo: draftConfig.corFundo || '#f8fafc',
+        corTexto: draftConfig.corTexto || '#0f172a',
         gradienteDirecao: draftConfig.gradienteDirecao || 'diagonal',
       });
       return;
@@ -181,36 +312,27 @@ export function CatalogoEditorPanel({
       });
       return;
     }
-    const cores = normalizeCoresTema(draftConfig);
-    const pack = cores.length >= 2 ? cores : [cores[0], '#a855f7'];
-    updateDraft({
-      temaEstilo: 'cores',
-      coresTema: pack,
-      corPrincipal: pack[0],
-      corFundo: estilo === 'escuro' ? '#f8fafc' : (draftConfig.corFundo || '#f8fafc'),
-      corTexto: estilo === 'escuro' ? '#0f172a' : (draftConfig.corTexto || '#0f172a'),
-    });
   };
 
   const setCorSlot = (cor) => {
+    if (!cor) return;
     const cores = normalizeCoresTema(draftConfig);
     const next = [...cores];
     const idx = Math.min(colorSlot, next.length - 1);
     next[idx] = cor;
     updateDraft({
-      coresTema: next,
-      corPrincipal: next[0],
-      ...(estilo === 'escuro' ? {} : {}),
+      temaEstilo: estilo === 'solido' ? 'solido' : (estilo === 'escuro' ? 'escuro' : 'gradiente'),
+      coresTema: estilo === 'solido' ? [cor] : next,
+      corPrincipal: estilo === 'solido' ? cor : next[0],
     });
   };
 
   const addCor = () => {
     const cores = normalizeCoresTema(draftConfig);
     if (cores.length >= 4) return;
-    const extra = CORES_CATALOGO.find((c) => !cores.includes(c)) || '#0ea5e9';
-    const next = [...cores, extra];
+    const next = [...cores, '#0ea5e9'];
     setColorSlot(next.length - 1);
-    updateDraft({ temaEstilo: 'cores', coresTema: next, corPrincipal: next[0] });
+    updateDraft({ temaEstilo: 'gradiente', coresTema: next, corPrincipal: next[0] });
   };
 
   const removeCor = (index) => {
@@ -236,7 +358,7 @@ export function CatalogoEditorPanel({
       <View style={[st.linkBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Ionicons name="link-outline" size={18} color={accent} />
         <Text style={[st.linkText, { color: colors.text }]} numberOfLines={1}>
-          {lojaUrl || 'Salve o catálogo para gerar o link'}
+          {lojaUrl || rotulos.linkHint}
         </Text>
         <TouchableOpacity onPress={onCopyLink} disabled={!ownerUserId} hitSlop={8}>
           <Ionicons name="copy-outline" size={18} color={accent} />
@@ -261,7 +383,43 @@ export function CatalogoEditorPanel({
 
       {tab === 'visual' && (
         <>
-          <Card title="Estilo do tema" hint="Escolha um visual pronto ou monte o seu. A pré-visualização ao lado atualiza na hora." colors={colors}>
+          <Card title="Chamar de Catálogo ou Loja" hint="Essa palavra aparece no menu, na página inicial e na vitrine pública." colors={colors}>
+            <ChipRow
+              options={ROTULO_VITRINE_OPTS}
+              value={draftConfig.rotuloVitrine || 'catalogo'}
+              onChange={(v) => {
+                const atual = getCatalogoRotulos(draftConfig);
+                const proximo = getCatalogoRotulos({ rotuloVitrine: v });
+                updateDraft({
+                  rotuloVitrine: v,
+                  ...(!draftConfig.titulo || draftConfig.titulo === atual.tituloPadrao ? { titulo: proximo.tituloPadrao } : {}),
+                });
+              }}
+              colors={colors}
+              accent={accent}
+            />
+          </Card>
+
+          <Card title="Temas prontos" hint="Claro, escuro e cinza, mais Material (Google), Fluent (Microsoft) e Commerce (Shopify)." colors={colors}>
+            <View style={st.presetGrid}>
+              {TEMAS_PRONTOS.map((t) => {
+                const on = (draftConfig.temaPronto || '') === t.id;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => { playTapSound(); updateDraft(applyTemaPronto(draftConfig, t.id)); }}
+                    style={[st.presetCard, { borderColor: on ? t.corPrincipal : colors.border, backgroundColor: t.corFundo }]}
+                  >
+                    <View style={[st.presetBar, { backgroundColor: t.corPrincipal }]} />
+                    <Text style={{ color: t.corTexto, fontWeight: '800', fontSize: 13 }}>{t.label}</Text>
+                    <Text style={{ color: t.corTexto, opacity: 0.7, fontSize: 10, fontWeight: '600' }}>{t.hint}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Card>
+
+            <Card title="Estilo do cabeçalho" hint="Sólido usa uma cor. Gradiente usa várias. Escuro deixa a vitrine noturna." colors={colors}>
             <View style={st.estiloGrid}>
               {TEMA_ESTILOS.map((item) => {
                 const on = estilo === item.id;
@@ -281,41 +439,46 @@ export function CatalogoEditorPanel({
 
           {estilo === 'solido' && (
             <Card title="Cor sólida" colors={colors}>
-              <ChipRow options={CATALOGO_TEMAS} value={draftConfig.tema} onChange={(id) => {
-                const tema = CATALOGO_TEMAS.find((t) => t.id === id);
-                updateDraft({ tema: id, temaEstilo: 'solido', corPrincipal: tema?.cor || accent, coresTema: [tema?.cor || accent] });
-              }} colors={colors} accent={accent} />
-              <Field label="Cor principal" colors={colors}>
-                <View style={st.colorRow}>
-                  {CORES_CATALOGO.map((c) => (
-                    <TouchableOpacity key={c} onPress={() => { playTapSound(); updateDraft({ corPrincipal: c, coresTema: [c] }); }} style={[st.colorDot, { backgroundColor: c, borderWidth: draftConfig.corPrincipal === c ? 3 : 0, borderColor: '#fff' }]} />
-                  ))}
-                </View>
-              </Field>
+              <CatalogoColorBrush
+                label="Cor do cabeçalho e botões"
+                value={draftConfig.corPrincipal}
+                onChange={(c) => updateDraft({ temaEstilo: 'solido', corPrincipal: c, coresTema: [c] })}
+                colors={colors}
+                accent={accent}
+              />
             </Card>
           )}
 
           {estilo === 'gradiente' && (
-            <Card title="Gradiente" hint="O cabeçalho da loja usa essas cores em degradê." colors={colors}>
-              <View style={st.gradGrid}>
-                {TEMAS_GRADIENTE.map((g) => {
-                  const on = draftConfig.tema === g.id;
-                  return (
-                    <TouchableOpacity
-                      key={g.id}
-                      onPress={() => {
-                        playTapSound();
-                        updateDraft({ tema: g.id, temaEstilo: 'gradiente', coresTema: g.cores, corPrincipal: g.cores[0] });
-                      }}
-                      style={[st.gradCard, { borderColor: on ? '#fff' : 'transparent', borderWidth: 2 }]}
-                    >
-                      <LinearGradient colors={g.cores} start={points.start} end={points.end} style={st.gradFill}>
-                        <Text style={st.gradLabel}>{g.label}</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  );
-                })}
+            <Card title="Gradiente" hint="Toque numa faixa e use o pincel para escolher qualquer cor. De 2 a 4 cores formam o degradê." colors={colors}>
+              <LinearGradient colors={theme.heroColors} start={points.start} end={points.end} style={st.multiPreview} />
+              <View style={st.slotRow}>
+                {theme.cores.map((cor, index) => (
+                  <TouchableOpacity
+                    key={`${cor}-${index}`}
+                    onPress={() => { playTapSound(); setColorSlot(index); }}
+                    style={[st.slot, { backgroundColor: cor, borderColor: colorSlot === index ? colors.text : 'transparent' }]}
+                  >
+                    {theme.cores.length > 2 ? (
+                      <TouchableOpacity style={st.slotRemove} onPress={() => removeCor(index)} hitSlop={6}>
+                        <Ionicons name="close" size={12} color="#fff" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
+                {theme.cores.length < 4 ? (
+                  <TouchableOpacity style={[st.slotAdd, { borderColor: colors.border }]} onPress={() => { playTapSound(); addCor(); }}>
+                    <Ionicons name="add" size={18} color={accent} />
+                  </TouchableOpacity>
+                ) : null}
               </View>
+              <CatalogoColorBrush
+                label={`Cor ${colorSlot + 1} do degradê`}
+                value={theme.cores[colorSlot] || theme.cores[0]}
+                onChange={setCorSlot}
+                colors={colors}
+                accent={accent}
+              />
               <Field label="Direção" colors={colors}>
                 <ChipRow options={GRADIENTE_DIRECOES} value={draftConfig.gradienteDirecao || 'diagonal'} onChange={(v) => updateDraft({ gradienteDirecao: v })} colors={colors} accent={accent} />
               </Field>
@@ -349,67 +512,24 @@ export function CatalogoEditorPanel({
                   );
                 })}
               </View>
-              <Field label="Cor dos botões" colors={colors}>
-                <View style={st.colorRow}>
-                  {CORES_CATALOGO.map((c) => (
-                    <TouchableOpacity key={c} onPress={() => { playTapSound(); updateDraft({ corPrincipal: c, coresTema: [c] }); }} style={[st.colorDot, { backgroundColor: c, borderWidth: accent === c ? 3 : 0, borderColor: '#fff' }]} />
-                  ))}
-                </View>
-              </Field>
-            </Card>
-          )}
-
-          {estilo === 'cores' && (
-            <Card title="Tema com várias cores" hint="Toque numa faixa e escolha a cor. Até 4 cores formam o degradê do cabeçalho." colors={colors}>
-              <LinearGradient colors={theme.heroColors} start={points.start} end={points.end} style={st.multiPreview} />
-              <View style={st.slotRow}>
-                {theme.cores.map((cor, index) => (
-                  <TouchableOpacity
-                    key={`${cor}-${index}`}
-                    onPress={() => { playTapSound(); setColorSlot(index); }}
-                    style={[st.slot, { backgroundColor: cor, borderColor: colorSlot === index ? colors.text : 'transparent' }]}
-                  >
-                    {theme.cores.length > 2 ? (
-                      <TouchableOpacity style={st.slotRemove} onPress={() => removeCor(index)} hitSlop={6}>
-                        <Ionicons name="close" size={12} color="#fff" />
-                      </TouchableOpacity>
-                    ) : null}
-                  </TouchableOpacity>
-                ))}
-                {theme.cores.length < 4 ? (
-                  <TouchableOpacity style={[st.slotAdd, { borderColor: colors.border }]} onPress={() => { playTapSound(); addCor(); }}>
-                    <Ionicons name="add" size={18} color={accent} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <View style={st.colorRow}>
-                {CORES_CATALOGO.map((c) => (
-                  <TouchableOpacity key={c} onPress={() => { playTapSound(); setCorSlot(c); }} style={[st.colorDot, { backgroundColor: c, borderWidth: theme.cores[colorSlot] === c ? 3 : 0, borderColor: '#fff' }]} />
-                ))}
-              </View>
-              <Field label="Direção do degradê" colors={colors}>
-                <ChipRow options={GRADIENTE_DIRECOES} value={draftConfig.gradienteDirecao || 'diagonal'} onChange={(v) => updateDraft({ gradienteDirecao: v })} colors={colors} accent={accent} />
-              </Field>
+              <CatalogoColorBrush
+                label="Cor dos botões"
+                value={draftConfig.corPrincipal}
+                onChange={(c) => updateDraft({ corPrincipal: c, coresTema: [c] })}
+                colors={colors}
+                accent={accent}
+              />
             </Card>
           )}
 
           <Card title="Fundo da página" colors={colors}>
-            <View style={st.colorRow}>
-              {CORES_FUNDO.map((c) => (
-                <TouchableOpacity key={c} onPress={() => {
-                  playTapSound();
-                  const escurecer = c === '#0f172a';
-                  updateDraft({
-                    corFundo: c,
-                    ...(escurecer
-                      ? { corTexto: '#f8fafc', temaEstilo: 'escuro' }
-                      : estilo === 'escuro'
-                        ? { temaEstilo: 'solido', corTexto: '#0f172a' }
-                        : {}),
-                  });
-                }} style={[st.colorDot, { backgroundColor: c, borderWidth: draftConfig.corFundo === c ? 3 : 1, borderColor: draftConfig.corFundo === c ? accent : colors.border }]} />
-              ))}
-            </View>
+            <CatalogoColorBrush
+              label="Cor de fundo da vitrine"
+              value={draftConfig.corFundo}
+              onChange={(c) => updateDraft({ corFundo: c, corTexto: draftConfig.corTexto || '#0f172a' })}
+              colors={colors}
+              accent={accent}
+            />
             <Field label="Foto do banner" colors={colors}>
               <TouchableOpacity onPress={onPickFundo} disabled={uploadingFundo} style={[st.uploadRow, { borderColor: colors.border, backgroundColor: colors.bg }]}>
                 {draftConfig.fotoFundo ? (
@@ -425,6 +545,12 @@ export function CatalogoEditorPanel({
               </TouchableOpacity>
             </Field>
             <SwitchLine label="Usar foto por cima do tema" value={!!draftConfig.usaFotoFundo} onValueChange={(v) => updateDraft({ usaFotoFundo: v })} colors={colors} accent={accent} />
+          </Card>
+
+          <Card title="Cores das fontes" hint="Cores do restante do catálogo: produtos, preços e texto sobre." colors={colors}>
+            <CatalogoColorBrush label="Nome dos produtos" value={draftConfig.corFonteProduto || draftConfig.corTexto || '#0f172a'} onChange={(c) => updateDraft({ corFonteProduto: c, corTexto: c })} colors={colors} accent={accent} compact />
+            <CatalogoColorBrush label="Preço" value={draftConfig.corFontePreco || draftConfig.corPrincipal} onChange={(c) => updateDraft({ corFontePreco: c })} colors={colors} accent={accent} compact />
+            <CatalogoColorBrush label="Texto sobre" value={draftConfig.corFonteSobre || draftConfig.corTexto || '#0f172a'} onChange={(c) => updateDraft({ corFonteSobre: c })} colors={colors} accent={accent} compact />
           </Card>
         </>
       )}
@@ -445,7 +571,20 @@ export function CatalogoEditorPanel({
                 <Text style={[st.hint, { color: colors.textSecondary, marginBottom: 0, marginTop: 2 }]}>A versão pública usa a imagem em alta.</Text>
               </View>
             </TouchableOpacity>
-            <SwitchLine label="Mostrar logo" value={draftConfig.usaLogo !== false} onValueChange={(v) => updateDraft({ usaLogo: v })} colors={colors} accent={accent} />
+            <View style={[st.headerEditRow, { borderColor: colors.border, backgroundColor: colors.bg, marginTop: 10 }]}>
+              <CatalogoSizeStepper
+                compact
+                value={draftConfig.logoEscala ?? 100}
+                onChange={(v) => updateDraft({ logoEscala: v })}
+                colors={colors}
+                accent={accent}
+              />
+              <View style={st.headerEditGap} />
+              <View style={st.headerShow}>
+                <Text style={[st.headerEditLabel, { color: colors.textSecondary }]}>Mostrar</Text>
+                <Switch value={draftConfig.usaLogo !== false} onValueChange={(v) => updateDraft({ usaLogo: v })} trackColor={{ true: accent }} />
+              </View>
+            </View>
             <SwitchLine label="Logo sem moldura" value={!!draftConfig.logoSemMoldura} onValueChange={(v) => updateDraft({ logoSemMoldura: v })} colors={colors} accent={accent} />
             <Field label="Tamanho" colors={colors}>
               <ChipRow options={LOGO_TAMANHOS} value={draftConfig.logoTamanho || 'medio'} onChange={(v) => updateDraft({ logoTamanho: v })} colors={colors} accent={accent} />
@@ -457,26 +596,74 @@ export function CatalogoEditorPanel({
             ) : null}
           </Card>
 
-          <Card title="Textos" colors={colors}>
-            <Field label="Nome da loja" colors={colors}>
-              <TextInput style={inputStyle} value={draftConfig.nomeLoja || ''} onChangeText={(v) => updateDraft({ nomeLoja: v })} placeholder={profile?.empresa || profile?.nome || 'Nome da empresa'} placeholderTextColor={colors.textSecondary} />
+          <Card title="Textos" hint="Primeira linha para escrever. Segunda linha: cor, tamanho e se aparece no cabeçalho." colors={colors}>
+            <Field label={rotulos.nomeCampo} colors={colors}>
+              <HeaderTextBlock
+                colorValue={draftConfig.corFonteNome || '#ffffff'}
+                onColorChange={(c) => updateDraft({ corFonteNome: c })}
+                sizeValue={draftConfig.nomeEscala ?? 100}
+                onSizeChange={(v) => updateDraft({ nomeEscala: v })}
+                visible={draftConfig.usaNomeProfissional !== false}
+                onVisibleChange={(v) => updateDraft({ usaNomeProfissional: v })}
+                fontId={draftConfig.fonteNome}
+                onFontChange={(id) => updateDraft({ fonteNome: id })}
+                colors={colors}
+                accent={accent}
+              >
+                <TextInput style={inputStyle} value={draftConfig.nomeLoja || ''} onChangeText={(v) => updateDraft({ nomeLoja: v })} placeholder={profile?.empresa || profile?.nome || 'Nome da empresa'} placeholderTextColor={colors.textSecondary} />
+              </HeaderTextBlock>
             </Field>
             <Field label="Título" colors={colors}>
-              <TextInput style={inputStyle} value={draftConfig.titulo} onChangeText={(v) => updateDraft({ titulo: v })} placeholderTextColor={colors.textSecondary} />
+              <HeaderTextBlock
+                colorValue={draftConfig.corFonteTitulo || '#ffffff'}
+                onColorChange={(c) => updateDraft({ corFonteTitulo: c })}
+                sizeValue={draftConfig.tituloEscala ?? 100}
+                onSizeChange={(v) => updateDraft({ tituloEscala: v })}
+                visible={draftConfig.mostrarTitulo !== false}
+                onVisibleChange={(v) => updateDraft({ mostrarTitulo: v })}
+                fontId={draftConfig.fonteTitulo}
+                onFontChange={(id) => updateDraft({ fonteTitulo: id })}
+                colors={colors}
+                accent={accent}
+              >
+                <TextInput style={inputStyle} value={draftConfig.titulo} onChangeText={(v) => updateDraft({ titulo: v })} placeholderTextColor={colors.textSecondary} />
+              </HeaderTextBlock>
             </Field>
             <Field label="Subtítulo" colors={colors}>
-              <TextInput style={inputStyle} value={draftConfig.subtitulo} onChangeText={(v) => updateDraft({ subtitulo: v })} placeholderTextColor={colors.textSecondary} />
+              <HeaderTextBlock
+                colorValue={draftConfig.corFonteSubtitulo || '#ffffff'}
+                onColorChange={(c) => updateDraft({ corFonteSubtitulo: c })}
+                sizeValue={draftConfig.subtituloEscala ?? 100}
+                onSizeChange={(v) => updateDraft({ subtituloEscala: v })}
+                visible={draftConfig.mostrarSubtitulo !== false}
+                onVisibleChange={(v) => updateDraft({ mostrarSubtitulo: v })}
+                fontId={draftConfig.fonteSubtitulo}
+                onFontChange={(id) => updateDraft({ fonteSubtitulo: id })}
+                colors={colors}
+                accent={accent}
+              >
+                <TextInput style={inputStyle} value={draftConfig.subtitulo} onChangeText={(v) => updateDraft({ subtitulo: v })} placeholderTextColor={colors.textSecondary} />
+              </HeaderTextBlock>
             </Field>
             <Field label="Slogan" colors={colors}>
-              <TextInput style={inputStyle} value={draftConfig.slogan || ''} onChangeText={(v) => updateDraft({ slogan: v })} placeholderTextColor={colors.textSecondary} />
+              <HeaderTextBlock
+                colorValue={draftConfig.corFonteSlogan || '#ffffff'}
+                onColorChange={(c) => updateDraft({ corFonteSlogan: c })}
+                sizeValue={draftConfig.sloganEscala ?? 100}
+                onSizeChange={(v) => updateDraft({ sloganEscala: v })}
+                visible={draftConfig.mostrarSlogan !== false}
+                onVisibleChange={(v) => updateDraft({ mostrarSlogan: v })}
+                fontId={draftConfig.fonteSlogan}
+                onFontChange={(id) => updateDraft({ fonteSlogan: id })}
+                colors={colors}
+                accent={accent}
+              >
+                <TextInput style={inputStyle} value={draftConfig.slogan || ''} onChangeText={(v) => updateDraft({ slogan: v })} placeholderTextColor={colors.textSecondary} />
+              </HeaderTextBlock>
             </Field>
-            <Field label="Sobre a loja" colors={colors}>
-              <TextInput style={[inputStyle, st.inputMultiline]} value={draftConfig.sobreTexto || ''} onChangeText={(v) => updateDraft({ sobreTexto: v })} multiline placeholder="Apresente sua loja em poucas linhas" placeholderTextColor={colors.textSecondary} />
+            <Field label={rotulos.sobre} colors={colors}>
+              <TextInput style={[inputStyle, st.inputMultiline]} value={draftConfig.sobreTexto || ''} onChangeText={(v) => updateDraft({ sobreTexto: v })} multiline placeholder={rotulos.apresentacao} placeholderTextColor={colors.textSecondary} />
             </Field>
-            <SwitchLine label="Mostrar nome" value={draftConfig.usaNomeProfissional !== false} onValueChange={(v) => updateDraft({ usaNomeProfissional: v })} colors={colors} accent={accent} />
-            <SwitchLine label="Mostrar título" value={draftConfig.mostrarTitulo !== false} onValueChange={(v) => updateDraft({ mostrarTitulo: v })} colors={colors} accent={accent} />
-            <SwitchLine label="Mostrar subtítulo" value={draftConfig.mostrarSubtitulo !== false} onValueChange={(v) => updateDraft({ mostrarSubtitulo: v })} colors={colors} accent={accent} />
-            <SwitchLine label="Mostrar slogan" value={draftConfig.mostrarSlogan !== false} onValueChange={(v) => updateDraft({ mostrarSlogan: v })} colors={colors} accent={accent} />
           </Card>
 
           <Card title="Posição no banner" hint="Arraste na pré-visualização ou use as setas. O item selecionado ganha a borda branca." colors={colors}>
@@ -497,10 +684,7 @@ export function CatalogoEditorPanel({
                   selectedId={heroFocus}
                   onSelect={setHeroFocus}
                   onNudge={(dx, dy) => updateDraft({ heroPosicoes: nudgeHeroPos(draftConfig, heroFocus, dx, dy) })}
-                  onCenter={() => {
-                    const pos = getHeroPosicoes(draftConfig);
-                    updateDraft({ heroPosicoes: { ...pos, [heroFocus]: { x: 50, y: pos[heroFocus].y } } });
-                  }}
+                  onAlign={(side) => updateDraft({ heroPosicoes: alignHeroItems(draftConfig, [heroFocus], side) })}
                   onReset={() => { playTapSound(); updateDraft({ heroPosicoes: { ...DEFAULT_HERO_POSICOES } }); }}
                   colors={colors}
                   accent={accent}
@@ -522,7 +706,7 @@ export function CatalogoEditorPanel({
                   <LinearGradient colors={theme.heroColors} start={theme.start} end={theme.end} style={{ minHeight: 88, justifyContent: 'center' }}>
                     <View style={[st.heroMiniInner, { alignItems: heroPreview.isRow ? 'center' : heroPreview.contentAlign, flexDirection: heroPreview.isRow ? 'row' : 'column' }]}>
                       {isHeroElementVisible(draftConfig, 'titulo') ? (
-                        <Text style={st.heroMiniTitle} numberOfLines={1}>{draftConfig.titulo || 'Minha Loja'}</Text>
+                        <Text style={st.heroMiniTitle} numberOfLines={1}>{draftConfig.titulo || rotulos.tituloPadrao}</Text>
                       ) : null}
                     </View>
                   </LinearGradient>
@@ -589,13 +773,62 @@ export function CatalogoEditorPanel({
 
       {tab === 'pedidos' && (
         <>
-          <Card title="Link público" hint="Clientes abrem o catálogo, montam o carrinho e enviam o pedido." colors={colors}>
-            {ownerUserId ? (
+          <Card
+            title="Link público"
+            hint="O endereço fica no próprio site: tudocerto-web.vercel.app/seu-nome. Sem deploy novo para cada loja. Quem abre o link não precisa de cadastro."
+            colors={colors}
+          >
+            {!canPublishPublicStore ? (
               <Text style={[st.hint, { color: colors.textSecondary }]}>
-                ID de cadastro: <Text style={{ fontWeight: '800', color: colors.text }} selectable>{ownerUserId}</Text>
+                O link único da loja entra no plano Pro empresa. Você precisa de cadastro e assinatura; seus clientes não.
               </Text>
             ) : null}
-            {lojaUrl ? <Text style={[st.linkPreview, { color: colors.text, borderColor: colors.border }]} selectable>{lojaUrl}</Text> : null}
+            <Field label="Nome no link" colors={colors}>
+              <View style={st.slugRow}>
+                <Text style={[st.slugPrefix, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {LOJA_DEFAULT_HOST}/
+                </Text>
+                <TextInput
+                  style={[inputStyle, st.slugInput]}
+                  value={draftConfig.slugPublico || ''}
+                  editable={canPublishPublicStore}
+                  onChangeText={(v) => updateDraft({ slugPublico: v.replace(/\s/g, '').toLowerCase() })}
+                  onBlur={() => {
+                    const n = normalizeLojaSlug(draftConfig.slugPublico);
+                    updateDraft({ slugPublico: n });
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="minhaloja"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </Field>
+            {canPublishPublicStore && slugCheck.message ? (
+              <Text
+                style={[
+                  st.hint,
+                  {
+                    color: slugCheck.status === 'available'
+                      ? '#16A34A'
+                      : slugCheck.status === 'taken' || slugCheck.status === 'invalid'
+                        ? '#DC2626'
+                        : colors.textSecondary,
+                    fontWeight: '800',
+                  },
+                ]}
+              >
+                {slugCheck.message}
+              </Text>
+            ) : null}
+            <Text style={[st.hint, { color: colors.textSecondary }]}>
+              Letras, números e hífen. Mínimo 3 caracteres. Ex.: lojaballcher
+            </Text>
+            {ownerUserId ? (
+              <Text style={[st.linkPreview, { color: colors.text, borderColor: colors.border }]} selectable>
+                {buildLojaPublicUrl(ownerUserId, draftConfig)}
+              </Text>
+            ) : null}
             <View style={st.linkActions}>
               <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={onCopyLink} disabled={!ownerUserId}>
                 <Ionicons name="copy-outline" size={18} color="#fff" />
@@ -606,7 +839,7 @@ export function CatalogoEditorPanel({
                 <Text style={st.linkBtnText}>Compartilhar</Text>
               </TouchableOpacity>
             </View>
-            <SwitchLine label="Catálogo público ativo" value={draftConfig.lojaPublica !== false} onValueChange={(v) => updateDraft({ lojaPublica: v })} colors={colors} accent={accent} />
+            <SwitchLine label={rotulos.publicoAtivo} value={draftConfig.lojaPublica !== false} onValueChange={(v) => updateDraft({ lojaPublica: v })} colors={colors} accent={accent} />
           </Card>
 
           <Card title="WhatsApp" hint="Número que recebe o pedido. Vazio usa o telefone do perfil." colors={colors}>
@@ -633,7 +866,7 @@ export function CatalogoEditorPanel({
       )}
 
       <TouchableOpacity style={[st.saveBtn, { backgroundColor: colors.primary }]} onPress={onSave} disabled={saving}>
-        {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={st.saveBtnText}>Salvar catálogo</Text>}
+        {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={st.saveBtnText}>{rotulos.salvar}</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -652,12 +885,30 @@ const st = StyleSheet.create({
   hint: { fontSize: 12, lineHeight: 18, marginBottom: 10 },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  headerTextBlock: { gap: 8 },
+  headerEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  headerEditLabel: { fontSize: 11, fontWeight: '700' },
+  headerEditGap: { width: 1, height: 22, backgroundColor: 'rgba(148,163,184,0.45)' },
+  headerShow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerFontBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, borderWidth: 1, maxWidth: 140 },
   inputMultiline: { minHeight: 72, textAlignVertical: 'top' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
   chipText: { fontSize: 12, fontWeight: '700' },
   estiloGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   estiloCard: { width: '48%', flexGrow: 1, borderWidth: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  presetCard: { width: '31%', flexGrow: 1, minWidth: 92, borderWidth: 2, borderRadius: 14, padding: 10, gap: 4 },
+  presetBar: { height: 6, borderRadius: 4, marginBottom: 4 },
   gradGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   gradCard: { width: '48%', flexGrow: 1, borderRadius: 14, overflow: 'hidden' },
   gradFill: { height: 64, justifyContent: 'flex-end', padding: 8 },
@@ -681,6 +932,9 @@ const st = StyleSheet.create({
   saveBtn: { marginTop: 4, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
   saveBtnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
   linkPreview: { fontSize: 12, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
+  slugRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  slugPrefix: { fontSize: 13, fontWeight: '600' },
+  slugInput: { flexGrow: 1, minWidth: 120, marginTop: 0 },
   linkActions: { flexDirection: 'row', gap: 8 },
   linkBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12 },
   linkBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },

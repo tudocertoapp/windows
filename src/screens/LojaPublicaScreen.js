@@ -11,28 +11,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { CatalogoStoreView } from '../components/catalogo/CatalogoStoreView';
 import { getApiOrigin } from '../lib/subscription';
-import { mergeCatalogoConfig, buildCartWhatsAppMessage } from '../utils/catalogoStore';
+import { mergeCatalogoConfig, buildCartWhatsAppMessage, resolveCatalogoItems } from '../utils/catalogoStore';
+import { getPublicLojaRoute } from '../utils/lojaPublicLink';
 import { openWhatsApp } from '../utils/whatsapp';
 
-export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp }) {
+export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp, lojaSlug: lojaSlugProp }) {
   const { colors } = useTheme();
-  const ownerUserId = useMemo(() => {
-    if (ownerUserIdProp) return String(ownerUserIdProp).trim();
-    if (typeof window !== 'undefined') {
-      return new URLSearchParams(window.location.search).get('ref') || '';
-    }
-    return '';
-  }, [ownerUserIdProp]);
+  const { ref, slug } = useMemo(() => {
+    const fromPath = typeof window !== 'undefined' ? getPublicLojaRoute() : null;
+    return {
+      ref: String(ownerUserIdProp || fromPath?.ownerUserId || '').trim(),
+      slug: String(lojaSlugProp || fromPath?.slug || '').trim(),
+    };
+  }, [ownerUserIdProp, lojaSlugProp]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [store, setStore] = useState(null);
   const [cart, setCart] = useState([]);
 
-  const apiBase = getApiOrigin();
+  const apiBase = getApiOrigin()
+    || (typeof window !== 'undefined' ? String(window.location.origin || '').replace(/\/$/, '') : '');
 
   useEffect(() => {
-    if (!ownerUserId) {
+    const params = [];
+    if (slug) params.push(`slug=${encodeURIComponent(slug)}`);
+    if (ref) params.push(`ref=${encodeURIComponent(ref)}`);
+    const query = params.join('&');
+    if (!query) {
       setError('Link da loja inválido. Peça um novo link à empresa.');
       setLoading(false);
       return;
@@ -44,16 +50,22 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp }) {
     }
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/loja/store?ref=${encodeURIComponent(ownerUserId)}`, { cache: 'no-store' });
+        const res = await fetch(`${apiBase}/api/loja/store?${query}`, { cache: 'no-store' });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
           setError(json.error || 'Não foi possível carregar a loja.');
           return;
         }
+        const config = mergeCatalogoConfig(json.config);
+        const products = json.products || [];
+        const services = json.services || [];
+        const items = (products.length || services.length)
+          ? resolveCatalogoItems(config, products, services)
+          : (json.items || []);
         setStore({
           profile: json.profile || {},
-          config: mergeCatalogoConfig(json.config),
-          items: json.items || [],
+          config,
+          items,
         });
       } catch (_) {
         setError('Erro de conexão. Verifique a internet e tente novamente.');
@@ -61,7 +73,7 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp }) {
         setLoading(false);
       }
     })();
-  }, [ownerUserId, apiBase]);
+  }, [ref, slug, apiBase]);
 
   const addToCart = (item) => {
     const key = item._rowId || `${item._tipo}:${item.id}`;
@@ -83,12 +95,15 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp }) {
 
   const removeFromCart = (key) => setCart((prev) => prev.filter((l) => l.key !== key));
 
+  const ownerUserId = store?.profile?.id || ref;
+
   const fetchAvailability = useCallback(async (date) => {
-    const res = await fetch(`${apiBase}/api/loja/availability?ref=${encodeURIComponent(ownerUserId)}&date=${encodeURIComponent(date)}`);
+    const id = store?.profile?.id || ref;
+    const res = await fetch(`${apiBase}/api/loja/availability?ref=${encodeURIComponent(id)}&date=${encodeURIComponent(date)}`);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error || 'Erro ao consultar agenda');
     return { slots: json.slots || [], busy: json.busy || [] };
-  }, [apiBase, ownerUserId]);
+  }, [apiBase, store?.profile?.id, ref]);
 
   const sendWhatsApp = (extras = {}) => {
     const phone = store?.config?.whatsappPedido?.trim() || store?.profile?.telefone;

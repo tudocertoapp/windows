@@ -17,8 +17,15 @@ export const PLAN_FEATURES = {
   emp_enterprise: { maxProducts: null, maxServices: null, canUsePDV: true, maxAgendaPerMonth: null, maxTasksPerMonth: null, maxBirthdays: null, maxNotesTotal: null, maxBoletosPerMonth: null, canUseMeusGastos: true, notesPerDay: 10 },
 };
 
+export const PUBLIC_STORE_PLAN_IDS = ['pe_pro', 'pe_business', 'emp_medium', 'emp_enterprise', 'pe_teste_real'];
+
+export function canPublishPublicStore(planId) {
+  return PUBLIC_STORE_PLAN_IDS.includes(planId);
+}
+
 export function getPlanFeatures(planId) {
-  return PLAN_FEATURES[planId] || PLAN_FEATURES.pessoal;
+  const base = PLAN_FEATURES[planId] || PLAN_FEATURES.pessoal;
+  return { ...base, canPublishPublicStore: canPublishPublicStore(planId) };
 }
 
 export function isFreePlanId(planId) {

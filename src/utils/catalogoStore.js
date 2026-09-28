@@ -19,6 +19,161 @@ export const TEMAS_GRADIENTE = [
   { id: 'noite-azul', label: 'Noite azul', cores: ['#1e3a8a', '#7c3aed'] },
 ];
 
+export const TEMAS_PRONTOS = [
+  {
+    id: 'claro',
+    label: 'Claro',
+    hint: 'Apple',
+    temaEstilo: 'solido',
+    corPrincipal: '#007AFF',
+    corFundo: '#F5F5F7',
+    corCard: '#FFFFFF',
+    corTexto: '#1D1D1F',
+    fonts: {
+      nome: '#FFFFFF',
+      titulo: '#FFFFFF',
+      subtitulo: '#F5F5F7',
+      slogan: '#E8E8ED',
+      produto: '#1D1D1F',
+      preco: '#007AFF',
+      sobre: '#424245',
+    },
+  },
+  {
+    id: 'escuro',
+    label: 'Escuro',
+    hint: 'Apple',
+    temaEstilo: 'escuro',
+    corPrincipal: '#0A84FF',
+    corFundo: '#000000',
+    corCard: '#1C1C1E',
+    corTexto: '#F5F5F7',
+    fonts: {
+      nome: '#FFFFFF',
+      titulo: '#FFFFFF',
+      subtitulo: '#EBEBF5',
+      slogan: '#C7C7CC',
+      produto: '#F5F5F7',
+      preco: '#0A84FF',
+      sobre: '#D1D1D6',
+    },
+  },
+  {
+    id: 'cinza',
+    label: 'Cinza',
+    hint: 'Graphite',
+    temaEstilo: 'solido',
+    corPrincipal: '#636366',
+    corFundo: '#E5E5EA',
+    corCard: '#F2F2F7',
+    corTexto: '#1C1C1E',
+    fonts: {
+      nome: '#FFFFFF',
+      titulo: '#FFFFFF',
+      subtitulo: '#E5E5EA',
+      slogan: '#D1D1D6',
+      produto: '#1C1C1E',
+      preco: '#3A3A3C',
+      sobre: '#3A3A3C',
+    },
+  },
+  {
+    id: 'material',
+    label: 'Material',
+    hint: 'Google',
+    temaEstilo: 'solido',
+    corPrincipal: '#6750A4',
+    corFundo: '#FFFBFE',
+    corCard: '#FFFFFF',
+    corTexto: '#1C1B1F',
+    fonts: {
+      nome: '#FFFFFF',
+      titulo: '#FFFFFF',
+      subtitulo: '#E8DEF8',
+      slogan: '#D0BCFF',
+      produto: '#1C1B1F',
+      preco: '#6750A4',
+      sobre: '#49454F',
+    },
+  },
+  {
+    id: 'fluent',
+    label: 'Fluent',
+    hint: 'Microsoft',
+    temaEstilo: 'solido',
+    corPrincipal: '#0078D4',
+    corFundo: '#F3F2F1',
+    corCard: '#FFFFFF',
+    corTexto: '#201F1E',
+    fonts: {
+      nome: '#FFFFFF',
+      titulo: '#FFFFFF',
+      subtitulo: '#EDEBE9',
+      slogan: '#D2D0CE',
+      produto: '#201F1E',
+      preco: '#0078D4',
+      sobre: '#605E5C',
+    },
+  },
+  {
+    id: 'commerce',
+    label: 'Commerce',
+    hint: 'Shopify',
+    temaEstilo: 'solido',
+    corPrincipal: '#008060',
+    corFundo: '#F6F6F7',
+    corCard: '#FFFFFF',
+    corTexto: '#202223',
+    fonts: {
+      nome: '#FFFFFF',
+      titulo: '#FFFFFF',
+      subtitulo: '#E3F1DF',
+      slogan: '#B4E1CE',
+      produto: '#202223',
+      preco: '#008060',
+      sobre: '#6D7175',
+    },
+  },
+];
+
+export function applyTemaPronto(config, id) {
+  const t = TEMAS_PRONTOS.find((x) => x.id === id);
+  if (!t) return config || {};
+  return {
+    temaPronto: t.id,
+    temaEstilo: t.temaEstilo,
+    corPrincipal: t.corPrincipal,
+    coresTema: [t.corPrincipal],
+    corFundo: t.corFundo,
+    corCard: t.corCard,
+    corTexto: t.corTexto,
+    corFonteNome: t.fonts.nome,
+    corFonteTitulo: t.fonts.titulo,
+    corFonteSubtitulo: t.fonts.subtitulo,
+    corFonteSlogan: t.fonts.slogan,
+    corFonteProduto: t.fonts.produto,
+    corFontePreco: t.fonts.preco,
+    corFonteSobre: t.fonts.sobre,
+  };
+}
+
+function hexOr(v, fallback) {
+  return HEX_COLOR.test(String(v || '')) ? v : fallback;
+}
+
+export function getCatalogoFontColors(config, theme) {
+  const t = theme || getCatalogoTheme(config);
+  return {
+    nome: hexOr(config?.corFonteNome, '#ffffff'),
+    titulo: hexOr(config?.corFonteTitulo, '#ffffff'),
+    subtitulo: hexOr(config?.corFonteSubtitulo, '#ffffff'),
+    slogan: hexOr(config?.corFonteSlogan, '#ffffff'),
+    produto: hexOr(config?.corFonteProduto, t.corTexto),
+    preco: hexOr(config?.corFontePreco, t.corPrincipal),
+    sobre: hexOr(config?.corFonteSobre, t.corTexto),
+  };
+}
+
 export const TEMAS_ESCUROS = [
   { id: 'noite', label: 'Noite', corPrincipal: '#818cf8', corFundo: '#0f172a', corTexto: '#f8fafc' },
   { id: 'carvao', label: 'Carvão', corPrincipal: '#e2e8f0', corFundo: '#111827', corTexto: '#f1f5f9' },
@@ -36,8 +191,41 @@ export const TEMA_ESTILOS = [
   { id: 'solido', label: 'Sólido', icon: 'color-fill-outline' },
   { id: 'gradiente', label: 'Gradiente', icon: 'color-filter-outline' },
   { id: 'escuro', label: 'Escuro', icon: 'moon-outline' },
-  { id: 'cores', label: 'Várias cores', icon: 'aperture-outline' },
 ];
+
+export const ROTULO_VITRINE_OPTS = [
+  { id: 'catalogo', label: 'Catálogo', icon: 'albums-outline' },
+  { id: 'loja', label: 'Loja', icon: 'storefront-outline' },
+];
+
+export function getCatalogoRotulos(config) {
+  const loja = config?.rotuloVitrine === 'loja';
+  const cap = loja ? 'Loja' : 'Catálogo';
+  const min = loja ? 'loja' : 'catálogo';
+  return {
+    cap,
+    min,
+    tituloPadrao: loja ? 'Minha Loja' : 'Meu Catálogo',
+    menuLabel: loja ? 'Minha Loja' : 'Meu Catálogo',
+    salvar: loja ? 'Salvar loja' : 'Salvar catálogo',
+    buscar: loja ? 'Buscar na loja...' : 'Buscar no catálogo...',
+    vazio: loja ? 'Nenhum item visível na loja.' : 'Nenhum item visível no catálogo.',
+    publicoAtivo: loja ? 'Loja pública ativa' : 'Catálogo público ativo',
+    linkHint: loja ? 'Salve a loja para gerar o link' : 'Salve o catálogo para gerar o link',
+    sobre: loja ? 'Sobre a loja' : 'Sobre o catálogo',
+    nomeCampo: loja ? 'Nome da loja' : 'Nome do catálogo',
+    apresentacao: loja ? 'Apresente sua loja em poucas linhas' : 'Apresente seu catálogo em poucas linhas',
+    dicaEdicao: loja
+      ? 'Toque no lápis para editar foto, nome e preço. Salva no app e na loja.'
+      : 'Toque no lápis para editar foto, nome e preço. Salva no app e no catálogo.',
+  };
+}
+
+function scalePercent(config, key, fallback = 100) {
+  const n = Number(config?.[key]);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(200, Math.max(50, Math.round(n)));
+}
 
 const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -56,10 +244,11 @@ export function getGradientPoints(direcao) {
 }
 
 export function getCatalogoTheme(config) {
-  const estilo = ['solido', 'gradiente', 'escuro', 'cores'].includes(config?.temaEstilo) ? config.temaEstilo : 'solido';
+  let estilo = config?.temaEstilo === 'cores' ? 'gradiente' : config?.temaEstilo;
+  if (!['solido', 'gradiente', 'escuro'].includes(estilo)) estilo = 'solido';
   const cores = normalizeCoresTema(config);
   const escuro = estilo === 'escuro';
-  const usarGradiente = (estilo === 'gradiente' || estilo === 'cores') && cores.length >= 2;
+  const usarGradiente = estilo === 'gradiente' && cores.length >= 2;
   const points = getGradientPoints(config?.gradienteDirecao);
   const corPrincipal = HEX_COLOR.test(String(config?.corPrincipal || '')) ? config.corPrincipal : cores[0];
   return {
@@ -70,7 +259,7 @@ export function getCatalogoTheme(config) {
     corPrincipal,
     corFundo: config?.corFundo || (escuro ? '#0f172a' : '#f8fafc'),
     corTexto: config?.corTexto || (escuro ? '#f8fafc' : '#0f172a'),
-    cardBg: escuro ? '#1e293b' : '#ffffff',
+    cardBg: hexOr(config?.corCard, escuro ? '#1e293b' : '#ffffff'),
     heroColors: usarGradiente ? cores : [corPrincipal, corPrincipal],
     start: points.start,
     end: points.end,
@@ -86,6 +275,25 @@ export function nudgeHeroPos(config, id, dx, dy) {
       y: clampPercent((atual.y || 50) + dy),
     },
   };
+}
+
+export function nudgeHeroItems(config, ids, dx, dy) {
+  let next = getHeroPosicoes(config);
+  (ids || []).forEach((id) => {
+    next = nudgeHeroPos({ heroPosicoes: next }, id, dx, dy);
+  });
+  return next;
+}
+
+/** Alinha o centro dos itens no banner: esquerda, centro ou direita. */
+export function alignHeroItems(config, ids, align) {
+  const next = { ...getHeroPosicoes(config) };
+  const x = align === 'esquerda' ? 18 : align === 'direita' ? 82 : 50;
+  (ids || []).forEach((id) => {
+    const cur = next[id] || { x: 50, y: 50 };
+    next[id] = { ...cur, x };
+  });
+  return next;
 }
 
 export const CATALOGO_LAYOUTS = [
@@ -167,14 +375,41 @@ export const HERO_ELEMENTOS = [
   { id: 'slogan', label: 'Slogan', icon: 'chatbox-ellipses-outline' },
 ];
 
+export const HERO_SCALE_KEYS = {
+  logo: 'logoEscala',
+  nome: 'nomeEscala',
+  titulo: 'tituloEscala',
+  subtitulo: 'subtituloEscala',
+  slogan: 'sloganEscala',
+};
+
+export function clampHeroScale(n) {
+  const v = Math.round(Number(n) || 100);
+  return Math.min(200, Math.max(50, v));
+}
+
 export function getLogoPx(config) {
   const row = LOGO_TAMANHOS.find((t) => t.id === (config?.logoTamanho || 'medio'));
-  return row?.px || 72;
+  const base = row?.px || 72;
+  return Math.round(base * scalePercent(config, 'logoEscala', 100) / 100);
 }
 
 export function getTituloPx(config) {
   const row = TITULO_TAMANHOS.find((t) => t.id === (config?.tituloTamanho || 'medio'));
-  return row?.px || 24;
+  const base = row?.px || 24;
+  return Math.round(base * scalePercent(config, 'tituloEscala', 100) / 100);
+}
+
+export function getHeroNomePx(config) {
+  return Math.round(32 * scalePercent(config, 'nomeEscala', 100) / 100);
+}
+
+export function getHeroSubtituloPx(config) {
+  return Math.round(14 * scalePercent(config, 'subtituloEscala', 100) / 100);
+}
+
+export function getHeroSloganPx(config) {
+  return Math.round(12 * scalePercent(config, 'sloganEscala', 100) / 100);
 }
 
 export function getHeroMinHeight(config) {
@@ -221,6 +456,9 @@ export function buildHeroPresentation(config) {
   return {
     logoPx,
     tituloPx: getTituloPx(config),
+    nomePx: getHeroNomePx(config),
+    subtituloPx: getHeroSubtituloPx(config),
+    sloganPx: getHeroSloganPx(config),
     minHeight: getHeroMinHeight(config),
     textAlign: getHeroTextAlign(config),
     flexAlign: getHeroFlexAlign(config),
@@ -282,9 +520,28 @@ export const DEFAULT_CATALOGO_CONFIG = {
   temaEstilo: 'solido',
   coresTema: ['#6366f1'],
   gradienteDirecao: 'diagonal',
+  rotuloVitrine: 'catalogo',
+  logoEscala: 100,
+  nomeEscala: 100,
+  tituloEscala: 100,
+  subtituloEscala: 100,
+  sloganEscala: 100,
   corPrincipal: '#6366f1',
   corFundo: '#f8fafc',
+  corCard: '#ffffff',
   corTexto: '#0f172a',
+  temaPronto: 'claro',
+  corFonteNome: '#ffffff',
+  corFonteTitulo: '#ffffff',
+  corFonteSubtitulo: '#ffffff',
+  corFonteSlogan: '#ffffff',
+  corFonteProduto: '#0f172a',
+  corFontePreco: '#6366f1',
+  corFonteSobre: '#0f172a',
+  fonteNome: 'system',
+  fonteTitulo: 'system',
+  fonteSubtitulo: 'system',
+  fonteSlogan: 'system',
   titulo: 'Minha Loja',
   subtitulo: 'Confira nossos produtos e serviços',
   slogan: 'Qualidade e atendimento que você merece',
@@ -320,6 +577,9 @@ export const DEFAULT_CATALOGO_CONFIG = {
   categoriasProdutos: { enabled: false, items: [] },
   itens: [],
   lojaPublica: true,
+  slugPublico: '',
+  usaDominioProprio: false,
+  dominioPublico: '',
   agendamentoOnline: true,
   agendaHoraInicio: '08:00',
   agendaHoraFim: '18:00',
@@ -334,8 +594,20 @@ export function mergeCatalogoConfig(raw) {
   if (!Array.isArray(base.itens)) base.itens = [];
   base.heroPosicoes = getHeroPosicoes(base);
   base.coresTema = normalizeCoresTema(base);
-  if (!['solido', 'gradiente', 'escuro', 'cores'].includes(base.temaEstilo)) base.temaEstilo = 'solido';
+  if (base.temaEstilo === 'cores') base.temaEstilo = 'gradiente';
+  if (!['solido', 'gradiente', 'escuro'].includes(base.temaEstilo)) base.temaEstilo = 'solido';
+  if (base.rotuloVitrine !== 'loja' && base.rotuloVitrine !== 'catalogo') base.rotuloVitrine = 'catalogo';
+  if (!['ambos', 'produtos', 'servicos'].includes(base.tipo)) base.tipo = 'ambos';
+  if (!['vitrine', 'carrossel', 'grid', 'horizontal', 'vertical'].includes(base.layout)) base.layout = 'vitrine';
+  base.logoEscala = scalePercent(base, 'logoEscala', 100);
+  base.nomeEscala = scalePercent(base, 'nomeEscala', 100);
+  base.tituloEscala = scalePercent(base, 'tituloEscala', 100);
+  base.subtituloEscala = scalePercent(base, 'subtituloEscala', 100);
+  base.sloganEscala = scalePercent(base, 'sloganEscala', 100);
   base.categoriasProdutos = normalizeCategoriasProdutos(base.categoriasProdutos);
+  base.usaDominioProprio = !!base.usaDominioProprio;
+  base.dominioPublico = typeof base.dominioPublico === 'string' ? base.dominioPublico.trim().toLowerCase() : '';
+  base.slugPublico = typeof base.slugPublico === 'string' ? base.slugPublico.trim().toLowerCase() : '';
   return base;
 }
 
@@ -387,7 +659,7 @@ export function resolveCatalogoItems(config, products, services, search = '') {
   let rows = synced
     .filter((row) => row.visible !== false)
     .map((row) => {
-      const src = row.tipo === 'servico' ? servMap.get(row.id) : prodMap.get(row.id);
+      const src = row.tipo === 'servico' ? servMap.get(String(row.id)) : prodMap.get(String(row.id));
       if (!src) return null;
       return { ...src, _tipo: row.tipo, _order: row.order, _rowId: itemKey(row.tipo, row.id) };
     })
@@ -407,15 +679,15 @@ export function getGridColumns(config) {
   return config.colunasGrid || size.cols || 3;
 }
 
-/** Colunas da vitrine conforme a largura: 2 no celular e até 6 em tela larga. */
+/** Colunas da vitrine: preenche a largura, de 1 no celular até 6 no desktop. */
 export function getResponsiveGridColumns(width) {
-  const inner = Math.max(0, (Number(width) || 0) - 32);
-  if (inner < 300) return 1;
-  if (inner < 640) return 2;
-  if (inner < 900) return 3;
-  if (inner < 1160) return 4;
-  if (inner < 1420) return 5;
-  return 6;
+  const usable = Math.max(1, Number(width) || 0);
+  const minCard = 148;
+  const gap = 10;
+  const pad = 24;
+  const inner = Math.max(minCard, usable - pad);
+  const cols = Math.floor((inner + gap) / (minCard + gap));
+  return Math.max(1, Math.min(6, cols || 1));
 }
 
 export function getLojaDisplayName(config, profile) {
@@ -424,7 +696,7 @@ export function getLojaDisplayName(config, profile) {
     || config.nomeProfissional?.trim()
     || profile?.empresa?.trim()
     || profile?.nome?.trim()
-    || 'Minha Loja'
+    || getCatalogoRotulos(config).tituloPadrao
   );
 }
 

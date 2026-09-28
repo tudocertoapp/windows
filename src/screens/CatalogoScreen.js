@@ -35,13 +35,16 @@ import {
   getLojaDisplayName,
   getLojaLogoUri,
   getHeroPosicoes,
+  getCatalogoRotulos,
+  HERO_SCALE_KEYS,
+  clampHeroScale,
 } from '../utils/catalogoStore';
 
 export function CatalogoScreen({ onClose, isModal }) {
   const { colors } = useTheme();
   const { products, services, agendaEvents, updateProduct, updateService } = useFinance();
   const { profile } = useProfile();
-  const { showEmpresaFeatures } = usePlan();
+  const { showEmpresaFeatures, planFeatures } = usePlan();
   const { user } = useAuth();
   const isDesktop = useIsDesktopLayout();
 
@@ -94,10 +97,11 @@ export function CatalogoScreen({ onClose, isModal }) {
       if (result.stale) return result;
       setCloudSaveStatus(result.remote ? 'saved' : 'error');
       if (showAlert) {
-        const msg = result.remote
-          ? 'Seu catálogo foi salvo na nuvem (configurações, textos e imagens). O link público já pode mostrar essa versão.'
-          : 'Salvo só neste aparelho. O link público ainda não recebeu o catálogo. Verifique o login e tente de novo.';
-        Alert.alert('Salvo', msg);
+        if (result.remote) {
+          Alert.alert('Salvo', 'Seu catálogo foi salvo na nuvem. O link público já pode mostrar essa versão. Quem abre o link não precisa de login.');
+        } else {
+          Alert.alert('Não publicado', result.error || 'Salvo só neste aparelho. O link público ainda não recebeu o catálogo.');
+        }
       }
       return result;
     } catch (_) {
@@ -175,6 +179,7 @@ export function CatalogoScreen({ onClose, isModal }) {
   };
 
   const previewConfig = draftConfig;
+  const rotulos = getCatalogoRotulos(draftConfig);
   const storeItems = useMemo(
     () => resolveCatalogoItems(previewConfig, products, services),
     [previewConfig, products, services]
@@ -248,17 +253,17 @@ export function CatalogoScreen({ onClose, isModal }) {
       return;
     }
     if (!(await ensurePublicSave())) return;
-    await shareLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile));
+    await shareLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile), draftConfig);
   };
 
   const copiarLinkLoja = async () => {
     playTapSound();
     if (!user?.id) return Alert.alert('Link da loja', 'Faça login para copiar o link.');
     if (!(await ensurePublicSave())) return;
-    await copyLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile));
+    await copyLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile), draftConfig);
   };
 
-  const lojaUrl = user?.id ? buildLojaPublicUrl(user.id) : '';
+  const lojaUrl = user?.id ? buildLojaPublicUrl(user.id, draftConfig) : '';
 
   const openEditItem = useCallback((item) => {
     playTapSound();
@@ -272,6 +277,17 @@ export function CatalogoScreen({ onClose, isModal }) {
     if (!src) return;
     openEditItem({ ...src, _tipo: row.tipo, _rowId: itemKey(row.tipo, row.id) });
   }, [products, services, openEditItem]);
+
+  const handleHeroScaleChange = useCallback((id, value) => {
+    const key = HERO_SCALE_KEYS[id];
+    if (!key) return;
+    setDraftConfig((prev) => ({ ...prev, [key]: clampHeroScale(value) }));
+  }, []);
+
+  const handleHeroTextChange = useCallback((key, text) => {
+    if (!key) return;
+    setDraftConfig((prev) => ({ ...prev, [key]: text }));
+  }, []);
 
   const handleHeroPositionChange = useCallback((id, pos) => {
     setDraftConfig((prev) => ({
@@ -307,7 +323,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       <View style={[s.container, { backgroundColor: colors.bg }]}>
         {isModal && onClose && (
           <View style={[s.topBar, { borderBottomColor: colors.border }]}>
-            <Text style={[s.topBarTitle, { color: colors.text }]}>Meu Catálogo</Text>
+            <Text style={[s.topBarTitle, { color: colors.text }]}>{rotulos.menuLabel}</Text>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}>
               <Ionicons name="close" size={24} color={colors.primary} />
             </TouchableOpacity>
@@ -342,6 +358,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       onShareLink={compartilharLoja}
       onEditItem={openEditItemByRow}
       onOpenPreview={() => setMobileTab('loja')}
+      canPublishPublicStore={!!planFeatures?.canPublishPublicStore}
     />
   );
 
@@ -361,6 +378,8 @@ export function CatalogoScreen({ onClose, isModal }) {
       ownerMode
       onEditItem={openEditItem}
       onHeroPositionChange={handleHeroPositionChange}
+      onHeroScaleChange={handleHeroScaleChange}
+      onHeroTextChange={handleHeroTextChange}
     />
   );
 
@@ -368,7 +387,7 @@ export function CatalogoScreen({ onClose, isModal }) {
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       <View style={[s.topBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
-          <Text style={[s.topBarTitle, { color: colors.text }]}>Meu Catálogo</Text>
+          <Text style={[s.topBarTitle, { color: colors.text }]}>{rotulos.menuLabel}</Text>
           <Text style={[s.topBarSub, { color: colors.textSecondary }]}>
             {user?.id
               ? cloudSaveStatus === 'saving'

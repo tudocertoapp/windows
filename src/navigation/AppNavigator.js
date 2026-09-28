@@ -627,6 +627,7 @@ export function AppNavigator() {
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    if (!isDesktopOnlyFeatureClient(isWebDesktop)) return undefined;
     const isTypingTarget = (target) => {
       const tag = target?.tagName?.toLowerCase?.();
       return (

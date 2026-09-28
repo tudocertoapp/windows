@@ -29,7 +29,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { CadastroClientePublicoScreen } from './src/screens/CadastroClientePublicoScreen';
 import { playBrandIntroSound } from './src/utils/sounds';
 import { CLIENT_REGISTRATION_PATH } from './src/utils/clientRegistrationLink';
-import { LOJA_PUBLIC_PATH } from './src/utils/lojaPublicLink';
+import { getPublicLojaRoute } from './src/utils/lojaPublicLink';
 import { LojaPublicaScreen } from './src/screens/LojaPublicaScreen';
 
 const BRAND_INTRO_ONCE_KEY = '@tudocerto_brand_intro_once_v1';
@@ -55,16 +55,9 @@ function getPublicCadastroOwnerId() {
   return new URLSearchParams(window.location.search).get('ref') || '';
 }
 
-function getPublicLojaOwnerId() {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
-  const path = (window.location.pathname || '').replace(/\/$/, '') || '/';
-  if (path !== LOJA_PUBLIC_PATH && !path.endsWith(LOJA_PUBLIC_PATH)) return null;
-  return new URLSearchParams(window.location.search).get('ref') || '';
-}
-
 function AppContent() {
   const publicCadastroOwnerId = getPublicCadastroOwnerId();
-  const publicLojaOwnerId = getPublicLojaOwnerId();
+  const publicLojaRoute = Platform.OS === 'web' ? getPublicLojaRoute() : null;
   const { user, isGuest, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
@@ -148,10 +141,10 @@ function AppContent() {
     );
   }
 
-  if (publicLojaOwnerId !== null) {
+  if (publicLojaRoute) {
     return (
       <ThemeProvider>
-        <LojaPublicaScreen ownerUserId={publicLojaOwnerId} />
+        <LojaPublicaScreen ownerUserId={publicLojaRoute.ownerUserId} lojaSlug={publicLojaRoute.slug} />
       </ThemeProvider>
     );
   }
@@ -208,6 +201,7 @@ function AppContent() {
 
 export default function App() {
   const isWeb = Platform.OS === 'web';
+  const publicLojaRoute = isWeb ? getPublicLojaRoute() : null;
   const rootStyle = isWeb
     ? { flex: 1, width: '100%', minWidth: '100%', minHeight: '100vh', maxWidth: '100%', zoom: 1.12 }
     : { flex: 1 };
@@ -225,8 +219,6 @@ export default function App() {
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.type = 'text/css';
-    // Chrome/Edge (WebKit): esconder scrollbar mantendo scroll.
-    // Escopado para a timeline da Agenda (className no ScrollView).
     style.appendChild(document.createTextNode(`
       .tc-agenda-timeline-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
       .tc-agenda-timeline-scroll::-webkit-scrollbar-thumb { background: transparent; }
@@ -249,6 +241,16 @@ export default function App() {
       };
     }
   }, []);
+
+  if (publicLojaRoute) {
+    return (
+      <ErrorBoundary>
+        <ThemeProvider>
+          <LojaPublicaScreen ownerUserId={publicLojaRoute.ownerUserId} lojaSlug={publicLojaRoute.slug} />
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
+  }
 
   const RootView = isWeb ? View : GestureHandlerRootView;
 
