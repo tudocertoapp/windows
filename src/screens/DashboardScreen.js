@@ -39,7 +39,6 @@ import {
   resolveDesktopDownloadUrls,
   triggerDesktopDownload,
 } from '../constants/desktopDownload';
-import { loadCatalogoConfig } from '../utils/catalogoPersist';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -404,43 +403,12 @@ export function DashboardScreen() {
     }
   }, [quoteBody, quoteSource, quoteType, quote, openImageGenerator]);
 
-  const [catalogoLojaAtiva, setCatalogoLojaAtiva] = useState(false);
-
-  useEffect(() => {
-    if (!showEmpresaFeatures || !user?.id) {
-      setCatalogoLojaAtiva(false);
-      return undefined;
-    }
-    let cancelled = false;
-    loadCatalogoConfig(user, products, services)
-      .then((cfg) => {
-        if (!cancelled) setCatalogoLojaAtiva(cfg?.lojaPublica !== false);
-      })
-      .catch(() => {
-        if (!cancelled) setCatalogoLojaAtiva(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showEmpresaFeatures, user?.id, products?.length, services?.length]);
-
-  const showMinhaLojaQuickButton =
-    useWebLayout && showEmpresaFeatures && viewMode === 'empresa' && catalogoLojaAtiva;
-
   const webDesktopQuickButtons = useMemo(() => {
     if (!useWebLayout || !showEmpresaFeatures) return [];
     const buttons = [
       { id: 'abrir-caixa', label: 'Abrir caixa', icon: 'cart-outline', onPress: () => openPDV?.(), color: CARD_ICON_COLORS.proximos },
+      { id: 'minha-loja', label: 'Meu Catálogo', icon: 'storefront-outline', onPress: () => openCatalogo?.(), color: CARD_ICON_COLORS.meusgastos },
     ];
-    if (showMinhaLojaQuickButton) {
-      buttons.push({
-        id: 'minha-loja',
-        label: 'Meu Catálogo',
-        icon: 'storefront-outline',
-        onPress: () => openCatalogo?.(),
-        color: CARD_ICON_COLORS.meusgastos,
-      });
-    }
     buttons.push(
       { id: 'produtos', label: 'Produtos', icon: 'cube-outline', onPress: () => openCadastro?.('produtos'), color: CARD_ICON_COLORS.agendamentos },
       { id: 'servicos', label: 'Serviços', icon: 'construct-outline', onPress: () => openCadastro?.('servicos'), color: CARD_ICON_COLORS.meusgastos },
@@ -454,7 +422,6 @@ export function DashboardScreen() {
   }, [
     useWebLayout,
     showEmpresaFeatures,
-    showMinhaLojaQuickButton,
     openAReceber,
     openCadastro,
     openCatalogo,

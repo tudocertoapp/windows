@@ -11,6 +11,83 @@ export const CATALOGO_TEMAS = [
   { id: 'sunset', label: 'Sunset', cor: '#f59e0b' },
 ];
 
+export const TEMAS_GRADIENTE = [
+  { id: 'aurora', label: 'Aurora', cores: ['#6366f1', '#a855f7', '#ec4899'] },
+  { id: 'sunset', label: 'Pôr do sol', cores: ['#f59e0b', '#ef4444', '#ec4899'] },
+  { id: 'oceano', label: 'Oceano', cores: ['#06b6d4', '#2563eb'] },
+  { id: 'floresta', label: 'Floresta', cores: ['#34d399', '#0f766e'] },
+  { id: 'noite-azul', label: 'Noite azul', cores: ['#1e3a8a', '#7c3aed'] },
+];
+
+export const TEMAS_ESCUROS = [
+  { id: 'noite', label: 'Noite', corPrincipal: '#818cf8', corFundo: '#0f172a', corTexto: '#f8fafc' },
+  { id: 'carvao', label: 'Carvão', corPrincipal: '#e2e8f0', corFundo: '#111827', corTexto: '#f1f5f9' },
+  { id: 'vinho', label: 'Vinho', corPrincipal: '#fb7185', corFundo: '#1c1014', corTexto: '#fff1f2' },
+  { id: 'esmeralda', label: 'Esmeralda', corPrincipal: '#34d399', corFundo: '#052e24', corTexto: '#ecfdf5' },
+];
+
+export const GRADIENTE_DIRECOES = [
+  { id: 'diagonal', label: 'Diagonal', icon: 'resize-outline' },
+  { id: 'horizontal', label: 'Horizontal', icon: 'swap-horizontal-outline' },
+  { id: 'vertical', label: 'Vertical', icon: 'swap-vertical-outline' },
+];
+
+export const TEMA_ESTILOS = [
+  { id: 'solido', label: 'Sólido', icon: 'color-fill-outline' },
+  { id: 'gradiente', label: 'Gradiente', icon: 'color-filter-outline' },
+  { id: 'escuro', label: 'Escuro', icon: 'moon-outline' },
+  { id: 'cores', label: 'Várias cores', icon: 'aperture-outline' },
+];
+
+const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+export function normalizeCoresTema(config) {
+  const raw = Array.isArray(config?.coresTema) ? config.coresTema : [];
+  const list = raw.map((c) => String(c || '').trim()).filter((c) => HEX_COLOR.test(c));
+  if (!list.length && HEX_COLOR.test(String(config?.corPrincipal || ''))) list.push(config.corPrincipal);
+  if (!list.length) list.push('#6366f1');
+  return list.slice(0, 4);
+}
+
+export function getGradientPoints(direcao) {
+  if (direcao === 'horizontal') return { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } };
+  if (direcao === 'vertical') return { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
+  return { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } };
+}
+
+export function getCatalogoTheme(config) {
+  const estilo = ['solido', 'gradiente', 'escuro', 'cores'].includes(config?.temaEstilo) ? config.temaEstilo : 'solido';
+  const cores = normalizeCoresTema(config);
+  const escuro = estilo === 'escuro';
+  const usarGradiente = (estilo === 'gradiente' || estilo === 'cores') && cores.length >= 2;
+  const points = getGradientPoints(config?.gradienteDirecao);
+  const corPrincipal = HEX_COLOR.test(String(config?.corPrincipal || '')) ? config.corPrincipal : cores[0];
+  return {
+    estilo,
+    escuro,
+    usarGradiente,
+    cores,
+    corPrincipal,
+    corFundo: config?.corFundo || (escuro ? '#0f172a' : '#f8fafc'),
+    corTexto: config?.corTexto || (escuro ? '#f8fafc' : '#0f172a'),
+    cardBg: escuro ? '#1e293b' : '#ffffff',
+    heroColors: usarGradiente ? cores : [corPrincipal, corPrincipal],
+    start: points.start,
+    end: points.end,
+  };
+}
+
+export function nudgeHeroPos(config, id, dx, dy) {
+  const atual = getHeroPosicoes(config)[id] || { x: 50, y: 50 };
+  return {
+    ...getHeroPosicoes(config),
+    [id]: {
+      x: clampPercent((atual.x || 50) + dx),
+      y: clampPercent((atual.y || 50) + dy),
+    },
+  };
+}
+
 export const CATALOGO_LAYOUTS = [
   { id: 'vitrine', label: 'Vitrine', icon: 'sparkles-outline' },
   { id: 'carrossel', label: 'Carrossel + grade', icon: 'albums-outline' },
@@ -81,6 +158,14 @@ export const DEFAULT_HERO_POSICOES = {
 };
 
 export const HERO_ELEMENT_IDS = ['logo', 'nome', 'titulo', 'subtitulo', 'slogan'];
+
+export const HERO_ELEMENTOS = [
+  { id: 'logo', label: 'Logo', icon: 'image-outline' },
+  { id: 'nome', label: 'Nome', icon: 'text-outline' },
+  { id: 'titulo', label: 'Título', icon: 'text' },
+  { id: 'subtitulo', label: 'Subtítulo', icon: 'remove-outline' },
+  { id: 'slogan', label: 'Slogan', icon: 'chatbox-ellipses-outline' },
+];
 
 export function getLogoPx(config) {
   const row = LOGO_TAMANHOS.find((t) => t.id === (config?.logoTamanho || 'medio'));
@@ -194,6 +279,9 @@ export const DEFAULT_CATALOGO_CONFIG = {
   tipo: 'ambos',
   layout: 'vitrine',
   tema: 'moderno',
+  temaEstilo: 'solido',
+  coresTema: ['#6366f1'],
+  gradienteDirecao: 'diagonal',
   corPrincipal: '#6366f1',
   corFundo: '#f8fafc',
   corTexto: '#0f172a',
@@ -245,6 +333,8 @@ export function mergeCatalogoConfig(raw) {
   const base = { ...DEFAULT_CATALOGO_CONFIG, ...(raw || {}) };
   if (!Array.isArray(base.itens)) base.itens = [];
   base.heroPosicoes = getHeroPosicoes(base);
+  base.coresTema = normalizeCoresTema(base);
+  if (!['solido', 'gradiente', 'escuro', 'cores'].includes(base.temaEstilo)) base.temaEstilo = 'solido';
   base.categoriasProdutos = normalizeCategoriasProdutos(base.categoriasProdutos);
   return base;
 }
@@ -315,6 +405,17 @@ export function resolveCatalogoItems(config, products, services, search = '') {
 export function getGridColumns(config) {
   const size = CATALOGO_CARD_SIZES.find((c) => c.id === config.cardSize) || CATALOGO_CARD_SIZES[1];
   return config.colunasGrid || size.cols || 3;
+}
+
+/** Colunas da vitrine conforme a largura: 2 no celular e até 6 em tela larga. */
+export function getResponsiveGridColumns(width) {
+  const inner = Math.max(0, (Number(width) || 0) - 32);
+  if (inner < 300) return 1;
+  if (inner < 640) return 2;
+  if (inner < 900) return 3;
+  if (inner < 1160) return 4;
+  if (inner < 1420) return 5;
+  return 6;
 }
 
 export function getLojaDisplayName(config, profile) {

@@ -17,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/format';
 import {
   getEffectivePrice,
-  getGridColumns,
+  getResponsiveGridColumns,
+  getCatalogoTheme,
   getLojaDisplayName,
   getLojaLogoUri,
   buildHeroPresentation,
@@ -74,6 +75,7 @@ export function CatalogoStoreView({
   const [bookingDone, setBookingDone] = useState(null);
   const [heroDragging, setHeroDragging] = useState(false);
   const carouselRef = useRef(null);
+  const [measuredW, setMeasuredW] = useState(0);
 
   const agendamentoAtivo = config.agendamentoOnline !== false && !!onFetchAvailability;
 
@@ -83,11 +85,14 @@ export function CatalogoStoreView({
     if (dates[0]) setSelectedDate(dates[0]);
   }, [agendamentoAtivo, config, selectedDate]);
 
-  const storeW = previewWidth || SW;
-  const cols = getGridColumns(config);
+  const theme = getCatalogoTheme(config);
+  const cardBg = theme.cardBg;
+  const storeW = measuredW || previewWidth || SW;
+  const cols = getResponsiveGridColumns(storeW);
   const gap = 10;
   const pad = 16;
-  const cardW = Math.floor((storeW - pad * 2 - gap * (cols - 1)) / cols);
+  const innerW = Math.max(0, storeW - pad * 2);
+  const cardW = Math.max(1, Math.floor((innerW - gap * (cols - 1)) / cols) - 2);
 
   const lojaNome = getLojaDisplayName(config, profile);
   const logoUri = config.usaLogo !== false
@@ -253,7 +258,7 @@ export function CatalogoStoreView({
           {
             width: w,
             minHeight: carousel ? undefined : cardH,
-            backgroundColor: '#fff',
+            backgroundColor: cardBg,
             borderColor: config.corPrincipal + '22',
           },
         ]}
@@ -279,7 +284,9 @@ export function CatalogoStoreView({
               activeOpacity={0.85}
             >
               <Ionicons name="cart-outline" size={16} color="#fff" />
-              <Text style={st.addBtnText}>Adicionar ao carrinho</Text>
+              <Text style={st.addBtnText} numberOfLines={1}>
+                {(typeof w === 'number' && w < 200) ? 'Adicionar' : 'Adicionar ao carrinho'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -290,7 +297,7 @@ export function CatalogoStoreView({
   const renderListItem = (item) => {
     const photo = getItemPhoto(item);
     return (
-      <View key={item._rowId || item.id} style={[st.listRow, { borderColor: config.corPrincipal + '22', backgroundColor: '#fff' }]}>
+      <View key={item._rowId || item.id} style={[st.listRow, { borderColor: config.corPrincipal + '22', backgroundColor: cardBg }]}>
         <View style={{ position: 'relative' }}>
           {photo ? (
             <Image source={{ uri: photo }} style={st.listImg} resizeMode="cover" />
@@ -338,7 +345,13 @@ export function CatalogoStoreView({
   }, [onHeroPositionChange]);
 
   return (
-    <View style={[st.root, { backgroundColor: config.corFundo || '#f8fafc' }]}>
+    <View
+      style={[st.root, { backgroundColor: theme.corFundo || config.corFundo || '#f8fafc' }]}
+      onLayout={(e) => {
+        const w = Math.round(e.nativeEvent.layout.width);
+        if (w > 0 && w !== measuredW) setMeasuredW(w);
+      }}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         scrollEnabled={!heroDragging}
@@ -356,7 +369,7 @@ export function CatalogoStoreView({
         />
 
         {config.sobreTexto ? (
-          <View style={[st.about, { backgroundColor: '#fff', borderColor: config.corPrincipal + '22' }]}>
+          <View style={[st.about, { backgroundColor: cardBg, borderColor: config.corPrincipal + '22' }]}>
             <Text style={[st.aboutText, { color: config.corTexto }]}>{config.sobreTexto}</Text>
           </View>
         ) : null}
@@ -372,7 +385,7 @@ export function CatalogoStoreView({
               </Text>
             </View>
           )}
-          <View style={[st.searchWrap, { borderColor: config.corPrincipal + '33', backgroundColor: '#fff' }]}>
+          <View style={[st.searchWrap, { borderColor: config.corPrincipal + '33', backgroundColor: cardBg }]}>
             <Ionicons name="search" size={18} color={config.corTexto + '66'} />
             <TextInput
               style={[st.searchInput, { color: config.corTexto }]}
@@ -418,7 +431,7 @@ export function CatalogoStoreView({
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.catTabs} contentContainerStyle={{ gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => { playTapSound(); setLojaCatId('todos'); setLojaSubId('todos'); }}
-                  style={[st.catChip, { borderColor: lojaCatId === 'todos' ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: lojaCatId === 'todos' ? config.corPrincipal + '18' : '#fff' }]}
+                  style={[st.catChip, { borderColor: lojaCatId === 'todos' ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: lojaCatId === 'todos' ? config.corPrincipal + '18' : cardBg }]}
                 >
                   <Text style={[st.catChipText, { color: lojaCatId === 'todos' ? config.corPrincipal : config.corTexto }]}>Todas categorias</Text>
                 </TouchableOpacity>
@@ -426,7 +439,7 @@ export function CatalogoStoreView({
                   <TouchableOpacity
                     key={cat.id}
                     onPress={() => { playTapSound(); setLojaCatId(cat.id); setLojaSubId('todos'); }}
-                    style={[st.catChip, { borderColor: String(lojaCatId) === String(cat.id) ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: String(lojaCatId) === String(cat.id) ? config.corPrincipal + '18' : '#fff' }]}
+                    style={[st.catChip, { borderColor: String(lojaCatId) === String(cat.id) ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: String(lojaCatId) === String(cat.id) ? config.corPrincipal + '18' : cardBg }]}
                   >
                     <Text style={[st.catChipText, { color: String(lojaCatId) === String(cat.id) ? config.corPrincipal : config.corTexto }]}>{cat.name}</Text>
                   </TouchableOpacity>
@@ -436,7 +449,7 @@ export function CatalogoStoreView({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.subCatTabs} contentContainerStyle={{ gap: 8 }}>
                   <TouchableOpacity
                     onPress={() => { playTapSound(); setLojaSubId('todos'); }}
-                    style={[st.catChip, { borderColor: lojaSubId === 'todos' ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: lojaSubId === 'todos' ? config.corPrincipal + '18' : '#fff' }]}
+                    style={[st.catChip, { borderColor: lojaSubId === 'todos' ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: lojaSubId === 'todos' ? config.corPrincipal + '18' : cardBg }]}
                   >
                     <Text style={[st.catChipText, { color: lojaSubId === 'todos' ? config.corPrincipal : config.corTexto }]}>Todas</Text>
                   </TouchableOpacity>
@@ -444,7 +457,7 @@ export function CatalogoStoreView({
                     <TouchableOpacity
                       key={sub.id}
                       onPress={() => { playTapSound(); setLojaSubId(sub.id); }}
-                      style={[st.catChip, { borderColor: String(lojaSubId) === String(sub.id) ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: String(lojaSubId) === String(sub.id) ? config.corPrincipal + '18' : '#fff' }]}
+                      style={[st.catChip, { borderColor: String(lojaSubId) === String(sub.id) ? config.corPrincipal : config.corPrincipal + '33', backgroundColor: String(lojaSubId) === String(sub.id) ? config.corPrincipal + '18' : cardBg }]}
                     >
                       <Text style={[st.catChipText, { color: String(lojaSubId) === String(sub.id) ? config.corPrincipal : config.corTexto }]}>{sub.name}</Text>
                     </TouchableOpacity>
@@ -515,7 +528,7 @@ export function CatalogoStoreView({
 
           <Modal visible={cartOpen} transparent animationType="slide" onRequestClose={() => setCartOpen(false)}>
             <Pressable style={st.cartOverlay} onPress={() => setCartOpen(false)}>
-              <Pressable style={[st.cartSheet, { backgroundColor: '#fff' }]} onPress={(e) => e.stopPropagation()}>
+              <Pressable style={[st.cartSheet, { backgroundColor: cardBg }]} onPress={(e) => e.stopPropagation()}>
                 <View style={st.cartHeader}>
                   <Text style={[st.cartTitle, { color: config.corTexto }]}>Seu carrinho</Text>
                   <TouchableOpacity onPress={() => setCartOpen(false)}>
@@ -652,7 +665,7 @@ const st = StyleSheet.create({
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 22, marginBottom: 6 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 4 },
+  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 4, boxSizing: 'border-box' },
   cardCarousel: { marginBottom: 0 },
   cardBodyCarousel: { paddingTop: 8, paddingHorizontal: 10, paddingBottom: 8 },
   cardImg: { width: '100%' },
@@ -665,7 +678,7 @@ const st = StyleSheet.create({
   promoBadge: { backgroundColor: '#ef4444', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
   promoText: { fontSize: 9, fontWeight: '800', color: '#fff' },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 10 },
-  addBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  addBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', flexShrink: 1 },
   listRow: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, borderWidth: 1, gap: 12 },
   listImg: { width: 64, height: 64, borderRadius: 10 },
   listInfo: { flex: 1 },

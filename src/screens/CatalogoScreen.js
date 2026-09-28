@@ -276,10 +276,12 @@ export function CatalogoScreen({ onClose, isModal }) {
   const handleHeroPositionChange = useCallback((id, pos) => {
     setDraftConfig((prev) => ({
       ...prev,
-      heroPosicoes: {
-        ...getHeroPosicoes(prev),
-        [id]: pos,
-      },
+      heroPosicoes: id === '*'
+        ? pos
+        : {
+          ...getHeroPosicoes(prev),
+          [id]: pos,
+        },
     }));
   }, []);
 
@@ -339,6 +341,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       onCopyLink={copiarLinkLoja}
       onShareLink={compartilharLoja}
       onEditItem={openEditItemByRow}
+      onOpenPreview={() => setMobileTab('loja')}
     />
   );
 
