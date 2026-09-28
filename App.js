@@ -223,6 +223,9 @@ export default function App() {
       .tc-agenda-timeline-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
       .tc-agenda-timeline-scroll::-webkit-scrollbar-thumb { background: transparent; }
       .tc-agenda-timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+      .tc-page-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
+      .tc-page-scroll::-webkit-scrollbar-thumb { background: transparent; }
+      .tc-page-scroll::-webkit-scrollbar-track { background: transparent; }
     `));
     document.head.appendChild(style);
   }, []);

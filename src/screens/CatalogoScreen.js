@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,17 +60,14 @@ export function CatalogoScreen({ onClose, isModal }) {
   const [editingItem, setEditingItem] = useState(null);
   const [savingItem, setSavingItem] = useState(false);
   const [cloudSaveStatus, setCloudSaveStatus] = useState('idle');
-  const skipAutoSaveRef = useRef(true);
-  const autoSaveTimerRef = useRef(null);
 
   const loadConfig = async () => {
-    skipAutoSaveRef.current = true;
     try {
       const synced = await loadCatalogoConfig(user, products, services);
       setConfig(synced);
       setDraftConfig(synced);
+      setCloudSaveStatus('idle');
     } catch (_) {}
-    skipAutoSaveRef.current = false;
   };
 
   useEffect(() => {
@@ -94,11 +92,14 @@ export function CatalogoScreen({ onClose, isModal }) {
       const saved = result.config || toSave;
       setConfig(saved);
       setDraftConfig(saved);
-      if (result.stale) return result;
       setCloudSaveStatus(result.remote ? 'saved' : 'error');
       if (showAlert) {
         if (result.remote) {
-          Alert.alert('Salvo', 'Seu catálogo foi salvo na nuvem. O link público já pode mostrar essa versão. Quem abre o link não precisa de login.');
+          Alert.alert(
+            'Salvo na sua conta',
+            result.warning
+              || 'Cores, textos e layout foram gravados no Supabase. Abra o link público para ver a loja atualizada.',
+          );
         } else {
           Alert.alert('Não publicado', result.error || 'Salvo só neste aparelho. O link público ainda não recebeu o catálogo.');
         }
@@ -110,17 +111,6 @@ export function CatalogoScreen({ onClose, isModal }) {
       return { remote: false };
     }
   }, [user, draftConfig, products, services]);
-
-  useEffect(() => {
-    if (skipAutoSaveRef.current || !user?.id) return undefined;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      persistDraftToCloud(false);
-    }, 1600);
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    };
-  }, [draftConfig, user?.id, products?.length, services?.length, persistDraftToCloud]);
 
   const saveConfig = async () => {
     playTapSound();
@@ -231,35 +221,18 @@ export function CatalogoScreen({ onClose, isModal }) {
     openWhatsApp(phone, msg);
   };
 
-  const ensurePublicSave = async () => {
-    let result = await persistDraftToCloud(false);
-    if (result?.stale) result = await persistDraftToCloud(false);
-    if (!result?.remote) {
-      Alert.alert(
-        'Catálogo',
-        result?.error
-          ? `O link público ainda não recebeu esta versão. ${result.error}`
-          : 'O link público ainda não recebeu esta versão. Toque em Salvar e confira o login.'
-      );
-      return false;
-    }
-    return true;
-  };
-
   const compartilharLoja = async () => {
     playTapSound();
     if (!user?.id) {
       Alert.alert('Link da loja', 'Faça login para gerar o link público da sua loja.');
       return;
     }
-    if (!(await ensurePublicSave())) return;
     await shareLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile), draftConfig);
   };
 
   const copiarLinkLoja = async () => {
     playTapSound();
     if (!user?.id) return Alert.alert('Link da loja', 'Faça login para copiar o link.');
-    if (!(await ensurePublicSave())) return;
     await copyLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile), draftConfig);
   };
 
@@ -391,15 +364,24 @@ export function CatalogoScreen({ onClose, isModal }) {
           <Text style={[s.topBarSub, { color: colors.textSecondary }]}>
             {user?.id
               ? cloudSaveStatus === 'saving'
-                ? 'Salvando na nuvem…'
+                ? 'Salvando na sua conta…'
                 : cloudSaveStatus === 'saved'
-                  ? 'Tudo salvo no Supabase (textos, layout e fotos)'
+                  ? 'Salvo no Supabase. O link público usa essa versão'
                   : cloudSaveStatus === 'error'
-                    ? 'Último salvamento na nuvem falhou — toque em Salvar'
-                    : 'Link público, carrinho, WhatsApp e agendamento online'
+                    ? 'Não gravou na nuvem — toque em Salvar de novo'
+                    : 'Toque em Salvar para gravar cores e layout na sua conta'
               : 'Faça login para salvar tudo na nuvem'}
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={saveConfig}
+          disabled={saving || !user?.id}
+          style={[s.saveTopBtn, { backgroundColor: colors.primary, opacity: saving || !user?.id ? 0.6 : 1 }]}
+        >
+          {saving
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={s.saveTopBtnText}>Salvar</Text>}
+        </TouchableOpacity>
         <TouchableOpacity onPress={copiarLinkLoja} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
           <Ionicons name="link-outline" size={20} color={colors.primary} />
         </TouchableOpacity>
@@ -474,6 +456,8 @@ const s = StyleSheet.create({
   topBarTitle: { fontSize: 17, fontWeight: '800' },
   topBarSub: { fontSize: 11, marginTop: 2 },
   iconBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  saveTopBtn: { height: 40, paddingHorizontal: 14, borderRadius: 12, justifyContent: 'center', alignItems: 'center', minWidth: 78 },
+  saveTopBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   closeBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   mobileTabs: { flexDirection: 'row', borderBottomWidth: 1 },
   mobileTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },

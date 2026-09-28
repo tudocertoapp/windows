@@ -24,11 +24,16 @@ import {
   getLojaDisplayName,
   getLojaLogoUri,
   buildHeroPresentation,
+  getCarouselMetrics,
+  resolveCarouselItems,
+  isCarouselEnabled,
+  getHeroOverlap,
 } from '../../utils/catalogoStore';
 import { playTapSound } from '../../utils/sounds';
 import { getNextAvailableDates } from '../../utils/agendaAvailability';
 import { LojaAgendaPicker } from './LojaAgendaPicker';
 import { LojaHeroBanner } from './LojaHeroBanner';
+import { LojaHeroJunction } from './LojaHeroJunction';
 
 const { width: SW } = Dimensions.get('window');
 const CATEGORIA_TABS = [
@@ -156,30 +161,35 @@ export function CatalogoStoreView({
     return list;
   }, [items, search, categoriaAtiva, config.tipo, categoriasEnabled, lojaCatId, lojaSubId]);
 
-  const carouselItems = filtered.slice(0, Math.min(12, filtered.length));
-  const CAROUSEL_ITEM_W = storeW - pad * 2;
-  const CAROUSEL_IMG_H = 200;
-  const showCarousel = config.layout === 'carrossel' && carouselItems.length > 0;
+  const carouselItems = useMemo(
+    () => resolveCarouselItems(config, filtered),
+    [config.carouselScope, filtered]
+  );
+  const carousel = useMemo(
+    () => getCarouselMetrics(config, storeW, pad),
+    [config.carouselSize, config.carouselEstilo, config.carouselAnim, config.carouselSpeed, storeW]
+  );
+  const showCarousel = isCarouselEnabled(config) && carouselItems.length > 0;
 
   const carouselCardHeight = useMemo(() => {
     let body = 16;
     body += 38;
     if (config.mostrarPrecos !== false) body += 22;
     if (interactive && config.mostrarCarrinho !== false) body += 40;
-    return CAROUSEL_IMG_H + body;
-  }, [config.mostrarPrecos, config.mostrarCarrinho, interactive]);
+    return carousel.imgH + body;
+  }, [config.mostrarPrecos, config.mostrarCarrinho, interactive, carousel.imgH]);
 
   useEffect(() => {
     if (!showCarousel || !config.carouselAuto || carouselItems.length <= 1) return;
     const t = setInterval(() => {
       setCarouselIndex((prev) => {
         const next = (prev + 1) % carouselItems.length;
-        carouselRef.current?.scrollToOffset({ offset: next * CAROUSEL_ITEM_W, animated: true });
+        carouselRef.current?.scrollToOffset({ offset: next * carousel.step, animated: true });
         return next;
       });
-    }, 4500);
+    }, carousel.interval);
     return () => clearInterval(t);
-  }, [showCarousel, config.carouselAuto, carouselItems.length, CAROUSEL_ITEM_W]);
+  }, [showCarousel, config.carouselAuto, carouselItems.length, carousel.step, carousel.interval]);
 
   useEffect(() => {
     if (!selectedDate || !onFetchAvailability) {
@@ -279,21 +289,26 @@ export function CatalogoStoreView({
   };
 
   const renderProductCard = (item, opts = {}) => {
-    const { fullWidth, carousel } = opts;
+    const { fullWidth, carousel: asCarousel } = opts;
     const photo = getItemPhoto(item);
-    const w = fullWidth ? '100%' : carousel ? CAROUSEL_ITEM_W : cardW;
-    const h = carousel ? CAROUSEL_IMG_H : cardH * 0.55;
+    const w = fullWidth ? '100%' : asCarousel ? carousel.itemW : cardW;
+    const h = asCarousel ? carousel.imgH : cardH * 0.55;
+    const fade = asCarousel && carousel.anim === 'destaque';
+    const active = carouselItems.findIndex((i) => (i._rowId || i.id) === (item._rowId || item.id)) === carouselIndex;
     return (
       <View
         key={item._rowId || item.id}
         style={[
           st.card,
-          carousel && st.cardCarousel,
+          asCarousel && st.cardCarousel,
           {
             width: w,
-            minHeight: carousel ? undefined : cardH,
+            minHeight: asCarousel ? undefined : cardH,
             backgroundColor: cardBg,
             borderColor: config.corPrincipal + '22',
+            borderRadius: asCarousel ? carousel.radius : 14,
+            opacity: fade ? (active ? 1 : 0.55) : 1,
+            transform: fade && !active ? [{ scale: 0.94 }] : undefined,
           },
         ]}
       >
@@ -304,11 +319,11 @@ export function CatalogoStoreView({
           </View>
         ) : (
           <View style={[st.cardImg, st.cardImgPh, { height: h, backgroundColor: config.corPrincipal + '18' }]}>
-            <Ionicons name={item._tipo === 'servico' ? 'construct' : 'cube'} size={carousel ? 48 : 32} color={config.corPrincipal} />
+            <Ionicons name={item._tipo === 'servico' ? 'construct' : 'cube'} size={asCarousel ? 48 : 32} color={config.corPrincipal} />
             {renderEditBtn(item)}
           </View>
         )}
-        <View style={[st.cardBody, carousel && st.cardBodyCarousel]}>
+        <View style={[st.cardBody, asCarousel && st.cardBodyCarousel]}>
           <Text style={[st.cardName, { color: fonts.produto }]} numberOfLines={2}>{item.name}</Text>
           {renderPrice(item)}
           {interactive && config.mostrarCarrinho !== false && (
@@ -380,6 +395,8 @@ export function CatalogoStoreView({
     : null;
 
   const hero = useMemo(() => buildHeroPresentation(config), [config]);
+  const overlap = useMemo(() => getHeroOverlap(config), [config]);
+  const pageBg = theme.corFundo || config.corFundo || '#f8fafc';
 
   const handleHeroPositionChange = useCallback((id, pos) => {
     onHeroPositionChange?.(id, pos);
@@ -406,7 +423,7 @@ export function CatalogoStoreView({
           lojaNome={lojaNome}
           logoUri={logoUri}
           heroBg={heroBg}
-          heroEditMode={ownerMode && config.heroPosicaoManual === true}
+          heroEditMode={ownerMode}
           heroResizeMode={ownerMode}
           onHeroPositionChange={handleHeroPositionChange}
           onHeroScaleChange={onHeroScaleChange}
@@ -414,23 +431,22 @@ export function CatalogoStoreView({
           onDragStateChange={setHeroDragging}
         />
 
+        {overlap.shape ? <LojaHeroJunction shape={overlap.shape} fill={pageBg} /> : null}
+
+        <View
+          style={[
+            overlap.sheet,
+            { backgroundColor: pageBg },
+            overlap.shape ? { marginTop: 0, overflow: 'visible', borderTopLeftRadius: 0, borderTopRightRadius: 0, shadowOpacity: 0, elevation: 0 } : null,
+          ]}
+        >
         {config.sobreTexto ? (
           <View style={[st.about, { backgroundColor: cardBg, borderColor: config.corPrincipal + '22' }]}>
             <Text style={[st.aboutText, { color: fonts.sobre }]}>{config.sobreTexto}</Text>
           </View>
         ) : null}
 
-        <View style={{ paddingHorizontal: pad, paddingTop: 16 }}>
-          {ownerMode && (
-            <View style={[st.ownerHint, { backgroundColor: config.corPrincipal + '15', borderColor: config.corPrincipal + '33' }]}>
-              <Ionicons name="information-circle-outline" size={18} color={config.corPrincipal} />
-              <Text style={[st.ownerHintText, { color: fonts.produto }]}>
-                {config.heroPosicaoManual
-                  ? 'Toque no logo ou nos textos do cabeçalho para selecionar e editar.'
-                  : rotulos.dicaEdicao}
-              </Text>
-            </View>
-          )}
+        <View style={{ paddingHorizontal: pad, paddingTop: overlap.id === 'nenhuma' ? 0 : 4 }}>
           <View style={[st.searchWrap, { borderColor: config.corPrincipal + '33', backgroundColor: cardBg }]}>
             <Ionicons name="search" size={18} color={fonts.produto + '66'} />
             <TextInput
@@ -519,15 +535,19 @@ export function CatalogoStoreView({
                 ref={carouselRef}
                 data={carouselItems}
                 horizontal
-                pagingEnabled
-                snapToInterval={CAROUSEL_ITEM_W}
-                decelerationRate="fast"
+                pagingEnabled={carousel.paging}
+                snapToInterval={carousel.step}
+                snapToAlignment="start"
+                decelerationRate={carousel.anim === 'suave' ? 'normal' : 'fast'}
+                disableIntervalMomentum
                 showsHorizontalScrollIndicator={false}
                 style={{ height: carouselCardHeight }}
+                contentContainerStyle={carousel.gap ? { paddingRight: carousel.gap } : undefined}
+                ItemSeparatorComponent={carousel.gap ? () => <View style={{ width: carousel.gap }} /> : undefined}
                 keyExtractor={(i) => i._rowId || String(i.id)}
                 onMomentumScrollEnd={(e) => {
-                  const idx = Math.round(e.nativeEvent.contentOffset.x / CAROUSEL_ITEM_W);
-                  setCarouselIndex(Math.min(idx, carouselItems.length - 1));
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, carousel.step));
+                  setCarouselIndex(Math.min(Math.max(0, idx), carouselItems.length - 1));
                 }}
                 renderItem={({ item }) => renderProductCard(item, { carousel: true })}
               />
@@ -555,6 +575,7 @@ export function CatalogoStoreView({
           ) : (
             renderGrid()
           )}
+        </View>
         </View>
       </ScrollView>
 

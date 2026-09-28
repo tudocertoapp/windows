@@ -6,7 +6,6 @@ import {
   StyleSheet,
   PanResponder,
   TouchableOpacity,
-  ScrollView,
   Platform,
   TextInput,
   Pressable,
@@ -322,139 +321,126 @@ export function HeroMoveDock({
   config,
   selectedId,
   selectedIds,
-  onSelect,
-  onToggleSelect,
-  onSelectAll,
   onNudge,
-  onCenter,
   onAlign,
   onReset,
   onScaleDelta,
   colors,
   accent,
-  compact = false,
-  showEditTools = false,
   onEditText,
   onFieldChange,
   onOpenFonts,
 }) {
+  const [addOpen, setAddOpen] = useState(false);
   const ids = selectedIds?.length ? selectedIds : (selectedId ? [selectedId] : []);
   const primaryId = ids[ids.length - 1] || selectedId;
-  const elementos = HERO_ELEMENTOS.filter((el) => isHeroElementVisible(config, el.id) || ids.includes(el.id));
   const textIds = ids.filter((id) => id !== 'logo');
   const isLogoOnly = textIds.length === 0;
   const colorKey = HERO_COLOR_KEYS[primaryId];
-  const font = getCatalogoFonte(config?.[HERO_FONT_KEYS[primaryId]]);
-  const iconColor = compact ? '#fff' : accent;
-  const handleChip = (id) => {
-    playTapSound();
-    if (onToggleSelect) onToggleSelect(id);
-    else onSelect?.(id);
-  };
+  const canRemove = primaryId && primaryId !== 'titulo';
+  const extras = [
+    { id: 'nome', label: 'Nome', on: config?.usaNomeProfissional === true, key: 'usaNomeProfissional' },
+    { id: 'slogan', label: 'Slogan', on: config?.mostrarSlogan === true, key: 'mostrarSlogan' },
+    { id: 'logo', label: 'Logo', on: config?.usaLogo !== false, key: 'usaLogo' },
+  ].filter((x) => !x.on);
+
   const applyColor = (c) => {
     textIds.forEach((id) => {
       const key = HERO_COLOR_KEYS[id];
       if (key) onFieldChange?.(key, c);
     });
   };
+
+  const hideSelected = () => {
+    if (primaryId === 'subtitulo') onFieldChange?.('mostrarSubtitulo', false);
+    if (primaryId === 'nome') onFieldChange?.('usaNomeProfissional', false);
+    if (primaryId === 'slogan') onFieldChange?.('mostrarSlogan', false);
+    if (primaryId === 'logo') onFieldChange?.('usaLogo', false);
+  };
+
   return (
-    <View style={[st.dock, compact && st.dockCompact, { backgroundColor: colors?.card || '#fff', borderColor: colors?.border || '#e2e8f0' }]}>
-      {onToggleSelect ? (
-        <Text style={[st.dockHint, { color: compact ? 'rgba(255,255,255,0.65)' : (colors?.textSecondary || '#64748b') }]}>
-          Toque nos itens para marcar vários
-        </Text>
-      ) : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.dockChips}>
-        {onSelectAll ? (
-          <TouchableOpacity
-            onPress={() => { playTapSound(); onSelectAll(); }}
-            style={[st.dockChip, { borderColor: colors?.border || '#e2e8f0' }]}
-          >
-            <Ionicons name="checkbox-outline" size={14} color={colors?.text || '#fff'} />
-            <Text style={{ color: colors?.text || '#fff', fontSize: 12, fontWeight: '700' }}>Todos</Text>
-          </TouchableOpacity>
-        ) : null}
-        {elementos.map((el) => {
-          const on = ids.includes(el.id);
-          return (
-            <TouchableOpacity
-              key={el.id}
-              onPress={() => handleChip(el.id)}
-              style={[st.dockChip, { borderColor: on ? accent : (colors?.border || '#e2e8f0'), backgroundColor: on ? accent : 'transparent' }]}
-            >
-              <Ionicons name={el.icon} size={14} color={on ? '#fff' : (colors?.text || '#0f172a')} />
-              <Text style={{ color: on ? '#fff' : (colors?.text || '#0f172a'), fontSize: 12, fontWeight: '700' }}>{el.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-      <View style={st.dockPad}>
+    <View style={[st.dockPro, { backgroundColor: colors?.card || 'rgba(15,23,42,0.94)', borderColor: colors?.border || 'rgba(255,255,255,0.12)' }]}>
+      <View style={st.dockProRow}>
         {[
-          { id: 'esquerda', icon: 'arrow-back-outline', label: 'Esquerda' },
-          { id: 'centro', icon: 'scan-outline', label: 'Centro' },
-          { id: 'direita', icon: 'arrow-forward-outline', label: 'Direita' },
+          { id: 'esquerda', icon: 'arrow-back-outline' },
+          { id: 'centro', icon: 'scan-outline' },
+          { id: 'direita', icon: 'arrow-forward-outline' },
         ].map((al) => (
-          <TouchableOpacity
-            key={al.id}
-            style={[st.padReset, { borderColor: colors?.border }]}
-            onPress={() => {
-              playTapSound();
-              if (onAlign) onAlign(al.id);
-              else if (al.id === 'centro') onCenter?.();
-            }}
-          >
-            <Ionicons name={al.icon} size={16} color={iconColor} />
-            <Text style={{ color: iconColor, fontWeight: '700', fontSize: 12 }}>{al.label}</Text>
+          <TouchableOpacity key={al.id} style={st.dockIco} onPress={() => { playTapSound(); onAlign?.(al.id); }}>
+            <Ionicons name={al.id === 'centro' ? 'scan-outline' : al.icon} size={15} color="#fff" />
           </TouchableOpacity>
         ))}
-      </View>
-      {showEditTools && !isLogoOnly ? (
-        <View style={st.dockPad}>
-          {colorKey ? (
-            <CatalogoColorBrush
-              toolbar
-              value={config?.[colorKey] || '#ffffff'}
-              onChange={applyColor}
-              colors={{ card: '#0f172a', border: '#334155', text: '#fff', textSecondary: '#94a3b8', bg: '#1e293b' }}
-              accent="#2563eb"
-            />
-          ) : null}
-          {textIds.length === 1 ? (
-            <HeroToolbarBtn icon="pencil" label="Editar" onPress={() => onEditText?.(textIds[0])} />
-          ) : null}
-          <HeroToolbarBtn
-            icon="text"
-            label={font?.family ? font.label : 'Fonte'}
-            onPress={onOpenFonts}
+        <View style={st.dockSep} />
+        {!isLogoOnly && colorKey ? (
+          <CatalogoColorBrush
+            toolbar
+            value={config?.[colorKey] || '#ffffff'}
+            onChange={applyColor}
+            colors={{ card: '#0f172a', border: '#334155', text: '#fff', textSecondary: '#94a3b8', bg: '#1e293b' }}
+            accent="#2563eb"
           />
+        ) : null}
+        {textIds.length === 1 ? (
+          <TouchableOpacity style={st.dockIco} onPress={() => { playTapSound(); onEditText?.(textIds[0]); }}>
+            <Ionicons name="pencil" size={14} color="#fff" />
+          </TouchableOpacity>
+        ) : null}
+        {!isLogoOnly ? (
+          <TouchableOpacity style={st.dockIco} onPress={() => { playTapSound(); onOpenFonts?.(); }}>
+            <Ionicons name="text" size={14} color="#fff" />
+          </TouchableOpacity>
+        ) : null}
+        <View style={st.dockSep} />
+        <TouchableOpacity style={st.dockIco} onPress={() => onNudge?.(0, -4)}>
+          <Ionicons name="chevron-up" size={15} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={st.dockIco} onPress={() => onNudge?.(-4, 0)}>
+          <Ionicons name="chevron-back" size={15} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={st.dockIco} onPress={() => onNudge?.(4, 0)}>
+          <Ionicons name="chevron-forward" size={15} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={st.dockIco} onPress={() => onNudge?.(0, 4)}>
+          <Ionicons name="chevron-down" size={15} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={st.dockIco} onPress={() => onScaleDelta?.(-8)}>
+          <Ionicons name="remove" size={15} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={st.dockIco} onPress={() => onScaleDelta?.(8)}>
+          <Ionicons name="add" size={15} color="#fff" />
+        </TouchableOpacity>
+        <View style={st.dockSep} />
+        {extras.length ? (
+          <TouchableOpacity style={st.dockIco} onPress={() => { playTapSound(); setAddOpen((v) => !v); }}>
+            <Ionicons name="add-circle-outline" size={16} color="#fff" />
+          </TouchableOpacity>
+        ) : null}
+        {canRemove ? (
+          <TouchableOpacity style={st.dockIco} onPress={() => { playTapSound(); hideSelected(); }}>
+            <Ionicons name="trash-outline" size={14} color="#fecaca" />
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity style={st.dockIco} onPress={onReset}>
+          <Ionicons name="refresh-outline" size={14} color="#fff" />
+        </TouchableOpacity>
+      </View>
+      {addOpen && extras.length ? (
+        <View style={st.dockAddRow}>
+          {extras.map((x) => (
+            <TouchableOpacity
+              key={x.id}
+              style={st.dockAddChip}
+              onPress={() => {
+                playTapSound();
+                onFieldChange?.(x.key, true);
+                setAddOpen(false);
+              }}
+            >
+              <Text style={st.dockAddText}>{x.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       ) : null}
-      <View style={st.dockPad}>
-        <TouchableOpacity style={[st.padBtn, { borderColor: colors?.border }]} onPress={() => onNudge?.(0, -4)}>
-          <Ionicons name="chevron-up" size={18} color={iconColor} />
-        </TouchableOpacity>
-        <View style={st.padMid}>
-          <TouchableOpacity style={[st.padBtn, { borderColor: colors?.border }]} onPress={() => onNudge?.(-4, 0)}>
-            <Ionicons name="chevron-back" size={18} color={iconColor} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[st.padBtn, { borderColor: colors?.border }]} onPress={() => onNudge?.(4, 0)}>
-            <Ionicons name="chevron-forward" size={18} color={iconColor} />
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={[st.padBtn, { borderColor: colors?.border }]} onPress={() => onNudge?.(0, 4)}>
-          <Ionicons name="chevron-down" size={18} color={iconColor} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[st.padBtn, { borderColor: colors?.border }]} onPress={() => onScaleDelta?.(-8)}>
-          <Ionicons name="remove" size={18} color={iconColor} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[st.padBtn, { borderColor: colors?.border }]} onPress={() => onScaleDelta?.(8)}>
-          <Ionicons name="add" size={18} color={iconColor} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[st.padReset, { borderColor: colors?.border }]} onPress={onReset}>
-          <Ionicons name="refresh-outline" size={16} color={iconColor} />
-          <Text style={{ color: iconColor, fontWeight: '700', fontSize: 12 }}>Resetar</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -531,6 +517,10 @@ export function LojaHeroBanner({
   useEffect(() => {
     ensureCatalogoGoogleFonts();
   }, []);
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => isHeroElementVisible(config, id)));
+  }, [config.usaNomeProfissional, config.mostrarSlogan, config.mostrarSubtitulo, config.usaLogo, config.mostrarTitulo]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -658,7 +648,7 @@ export function LojaHeroBanner({
 
   const alignSelected = (side) => {
     playTapSound();
-    if (hero.manual) {
+    if (hero.manual || heroEditMode) {
       onHeroPositionChange?.('*', alignHeroItems(config, selectedIds, side));
     } else {
       onHeroTextChange?.('heroAlinhamentoTexto', side);
@@ -787,6 +777,7 @@ export function LojaHeroBanner({
   return (
     <View>
       <View
+        style={[hero.frame?.wrap, hero.frame?.shadow, { position: 'relative', overflow: 'visible' }]}
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
           if (width !== containerSize.w || height !== containerSize.h) {
@@ -798,7 +789,7 @@ export function LojaHeroBanner({
         colors={theme.heroColors.length >= 2 ? theme.heroColors : [theme.corPrincipal, theme.corPrincipal]}
         start={theme.start}
         end={theme.end}
-        style={[st.hero, { minHeight: hero.minHeight, overflow: 'visible' }]}
+        style={[st.hero, hero.frame?.banner, { minHeight: hero.minHeight }]}
       >
         {heroBg && (
           <Image source={heroBg} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
@@ -813,12 +804,40 @@ export function LojaHeroBanner({
             <View style={[st.guideH, { top: '50%' }]} />
           </>
         ) : null}
-        {hero.manual ? (
+        {hero.manual || heroEditMode ? (
           <View style={[st.manualLayer, { pointerEvents: 'box-none' }]}>{renderManualLayer()}</View>
         ) : (
           renderFlexLayer()
         )}
       </LinearGradient>
+      {canType ? (
+        <View style={st.dockOverlay} pointerEvents="box-none">
+          <HeroMoveDock
+            config={config}
+            selectedId={selectedId}
+            selectedIds={selectedIds}
+            onNudge={nudge}
+            onAlign={alignSelected}
+            onScaleDelta={(d) => selectedIds.forEach((id) => handleScale(id, currentScale(id) + d))}
+            onReset={() => {
+              playTapSound();
+              onHeroPositionChange?.('*', { ...DEFAULT_HERO_POSICOES });
+              Object.keys(HERO_SCALE_KEYS).forEach((id) => handleScale(id, 100));
+            }}
+            colors={{ card: 'rgba(15,23,42,0.92)', border: 'rgba(255,255,255,0.14)', text: '#fff' }}
+            accent={theme.corPrincipal}
+            compact
+            showEditTools
+            onEditText={(id) => {
+              if (id === 'logo') return;
+              setSelectedIds([id]);
+              setEditingId(id);
+            }}
+            onFieldChange={handleFieldChange}
+            onOpenFonts={() => setFontPickerOpen(true)}
+          />
+        </View>
+      ) : null}
       </View>
       <CatalogoFontPicker
         compact
@@ -834,34 +853,6 @@ export function LojaHeroBanner({
         }}
         onClose={() => setFontPickerOpen(false)}
       />
-      {canType && hasSelection ? (
-        <HeroMoveDock
-          config={config}
-          selectedId={selectedId}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onSelectAll={selectAllVisible}
-          onNudge={nudge}
-          onAlign={alignSelected}
-          onScaleDelta={(d) => selectedIds.forEach((id) => handleScale(id, currentScale(id) + d))}
-          onReset={() => {
-            playTapSound();
-            onHeroPositionChange?.('*', { ...DEFAULT_HERO_POSICOES });
-            Object.keys(HERO_SCALE_KEYS).forEach((id) => handleScale(id, 100));
-          }}
-          colors={{ card: 'rgba(15,23,42,0.92)', border: 'rgba(255,255,255,0.14)', text: '#fff' }}
-          accent={theme.corPrincipal}
-          compact
-          showEditTools
-          onEditText={(id) => {
-            if (id === 'logo') return;
-            setSelectedIds([id]);
-            setEditingId(id);
-          }}
-          onFieldChange={handleFieldChange}
-          onOpenFonts={() => setFontPickerOpen(true)}
-        />
-      ) : null}
     </View>
   );
 }
@@ -953,6 +944,45 @@ const st = StyleSheet.create({
   },
   tbBtnOn: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
   tbBtnText: { color: '#fff', fontSize: 11, fontWeight: '700', maxWidth: 110 },
+  dockOverlay: {
+    position: 'absolute',
+    left: 6,
+    right: 6,
+    bottom: 10,
+    zIndex: 20,
+  },
+  dockPro: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  dockProRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  dockIco: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  dockSep: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.14)', marginHorizontal: 4 },
+  dockAddRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 6 },
+  dockAddChip: {
+    paddingHorizontal: 10,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dockAddText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   tbScale: { color: '#fff', fontSize: 12, fontWeight: '800', minWidth: 40, textAlign: 'center' },
   fontModalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 20 },
   fontSheet: {

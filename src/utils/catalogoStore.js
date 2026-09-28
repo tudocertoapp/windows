@@ -352,9 +352,71 @@ export const TITULO_TAMANHOS = [
 ];
 
 export const HERO_ALTURAS = [
-  { id: 'compacta', label: 'Compacta', px: 160 },
+  { id: 'mini', label: 'Mini', px: 88 },
+  { id: 'compacta', label: 'Compacta', px: 132 },
   { id: 'normal', label: 'Normal', px: 200 },
   { id: 'alta', label: 'Alta', px: 260 },
+  { id: 'cinema', label: 'Cinema', px: 340 },
+];
+
+export const HERO_MOLDURAS = [
+  { id: 'cheia', label: 'Cheia', icon: 'square-outline' },
+  { id: 'suave', label: 'Suave', icon: 'tablet-portrait-outline' },
+  { id: 'arredondada', label: 'Redonda', icon: 'ellipse-outline' },
+  { id: 'capsula', label: 'Cápsula', icon: 'phone-portrait-outline' },
+  { id: 'arco', label: 'Arco', icon: 'ribbon-outline' },
+  { id: 'gota', label: 'Gota', icon: 'water-outline' },
+  { id: 'onda', label: 'Onda', icon: 'pulse-outline' },
+  { id: 'cartao', label: 'Cartão', icon: 'card-outline' },
+  { id: 'editorial', label: 'Editorial', icon: 'newspaper-outline' },
+  { id: 'joia', label: 'Joia', icon: 'diamond-outline' },
+];
+
+export const HERO_SOBREPOSICOES = [
+  { id: 'nenhuma', label: 'Separado', icon: 'remove-outline' },
+  { id: 'recorte', label: 'Recorte', icon: 'crop-outline' },
+  { id: 'cartao', label: 'Cartão', icon: 'card-outline' },
+  { id: 'onda', label: 'Onda', icon: 'pulse-outline' },
+  { id: 'arco', label: 'Arco', icon: 'rainy-outline' },
+  { id: 'vitrine', label: 'Vitrine', icon: 'storefront-outline' },
+  { id: 'cinta', label: 'Cinta', icon: 'reorder-two-outline' },
+  { id: 'envelope', label: 'Envelope', icon: 'mail-outline' },
+  { id: 'joia', label: 'Joia', icon: 'diamond-outline' },
+  { id: 'flutuante', label: 'Flutuante', icon: 'layers-outline' },
+  { id: 'diagonal', label: 'Corte', icon: 'swap-vertical-outline' },
+];
+
+export const CAROUSEL_SIZES = [
+  { id: 'pequeno', label: 'Pequeno', imgH: 118 },
+  { id: 'medio', label: 'Médio', imgH: 200 },
+  { id: 'grande', label: 'Grande', imgH: 286 },
+];
+
+export const CAROUSEL_ESTILOS = [
+  { id: 'classico', label: 'Clássico', icon: 'albums-outline' },
+  { id: 'compacto', label: 'Compacto', icon: 'remove-outline' },
+  { id: 'vitrine', label: 'Vitrine', icon: 'images-outline' },
+  { id: 'capa', label: 'Capa', icon: 'book-outline' },
+  { id: 'editorial', label: 'Editorial', icon: 'sparkles-outline' },
+];
+
+export const CAROUSEL_ANIMS = [
+  { id: 'deslize', label: 'Deslize', icon: 'swap-horizontal-outline' },
+  { id: 'suave', label: 'Suave', icon: 'leaf-outline' },
+  { id: 'destaque', label: 'Destaque', icon: 'color-filter-outline' },
+];
+
+export const CAROUSEL_SCOPES = [
+  { id: 'destaque', label: 'Destaques' },
+  { id: 'produtos', label: 'Só produtos' },
+  { id: 'servicos', label: 'Só serviços' },
+  { id: 'ambos', label: 'Produtos e serviços' },
+];
+
+export const CAROUSEL_SPEEDS = [
+  { id: 'lento', label: 'Lento', ms: 6500 },
+  { id: 'normal', label: 'Normal', ms: 4200 },
+  { id: 'rapido', label: 'Rápido', ms: 2600 },
 ];
 
 export const DEFAULT_HERO_POSICOES = {
@@ -417,6 +479,152 @@ export function getHeroMinHeight(config) {
   return row?.px || 200;
 }
 
+export function getHeroFrame(config) {
+  const id = HERO_MOLDURAS.some((m) => m.id === config?.heroMoldura) ? config.heroMoldura : 'cheia';
+  const presets = {
+    cheia: { mh: 0, mv: 0, tl: 0, tr: 0, bl: 0, br: 0 },
+    suave: { mh: 10, mv: 8, tl: 20, tr: 20, bl: 20, br: 20 },
+    arredondada: { mh: 12, mv: 10, tl: 36, tr: 36, bl: 36, br: 36 },
+    capsula: { mh: 14, mv: 10, tl: 56, tr: 56, bl: 56, br: 56 },
+    arco: { mh: 10, mv: 8, tl: 64, tr: 64, bl: 14, br: 14 },
+    gota: { mh: 12, mv: 10, tl: 72, tr: 18, bl: 28, br: 78 },
+    onda: { mh: 8, mv: 6, tl: 10, tr: 10, bl: 80, br: 80 },
+    cartao: { mh: 16, mv: 12, tl: 28, tr: 28, bl: 28, br: 28, shadow: true },
+    editorial: { mh: 22, mv: 8, tl: 4, tr: 4, bl: 44, br: 44 },
+    joia: { mh: 14, mv: 10, tl: 86, tr: 14, bl: 14, br: 86 },
+  };
+  const overlapOn = config?.heroSobreposicao && config.heroSobreposicao !== 'nenhuma';
+  const p = presets[id] || presets.cheia;
+  return {
+    id,
+    wrap: {
+      marginHorizontal: p.mh,
+      marginTop: p.mv,
+      marginBottom: overlapOn ? 0 : (p.mv ? p.mv + 2 : 0),
+    },
+    banner: {
+      overflow: 'hidden',
+      borderTopLeftRadius: p.tl,
+      borderTopRightRadius: p.tr,
+      borderBottomLeftRadius: p.bl,
+      borderBottomRightRadius: p.br,
+    },
+    shadow: p.shadow
+      ? {
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 8,
+      }
+      : null,
+  };
+}
+
+export function getHeroOverlap(config) {
+  const id = HERO_SOBREPOSICOES.some((m) => m.id === config?.heroSobreposicao)
+    ? config.heroSobreposicao
+    : 'nenhuma';
+  const frame = getHeroFrame({ ...config, heroSobreposicao: 'nenhuma' });
+  const bl = frame.banner.borderBottomLeftRadius || 0;
+  const br = frame.banner.borderBottomRightRadius || 0;
+  const insetFrame = frame.wrap.marginHorizontal || 0;
+  const presets = {
+    nenhuma: { pull: 0, padTop: 16, tl: 0, tr: 0, inset: 0, shape: null, shadow: false },
+    recorte: { pull: 38, padTop: 22, tl: Math.max(18, bl), tr: Math.max(18, br), inset: insetFrame, shape: null, shadow: false },
+    cartao: { pull: 46, padTop: 20, tl: 28, tr: 28, inset: Math.max(12, insetFrame), shape: null, shadow: true },
+    onda: { pull: 34, padTop: 8, tl: 0, tr: 0, inset: 0, shape: 'onda', shadow: false },
+    arco: { pull: 42, padTop: 8, tl: 0, tr: 0, inset: 8, shape: 'arco', shadow: false },
+    vitrine: { pull: 58, padTop: 22, tl: 32, tr: 32, inset: 16, shape: null, shadow: true },
+    cinta: { pull: 24, padTop: 16, tl: 18, tr: 18, inset: 28, shape: null, shadow: true },
+    envelope: { pull: 50, padTop: 20, tl: 6, tr: 6, inset: 20, shape: null, shadow: true },
+    joia: { pull: 44, padTop: 22, tl: 52, tr: 14, inset: Math.max(12, insetFrame), shape: null, shadow: true },
+    flutuante: { pull: 54, padTop: 20, tl: 24, tr: 24, inset: 18, shape: null, shadow: true },
+    diagonal: { pull: 36, padTop: 10, tl: 0, tr: 0, inset: 0, shape: 'diagonal', shadow: false },
+  };
+  const p = presets[id] || presets.nenhuma;
+  return {
+    id,
+    shape: p.shape,
+    sheet: {
+      marginTop: p.pull ? -p.pull : 0,
+      marginHorizontal: p.inset,
+      paddingTop: p.padTop,
+      borderTopLeftRadius: p.tl,
+      borderTopRightRadius: p.tr,
+      overflow: p.shape ? 'visible' : 'hidden',
+      zIndex: 4,
+      ...(p.shadow
+        ? {
+          shadowColor: '#000',
+          shadowOpacity: 0.16,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -4 },
+          elevation: 10,
+        }
+        : null),
+    },
+  };
+}
+
+export function getCarouselMetrics(config, storeW, pad = 12) {
+  const size = CAROUSEL_SIZES.find((s) => s.id === config?.carouselSize) || CAROUSEL_SIZES[1];
+  const estilo = CAROUSEL_ESTILOS.some((s) => s.id === config?.carouselEstilo) ? config.carouselEstilo : 'classico';
+  const anim = CAROUSEL_ANIMS.some((s) => s.id === config?.carouselAnim) ? config.carouselAnim : 'deslize';
+  const speed = CAROUSEL_SPEEDS.find((s) => s.id === config?.carouselSpeed) || CAROUSEL_SPEEDS[1];
+  const inner = Math.max(160, storeW - pad * 2);
+  let imgH = size.imgH;
+  let itemW = inner;
+  let gap = 0;
+  let paging = true;
+  let radius = 16;
+  if (estilo === 'compacto') {
+    imgH = Math.round(size.imgH * 0.7);
+    radius = 12;
+  } else if (estilo === 'vitrine') {
+    itemW = Math.round(inner * 0.78);
+    gap = 12;
+    paging = false;
+    radius = 22;
+  } else if (estilo === 'capa') {
+    imgH = Math.round(size.imgH * 1.28);
+    itemW = Math.round(inner * 0.58);
+    gap = 14;
+    paging = false;
+    radius = 28;
+  } else if (estilo === 'editorial') {
+    imgH = Math.round(size.imgH * 0.92);
+    itemW = Math.round(inner * 0.86);
+    gap = 10;
+    paging = false;
+    radius = 8;
+  }
+  if (anim === 'suave') paging = false;
+  return {
+    imgH,
+    itemW,
+    gap,
+    paging: anim === 'deslize' ? paging : false,
+    radius,
+    interval: speed.ms,
+    anim,
+    estilo,
+    step: itemW + gap,
+  };
+}
+
+export function resolveCarouselItems(config, filtered) {
+  const scope = config?.carouselScope || 'destaque';
+  let list = filtered || [];
+  if (scope === 'produtos') list = list.filter((i) => i._tipo === 'produto');
+  else if (scope === 'servicos') list = list.filter((i) => i._tipo === 'servico');
+  return list.slice(0, Math.min(16, list.length));
+}
+
+export function isCarouselEnabled(config) {
+  return config?.layout === 'carrossel' || config?.carouselAtivo === true;
+}
+
 export function getHeroTextAlign(config) {
   const a = config?.heroAlinhamentoTexto || 'centro';
   if (a === 'esquerda') return 'left';
@@ -460,6 +668,7 @@ export function buildHeroPresentation(config) {
     subtituloPx: getHeroSubtituloPx(config),
     sloganPx: getHeroSloganPx(config),
     minHeight: getHeroMinHeight(config),
+    frame: getHeroFrame(config),
     textAlign: getHeroTextAlign(config),
     flexAlign: getHeroFlexAlign(config),
     disposicao,
@@ -501,13 +710,13 @@ export function isHeroElementVisible(config, id) {
     case 'logo':
       return config?.usaLogo !== false;
     case 'nome':
-      return config?.usaNomeProfissional !== false;
+      return config?.usaNomeProfissional === true;
     case 'titulo':
       return config?.mostrarTitulo !== false;
     case 'subtitulo':
-      return config?.mostrarSubtitulo !== false && !!String(config?.subtitulo || '').trim();
+      return config?.mostrarSubtitulo !== false;
     case 'slogan':
-      return config?.mostrarSlogan !== false && !!String(config?.slogan || '').trim();
+      return config?.mostrarSlogan === true;
     default:
       return false;
   }
@@ -548,12 +757,20 @@ export const DEFAULT_CATALOGO_CONFIG = {
   sobreTexto: '',
   nomeLoja: '',
   usaLogo: true,
-  usaNomeProfissional: true,
+  usaNomeProfissional: false,
   usaFotoFundo: false,
   mostrarPrecos: true,
   mostrarPromocao: true,
   mostrarCarrinho: true,
   carouselAuto: true,
+  carouselAtivo: false,
+  carouselSize: 'medio',
+  carouselEstilo: 'classico',
+  carouselAnim: 'deslize',
+  carouselScope: 'destaque',
+  carouselSpeed: 'normal',
+  heroMoldura: 'cheia',
+  heroSobreposicao: 'nenhuma',
   cardSize: 'medio',
   colunasGrid: 3,
   maxItensVisiveis: 0,
@@ -571,8 +788,8 @@ export const DEFAULT_CATALOGO_CONFIG = {
   heroAltura: 'normal',
   mostrarTitulo: true,
   mostrarSubtitulo: true,
-  mostrarSlogan: true,
-  heroPosicaoManual: false,
+  mostrarSlogan: false,
+  heroPosicaoManual: true,
   heroPosicoes: { ...DEFAULT_HERO_POSICOES },
   categoriasProdutos: { enabled: false, items: [] },
   itens: [],
@@ -599,6 +816,16 @@ export function mergeCatalogoConfig(raw) {
   if (base.rotuloVitrine !== 'loja' && base.rotuloVitrine !== 'catalogo') base.rotuloVitrine = 'catalogo';
   if (!['ambos', 'produtos', 'servicos'].includes(base.tipo)) base.tipo = 'ambos';
   if (!['vitrine', 'carrossel', 'grid', 'horizontal', 'vertical'].includes(base.layout)) base.layout = 'vitrine';
+  if (!HERO_MOLDURAS.some((m) => m.id === base.heroMoldura)) base.heroMoldura = 'cheia';
+  if (!HERO_SOBREPOSICOES.some((m) => m.id === base.heroSobreposicao)) base.heroSobreposicao = 'nenhuma';
+  if (!HERO_ALTURAS.some((m) => m.id === base.heroAltura)) base.heroAltura = 'normal';
+  if (!CAROUSEL_SIZES.some((m) => m.id === base.carouselSize)) base.carouselSize = 'medio';
+  if (!CAROUSEL_ESTILOS.some((m) => m.id === base.carouselEstilo)) base.carouselEstilo = 'classico';
+  if (!CAROUSEL_ANIMS.some((m) => m.id === base.carouselAnim)) base.carouselAnim = 'deslize';
+  if (!CAROUSEL_SCOPES.some((m) => m.id === base.carouselScope)) base.carouselScope = 'destaque';
+  if (!CAROUSEL_SPEEDS.some((m) => m.id === base.carouselSpeed)) base.carouselSpeed = 'normal';
+  if (base.carouselAtivo == null) base.carouselAtivo = base.layout === 'carrossel';
+  else base.carouselAtivo = !!base.carouselAtivo;
   base.logoEscala = scalePercent(base, 'logoEscala', 100);
   base.nomeEscala = scalePercent(base, 'nomeEscala', 100);
   base.tituloEscala = scalePercent(base, 'tituloEscala', 100);

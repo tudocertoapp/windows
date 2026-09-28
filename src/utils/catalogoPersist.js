@@ -11,10 +11,40 @@ import { prepareCatalogoConfigForRemote } from './catalogoRemoteAssets';
 
 let catalogoSaveSeq = 0;
 
+function stampConfig(config) {
+  return {
+    ...config,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function upsertCatalogoOnSupabase(userId, config) {
+  const now = config.updatedAt || new Date().toISOString();
+  const row = {
+    user_id: userId,
+    config,
+    updated_at: now,
+    loja_slug: String(config.slugPublico || '').trim() || null,
+  };
+  let { error } = await supabase.from('catalogo_configs').upsert(row, { onConflict: 'user_id' });
+  if (error) {
+    const retry = await supabase.from('catalogo_configs').upsert({
+      user_id: userId,
+      config,
+      updated_at: now,
+    }, { onConflict: 'user_id' });
+    error = retry.error;
+  }
+  if (error) return { remote: false, error: error.message };
+  return { remote: true, config };
+}
+
 async function saveCatalogoConfigRemote(userId, config) {
   const origin = getApiOrigin();
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token;
+  let apiError = null;
+
   if (origin && token) {
     try {
       const res = await fetch(`${origin}/api/loja/save-config`, {
@@ -26,26 +56,23 @@ async function saveCatalogoConfigRemote(userId, config) {
         body: JSON.stringify({ config }),
       });
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json?.ok) return { remote: true, config: json.config || config };
-      if (!res.ok) {
-        return { remote: false, error: json.error || 'Não foi possível salvar o catálogo na nuvem.' };
+      if (res.ok && json?.ok) {
+        return { remote: true, config: json.config || config, warning: json.warning };
       }
-    } catch (_) {}
+      apiError = json.error || `HTTP ${res.status}`;
+    } catch (e) {
+      apiError = e?.message || 'Falha de rede ao publicar o catálogo.';
+    }
   }
 
-  const { error } = await supabase
-    .from('catalogo_configs')
-    .upsert({
-      user_id: userId,
-      config,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-  if (error) return { remote: false, error: error.message };
-  return { remote: true, config };
+  const direct = await upsertCatalogoOnSupabase(userId, config);
+  if (direct.remote) return { ...direct, warning: apiError || undefined };
+  return { remote: false, error: direct.error || apiError || 'Não foi possível salvar o catálogo na nuvem.' };
 }
 
 export async function loadCatalogoConfig(user, products, services) {
   let remote = null;
+  let remoteAt = 0;
   if (user?.id) {
     try {
       const { data, error } = await supabase
@@ -53,7 +80,10 @@ export async function loadCatalogoConfig(user, products, services) {
         .select('config, updated_at')
         .eq('user_id', user.id)
         .maybeSingle();
-      if (!error && data?.config) remote = data.config;
+      if (!error && data?.config) {
+        remote = data.config;
+        remoteAt = Date.parse(data.updated_at || data.config?.updatedAt || 0) || 0;
+      }
     } catch (_) {}
   }
 
@@ -62,8 +92,9 @@ export async function loadCatalogoConfig(user, products, services) {
     const raw = await AsyncStorage.getItem(CATALOGO_CONFIG_KEY);
     if (raw) local = JSON.parse(raw);
   } catch (_) {}
+  const localAt = Date.parse(local?.updatedAt || 0) || 0;
 
-  const source = remote || local || null;
+  const source = remote && (!local || remoteAt >= localAt) ? remote : (local || remote);
   const merged = mergeCatalogoConfig(source);
   const synced = { ...merged, itens: syncCatalogoItens(merged, products, services) };
 
@@ -91,10 +122,10 @@ export async function saveCatalogoConfig(user, config, options = {}) {
   if (user?.id && !skipAssetUpload) {
     prepared = await prepareCatalogoConfigForRemote(user.id, config);
   }
-  prepared = {
+  prepared = stampConfig({
     ...prepared,
     slugPublico: String(prepared.slugPublico || '').trim().toLowerCase(),
-  };
+  });
   if (seq !== catalogoSaveSeq) return { ok: true, remote: false, stale: true, config: prepared };
 
   await AsyncStorage.setItem(CATALOGO_CONFIG_KEY, JSON.stringify(prepared));
@@ -106,5 +137,8 @@ export async function saveCatalogoConfig(user, config, options = {}) {
     console.warn('[catalogoPersist]', saved.error);
     return { ok: true, remote: false, error: saved.error, config: prepared };
   }
-  return { ok: true, remote: true, config: saved.config || prepared };
+  try {
+    await AsyncStorage.setItem(CATALOGO_CONFIG_KEY, JSON.stringify(saved.config || prepared));
+  } catch (_) {}
+  return { ok: true, remote: true, warning: saved.warning, config: saved.config || prepared };
 }

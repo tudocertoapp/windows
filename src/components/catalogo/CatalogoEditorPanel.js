@@ -14,11 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { playTapSound } from '../../utils/sounds';
 import { ProductCategoriesEditor } from './ProductCategoriesEditor';
-import { HeroMoveDock } from './LojaHeroBanner';
 import { CatalogoColorBrush } from './CatalogoColorBrush';
 import { CatalogoSizeStepper } from './CatalogoSizeStepper';
-import { CatalogoFontPicker } from './CatalogoFontPicker';
-import { getCatalogoFonte, ensureCatalogoGoogleFonts } from '../../utils/catalogoFonts';
+import { ensureCatalogoGoogleFonts } from '../../utils/catalogoFonts';
 import { LOJA_DEFAULT_HOST, normalizeLojaSlug, buildLojaPublicUrl } from '../../utils/lojaPublicLink';
 import { getApiOrigin } from '../../lib/subscription';
 import { supabase } from '../../lib/supabase';
@@ -26,33 +24,34 @@ import {
   CATALOGO_LAYOUTS,
   CATALOGO_TIPOS,
   CATALOGO_CARD_SIZES,
+  CAROUSEL_SIZES,
+  CAROUSEL_ESTILOS,
+  CAROUSEL_ANIMS,
+  CAROUSEL_SCOPES,
+  CAROUSEL_SPEEDS,
   LOGO_TAMANHOS,
   LOGO_FORMATOS,
-  HERO_DISPOSICOES,
   HERO_ALINHAMENTOS,
   TITULO_TAMANHOS,
   HERO_ALTURAS,
-  DEFAULT_HERO_POSICOES,
+  HERO_MOLDURAS,
+  HERO_SOBREPOSICOES,
   TEMAS_ESCUROS,
   TEMAS_PRONTOS,
   applyTemaPronto,
   GRADIENTE_DIRECOES,
   TEMA_ESTILOS,
   buildHeroPresentation,
-  getHeroPosicoes,
   getCatalogoTheme,
   getCatalogoRotulos,
   getGradientPoints,
   ROTULO_VITRINE_OPTS,
-  isHeroElementVisible,
   syncCatalogoItens,
   itemKey,
   moveCatalogoItem,
   toggleCatalogoItemVisible,
   getLojaLogoUri,
   normalizeCoresTema,
-  nudgeHeroPos,
-  alignHeroItems,
 } from '../../utils/catalogoStore';
 
 const TABS = [
@@ -110,70 +109,6 @@ function Field({ label, colors, children }) {
   );
 }
 
-function HeaderTextBlock({
-  children,
-  colorValue,
-  onColorChange,
-  sizeValue,
-  onSizeChange,
-  visible,
-  onVisibleChange,
-  fontId,
-  onFontChange,
-  colors,
-  accent,
-}) {
-  const [fontOpen, setFontOpen] = useState(false);
-  const fonte = getCatalogoFonte(fontId);
-  return (
-    <View style={st.headerTextBlock}>
-      {children}
-      <View style={[st.headerEditRow, { borderColor: colors.border, backgroundColor: colors.bg }]}>
-        <Text style={[st.headerEditLabel, { color: colors.textSecondary }]}>Cor</Text>
-        <CatalogoColorBrush
-          inline
-          value={colorValue}
-          onChange={onColorChange}
-          colors={colors}
-          accent={accent}
-        />
-        <View style={st.headerEditGap} />
-        <CatalogoSizeStepper
-          compact
-          value={sizeValue}
-          onChange={onSizeChange}
-          colors={colors}
-          accent={accent}
-        />
-        <View style={st.headerEditGap} />
-        <TouchableOpacity
-          onPress={() => { playTapSound(); setFontOpen(true); }}
-          style={[st.headerFontBtn, { borderColor: colors.border }]}
-        >
-          <Ionicons name="text" size={16} color={accent} />
-          <Text style={[st.headerEditLabel, { color: colors.text, marginBottom: 0 }]} numberOfLines={1}>
-            {fonte.label}
-          </Text>
-        </TouchableOpacity>
-        <View style={st.headerEditGap} />
-        <View style={st.headerShow}>
-          <Text style={[st.headerEditLabel, { color: colors.textSecondary }]}>Mostrar</Text>
-          <Switch value={visible} onValueChange={onVisibleChange} trackColor={{ true: accent }} />
-        </View>
-      </View>
-      <CatalogoFontPicker
-        compact
-        live
-        visible={fontOpen}
-        title="Fonte"
-        value={fontId}
-        onSelect={onFontChange}
-        onClose={() => setFontOpen(false)}
-      />
-    </View>
-  );
-}
-
 export function CatalogoEditorPanel({
   draftConfig,
   updateDraft,
@@ -196,7 +131,6 @@ export function CatalogoEditorPanel({
   canPublishPublicStore = false,
 }) {
   const [tab, setTab] = useState('visual');
-  const [heroFocus, setHeroFocus] = useState('titulo');
   const [colorSlot, setColorSlot] = useState(0);
   const [slugCheck, setSlugCheck] = useState({ status: 'idle', message: '' });
   const accent = draftConfig.corPrincipal || colors.primary;
@@ -349,7 +283,7 @@ export function CatalogoEditorPanel({
   };
 
   const logoUri = getLojaLogoUri(draftConfig, profile, { forEdit: true });
-  const heroPreview = useMemo(() => buildHeroPresentation(draftConfig), [draftConfig]);
+  useMemo(() => buildHeroPresentation(draftConfig), [draftConfig]);
   const inputStyle = [st.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }];
   const points = getGradientPoints(draftConfig.gradienteDirecao);
 
@@ -596,128 +530,107 @@ export function CatalogoEditorPanel({
             ) : null}
           </Card>
 
-          <Card title="Textos" hint="Primeira linha para escrever. Segunda linha: cor, tamanho e se aparece no cabeçalho." colors={colors}>
-            <Field label={rotulos.nomeCampo} colors={colors}>
-              <HeaderTextBlock
-                colorValue={draftConfig.corFonteNome || '#ffffff'}
-                onColorChange={(c) => updateDraft({ corFonteNome: c })}
-                sizeValue={draftConfig.nomeEscala ?? 100}
-                onSizeChange={(v) => updateDraft({ nomeEscala: v })}
-                visible={draftConfig.usaNomeProfissional !== false}
-                onVisibleChange={(v) => updateDraft({ usaNomeProfissional: v })}
-                fontId={draftConfig.fonteNome}
-                onFontChange={(id) => updateDraft({ fonteNome: id })}
-                colors={colors}
-                accent={accent}
-              >
-                <TextInput style={inputStyle} value={draftConfig.nomeLoja || ''} onChangeText={(v) => updateDraft({ nomeLoja: v })} placeholder={profile?.empresa || profile?.nome || 'Nome da empresa'} placeholderTextColor={colors.textSecondary} />
-              </HeaderTextBlock>
-            </Field>
+          <Card title="Textos do cabeçalho" hint="Por padrão só título e subtítulo. Extra você adiciona ou remove. Cor, tamanho e posição ficam na pré-visualização, ao clicar no texto." colors={colors}>
             <Field label="Título" colors={colors}>
-              <HeaderTextBlock
-                colorValue={draftConfig.corFonteTitulo || '#ffffff'}
-                onColorChange={(c) => updateDraft({ corFonteTitulo: c })}
-                sizeValue={draftConfig.tituloEscala ?? 100}
-                onSizeChange={(v) => updateDraft({ tituloEscala: v })}
-                visible={draftConfig.mostrarTitulo !== false}
-                onVisibleChange={(v) => updateDraft({ mostrarTitulo: v })}
-                fontId={draftConfig.fonteTitulo}
-                onFontChange={(id) => updateDraft({ fonteTitulo: id })}
-                colors={colors}
-                accent={accent}
-              >
-                <TextInput style={inputStyle} value={draftConfig.titulo} onChangeText={(v) => updateDraft({ titulo: v })} placeholderTextColor={colors.textSecondary} />
-              </HeaderTextBlock>
+              <TextInput style={inputStyle} value={draftConfig.titulo} onChangeText={(v) => updateDraft({ titulo: v, mostrarTitulo: true })} placeholder="Título da loja" placeholderTextColor={colors.textSecondary} />
             </Field>
             <Field label="Subtítulo" colors={colors}>
-              <HeaderTextBlock
-                colorValue={draftConfig.corFonteSubtitulo || '#ffffff'}
-                onColorChange={(c) => updateDraft({ corFonteSubtitulo: c })}
-                sizeValue={draftConfig.subtituloEscala ?? 100}
-                onSizeChange={(v) => updateDraft({ subtituloEscala: v })}
-                visible={draftConfig.mostrarSubtitulo !== false}
-                onVisibleChange={(v) => updateDraft({ mostrarSubtitulo: v })}
-                fontId={draftConfig.fonteSubtitulo}
-                onFontChange={(id) => updateDraft({ fonteSubtitulo: id })}
-                colors={colors}
-                accent={accent}
-              >
-                <TextInput style={inputStyle} value={draftConfig.subtitulo} onChangeText={(v) => updateDraft({ subtitulo: v })} placeholderTextColor={colors.textSecondary} />
-              </HeaderTextBlock>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput
+                  style={[inputStyle, { flex: 1 }]}
+                  value={draftConfig.subtitulo}
+                  onChangeText={(v) => updateDraft({ subtitulo: v, mostrarSubtitulo: true })}
+                  placeholder="Subtítulo"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                {draftConfig.mostrarSubtitulo !== false ? (
+                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: false }); }} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </Field>
-            <Field label="Slogan" colors={colors}>
-              <HeaderTextBlock
-                colorValue={draftConfig.corFonteSlogan || '#ffffff'}
-                onColorChange={(c) => updateDraft({ corFonteSlogan: c })}
-                sizeValue={draftConfig.sloganEscala ?? 100}
-                onSizeChange={(v) => updateDraft({ sloganEscala: v })}
-                visible={draftConfig.mostrarSlogan !== false}
-                onVisibleChange={(v) => updateDraft({ mostrarSlogan: v })}
-                fontId={draftConfig.fonteSlogan}
-                onFontChange={(id) => updateDraft({ fonteSlogan: id })}
-                colors={colors}
-                accent={accent}
-              >
-                <TextInput style={inputStyle} value={draftConfig.slogan || ''} onChangeText={(v) => updateDraft({ slogan: v })} placeholderTextColor={colors.textSecondary} />
-              </HeaderTextBlock>
-            </Field>
+            {draftConfig.usaNomeProfissional === true ? (
+              <Field label={rotulos.nomeCampo} colors={colors}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TextInput
+                    style={[inputStyle, { flex: 1 }]}
+                    value={draftConfig.nomeLoja || ''}
+                    onChangeText={(v) => updateDraft({ nomeLoja: v })}
+                    placeholder={profile?.empresa || profile?.nome || 'Nome da empresa'}
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ usaNomeProfissional: false }); }} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </Field>
+            ) : null}
+            {draftConfig.mostrarSlogan === true ? (
+              <Field label="Slogan" colors={colors}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TextInput
+                    style={[inputStyle, { flex: 1 }]}
+                    value={draftConfig.slogan || ''}
+                    onChangeText={(v) => updateDraft({ slogan: v })}
+                    placeholder="Slogan"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ mostrarSlogan: false }); }} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </Field>
+            ) : null}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+              {draftConfig.mostrarSubtitulo === false ? (
+                <TouchableOpacity
+                  style={[st.linkBtn, { backgroundColor: accent }]}
+                  onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: true }); }}
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={st.linkBtnText}>Subtítulo</Text>
+                </TouchableOpacity>
+              ) : null}
+              {draftConfig.usaNomeProfissional !== true ? (
+                <TouchableOpacity
+                  style={[st.linkBtn, { backgroundColor: accent }]}
+                  onPress={() => { playTapSound(); updateDraft({ usaNomeProfissional: true }); }}
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={st.linkBtnText}>Nome</Text>
+                </TouchableOpacity>
+              ) : null}
+              {draftConfig.mostrarSlogan !== true ? (
+                <TouchableOpacity
+                  style={[st.linkBtn, { backgroundColor: accent }]}
+                  onPress={() => { playTapSound(); updateDraft({ mostrarSlogan: true }); }}
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={st.linkBtnText}>Slogan</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
             <Field label={rotulos.sobre} colors={colors}>
               <TextInput style={[inputStyle, st.inputMultiline]} value={draftConfig.sobreTexto || ''} onChangeText={(v) => updateDraft({ sobreTexto: v })} multiline placeholder={rotulos.apresentacao} placeholderTextColor={colors.textSecondary} />
             </Field>
           </Card>
 
-          <Card title="Posição no banner" hint="Arraste na pré-visualização ou use as setas. O item selecionado ganha a borda branca." colors={colors}>
-            <SwitchLine
-              label="Posicionar arrastando"
-              value={!!draftConfig.heroPosicaoManual}
-              onValueChange={(v) => {
-                updateDraft({ heroPosicaoManual: v, ...(v ? { heroPosicoes: getHeroPosicoes(draftConfig) } : {}) });
-                if (v) onOpenPreview?.();
-              }}
-              colors={colors}
-              accent={accent}
-            />
-            {draftConfig.heroPosicaoManual ? (
-              <>
-                <HeroMoveDock
-                  config={draftConfig}
-                  selectedId={heroFocus}
-                  onSelect={setHeroFocus}
-                  onNudge={(dx, dy) => updateDraft({ heroPosicoes: nudgeHeroPos(draftConfig, heroFocus, dx, dy) })}
-                  onAlign={(side) => updateDraft({ heroPosicoes: alignHeroItems(draftConfig, [heroFocus], side) })}
-                  onReset={() => { playTapSound(); updateDraft({ heroPosicoes: { ...DEFAULT_HERO_POSICOES } }); }}
-                  colors={colors}
-                  accent={accent}
-                />
-                <TouchableOpacity onPress={() => { playTapSound(); onOpenPreview?.(); }} style={[st.linkBtn, { backgroundColor: accent, marginTop: 8 }]}>
-                  <Ionicons name="hand-left-outline" size={16} color="#fff" />
-                  <Text style={st.linkBtnText}>Arrastar na pré-visualização</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Field label="Posição da logo" colors={colors}>
-                  <ChipRow options={HERO_DISPOSICOES} value={draftConfig.heroDisposicao || 'centro'} onChange={(v) => updateDraft({ heroDisposicao: v })} colors={colors} accent={accent} />
-                </Field>
-                <Field label="Alinhamento dos textos" colors={colors}>
-                  <ChipRow options={HERO_ALINHAMENTOS} value={draftConfig.heroAlinhamentoTexto || 'centro'} onChange={(v) => updateDraft({ heroAlinhamentoTexto: v })} colors={colors} accent={accent} />
-                </Field>
-                <View style={[st.heroMiniPreview, { borderColor: colors.border, minHeight: 88 }]}>
-                  <LinearGradient colors={theme.heroColors} start={theme.start} end={theme.end} style={{ minHeight: 88, justifyContent: 'center' }}>
-                    <View style={[st.heroMiniInner, { alignItems: heroPreview.isRow ? 'center' : heroPreview.contentAlign, flexDirection: heroPreview.isRow ? 'row' : 'column' }]}>
-                      {isHeroElementVisible(draftConfig, 'titulo') ? (
-                        <Text style={st.heroMiniTitle} numberOfLines={1}>{draftConfig.titulo || rotulos.tituloPadrao}</Text>
-                      ) : null}
-                    </View>
-                  </LinearGradient>
-                </View>
-              </>
-            )}
+          <Card title="Formato do banner" hint="Altura, moldura e sobreposição. Para mover textos, clique neles na pré-visualização." colors={colors}>
+            <Field label="Alinhamento dos textos" colors={colors}>
+              <ChipRow options={HERO_ALINHAMENTOS} value={draftConfig.heroAlinhamentoTexto || 'centro'} onChange={(v) => updateDraft({ heroAlinhamentoTexto: v })} colors={colors} accent={accent} />
+            </Field>
             <Field label="Tamanho do título" colors={colors}>
               <ChipRow options={TITULO_TAMANHOS} value={draftConfig.tituloTamanho || 'medio'} onChange={(v) => updateDraft({ tituloTamanho: v })} colors={colors} accent={accent} />
             </Field>
-            <Field label="Altura do banner" colors={colors}>
+            <Field label="Altura do cabeçalho" colors={colors}>
               <ChipRow options={HERO_ALTURAS} value={draftConfig.heroAltura || 'normal'} onChange={(v) => updateDraft({ heroAltura: v })} colors={colors} accent={accent} />
+            </Field>
+            <Field label="Moldura do cabeçalho" colors={colors}>
+              <ChipRow options={HERO_MOLDURAS} value={draftConfig.heroMoldura || 'cheia'} onChange={(v) => updateDraft({ heroMoldura: v })} colors={colors} accent={accent} />
+            </Field>
+            <Field label="Sobreposição na página" colors={colors}>
+              <ChipRow options={HERO_SOBREPOSICOES} value={draftConfig.heroSobreposicao || 'nenhuma'} onChange={(v) => updateDraft({ heroSobreposicao: v })} colors={colors} accent={accent} />
             </Field>
           </Card>
         </>
@@ -728,7 +641,13 @@ export function CatalogoEditorPanel({
           <Card title="O que aparece" colors={colors}>
             <ChipRow options={CATALOGO_TIPOS} value={draftConfig.tipo} onChange={refreshItens} colors={colors} accent={accent} />
             <Field label="Layout" colors={colors}>
-              <ChipRow options={CATALOGO_LAYOUTS} value={draftConfig.layout} onChange={(v) => updateDraft({ layout: v })} colors={colors} accent={accent} />
+              <ChipRow
+                options={CATALOGO_LAYOUTS}
+                value={draftConfig.layout}
+                onChange={(v) => updateDraft({ layout: v, ...(v === 'carrossel' ? { carouselAtivo: true } : {}) })}
+                colors={colors}
+                accent={accent}
+              />
             </Field>
             <Field label="Tamanho dos cards" colors={colors}>
               <ChipRow options={CATALOGO_CARD_SIZES} value={draftConfig.cardSize} onChange={(v) => updateDraft({ cardSize: v })} colors={colors} accent={accent} />
@@ -739,6 +658,35 @@ export function CatalogoEditorPanel({
             <SwitchLine label="Mostrar preços" value={draftConfig.mostrarPrecos !== false} onValueChange={(v) => updateDraft({ mostrarPrecos: v })} colors={colors} accent={accent} />
             <SwitchLine label="Mostrar promoções" value={draftConfig.mostrarPromocao !== false} onValueChange={(v) => updateDraft({ mostrarPromocao: v })} colors={colors} accent={accent} />
             <SwitchLine label="Carrinho" value={draftConfig.mostrarCarrinho !== false} onValueChange={(v) => updateDraft({ mostrarCarrinho: v })} colors={colors} accent={accent} />
+          </Card>
+
+          <Card
+            title="Carrossel"
+            hint="Pode ser só produtos, só serviços ou os dois. O tamanho, o estilo e a animação valem na pré-visualização e no link público."
+            colors={colors}
+          >
+            <SwitchLine
+              label="Mostrar carrossel"
+              value={draftConfig.layout === 'carrossel' || draftConfig.carouselAtivo === true}
+              onValueChange={(v) => updateDraft({ carouselAtivo: v, ...(v ? {} : { layout: draftConfig.layout === 'carrossel' ? 'vitrine' : draftConfig.layout }) })}
+              colors={colors}
+              accent={accent}
+            />
+            <Field label="O que entra no carrossel" colors={colors}>
+              <ChipRow options={CAROUSEL_SCOPES} value={draftConfig.carouselScope || 'destaque'} onChange={(v) => updateDraft({ carouselScope: v })} colors={colors} accent={accent} />
+            </Field>
+            <Field label="Tamanho" colors={colors}>
+              <ChipRow options={CAROUSEL_SIZES} value={draftConfig.carouselSize || 'medio'} onChange={(v) => updateDraft({ carouselSize: v })} colors={colors} accent={accent} />
+            </Field>
+            <Field label="Estilo" colors={colors}>
+              <ChipRow options={CAROUSEL_ESTILOS} value={draftConfig.carouselEstilo || 'classico'} onChange={(v) => updateDraft({ carouselEstilo: v })} colors={colors} accent={accent} />
+            </Field>
+            <Field label="Animação" colors={colors}>
+              <ChipRow options={CAROUSEL_ANIMS} value={draftConfig.carouselAnim || 'deslize'} onChange={(v) => updateDraft({ carouselAnim: v })} colors={colors} accent={accent} />
+            </Field>
+            <Field label="Velocidade automática" colors={colors}>
+              <ChipRow options={CAROUSEL_SPEEDS} value={draftConfig.carouselSpeed || 'normal'} onChange={(v) => updateDraft({ carouselSpeed: v })} colors={colors} accent={accent} />
+            </Field>
             <SwitchLine label="Carrossel automático" value={draftConfig.carouselAuto !== false} onValueChange={(v) => updateDraft({ carouselAuto: v })} colors={colors} accent={accent} />
           </Card>
 

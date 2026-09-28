@@ -568,74 +568,6 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
           </TouchableOpacity>
         </View>
       </View>
-      {section === 'boletos' && (
-        <View style={{ paddingHorizontal: 16, marginBottom: 12, gap: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity
-              style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15) }]}
-              onPress={() => { playTapSound(); setBoletosFiltroMesAno(true); }}
-            >
-              <Ionicons name="calendar-outline" size={18} color={boletosFiltroMesAno ? '#fff' : colors.text} />
-              <Text style={[cs.segmentText, { color: boletosFiltroMesAno ? '#fff' : colors.text }]}>Por mês</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: !boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15) }]}
-              onPress={() => { playTapSound(); setBoletosFiltroMesAno(false); }}
-            >
-              <Ionicons name="list" size={18} color={!boletosFiltroMesAno ? '#fff' : colors.text} />
-              <Text style={[cs.segmentText, { color: !boletosFiltroMesAno ? '#fff' : colors.text }]}>Todos</Text>
-            </TouchableOpacity>
-          </View>
-          {boletosFiltroMesAno && (
-            <MonthYearPicker
-              month={boletosMes}
-              year={boletosAno}
-              colors={colors}
-              onChange={({ month, year }) => {
-                setBoletosMes(month);
-                setBoletosAno(year);
-              }}
-            />
-          )}
-          {showEmpresaFeatures && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'todos' ? colors.primary : colors.primaryRgba(0.15) }]}
-                onPress={() => { playTapSound(); setBoletosTipo('todos'); }}
-              >
-                <Ionicons name="list" size={18} color={boletosTipo === 'todos' ? '#fff' : colors.text} />
-                <Text style={[cs.segmentText, { color: boletosTipo === 'todos' ? '#fff' : colors.text }]}>Todos</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.15) }]}
-                onPress={() => { playTapSound(); setBoletosTipo('pessoal'); }}
-              >
-                <Ionicons name="person-outline" size={18} color={boletosTipo === 'pessoal' ? '#fff' : colors.text} />
-                <Text style={[cs.segmentText, { color: boletosTipo === 'pessoal' ? '#fff' : colors.text }]}>Pessoal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'empresa' ? '#6366f1' : 'rgba(99,102,241,0.15)' }]}
-                onPress={() => { playTapSound(); setBoletosTipo('empresa'); }}
-              >
-                <Ionicons name="business-outline" size={18} color={boletosTipo === 'empresa' ? '#fff' : colors.text} />
-                <Text style={[cs.segmentText, { color: boletosTipo === 'empresa' ? '#fff' : colors.text }]}>Empresa</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          <FaturasResumoPanel
-            boletosList={boletosParaResumo}
-            colors={colors}
-            showDetalhes={showFaturasResumoDetalhes}
-            onToggleDetalhes={setShowFaturasResumoDetalhes}
-            pickMode={faturasResumoPickMode}
-            onTogglePickMode={setFaturasResumoPickMode}
-            filterTotal={filteredItems.length}
-            selectedCount={faturasResumoSelected.size}
-            onSelectAllInFilter={selectAllFaturasResumo}
-            onClearSelection={clearFaturasResumoSelection}
-          />
-        </View>
-      )}
       {section === 'produtos' ? (
         <>
         <ProductFormModal
@@ -821,18 +753,87 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       </Modal>
       )}
       <ScrollView
+        className={Platform.OS === 'web' ? 'tc-page-scroll' : undefined}
         style={[
           { flex: 1 },
-          Platform.OS === 'web' ? { overflowY: 'scroll' } : null,
+          Platform.OS === 'web' ? { scrollbarWidth: 'none', msOverflowStyle: 'none' } : null,
         ]}
         contentContainerStyle={[
           { paddingBottom: 100 },
           section === 'tarefas' ? { paddingHorizontal: 16, paddingVertical: 8 } : { paddingVertical: 8 },
         ]}
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
       >
+      {section === 'boletos' && (
+        <View style={{ paddingHorizontal: 16, marginBottom: 12, gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15) }]}
+              onPress={() => { playTapSound(); setBoletosFiltroMesAno(true); }}
+            >
+              <Ionicons name="calendar-outline" size={18} color={boletosFiltroMesAno ? '#fff' : colors.text} />
+              <Text style={[cs.segmentText, { color: boletosFiltroMesAno ? '#fff' : colors.text }]}>Por mês</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: !boletosFiltroMesAno ? colors.primary : colors.primaryRgba(0.15) }]}
+              onPress={() => { playTapSound(); setBoletosFiltroMesAno(false); }}
+            >
+              <Ionicons name="list" size={18} color={!boletosFiltroMesAno ? '#fff' : colors.text} />
+              <Text style={[cs.segmentText, { color: !boletosFiltroMesAno ? '#fff' : colors.text }]}>Todos</Text>
+            </TouchableOpacity>
+          </View>
+          {boletosFiltroMesAno && (
+            <MonthYearPicker
+              month={boletosMes}
+              year={boletosAno}
+              colors={colors}
+              onChange={({ month, year }) => {
+                setBoletosMes(month);
+                setBoletosAno(year);
+              }}
+            />
+          )}
+          {showEmpresaFeatures && (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'todos' ? colors.primary : colors.primaryRgba(0.15) }]}
+                onPress={() => { playTapSound(); setBoletosTipo('todos'); }}
+              >
+                <Ionicons name="list" size={18} color={boletosTipo === 'todos' ? '#fff' : colors.text} />
+                <Text style={[cs.segmentText, { color: boletosTipo === 'todos' ? '#fff' : colors.text }]}>Todos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'pessoal' ? colors.primary : colors.primaryRgba(0.15) }]}
+                onPress={() => { playTapSound(); setBoletosTipo('pessoal'); }}
+              >
+                <Ionicons name="person-outline" size={18} color={boletosTipo === 'pessoal' ? '#fff' : colors.text} />
+                <Text style={[cs.segmentText, { color: boletosTipo === 'pessoal' ? '#fff' : colors.text }]}>Pessoal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[cs.segmentBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: boletosTipo === 'empresa' ? '#6366f1' : 'rgba(99,102,241,0.15)' }]}
+                onPress={() => { playTapSound(); setBoletosTipo('empresa'); }}
+              >
+                <Ionicons name="business-outline" size={18} color={boletosTipo === 'empresa' ? '#fff' : colors.text} />
+                <Text style={[cs.segmentText, { color: boletosTipo === 'empresa' ? '#fff' : colors.text }]}>Empresa</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <FaturasResumoPanel
+            boletosList={boletosParaResumo}
+            colors={colors}
+            showDetalhes={showFaturasResumoDetalhes}
+            onToggleDetalhes={setShowFaturasResumoDetalhes}
+            pickMode={faturasResumoPickMode}
+            onTogglePickMode={setFaturasResumoPickMode}
+            filterTotal={filteredItems.length}
+            selectedCount={faturasResumoSelected.size}
+            onSelectAllInFilter={selectAllFaturasResumo}
+            onClearSelection={clearFaturasResumoSelection}
+          />
+        </View>
+      )}
       {section === 'boletos' && filteredItems.length > 0 && (
         <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginHorizontal: 16, marginBottom: 8, letterSpacing: 0.3 }}>
           Boletos salvos ({countBoletosForDisplay(filteredItems)})
