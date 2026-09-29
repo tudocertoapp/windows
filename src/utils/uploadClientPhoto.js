@@ -16,18 +16,27 @@ const BUCKET = 'avatars';
  * @param {string} [clientId] - ID do cliente (opcional, para edição)
  * @returns {Promise<string>} URL pública da foto
  */
-export async function uploadClientPhoto(base64Data, userId, clientId) {
+/**
+ * @param {string} base64Data
+ * @param {string} userId
+ * @param {string} [clientId]
+ * @param {{ ext?: string, contentType?: string }} [options]
+ */
+export async function uploadClientPhoto(base64Data, userId, clientId, options = {}) {
   if (!userId) throw new Error('userId é obrigatório');
   if (!base64Data) throw new Error('Dados da imagem são obrigatórios');
 
-  const arrayBuffer = decode(base64Data);
+  const raw = String(base64Data).includes(',') ? String(base64Data).split(',')[1] : base64Data;
+  const arrayBuffer = decode(raw);
   const uniqueId = clientId || `temp-${Date.now()}`;
-  const path = `${userId}/clients/${uniqueId}.jpg`;
+  const ext = options.ext || 'jpg';
+  const contentType = options.contentType || 'image/jpeg';
+  const path = `${userId}/clients/${uniqueId}.${ext}`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, arrayBuffer, {
-      contentType: 'image/jpeg',
+      contentType,
       upsert: true,
     });
 

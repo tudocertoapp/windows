@@ -29,6 +29,7 @@ import { AgendaFormModal } from '../components/AgendaFormModal';
 import { playTapSound } from '../utils/sounds';
 import { onDeletePress } from '../utils/confirm';
 import { formatCurrency } from '../utils/format';
+import { promptConcluirAgenda } from '../utils/agendaFaturamento';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 import { TopBar } from '../components/TopBar';
 
@@ -1372,12 +1373,12 @@ export function AgendaScreen() {
                               onPress={(ev) => {
                                 ev?.stopPropagation?.();
                                 playTapSound();
-                                const isEmpresaEvent = showEmpresaFeatures && (e.tipo === 'empresa');
-                                if (isEmpresaEvent && !isConcluido) {
-                                  openAddModal?.('receita', { fromAgendaEvent: e });
-                                } else {
-                                  updateAgendaEvent(e.id, { status: isConcluido ? 'pendente' : 'concluido' });
-                                }
+                                promptConcluirAgenda(e, {
+                                  showEmpresaFeatures,
+                                  isConcluido,
+                                  openAddModal,
+                                  updateAgendaEvent,
+                                });
                               }}
                               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                               style={[as.eventActionBtn, { backgroundColor: colors.bg + 'E6' }]}

@@ -2,7 +2,7 @@ import React from 'react';
 import Svg, { Path, G } from 'react-native-svg';
 import { getCategoryColor } from '../../constants/colors';
 
-export function PieChart({ data, size, colors }) {
+export function PieChart({ data, size, colors, colorMap }) {
   const r = (size - 4) / 2;
   const cx = size / 2;
   const cy = size / 2;
@@ -20,7 +20,7 @@ export function PieChart({ data, size, colors }) {
     const y1 = cy + r * Math.sin(a1);
     const large = pct > 0.5 ? 1 : 0;
     const d = `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
-    return { key: cat, d, fill: getCategoryColor(cat) };
+    return { key: cat, d, fill: colorMap?.[cat] || getCategoryColor(cat) };
   });
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

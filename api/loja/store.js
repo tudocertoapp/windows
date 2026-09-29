@@ -165,7 +165,7 @@ module.exports = async function handler(req, res) {
 
   const [{ data: profileRow }, { data: cfgRow }, products, services] = await Promise.all([
     supabase.from('profiles').select('id,nome,name,empresa,foto,phone,instagram_url,profissao').eq('id', ref).maybeSingle(),
-    supabase.from('catalogo_configs').select('config').eq('user_id', ref).maybeSingle(),
+    supabase.from('catalogo_configs').select('config,updated_at').eq('user_id', ref).maybeSingle(),
     loadUserRows(supabase, 'products', ref, [
       'id,name,price,discount,photo_uri,data',
       'id,name,price,discount,photo_uri',
@@ -187,6 +187,7 @@ module.exports = async function handler(req, res) {
     : { id: ref };
 
   const config = { ...defaultConfig(), ...(cfgRow?.config || {}) };
+  if (cfgRow?.updated_at && !config.updatedAt) config.updatedAt = cfgRow.updated_at;
   if (!cfgRow?.config) {
     const nome = profile.empresa || profile.nome;
     if (nome) {

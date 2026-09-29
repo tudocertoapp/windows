@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { playTapSound } from '../utils/sounds';
 import { uploadClientPhoto } from '../utils/uploadClientPhoto';
 import { uploadCatalogoLogoPair, createLocalLogoPreviewUri } from '../utils/catalogoLogoImage';
+import { detectLogoTransparency, looksLikePng } from '../utils/logoChromaKey';
 import { openWhatsApp } from '../utils/whatsapp';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 import { loadCatalogoConfig, saveCatalogoConfig } from '../utils/catalogoPersist';
 import { readImageAsBase64 } from '../utils/readImageAsBase64';
 import { filterEventsByDate, generateAvailableSlots } from '../utils/agendaAvailability';
-import { copyLojaPublicLink, shareLojaPublicLink, buildLojaPublicUrl } from '../utils/lojaPublicLink';
+import { copyLojaPublicLink, shareLojaPublicLink, buildLojaPublicUrl, openLojaPreview } from '../utils/lojaPublicLink';
 import { CatalogoStoreView } from '../components/catalogo/CatalogoStoreView';
+import { HeroDockHost } from '../components/catalogo/LojaHeroBanner';
 import { CatalogoEditorPanel } from '../components/catalogo/CatalogoEditorPanel';
 import { LojaItemEditModal } from '../components/catalogo/LojaItemEditModal';
 import {
@@ -60,6 +62,12 @@ export function CatalogoScreen({ onClose, isModal }) {
   const [editingItem, setEditingItem] = useState(null);
   const [savingItem, setSavingItem] = useState(false);
   const [cloudSaveStatus, setCloudSaveStatus] = useState('idle');
+  const draftRef = useRef(draftConfig);
+  draftRef.current = draftConfig;
+
+  const markDraftDirty = useCallback(() => {
+    setCloudSaveStatus((s) => (s === 'saving' ? s : 'dirty'));
+  }, []);
 
   const loadConfig = async () => {
     try {
@@ -80,12 +88,14 @@ export function CatalogoScreen({ onClose, isModal }) {
   }, [products?.length, services?.length]);
 
   const updateDraft = useCallback((updates) => {
+    markDraftDirty();
     setDraftConfig((prev) => ({ ...prev, ...updates }));
-  }, []);
+  }, [markDraftDirty]);
 
   const persistDraftToCloud = useCallback(async (showAlert = false) => {
     if (!user?.id) return { remote: false };
-    const toSave = { ...draftConfig, itens: syncCatalogoItens(draftConfig, products, services) };
+    const latest = draftRef.current || draftConfig;
+    const toSave = { ...latest, itens: syncCatalogoItens(latest, products, services) };
     setCloudSaveStatus('saving');
     try {
       const result = await saveCatalogoConfig(user, toSave);
@@ -98,7 +108,7 @@ export function CatalogoScreen({ onClose, isModal }) {
           Alert.alert(
             'Salvo na sua conta',
             result.warning
-              || 'Cores, textos e layout foram gravados no Supabase. Abra o link público para ver a loja atualizada.',
+              || 'Visual gravado na sua conta. O link público busca cores, textos, layout e imagens no Supabase — sem novo deploy.',
           );
         } else {
           Alert.alert('Não publicado', result.error || 'Salvo só neste aparelho. O link público ainda não recebeu o catálogo.');
@@ -110,7 +120,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       if (showAlert) Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
       return { remote: false };
     }
-  }, [user, draftConfig, products, services]);
+  }, [user, products, services]);
 
   const saveConfig = async () => {
     playTapSound();
@@ -125,9 +135,9 @@ export function CatalogoScreen({ onClose, isModal }) {
     if (status !== 'granted') return Alert.alert('Permissão', 'Precisamos de acesso à galeria.');
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: field !== 'fotoCatalogo',
       aspect: field === 'fotoFundo' ? [16, 9] : [1, 1],
-      quality: field === 'fotoCatalogo' ? 0.92 : 0.85,
+      quality: field === 'fotoCatalogo' ? 1 : 0.85,
       base64: !!user?.id,
     });
     if (result.canceled) return;
@@ -135,14 +145,25 @@ export function CatalogoScreen({ onClose, isModal }) {
     if (field === 'fotoCatalogo') {
       setUploading(true);
       try {
+        const hasAlpha = looksLikePng(asset.base64) || looksLikePng(asset.uri) || /png/i.test(asset.mimeType || '')
+          || await detectLogoTransparency(asset.uri);
+        const transparentPatch = hasAlpha
+          ? { logoTemTransparencia: true, logoPlaca: false, logoMoldura: 'nenhuma', logoSemMoldura: true }
+          : { logoTemTransparencia: false };
         if (user?.id) {
           let base64 = asset.base64;
           if (!base64 && asset.uri) base64 = await readImageAsBase64(asset.uri);
-          const { original, preview } = await uploadCatalogoLogoPair({ ...asset, base64 }, user.id);
-          updateDraft({ fotoCatalogo: original, fotoCatalogoPreview: preview });
+          const { original, preview, keepPng } = await uploadCatalogoLogoPair({ ...asset, base64 }, user.id);
+          updateDraft({
+            fotoCatalogo: original,
+            fotoCatalogoPreview: keepPng ? original : preview,
+            ...transparentPatch,
+            logoTemTransparencia: keepPng || hasAlpha,
+            ...(keepPng || hasAlpha ? { logoPlaca: false, logoMoldura: 'nenhuma', logoSemMoldura: true } : {}),
+          });
         } else if (asset.uri) {
-          const previewUri = await createLocalLogoPreviewUri(asset);
-          updateDraft({ fotoCatalogo: asset.uri, fotoCatalogoPreview: previewUri });
+          const previewUri = hasAlpha ? asset.uri : await createLocalLogoPreviewUri(asset);
+          updateDraft({ fotoCatalogo: asset.uri, fotoCatalogoPreview: previewUri, ...transparentPatch });
         }
       } catch (e) {
         console.warn('Erro upload logo loja:', e);
@@ -236,6 +257,12 @@ export function CatalogoScreen({ onClose, isModal }) {
     await copyLojaPublicLink(user.id, getLojaDisplayName(draftConfig, profile), draftConfig);
   };
 
+  const abrirVitrine = () => {
+    playTapSound();
+    if (!user?.id) return Alert.alert('Link da loja', 'Faça login para abrir a vitrine.');
+    openLojaPreview(user.id, draftConfig);
+  };
+
   const lojaUrl = user?.id ? buildLojaPublicUrl(user.id, draftConfig) : '';
 
   const openEditItem = useCallback((item) => {
@@ -254,15 +281,18 @@ export function CatalogoScreen({ onClose, isModal }) {
   const handleHeroScaleChange = useCallback((id, value) => {
     const key = HERO_SCALE_KEYS[id];
     if (!key) return;
+    markDraftDirty();
     setDraftConfig((prev) => ({ ...prev, [key]: clampHeroScale(value) }));
-  }, []);
+  }, [markDraftDirty]);
 
   const handleHeroTextChange = useCallback((key, text) => {
     if (!key) return;
+    markDraftDirty();
     setDraftConfig((prev) => ({ ...prev, [key]: text }));
-  }, []);
+  }, [markDraftDirty]);
 
   const handleHeroPositionChange = useCallback((id, pos) => {
+    markDraftDirty();
     setDraftConfig((prev) => ({
       ...prev,
       heroPosicoes: id === '*'
@@ -272,7 +302,7 @@ export function CatalogoScreen({ onClose, isModal }) {
           [id]: pos,
         },
     }));
-  }, []);
+  }, [markDraftDirty]);
 
   const saveEditedItem = async (data) => {
     if (!editingItem?.id) return;
@@ -328,6 +358,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       ownerUserId={user?.id}
       lojaUrl={lojaUrl}
       onCopyLink={copiarLinkLoja}
+      onOpenStore={abrirVitrine}
       onShareLink={compartilharLoja}
       onEditItem={openEditItemByRow}
       onOpenPreview={() => setMobileTab('loja')}
@@ -353,7 +384,12 @@ export function CatalogoScreen({ onClose, isModal }) {
       onHeroPositionChange={handleHeroPositionChange}
       onHeroScaleChange={handleHeroScaleChange}
       onHeroTextChange={handleHeroTextChange}
+      onPickLogo={() => pickImage('fotoCatalogo', setUploadingLogo)}
     />
+  );
+
+  const heroDockBar = (
+    <HeroDockHost style={[s.heroDockHost, { backgroundColor: colors.card, borderBottomColor: colors.border }]} />
   );
 
   return (
@@ -365,11 +401,13 @@ export function CatalogoScreen({ onClose, isModal }) {
             {user?.id
               ? cloudSaveStatus === 'saving'
                 ? 'Salvando na sua conta…'
-                : cloudSaveStatus === 'saved'
-                  ? 'Salvo no Supabase. O link público usa essa versão'
-                  : cloudSaveStatus === 'error'
-                    ? 'Não gravou na nuvem — toque em Salvar de novo'
-                    : 'Toque em Salvar para gravar cores e layout na sua conta'
+                : cloudSaveStatus === 'dirty'
+                  ? 'Há alterações só nesta tela — toque em Salvar para atualizar o link público'
+                  : cloudSaveStatus === 'saved'
+                    ? 'Publicado. O link da loja já usa esta versão'
+                    : cloudSaveStatus === 'error'
+                      ? 'Não gravou na nuvem — toque em Salvar de novo'
+                      : 'Toque em Salvar para gravar cores e layout na sua conta'
               : 'Faça login para salvar tudo na nuvem'}
           </Text>
         </View>
@@ -381,6 +419,9 @@ export function CatalogoScreen({ onClose, isModal }) {
           {saving
             ? <ActivityIndicator size="small" color="#fff" />
             : <Text style={s.saveTopBtnText}>Salvar</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={abrirVitrine} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
+          <Ionicons name="open-outline" size={20} color={colors.primary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={copiarLinkLoja} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
           <Ionicons name="link-outline" size={20} color={colors.primary} />
@@ -428,13 +469,17 @@ export function CatalogoScreen({ onClose, isModal }) {
                 <Ionicons name="eye-outline" size={16} color={colors.textSecondary} />
                 <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>Pré-visualização ao vivo</Text>
               </View>
+              {heroDockBar}
               <View style={s.previewFrame}>{loja}</View>
             </View>
           </>
         ) : mobileTab === 'editar' ? (
           editor
         ) : (
-          <View style={{ flex: 1, padding: 12 }}>{loja}</View>
+          <View style={{ flex: 1 }}>
+            {heroDockBar}
+            <View style={{ flex: 1, padding: 12 }}>{loja}</View>
+          </View>
         )}
       </View>
 
@@ -465,6 +510,7 @@ const s = StyleSheet.create({
   editorCol: { width: 380, maxWidth: '42%', borderRightWidth: 1 },
   previewCol: { flex: 1 },
   previewLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  heroDockHost: { paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1 },
   previewFrame: { flex: 1, margin: 16, borderRadius: 16, overflow: 'hidden' },
   emptyPlan: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 12 },
   emptyTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center' },

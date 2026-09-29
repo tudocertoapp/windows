@@ -2,11 +2,12 @@
  * Web: preview da logo via canvas (sem expo-image-manipulator).
  */
 import { uploadClientPhoto } from './uploadClientPhoto';
+import { looksLikePng } from './logoChromaKey';
 
 const PREVIEW_MAX_WIDTH = 360;
 const PREVIEW_COMPRESS = 0.52;
 
-async function resizeWithCanvas(uri) {
+async function resizeWithCanvas(uri, asPng) {
   if (typeof document === 'undefined') return null;
   return new Promise((resolve) => {
     const img = new window.Image();
@@ -20,8 +21,9 @@ async function resizeWithCanvas(uri) {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
         ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', PREVIEW_COMPRESS);
+        const dataUrl = asPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', PREVIEW_COMPRESS);
         const base64 = dataUrl.split(',')[1] || null;
         resolve(base64);
       } catch {
@@ -33,11 +35,11 @@ async function resizeWithCanvas(uri) {
   });
 }
 
-export async function createLogoPreviewBase64(asset) {
+export async function createLogoPreviewBase64(asset, asPng = false) {
   const uri = asset?.uri;
   if (!uri) return asset?.base64 || null;
   try {
-    const fromCanvas = await resizeWithCanvas(uri);
+    const fromCanvas = await resizeWithCanvas(uri, asPng);
     if (fromCanvas) return fromCanvas;
   } catch (_) {}
   return asset?.base64 || null;
@@ -47,20 +49,24 @@ export async function uploadCatalogoLogoPair(asset, userId) {
   if (!userId) throw new Error('userId é obrigatório');
   if (!asset?.base64) throw new Error('Não foi possível ler a imagem em alta qualidade');
 
+  const keepPng = looksLikePng(asset.base64) || looksLikePng(asset.uri) || /png/i.test(asset.mimeType || '');
   const stamp = Date.now();
-  const original = await uploadClientPhoto(asset.base64, userId, `catalogo-logo-${stamp}`);
+  const fileOpts = keepPng
+    ? { ext: 'png', contentType: 'image/png' }
+    : { ext: 'jpg', contentType: 'image/jpeg' };
+  const original = await uploadClientPhoto(asset.base64, userId, `catalogo-logo-${stamp}`, fileOpts);
 
   let preview = original;
   try {
-    const previewBase64 = await createLogoPreviewBase64(asset);
+    const previewBase64 = await createLogoPreviewBase64(asset, keepPng);
     if (previewBase64) {
-      preview = await uploadClientPhoto(previewBase64, userId, `catalogo-logo-preview-${stamp}`);
+      preview = await uploadClientPhoto(previewBase64, userId, `catalogo-logo-preview-${stamp}`, fileOpts);
     }
   } catch (e) {
     console.warn('Preview da logo não gerada:', e);
   }
 
-  return { original, preview };
+  return { original, preview, keepPng };
 }
 
 export async function createLocalLogoPreviewUri(asset) {

@@ -27,6 +27,7 @@ import {
   getCarouselMetrics,
   resolveCarouselItems,
   isCarouselEnabled,
+  getCarouselPosicao,
   getHeroOverlap,
 } from '../../utils/catalogoStore';
 import { playTapSound } from '../../utils/sounds';
@@ -92,6 +93,7 @@ export function CatalogoStoreView({
   onHeroPositionChange,
   onHeroScaleChange,
   onHeroTextChange,
+  onPickLogo,
 }) {
   const [search, setSearch] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('todos');
@@ -112,6 +114,7 @@ export function CatalogoStoreView({
   const [heroDragging, setHeroDragging] = useState(false);
   const carouselRef = useRef(null);
   const [measuredW, setMeasuredW] = useState(0);
+  const [mergeW, setMergeW] = useState(0);
 
   const agendamentoAtivo = config.agendamentoOnline !== false && !!onFetchAvailability;
 
@@ -170,6 +173,17 @@ export function CatalogoStoreView({
     [config.carouselSize, config.carouselEstilo, config.carouselAnim, config.carouselSpeed, storeW]
   );
   const showCarousel = isCarouselEnabled(config) && carouselItems.length > 0;
+  const isLanding = config.layout === 'landing';
+  const carouselPos = getCarouselPosicao(config);
+  const carouselMerged = showCarousel && carouselPos === 'mesclado' && config.layout !== 'horizontal';
+  const carouselAbove = showCarousel && !carouselMerged && carouselPos !== 'abaixo';
+  const carouselBelow = showCarousel && !carouselMerged && carouselPos === 'abaixo';
+  const mergeSpan = cols >= 3 ? 2 : Math.max(1, cols);
+  const catalogList = useMemo(() => {
+    if (!carouselMerged) return filtered;
+    const ids = new Set(carouselItems.map((i) => i._rowId || i.id));
+    return filtered.filter((i) => !ids.has(i._rowId || i.id));
+  }, [carouselMerged, filtered, carouselItems]);
 
   const carouselCardHeight = useMemo(() => {
     let body = 16;
@@ -179,17 +193,18 @@ export function CatalogoStoreView({
     return carousel.imgH + body;
   }, [config.mostrarPrecos, config.mostrarCarrinho, interactive, carousel.imgH]);
 
+  const carouselStep = (carouselMerged && mergeW > 0) ? mergeW : carousel.step;
   useEffect(() => {
     if (!showCarousel || !config.carouselAuto || carouselItems.length <= 1) return;
     const t = setInterval(() => {
       setCarouselIndex((prev) => {
         const next = (prev + 1) % carouselItems.length;
-        carouselRef.current?.scrollToOffset({ offset: next * carousel.step, animated: true });
+        carouselRef.current?.scrollToOffset({ offset: next * carouselStep, animated: true });
         return next;
       });
     }, carousel.interval);
     return () => clearInterval(t);
-  }, [showCarousel, config.carouselAuto, carouselItems.length, carousel.step, carousel.interval]);
+  }, [showCarousel, config.carouselAuto, carouselItems.length, carouselStep, carousel.interval]);
 
   useEffect(() => {
     if (!selectedDate || !onFetchAvailability) {
@@ -289,9 +304,9 @@ export function CatalogoStoreView({
   };
 
   const renderProductCard = (item, opts = {}) => {
-    const { fullWidth, carousel: asCarousel } = opts;
+    const { fullWidth, carousel: asCarousel, cardWidth } = opts;
     const photo = getItemPhoto(item);
-    const w = fullWidth ? '100%' : asCarousel ? carousel.itemW : cardW;
+    const w = cardWidth || (fullWidth ? '100%' : asCarousel ? carousel.itemW : cardW);
     const h = asCarousel ? carousel.imgH : cardH * 0.55;
     const fade = asCarousel && carousel.anim === 'destaque';
     const active = carouselItems.findIndex((i) => (i._rowId || i.id) === (item._rowId || item.id)) === carouselIndex;
@@ -377,9 +392,89 @@ export function CatalogoStoreView({
     );
   };
 
-  const renderGrid = () => (
-    <View style={[st.grid, { marginHorizontal: -gap / 2, paddingTop: showCarousel ? 2 : 8, paddingBottom: 8 }]}>
-      {filtered.map((item) => (
+  const renderLandingItem = (item) => {
+    const photo = getItemPhoto(item);
+    return (
+      <View key={item._rowId || item.id} style={[st.landingCard, { borderColor: config.corPrincipal + '22', backgroundColor: cardBg }]}>
+        <View style={{ position: 'relative' }}>
+          {photo ? (
+            <Image source={{ uri: photo }} style={st.landingImg} resizeMode="cover" />
+          ) : (
+            <View style={[st.landingImg, st.cardImgPh, { backgroundColor: config.corPrincipal + '18' }]}>
+              <Ionicons name={item._tipo === 'servico' ? 'construct' : 'cube'} size={40} color={config.corPrincipal} />
+            </View>
+          )}
+          {renderEditBtn(item)}
+        </View>
+        <View style={st.landingBody}>
+          <Text style={[st.landingName, { color: fonts.produto }]}>{item.name}</Text>
+          {renderPrice(item)}
+          {interactive && config.mostrarCarrinho !== false && (
+            <TouchableOpacity
+              style={[st.addBtn, { backgroundColor: config.corPrincipal }]}
+              onPress={() => { playTapSound(); onAddToCart?.(item); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="cart-outline" size={16} color="#fff" />
+              <Text style={st.addBtnText}>Adicionar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderCarousel = (opts = {}) => {
+    const embedded = !!opts.embedded;
+    const trackW = opts.width > 0 ? opts.width : carousel.itemW;
+    const step = Math.max(1, Number(trackW) || carousel.step);
+    return (
+      <View style={[st.secao, embedded && { marginTop: 0 }]}>
+        <FlatList
+          ref={carouselRef}
+          data={carouselItems}
+          horizontal
+          pagingEnabled={carousel.paging}
+          snapToInterval={step}
+          snapToAlignment="start"
+          decelerationRate={carousel.anim === 'suave' ? 'normal' : 'fast'}
+          disableIntervalMomentum
+          showsHorizontalScrollIndicator={false}
+          style={{ height: carouselCardHeight }}
+          contentContainerStyle={carousel.gap ? { paddingRight: carousel.gap } : undefined}
+          ItemSeparatorComponent={carousel.gap ? () => <View style={{ width: carousel.gap }} /> : undefined}
+          keyExtractor={(i) => i._rowId || String(i.id)}
+          onMomentumScrollEnd={(e) => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / step);
+            setCarouselIndex(Math.min(Math.max(0, idx), carouselItems.length - 1));
+          }}
+          renderItem={({ item }) => renderProductCard(item, { carousel: true, cardWidth: opts.width > 0 ? opts.width : undefined })}
+        />
+        {carouselItems.length > 1 && (
+          <View style={st.dots}>
+            {carouselItems.map((_, i) => (
+              <View key={i} style={[st.dot, { backgroundColor: carouselIndex === i ? config.corPrincipal : config.corTexto + '33' }]} />
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderGrid = (list) => (
+    <View style={[st.grid, { marginHorizontal: -gap / 2, paddingTop: (showCarousel && !carouselBelow) ? 2 : 8, paddingBottom: 8 }]}>
+      {carouselMerged ? (
+        <View
+          style={{ width: `${(100 * mergeSpan) / cols}%`, paddingHorizontal: gap / 2, marginBottom: gap, boxSizing: 'border-box' }}
+          onLayout={(e) => {
+            const w = Math.round(e.nativeEvent.layout.width);
+            if (w > 0 && w !== mergeW) setMergeW(w);
+          }}
+        >
+          {renderCarousel({ embedded: true, width: mergeW })}
+        </View>
+      ) : null}
+      {list.map((item) => (
         <View
           key={item._rowId || item.id}
           style={{ width: `${100 / cols}%`, paddingHorizontal: gap / 2, marginBottom: gap, boxSizing: 'border-box' }}
@@ -389,6 +484,41 @@ export function CatalogoStoreView({
       ))}
     </View>
   );
+
+  const renderCatalog = () => {
+    if (filtered.length === 0 && !carouselMerged) {
+      return (
+        <View style={st.empty}>
+          <Ionicons name="bag-outline" size={48} color={config.corTexto + '44'} />
+          <Text style={{ color: config.corTexto + '88', textAlign: 'center' }}>{rotulos.vazio}</Text>
+        </View>
+      );
+    }
+    if (isLanding) {
+      return (
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          {carouselMerged ? renderCarousel({ embedded: true, width: innerW }) : null}
+          {catalogList.map(renderLandingItem)}
+        </View>
+      );
+    }
+    if (config.layout === 'horizontal') {
+      return (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap, paddingVertical: 8 }}>
+          {filtered.map((item) => renderProductCard(item, { fullWidth: false }))}
+        </ScrollView>
+      );
+    }
+    if (config.layout === 'vertical') {
+      return (
+        <View style={{ gap: 10, paddingVertical: 8 }}>
+          {carouselMerged ? renderCarousel({ embedded: true, width: innerW }) : null}
+          {catalogList.map(renderListItem)}
+        </View>
+      );
+    }
+    return renderGrid(catalogList);
+  };
 
   const heroBg = config.usaFotoFundo && config.fotoFundo
     ? { uri: config.fotoFundo }
@@ -404,7 +534,7 @@ export function CatalogoStoreView({
 
   return (
     <View
-      style={[st.root, { backgroundColor: theme.corFundo || config.corFundo || '#f8fafc' }]}
+      style={[st.root, isLanding && st.rootLanding, { backgroundColor: theme.corFundo || config.corFundo || '#f8fafc' }]}
       onLayout={(e) => {
         const w = Math.round(e.nativeEvent.layout.width);
         if (w > 0 && w !== measuredW) setMeasuredW(w);
@@ -428,6 +558,7 @@ export function CatalogoStoreView({
           onHeroPositionChange={handleHeroPositionChange}
           onHeroScaleChange={onHeroScaleChange}
           onHeroTextChange={onHeroTextChange}
+          onPickLogo={ownerMode ? onPickLogo : undefined}
           onDragStateChange={setHeroDragging}
         />
 
@@ -440,14 +571,14 @@ export function CatalogoStoreView({
             overlap.shape ? { marginTop: 0, overflow: 'visible', borderTopLeftRadius: 0, borderTopRightRadius: 0, shadowOpacity: 0, elevation: 0 } : null,
           ]}
         >
-        {config.sobreTexto ? (
-          <View style={[st.about, { backgroundColor: cardBg, borderColor: config.corPrincipal + '22' }]}>
-            <Text style={[st.aboutText, { color: fonts.sobre }]}>{config.sobreTexto}</Text>
+        {config.mostrarSobre !== false && config.sobreTexto ? (
+          <View style={[st.about, isLanding && st.aboutLanding, { backgroundColor: cardBg, borderColor: config.corPrincipal + '22' }]}>
+            <Text style={[st.aboutText, isLanding && st.aboutTextLanding, { color: fonts.sobre }]}>{config.sobreTexto}</Text>
           </View>
         ) : null}
 
-        <View style={{ paddingHorizontal: pad, paddingTop: overlap.id === 'nenhuma' ? 0 : 4 }}>
-          <View style={[st.searchWrap, { borderColor: config.corPrincipal + '33', backgroundColor: cardBg }]}>
+        <View style={{ paddingHorizontal: isLanding ? 16 : pad, paddingTop: overlap.id === 'nenhuma' ? (isLanding ? 8 : 0) : 4 }}>
+          <View style={[st.searchWrap, isLanding && st.searchLanding, { borderColor: config.corPrincipal + '33', backgroundColor: cardBg }]}>
             <Ionicons name="search" size={18} color={fonts.produto + '66'} />
             <TextInput
               style={[st.searchInput, { color: fonts.produto }]}
@@ -529,52 +660,11 @@ export function CatalogoStoreView({
             </>
           )}
 
-          {showCarousel && (
-            <View style={st.secao}>
-              <FlatList
-                ref={carouselRef}
-                data={carouselItems}
-                horizontal
-                pagingEnabled={carousel.paging}
-                snapToInterval={carousel.step}
-                snapToAlignment="start"
-                decelerationRate={carousel.anim === 'suave' ? 'normal' : 'fast'}
-                disableIntervalMomentum
-                showsHorizontalScrollIndicator={false}
-                style={{ height: carouselCardHeight }}
-                contentContainerStyle={carousel.gap ? { paddingRight: carousel.gap } : undefined}
-                ItemSeparatorComponent={carousel.gap ? () => <View style={{ width: carousel.gap }} /> : undefined}
-                keyExtractor={(i) => i._rowId || String(i.id)}
-                onMomentumScrollEnd={(e) => {
-                  const idx = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, carousel.step));
-                  setCarouselIndex(Math.min(Math.max(0, idx), carouselItems.length - 1));
-                }}
-                renderItem={({ item }) => renderProductCard(item, { carousel: true })}
-              />
-              {carouselItems.length > 1 && (
-                <View style={st.dots}>
-                  {carouselItems.map((_, i) => (
-                    <View key={i} style={[st.dot, { backgroundColor: carouselIndex === i ? config.corPrincipal : config.corTexto + '33' }]} />
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
+          {carouselAbove ? renderCarousel() : null}
 
-          {filtered.length === 0 ? (
-            <View style={st.empty}>
-              <Ionicons name="bag-outline" size={48} color={config.corTexto + '44'} />
-              <Text style={{ color: config.corTexto + '88', textAlign: 'center' }}>{rotulos.vazio}</Text>
-            </View>
-          ) : config.layout === 'horizontal' ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap, paddingVertical: 8 }}>
-              {filtered.map((item) => renderProductCard(item, { fullWidth: false }))}
-            </ScrollView>
-          ) : config.layout === 'vertical' ? (
-            <View style={{ gap: 10, paddingVertical: 8 }}>{filtered.map(renderListItem)}</View>
-          ) : (
-            renderGrid()
-          )}
+          {renderCatalog()}
+
+          {carouselBelow ? renderCarousel() : null}
         </View>
         </View>
       </ScrollView>
@@ -721,9 +811,13 @@ export function CatalogoStoreView({
 
 const st = StyleSheet.create({
   root: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  rootLanding: { borderRadius: 0 },
   about: { margin: 16, marginBottom: 0, padding: 16, borderRadius: 12, borderWidth: 1 },
+  aboutLanding: { marginHorizontal: 16, marginTop: 18, padding: 20, borderRadius: 20 },
   aboutText: { fontSize: 14, lineHeight: 22 },
+  aboutTextLanding: { fontSize: 16, lineHeight: 26, textAlign: 'center' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  searchLanding: { borderRadius: 999, marginTop: 6, paddingVertical: 12 },
   searchInput: { flex: 1, fontSize: 15, padding: 0 },
   tabs: { flexDirection: 'row', marginTop: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
   tab: { paddingVertical: 10, paddingHorizontal: 14, marginRight: 4 },
@@ -766,6 +860,10 @@ const st = StyleSheet.create({
   listImg: { width: 64, height: 64, borderRadius: 10 },
   listInfo: { flex: 1 },
   listAdd: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  landingCard: { borderRadius: 22, borderWidth: 1, overflow: 'hidden' },
+  landingImg: { width: '100%', height: 240 },
+  landingBody: { padding: 16, gap: 8 },
+  landingName: { fontSize: 18, fontWeight: '800', lineHeight: 24 },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   cartBar: {
     position: 'absolute',

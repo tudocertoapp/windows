@@ -29,8 +29,11 @@ import {
   CAROUSEL_ANIMS,
   CAROUSEL_SCOPES,
   CAROUSEL_SPEEDS,
+  CAROUSEL_POSICOES,
   LOGO_TAMANHOS,
-  LOGO_FORMATOS,
+  LOGO_MOLDURAS,
+  LOGO_EFEITOS,
+  LOGO_FUNDO_IMG,
   HERO_ALINHAMENTOS,
   TITULO_TAMANHOS,
   HERO_ALTURAS,
@@ -125,6 +128,7 @@ export function CatalogoEditorPanel({
   ownerUserId,
   lojaUrl,
   onCopyLink,
+  onOpenStore,
   onShareLink,
   onEditItem,
   onOpenPreview,
@@ -291,9 +295,14 @@ export function CatalogoEditorPanel({
     <ScrollView style={st.scroll} contentContainerStyle={st.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={[st.linkBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Ionicons name="link-outline" size={18} color={accent} />
-        <Text style={[st.linkText, { color: colors.text }]} numberOfLines={1}>
-          {lojaUrl || rotulos.linkHint}
-        </Text>
+        <TouchableOpacity onPress={onOpenStore} disabled={!ownerUserId} style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[st.linkText, { color: colors.text }]} numberOfLines={1}>
+            {lojaUrl || rotulos.linkHint}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onOpenStore} disabled={!ownerUserId} hitSlop={8}>
+          <Ionicons name="open-outline" size={18} color={accent} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={onCopyLink} disabled={!ownerUserId} hitSlop={8}>
           <Ionicons name="copy-outline" size={18} color={accent} />
         </TouchableOpacity>
@@ -491,7 +500,7 @@ export function CatalogoEditorPanel({
 
       {tab === 'cabecalho' && (
         <>
-          <Card title="Logo" colors={colors}>
+          <Card title="Logo" hint="Em Logo transparente o fundo sólido (branco/cinza) vira transparência de verdade. Sem moldura e sem placa atrás." colors={colors}>
             <TouchableOpacity onPress={onPickLogo} disabled={uploadingLogo} style={[st.uploadRow, { borderColor: colors.border, backgroundColor: colors.bg }]}>
               {logoUri ? (
                 <Image source={{ uri: logoUri }} style={st.uploadImg} resizeMode="cover" />
@@ -519,45 +528,75 @@ export function CatalogoEditorPanel({
                 <Switch value={draftConfig.usaLogo !== false} onValueChange={(v) => updateDraft({ usaLogo: v })} trackColor={{ true: accent }} />
               </View>
             </View>
-            <SwitchLine label="Logo sem moldura" value={!!draftConfig.logoSemMoldura} onValueChange={(v) => updateDraft({ logoSemMoldura: v })} colors={colors} accent={accent} />
             <Field label="Tamanho" colors={colors}>
               <ChipRow options={LOGO_TAMANHOS} value={draftConfig.logoTamanho || 'medio'} onChange={(v) => updateDraft({ logoTamanho: v })} colors={colors} accent={accent} />
             </Field>
-            {draftConfig.logoSemMoldura ? (
-              <Field label="Formato" colors={colors}>
-                <ChipRow options={LOGO_FORMATOS} value={draftConfig.logoFormato || 'livre'} onChange={(v) => updateDraft({ logoFormato: v })} colors={colors} accent={accent} />
-              </Field>
+            <Field label="Moldura" colors={colors}>
+              <ChipRow
+                options={LOGO_MOLDURAS}
+                value={draftConfig.logoMoldura || 'circular'}
+                onChange={(v) => updateDraft({ logoMoldura: v, logoPlaca: v === 'nenhuma' ? false : draftConfig.logoPlaca, logoSemMoldura: v === 'nenhuma' })}
+                colors={colors}
+                accent={accent}
+              />
+            </Field>
+            <SwitchLine
+              label="Fundo atrás da logo"
+              value={!!draftConfig.logoPlaca}
+              onValueChange={(v) => updateDraft({ logoPlaca: v })}
+              colors={colors}
+              accent={accent}
+            />
+            {draftConfig.logoPlaca ? (
+              <CatalogoColorBrush
+                compact
+                label="Cor do fundo da logo"
+                value={draftConfig.logoPlacaCor || '#ffffff'}
+                onChange={(c) => updateDraft({ logoPlacaCor: c })}
+                colors={colors}
+                accent={accent}
+              />
             ) : null}
+            <CatalogoColorBrush
+              compact
+              label="Cor da logo (filtro)"
+              value={draftConfig.logoCor || '#ffffff'}
+              onChange={(c) => updateDraft({ logoCor: c })}
+              colors={colors}
+              accent={accent}
+            />
+            <Field label="Fundo da imagem" colors={colors}>
+              <ChipRow
+                options={LOGO_FUNDO_IMG}
+                value={draftConfig.logoFundoImg || 'manter'}
+            onChange={(v) => updateDraft({
+              logoFundoImg: v,
+              ...(v !== 'manter' ? { logoPlaca: false, logoMoldura: 'nenhuma', logoSemMoldura: true } : {}),
+            })}
+                colors={colors}
+                accent={accent}
+              />
+            </Field>
+            <Field label="Efeito" colors={colors}>
+              <ChipRow
+                options={LOGO_EFEITOS}
+                value={draftConfig.logoEfeito || 'nenhum'}
+                onChange={(v) => updateDraft({ logoEfeito: v })}
+                colors={colors}
+                accent={accent}
+              />
+            </Field>
           </Card>
 
-          <Card title="Textos do cabeçalho" hint="Por padrão só título e subtítulo. Extra você adiciona ou remove. Cor, tamanho e posição ficam na pré-visualização, ao clicar no texto." colors={colors}>
-            <Field label="Título" colors={colors}>
-              <TextInput style={inputStyle} value={draftConfig.titulo} onChangeText={(v) => updateDraft({ titulo: v, mostrarTitulo: true })} placeholder="Título da loja" placeholderTextColor={colors.textSecondary} />
-            </Field>
-            <Field label="Subtítulo" colors={colors}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TextInput
-                  style={[inputStyle, { flex: 1 }]}
-                  value={draftConfig.subtitulo}
-                  onChangeText={(v) => updateDraft({ subtitulo: v, mostrarSubtitulo: true })}
-                  placeholder="Subtítulo"
-                  placeholderTextColor={colors.textSecondary}
-                />
-                {draftConfig.mostrarSubtitulo !== false ? (
-                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: false }); }} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </Field>
+          <Card title="Textos do cabeçalho" hint="Padrão: nome, slogan e descrição. Título e subtítulo você adiciona se quiser. Um clique move; dois cliques editam." colors={colors}>
             {draftConfig.usaNomeProfissional === true ? (
               <Field label={rotulos.nomeCampo} colors={colors}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TextInput
                     style={[inputStyle, { flex: 1 }]}
                     value={draftConfig.nomeLoja || ''}
-                    onChangeText={(v) => updateDraft({ nomeLoja: v })}
-                    placeholder={profile?.empresa || profile?.nome || 'Nome da empresa'}
+                    onChangeText={(v) => updateDraft({ nomeLoja: v, usaNomeProfissional: true })}
+                    placeholder={profile?.empresa || profile?.nome || 'Nome da loja'}
                     placeholderTextColor={colors.textSecondary}
                   />
                   <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ usaNomeProfissional: false }); }} hitSlop={8}>
@@ -572,7 +611,7 @@ export function CatalogoEditorPanel({
                   <TextInput
                     style={[inputStyle, { flex: 1 }]}
                     value={draftConfig.slogan || ''}
-                    onChangeText={(v) => updateDraft({ slogan: v })}
+                    onChangeText={(v) => updateDraft({ slogan: v, mostrarSlogan: true })}
                     placeholder="Slogan"
                     placeholderTextColor={colors.textSecondary}
                   />
@@ -582,38 +621,87 @@ export function CatalogoEditorPanel({
                 </View>
               </Field>
             ) : null}
+            {draftConfig.mostrarSobre !== false ? (
+              <Field label="Descrição" colors={colors}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <TextInput
+                    style={[inputStyle, st.inputMultiline, { flex: 1 }]}
+                    value={draftConfig.sobreTexto || ''}
+                    onChangeText={(v) => updateDraft({ sobreTexto: v, mostrarSobre: true })}
+                    multiline
+                    placeholder={rotulos.apresentacao}
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ mostrarSobre: false }); }} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </Field>
+            ) : null}
+            {draftConfig.mostrarTitulo === true ? (
+              <Field label="Título" colors={colors}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TextInput
+                    style={[inputStyle, { flex: 1 }]}
+                    value={draftConfig.titulo}
+                    onChangeText={(v) => updateDraft({ titulo: v, mostrarTitulo: true })}
+                    placeholder="Título"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ mostrarTitulo: false }); }} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </Field>
+            ) : null}
+            {draftConfig.mostrarSubtitulo === true ? (
+              <Field label="Subtítulo" colors={colors}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TextInput
+                    style={[inputStyle, { flex: 1 }]}
+                    value={draftConfig.subtitulo}
+                    onChangeText={(v) => updateDraft({ subtitulo: v, mostrarSubtitulo: true })}
+                    placeholder="Subtítulo"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                  <TouchableOpacity onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: false }); }} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </Field>
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-              {draftConfig.mostrarSubtitulo === false ? (
-                <TouchableOpacity
-                  style={[st.linkBtn, { backgroundColor: accent }]}
-                  onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: true }); }}
-                >
-                  <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={st.linkBtnText}>Subtítulo</Text>
-                </TouchableOpacity>
-              ) : null}
               {draftConfig.usaNomeProfissional !== true ? (
-                <TouchableOpacity
-                  style={[st.linkBtn, { backgroundColor: accent }]}
-                  onPress={() => { playTapSound(); updateDraft({ usaNomeProfissional: true }); }}
-                >
+                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ usaNomeProfissional: true }); }}>
                   <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={st.linkBtnText}>Nome</Text>
+                  <Text style={st.linkBtnText}>Nome da loja</Text>
                 </TouchableOpacity>
               ) : null}
               {draftConfig.mostrarSlogan !== true ? (
-                <TouchableOpacity
-                  style={[st.linkBtn, { backgroundColor: accent }]}
-                  onPress={() => { playTapSound(); updateDraft({ mostrarSlogan: true }); }}
-                >
+                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ mostrarSlogan: true }); }}>
                   <Ionicons name="add" size={16} color="#fff" />
                   <Text style={st.linkBtnText}>Slogan</Text>
                 </TouchableOpacity>
               ) : null}
+              {draftConfig.mostrarSobre === false ? (
+                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ mostrarSobre: true }); }}>
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={st.linkBtnText}>Descrição</Text>
+                </TouchableOpacity>
+              ) : null}
+              {draftConfig.mostrarTitulo !== true ? (
+                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ mostrarTitulo: true }); }}>
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={st.linkBtnText}>Título</Text>
+                </TouchableOpacity>
+              ) : null}
+              {draftConfig.mostrarSubtitulo !== true ? (
+                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: true }); }}>
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={st.linkBtnText}>Subtítulo</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
-            <Field label={rotulos.sobre} colors={colors}>
-              <TextInput style={[inputStyle, st.inputMultiline]} value={draftConfig.sobreTexto || ''} onChangeText={(v) => updateDraft({ sobreTexto: v })} multiline placeholder={rotulos.apresentacao} placeholderTextColor={colors.textSecondary} />
-            </Field>
           </Card>
 
           <Card title="Formato do banner" hint="Altura, moldura e sobreposição. Para mover textos, clique neles na pré-visualização." colors={colors}>
@@ -644,11 +732,20 @@ export function CatalogoEditorPanel({
               <ChipRow
                 options={CATALOGO_LAYOUTS}
                 value={draftConfig.layout}
-                onChange={(v) => updateDraft({ layout: v, ...(v === 'carrossel' ? { carouselAtivo: true } : {}) })}
+                onChange={(v) => updateDraft({
+                  layout: v,
+                  ...(v === 'carrossel' ? { carouselAtivo: true } : {}),
+                  ...(v === 'landing' ? { heroPosicaoManual: false, heroAlinhamentoTexto: 'centro' } : {}),
+                })}
                 colors={colors}
                 accent={accent}
               />
             </Field>
+            {draftConfig.layout === 'landing' ? (
+              <Text style={[st.hint, { color: colors.textSecondary, marginTop: 8 }]}>
+                Landing empilha o cabeçalho no estilo celular e a vitrine vira uma página vertical.
+              </Text>
+            ) : null}
             <Field label="Tamanho dos cards" colors={colors}>
               <ChipRow options={CATALOGO_CARD_SIZES} value={draftConfig.cardSize} onChange={(v) => updateDraft({ cardSize: v })} colors={colors} accent={accent} />
             </Field>
@@ -672,6 +769,17 @@ export function CatalogoEditorPanel({
               colors={colors}
               accent={accent}
             />
+            {(draftConfig.layout === 'carrossel' || draftConfig.carouselAtivo === true) ? (
+              <Field label="Posição do carrossel" colors={colors}>
+                <ChipRow
+                  options={CAROUSEL_POSICOES}
+                  value={draftConfig.carouselPosicao || 'acima'}
+                  onChange={(v) => updateDraft({ carouselPosicao: v })}
+                  colors={colors}
+                  accent={accent}
+                />
+              </Field>
+            ) : null}
             <Field label="O que entra no carrossel" colors={colors}>
               <ChipRow options={CAROUSEL_SCOPES} value={draftConfig.carouselScope || 'destaque'} onChange={(v) => updateDraft({ carouselScope: v })} colors={colors} accent={accent} />
             </Field>

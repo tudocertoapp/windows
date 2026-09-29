@@ -50,7 +50,7 @@ function toTransaction(r) {
     date: r.date,
     createdAt: r.created_at || r.createdAt || null,
     formaPagamento: r.forma_pagamento,
-    tipoVenda: r.tipo_venda,
+    tipoVenda: r.tipo_venda || 'pessoal',
     desconto: Number(r.desconto || 0),
   };
 }
@@ -446,7 +446,7 @@ export function FinanceProvider({ children }) {
       category: t.category,
       date: t.date,
       forma_pagamento: t.formaPagamento,
-      tipo_venda: t.tipoVenda,
+      tipo_venda: t.tipoVenda || 'pessoal',
       desconto: t.desconto || 0,
     }).select('*').single();
     if (error) {

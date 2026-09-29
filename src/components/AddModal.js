@@ -155,7 +155,8 @@ export function AddModal({ type, params, onClose }) {
         return;
       }
       const fromEvent = params?.fromAgendaEvent;
-      const hasEmpresaPayload = fromEvent && ((fromEvent.tipo === 'empresa') || fromEvent.clientId || fromEvent.serviceId || (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0));
+      const hasEmpresaPayload = fromEvent && ((fromEvent.tipo === 'empresa') || fromEvent.clientId || fromEvent.serviceId || (Array.isArray(fromEvent.preOrderItems) && fromEvent.preOrderItems.length > 0) || params?.tipoVenda === 'empresa');
+      if (fromEvent && showEmpresaFeatures) setTipoVenda('empresa');
       if (hasEmpresaPayload) {
         setTipoVenda('empresa');
         setClientId(fromEvent.clientId || null);
@@ -195,7 +196,7 @@ export function AddModal({ type, params, onClose }) {
         }
         setSearchPdv('');
         setServicePriceModal(null);
-      } else {
+      } else if (!(fromEvent && showEmpresaFeatures)) {
         setTipoVenda('pessoal');
         setClientId(null);
         setUseNow(true);
@@ -206,9 +207,14 @@ export function AddModal({ type, params, onClose }) {
         setReceitaBankId(null);
         setModoPagamentoMultipla(false);
         setPaymentSplits([]);
+      } else if (fromEvent) {
+        const amt = Number(fromEvent.amount) || 0;
+        setAmount(amt > 0 ? amt.toFixed(2).replace('.', ',') : '');
+        setDescription((fromEvent.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim());
+        setUseNow(true);
       }
     }
-  }, [type, params?.fromAgendaEvent, params?.fromOrcamento, services]);
+  }, [type, params?.fromAgendaEvent, params?.fromOrcamento, params?.tipoVenda, services, showEmpresaFeatures]);
   useEffect(() => {
     if (type === 'cliente') {
       setPhotoUri(null);
@@ -412,7 +418,8 @@ export function AddModal({ type, params, onClose }) {
           if (p.metodo === 'credito' && !p.cardId && cardsOrdenados.length > 0) return Alert.alert('Erro', 'Selecione o cartão de crédito ou cadastre a máquina em Bancos e Cartões.');
         }
         const dateVal = useNow ? new Date().toISOString().slice(0, 10) : toYMD(date);
-        addTransaction({ type: 'income', amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: 'misturado', tipoVenda, desconto: descVal });
+        const vendaTipo = (params?.fromAgendaEvent && showEmpresaFeatures) ? 'empresa' : tipoVenda;
+        addTransaction({ type: 'income', amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: 'misturado', tipoVenda: vendaTipo, desconto: descVal });
         for (const p of paymentSplits) {
           const v = parseMoney(p.valor) || 0;
           if (v <= 0) continue;
@@ -441,7 +448,7 @@ export function AddModal({ type, params, onClose }) {
           updateTransaction(params.editTransaction.id, { amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: formaPag, tipoVenda, desconto: descVal });
         } else {
           if ((formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && !receitaBankId) return Alert.alert('Erro', 'Selecione para onde está indo o valor da receita.');
-          addTransaction({ type: 'income', amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: formaPag, tipoVenda, desconto: descVal });
+          addTransaction({ type: 'income', amount: valorFinal, description: descFinal, category: subcategoryRec || category || 'Outros', date: dateVal, formaPagamento: formaPag, tipoVenda: (params?.fromAgendaEvent && showEmpresaFeatures) ? 'empresa' : tipoVenda, desconto: descVal });
           if (valorFinal > 0 && (formaPagamento === 'pix' || formaPagamento === 'debito' || formaPagamento === 'boleto' || formaPagamento === 'transferencia') && receitaBankId) addToBank(receitaBankId, valorFinal);
         }
         if (!params?.editTransaction) {

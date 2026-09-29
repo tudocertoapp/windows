@@ -29,6 +29,8 @@ import { getCategoryColor } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
 import { transactionMatchesViewMode } from '../utils/viewModeFilter';
 import { playTapSound } from '../utils/sounds';
+import { buildOverviewKpis } from '../utils/overviewKpis';
+import { KpiBarList } from '../components/charts/KpiBarList';
 import { CardPickerModal } from '../components/CardPickerModal';
 import { CardExpandedModal } from '../components/CardExpandedModal';
 import { DEFAULT_DINHEIRO_SECTIONS, DEFAULT_DINHEIRO_SECTIONS_WEB, DINHEIRO_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
@@ -123,7 +125,7 @@ export function DinheiroScreen({ route }) {
   const useWebLayout = isWeb && isDesktopLayout;
   const WEB_DESKTOP_PAGE_PAD = scaleWebDesktop(10, useWebLayout);
   const WEB_DESKTOP_ROW_GAP = scaleWebDesktop(8, useWebLayout);
-  const { transactions, boletos, checkListItems, agendaEvents, clients, deleteTransaction } = useFinance();
+  const { transactions, boletos, checkListItems, agendaEvents, clients, products, services, deleteTransaction } = useFinance();
   const { colors, themeMode } = useTheme();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const { banks, cards, addToBank, deductFromBank, deductFromCardBalance, getBankName, getCardsByBankId } = useBanks();
@@ -345,6 +347,50 @@ export function DinheiroScreen({ route }) {
     return { vendas, agendas, tarefasConcluidas, novosClientes, faturasPagas };
   }, [monthTx, agendaEvents, checkListItems, clients, contasStatus.pagas.qty, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
 
+  const isEmpresaView = showEmpresaFeatures && viewMode === 'empresa';
+  const overviewKpis = useMemo(() => {
+    const ref = balanceFilterDate;
+    const inPeriod = (raw) => {
+      if (!raw) return false;
+      let date;
+      if (raw instanceof Date) date = new Date(raw);
+      else {
+        const parts = String(raw).trim().split(/[/\-]/);
+        if (parts.length >= 3 && String(parts[0]).length <= 2) {
+          date = new Date(parseInt(parts[2], 10) || ref.getFullYear(), (parseInt(parts[1], 10) || 1) - 1, parseInt(parts[0], 10) || 1);
+        } else date = new Date(raw);
+      }
+      if (Number.isNaN(date.getTime())) return false;
+      date.setHours(0, 0, 0, 0);
+      if (balanceFilter === 'periodo') {
+        const start = parseDateStr(periodStart);
+        const end = parseDateStr(periodEnd);
+        if (!start || !end) return true;
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return date >= start && date <= end;
+      }
+      if (balanceFilter === 'dia') return date.getDate() === ref.getDate() && date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+      if (balanceFilter === 'mes') return date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+      return date.getFullYear() === ref.getFullYear();
+    };
+    return buildOverviewKpis({
+      isEmpresaView,
+      monthTx,
+      income,
+      expense,
+      formatCurrency: fmt,
+      clients,
+      products,
+      services,
+      agendaEvents,
+      checkListItems,
+      inPeriod,
+      novosClientes: resumoStats.novosClientes,
+      faturasPagas: resumoStats.faturasPagas,
+    });
+  }, [isEmpresaView, monthTx, income, expense, fmt, clients, products, services, agendaEvents, checkListItems, resumoStats.novosClientes, resumoStats.faturasPagas, balanceFilter, balanceFilterDate, periodStart, periodEnd, parseDateStr]);
+
   const balanceFilterLabel = balanceFilter === 'periodo'
     ? `${periodStart} a ${periodEnd}`
     : balanceFilter === 'dia'
@@ -518,8 +564,44 @@ export function DinheiroScreen({ route }) {
                 faturasPagas={resumoStats.faturasPagas}
                 prevIncome={prevIncome}
                 prevExpense={prevExpense}
+                showEmpresaKpis={isEmpresaView}
               />
             </View>
+            <GlassCard colors={colors} solid style={[dns.card, dns.chartCard]}>
+              <CardHeader
+                icon="pie-chart-outline"
+                title="Entrando x saindo"
+                subtitle={isEmpresaView ? 'Faturamento da empresa no período' : 'Seu dinheiro no período'}
+                colors={colors}
+                iconColor={CARD_ICON_COLORS.graficos}
+              />
+              {income + expense <= 0 ? (
+                <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16 }}>Sem movimentação no período</Text>
+              ) : (
+                <View style={{ alignItems: 'center', paddingTop: 8 }}>
+                  <PieChart
+                    data={[['Entradas', Math.max(0, income)], ['Saídas', Math.max(0, expense)]]}
+                    size={180}
+                    colors={colors}
+                    colorMap={{ Entradas: '#10b981', Saídas: '#ef4444' }}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
+                    <Text style={{ fontSize: 12, color: '#10b981', fontWeight: '700' }}>Entradas {fmt(income)}</Text>
+                    <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '700' }}>Saídas {fmt(expense)}</Text>
+                  </View>
+                </View>
+              )}
+            </GlassCard>
+            <GlassCard colors={colors} solid style={[dns.card, dns.chartCard]}>
+              <CardHeader
+                icon="analytics-outline"
+                title={isEmpresaView ? 'Cadastros e movimento da empresa' : 'Movimento pessoal'}
+                subtitle={isEmpresaView ? 'Clientes, catálogo e atendimentos' : 'Lançamentos, eventos e tarefas'}
+                colors={colors}
+                iconColor={CARD_ICON_COLORS.graficos}
+              />
+              <KpiBarList items={overviewKpis.counts} colors={colors} />
+            </GlassCard>
             <View style={{ marginBottom: 16 }}>
               <GastosPorCategoriaCard
                 iconColor={CARD_ICON_COLORS.gastos}

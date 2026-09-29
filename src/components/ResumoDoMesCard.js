@@ -32,16 +32,19 @@ export function ResumoDoMesCard({
   faturasPagas = 0,
   prevIncome,
   prevExpense,
+  showEmpresaKpis = false,
 }) {
   const [selectedDetail, setSelectedDetail] = useState(null);
   const fmt = formatCurrency || ((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`);
   const m = mask || ((v) => v);
 
   const stats = [
-    { id: 'vendas', label: 'Vendas', value: vendas, icon: 'cart-outline', color: iconColor || colors.primary },
-    { id: 'agendas', label: 'Agendas', value: agendas, icon: 'calendar-outline', color: '#f59e0b' },
-    { id: 'clientes', label: 'Clientes', value: novosClientes, icon: 'people-outline', color: '#3b82f6' },
-    { id: 'faturas', label: 'Faturas', value: faturasPagas, icon: 'document-text-outline', color: '#8b5cf6' },
+    { id: 'vendas', label: showEmpresaKpis ? 'Vendas' : 'Entradas', value: vendas, icon: showEmpresaKpis ? 'cart-outline' : 'arrow-down-circle-outline', color: iconColor || colors.primary },
+    { id: 'agendas', label: showEmpresaKpis ? 'Atendimentos' : 'Eventos', value: agendas, icon: 'calendar-outline', color: '#f59e0b' },
+    ...(showEmpresaKpis ? [
+      { id: 'clientes', label: 'Novos clientes', value: novosClientes, icon: 'people-outline', color: '#3b82f6' },
+      { id: 'faturas', label: 'Faturas pagas', value: faturasPagas, icon: 'document-text-outline', color: '#8b5cf6' },
+    ] : []),
   ];
 
   const selectedStat = stats.find((st) => st.id === selectedDetail);
@@ -83,6 +86,7 @@ export function ResumoDoMesCard({
           </TouchableOpacity>
         ))}
       </View>
+      {stats.length > 2 ? (
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, width: '100%' }}>
         {stats.slice(2, 4).map((stat) => (
           <TouchableOpacity
@@ -95,6 +99,7 @@ export function ResumoDoMesCard({
           </TouchableOpacity>
         ))}
       </View>
+      ) : null}
       {selectedStat && (
         <View style={[s.statsRow, { borderTopColor: colors.border }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>

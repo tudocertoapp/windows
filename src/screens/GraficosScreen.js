@@ -14,6 +14,8 @@ import { getCategoryColor } from '../constants/colors';
 import { CARD_ICON_COLORS } from '../constants/dashboardCards';
 import { formatCurrency } from '../utils/format';
 import { transactionMatchesViewMode } from '../utils/viewModeFilter';
+import { buildOverviewKpis } from '../utils/overviewKpis';
+import { KpiBarList } from '../components/charts/KpiBarList';
 
 const ds = StyleSheet.create({
   monthText: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
@@ -45,9 +47,9 @@ function buildMonthlyData(transactions, monthsCount) {
 }
 
 export function GraficosScreen() {
-  const { transactions } = useFinance();
+  const { transactions, clients, products, services, agendaEvents, checkListItems, boletos } = useFinance();
   const { colors } = useTheme();
-  const { viewMode, setViewMode, canToggleView } = usePlan();
+  const { viewMode, setViewMode, canToggleView, showEmpresaFeatures } = usePlan();
   const [rangeMonths, setRangeMonths] = useState(6);
   const now = new Date();
 
@@ -91,6 +93,37 @@ export function GraficosScreen() {
   const maxVal = Math.max(...catBreakdown.map(([, a]) => a), 1);
   const fmt = formatCurrency;
   const PIE_SIZE = 200;
+  const isEmpresaView = showEmpresaFeatures && viewMode === 'empresa';
+  const overviewKpis = useMemo(() => {
+    const inPeriod = (raw) => {
+      if (!raw) return false;
+      const date = raw instanceof Date ? new Date(raw) : new Date(raw);
+      if (Number.isNaN(date.getTime())) {
+        const parts = String(raw).trim().split(/[/\-]/);
+        if (parts.length < 3) return false;
+        const p = new Date(parseInt(parts[2], 10), (parseInt(parts[1], 10) || 1) - 1, parseInt(parts[0], 10) || 1);
+        return p.getMonth() === now.getMonth() && p.getFullYear() === now.getFullYear();
+      }
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    };
+    const novosClientes = (clients || []).filter((c) => c.createdAt && inPeriod(c.createdAt)).length;
+    const faturasPagas = (boletos || []).filter((b) => b.paid && inPeriod(b.dueDate || b.date || b.paidAt)).length;
+    return buildOverviewKpis({
+      isEmpresaView,
+      monthTx,
+      income,
+      expense,
+      formatCurrency: fmt,
+      clients,
+      products,
+      services,
+      agendaEvents,
+      checkListItems,
+      inPeriod,
+      novosClientes,
+      faturasPagas,
+    });
+  }, [isEmpresaView, monthTx, income, expense, fmt, clients, products, services, agendaEvents, checkListItems, boletos, now]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -121,6 +154,43 @@ export function GraficosScreen() {
             <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 8 }}>
               {prevIncome > 0 || prevExpense > 0 ? `Mês anterior: +${fmt(prevIncome)} / -${fmt(prevExpense)}` : 'Sem dados do mês anterior'}
             </Text>
+          </GlassCard>
+
+          <GlassCard colors={colors} solid style={ds.card}>
+            <CardHeader
+              icon="pie-chart-outline"
+              title="Entrando x saindo"
+              subtitle={isEmpresaView ? 'Faturamento da empresa neste mês' : 'Seu dinheiro neste mês'}
+              colors={colors}
+              iconColor={CARD_ICON_COLORS.graficos}
+            />
+            {income + expense <= 0 ? (
+              <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16 }}>Sem movimentação no mês</Text>
+            ) : (
+              <View style={{ alignItems: 'center', paddingTop: 8 }}>
+                <PieChart
+                  data={[['Entradas', Math.max(0, income)], ['Saídas', Math.max(0, expense)]]}
+                  size={180}
+                  colors={colors}
+                  colorMap={{ Entradas: '#10b981', Saídas: '#ef4444' }}
+                />
+                <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
+                  <Text style={{ fontSize: 12, color: '#10b981', fontWeight: '700' }}>Entradas {fmt(income)}</Text>
+                  <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '700' }}>Saídas {fmt(expense)}</Text>
+                </View>
+              </View>
+            )}
+          </GlassCard>
+
+          <GlassCard colors={colors} solid style={ds.card}>
+            <CardHeader
+              icon="analytics-outline"
+              title={isEmpresaView ? 'Cadastros e movimento da empresa' : 'Movimento pessoal'}
+              subtitle={isEmpresaView ? 'Clientes, catálogo e atendimentos' : 'Lançamentos, eventos e tarefas'}
+              colors={colors}
+              iconColor={CARD_ICON_COLORS.graficos}
+            />
+            <KpiBarList items={overviewKpis.counts} colors={colors} />
           </GlassCard>
 
           {/* Receitas vs Despesas - barras + filtro 3m/6m/12m */}

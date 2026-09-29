@@ -50,7 +50,7 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp, lojaSlug: loja
     }
     (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/loja/store?${query}`, { cache: 'no-store' });
+        const res = await fetch(`${apiBase}/api/loja/store?${query}&t=${Date.now()}`, { cache: 'no-store' });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
           setError(json.error || 'Não foi possível carregar a loja.');

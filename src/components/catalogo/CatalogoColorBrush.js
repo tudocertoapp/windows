@@ -73,6 +73,7 @@ export function CatalogoColorBrush({
   compact = false,
   inline = false,
   toolbar = false,
+  caption,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [draftHex, setDraftHex] = useState(normalizeHexColor(value) || '#6366f1');
@@ -127,7 +128,7 @@ export function CatalogoColorBrush({
 
   if (toolbar) {
     return (
-      <View style={{ position: 'relative' }}>
+      <View style={{ position: 'relative', alignItems: 'center', minWidth: caption ? 52 : undefined }}>
         {Platform.OS === 'web' ? (
           <input
             ref={toolbarInputRef}
@@ -147,8 +148,9 @@ export function CatalogoColorBrush({
           activeOpacity={0.85}
         >
           <View style={[st.toolbarSwatch, { backgroundColor: hex }]} />
-          <Ionicons name="brush" size={16} color="#fff" />
+          <Ionicons name="brush" size={14} color="#fff" />
         </TouchableOpacity>
+        {caption ? <Text style={st.toolbarCaption}>{caption}</Text> : null}
         {modal}
       </View>
     );
@@ -219,6 +221,7 @@ const st = StyleSheet.create({
     gap: 6,
   },
   toolbarSwatch: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
+  toolbarCaption: { marginTop: 2, fontSize: 9, fontWeight: '700', color: '#94a3b8' },
   rowInline: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -302,7 +302,20 @@ export const CATALOGO_LAYOUTS = [
   { id: 'grid', label: 'Grade', icon: 'grid-outline' },
   { id: 'horizontal', label: 'Horizontal', icon: 'reorder-two-outline' },
   { id: 'vertical', label: 'Lista', icon: 'list-outline' },
+  { id: 'landing', label: 'Landing', icon: 'phone-portrait-outline' },
 ];
+
+export const CAROUSEL_POSICOES = [
+  { id: 'acima', label: 'Acima da grade', icon: 'arrow-up-outline' },
+  { id: 'abaixo', label: 'Abaixo da grade', icon: 'arrow-down-outline' },
+  { id: 'mesclado', label: 'Mesclado na grade', icon: 'grid-outline' },
+];
+
+export function getCarouselPosicao(config) {
+  const id = config?.carouselPosicao;
+  if (CAROUSEL_POSICOES.some((p) => p.id === id)) return id;
+  return 'acima';
+}
 
 export const CATALOGO_TIPOS = [
   { id: 'ambos', label: 'Produtos e serviços', icon: 'apps-outline' },
@@ -330,6 +343,32 @@ export const LOGO_FORMATOS = [
   { id: 'livre', label: 'Livre', icon: 'scan-outline' },
   { id: 'quadrado', label: 'Quadrado', icon: 'square-outline' },
   { id: 'circular', label: 'Circular', icon: 'ellipse-outline' },
+];
+
+export const LOGO_MOLDURAS = [
+  { id: 'nenhuma', label: 'Sem moldura', icon: 'image-outline' },
+  { id: 'circular', label: 'Circular', icon: 'ellipse-outline' },
+  { id: 'quadrada', label: 'Quadrada', icon: 'square-outline' },
+  { id: 'suave', label: 'Suave', icon: 'tablet-portrait-outline' },
+  { id: 'capsula', label: 'Cápsula', icon: 'phone-portrait-outline' },
+  { id: 'losango', label: 'Losango', icon: 'diamond-outline' },
+  { id: 'gota', label: 'Gota', icon: 'water-outline' },
+  { id: 'hexagono', label: 'Hexágono', icon: 'apps-outline' },
+];
+
+export const LOGO_EFEITOS = [
+  { id: 'nenhum', label: 'Nenhum', icon: 'remove-outline' },
+  { id: 'sombra', label: 'Sombra', icon: 'cloudy-outline' },
+  { id: 'brilho', label: 'Brilho', icon: 'sunny-outline' },
+  { id: 'relevo', label: 'Relevo', icon: 'layers-outline' },
+  { id: 'pb', label: 'P&B', icon: 'contrast-outline' },
+  { id: 'suave', label: 'Suave', icon: 'leaf-outline' },
+];
+
+export const LOGO_FUNDO_IMG = [
+  { id: 'manter', label: 'Manter fundo', icon: 'image-outline' },
+  { id: 'sem-branco', label: 'Logo transparente', icon: 'cut-outline' },
+  { id: 'sem-preto', label: 'Tirar fundo preto', icon: 'contrast-outline' },
 ];
 
 export const HERO_DISPOSICOES = [
@@ -420,14 +459,14 @@ export const CAROUSEL_SPEEDS = [
 ];
 
 export const DEFAULT_HERO_POSICOES = {
-  logo: { x: 50, y: 30 },
-  nome: { x: 50, y: 50 },
-  titulo: { x: 50, y: 62 },
-  subtitulo: { x: 50, y: 74 },
-  slogan: { x: 50, y: 86 },
+  logo: { x: 50, y: 28 },
+  nome: { x: 50, y: 52 },
+  slogan: { x: 50, y: 66 },
+  titulo: { x: 50, y: 78 },
+  subtitulo: { x: 50, y: 88 },
 };
 
-export const HERO_ELEMENT_IDS = ['logo', 'nome', 'titulo', 'subtitulo', 'slogan'];
+export const HERO_ELEMENT_IDS = ['logo', 'nome', 'slogan', 'titulo', 'subtitulo'];
 
 export const HERO_ELEMENTOS = [
   { id: 'logo', label: 'Logo', icon: 'image-outline' },
@@ -476,7 +515,9 @@ export function getHeroSloganPx(config) {
 
 export function getHeroMinHeight(config) {
   const row = HERO_ALTURAS.find((t) => t.id === (config?.heroAltura || 'normal'));
-  return row?.px || 200;
+  const base = row?.px || 200;
+  if (config?.layout === 'landing') return Math.max(base, 520);
+  return base;
 }
 
 export function getHeroFrame(config) {
@@ -640,51 +681,143 @@ export function getHeroFlexAlign(config) {
 }
 
 export function getLogoBorderRadius(config, logoPx) {
-  const formato = config?.logoFormato || 'livre';
-  if (config?.logoSemMoldura) {
-    if (formato === 'circular') return logoPx / 2;
-    if (formato === 'quadrado') return 10;
-    return 0;
+  return getLogoPresentation(config, logoPx).radius;
+}
+
+export function getLogoPresentation(config, logoPx) {
+  const size = Math.max(24, logoPx || 72);
+  let moldura = config?.logoMoldura;
+  if (!LOGO_MOLDURAS.some((m) => m.id === moldura)) {
+    if (config?.logoSemMoldura || config?.logoFormato === 'livre') moldura = 'nenhuma';
+    else if (config?.logoFormato === 'quadrado') moldura = 'quadrada';
+    else moldura = 'circular';
   }
-  return logoPx / 2;
+  const placa = config?.logoTemTransparencia
+    ? config?.logoPlaca === true
+    : (config?.logoPlaca == null
+      ? moldura !== 'nenhuma' && !config?.logoSemMoldura
+      : !!config.logoPlaca);
+  const efeito = LOGO_EFEITOS.some((e) => e.id === config?.logoEfeito) ? config.logoEfeito : 'nenhum';
+  const fundoImg = LOGO_FUNDO_IMG.some((e) => e.id === config?.logoFundoImg) ? config.logoFundoImg : 'manter';
+  const placaCor = config?.logoPlacaCor || 'rgba(255,255,255,0.22)';
+  const bordaCor = config?.logoBordaCor || '#ffffff';
+  const tint = config?.logoCor && config.logoCor !== 'none' ? config.logoCor : null;
+  const semBorda = moldura === 'nenhuma';
+
+  let radius = 0;
+  let clipPath = null;
+  let extraRadius = null;
+  if (moldura === 'circular' || moldura === 'capsula') radius = size / 2;
+  else if (moldura === 'quadrada') radius = 6;
+  else if (moldura === 'suave') radius = 18;
+  else if (moldura === 'gota') {
+    extraRadius = {
+      borderTopLeftRadius: Math.round(size * 0.52),
+      borderTopRightRadius: Math.round(size * 0.52),
+      borderBottomLeftRadius: Math.round(size * 0.18),
+      borderBottomRightRadius: Math.round(size * 0.78),
+    };
+  } else if (moldura === 'losango') {
+    clipPath = 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
+  } else if (moldura === 'hexagono') {
+    clipPath = 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)';
+  }
+
+  const clip = {
+    width: size,
+    height: size,
+    overflow: 'hidden',
+    borderRadius: extraRadius ? 0 : radius,
+    ...(extraRadius || {}),
+    backgroundColor: placa ? placaCor : 'transparent',
+    borderWidth: semBorda || clipPath || !placa ? 0 : 3,
+    borderColor: bordaCor,
+    ...(clipPath ? { clipPath, WebkitClipPath: clipPath } : {}),
+  };
+
+  let shadow = null;
+  if (efeito === 'sombra') {
+    shadow = { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 8 };
+  } else if (efeito === 'brilho') {
+    shadow = { shadowColor: '#fff', shadowOpacity: 0.85, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 10 };
+  } else if (efeito === 'relevo') {
+    shadow = { shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 4, shadowOffset: { width: 2, height: 3 }, elevation: 4 };
+  }
+
+  const imgFilter = efeito === 'pb'
+    ? [{ grayscale: 1 }]
+    : efeito === 'suave'
+      ? [{ opacity: 0.92 }, { brightness: 1.08 }]
+      : undefined;
+
+  return {
+    size,
+    moldura,
+    placa: fundoImg !== 'manter' ? false : placa,
+    efeito,
+    fundoImg,
+    cutBg: fundoImg !== 'manter',
+    radius: extraRadius ? Math.round(size * 0.5) : radius,
+    wrap: { width: size, height: size, ...(shadow || {}) },
+    clip: {
+      ...clip,
+      backgroundColor: (fundoImg !== 'manter' || !placa) ? 'transparent' : (placa ? placaCor : 'transparent'),
+      borderWidth: fundoImg !== 'manter' || semBorda || clipPath || !placa ? 0 : 3,
+    },
+    img: {
+      width: size,
+      height: size,
+      ...(tint ? { tintColor: tint } : {}),
+      ...(efeito === 'pb' ? { filter: 'grayscale(1)' } : {}),
+      ...(efeito === 'suave' ? { filter: 'brightness(1.08)', opacity: 0.94 } : {}),
+    },
+    imgFilter,
+    resizeMode: 'contain',
+  };
 }
 
 export function buildHeroPresentation(config) {
-  const logoPx = getLogoPx(config);
-  const disposicao = config?.heroDisposicao || 'centro';
-  const semMoldura = config?.logoSemMoldura === true;
-  const manual = config?.heroPosicaoManual === true;
-  const isRow = !manual && disposicao === 'lado';
-  const contentAlign = disposicao === 'esquerda'
-    ? 'flex-start'
-    : disposicao === 'direita'
-      ? 'flex-end'
-      : 'center';
+  const landing = config?.layout === 'landing';
+  const logoPx = Math.round(getLogoPx(config) * (landing ? 1.18 : 1));
+  const logoLook = getLogoPresentation(config, logoPx);
+  const disposicao = landing ? 'centro' : (config?.heroDisposicao || 'centro');
+  const semMoldura = logoLook.moldura === 'nenhuma' && !logoLook.placa;
+  const manual = landing ? false : config?.heroPosicaoManual === true;
+  const isRow = !manual && !landing && disposicao === 'lado';
+  const contentAlign = landing
+    ? 'center'
+    : disposicao === 'esquerda'
+      ? 'flex-start'
+      : disposicao === 'direita'
+        ? 'flex-end'
+        : 'center';
 
   return {
+    landing,
     logoPx,
     tituloPx: getTituloPx(config),
     nomePx: getHeroNomePx(config),
     subtituloPx: getHeroSubtituloPx(config),
     sloganPx: getHeroSloganPx(config),
     minHeight: getHeroMinHeight(config),
-    frame: getHeroFrame(config),
-    textAlign: getHeroTextAlign(config),
-    flexAlign: getHeroFlexAlign(config),
+    frame: landing ? getHeroFrame({ ...config, heroMoldura: config?.heroMoldura || 'cheia' }) : getHeroFrame(config),
+    textAlign: landing ? 'center' : getHeroTextAlign(config),
+    flexAlign: landing ? 'center' : getHeroFlexAlign(config),
     disposicao,
     semMoldura,
     manual,
     isRow,
     contentAlign,
     posicoes: getHeroPosicoes(config),
+    logoLook,
     logoStyle: {
       width: logoPx,
       height: logoPx,
-      borderRadius: getLogoBorderRadius(config, logoPx),
-      borderWidth: semMoldura ? 0 : 3,
-      borderColor: '#fff',
+      borderRadius: logoLook.radius,
+      borderWidth: logoLook.moldura === 'nenhuma' ? 0 : 3,
+      borderColor: config?.logoBordaCor || '#fff',
     },
-    logoResizeMode: semMoldura ? 'contain' : 'cover',
+    logoResizeMode: logoLook.resizeMode,
   };
 }
 
@@ -712,9 +845,9 @@ export function isHeroElementVisible(config, id) {
     case 'nome':
       return config?.usaNomeProfissional === true;
     case 'titulo':
-      return config?.mostrarTitulo !== false;
+      return config?.mostrarTitulo === true;
     case 'subtitulo':
-      return config?.mostrarSubtitulo !== false;
+      return config?.mostrarSubtitulo === true;
     case 'slogan':
       return config?.mostrarSlogan === true;
     default:
@@ -757,7 +890,7 @@ export const DEFAULT_CATALOGO_CONFIG = {
   sobreTexto: '',
   nomeLoja: '',
   usaLogo: true,
-  usaNomeProfissional: false,
+  usaNomeProfissional: true,
   usaFotoFundo: false,
   mostrarPrecos: true,
   mostrarPromocao: true,
@@ -769,6 +902,7 @@ export const DEFAULT_CATALOGO_CONFIG = {
   carouselAnim: 'deslize',
   carouselScope: 'destaque',
   carouselSpeed: 'normal',
+  carouselPosicao: 'acima',
   heroMoldura: 'cheia',
   heroSobreposicao: 'nenhuma',
   cardSize: 'medio',
@@ -782,13 +916,22 @@ export const DEFAULT_CATALOGO_CONFIG = {
   logoSemMoldura: false,
   logoTamanho: 'medio',
   logoFormato: 'livre',
+  logoMoldura: 'circular',
+  logoPlaca: true,
+  logoPlacaCor: 'rgba(255,255,255,0.22)',
+  logoBordaCor: '#ffffff',
+  logoEfeito: 'nenhum',
+  logoFundoImg: 'manter',
+  logoCor: '',
+  logoTemTransparencia: false,
   heroDisposicao: 'centro',
   heroAlinhamentoTexto: 'centro',
   tituloTamanho: 'medio',
   heroAltura: 'normal',
-  mostrarTitulo: true,
-  mostrarSubtitulo: true,
-  mostrarSlogan: false,
+  mostrarTitulo: false,
+  mostrarSubtitulo: false,
+  mostrarSlogan: true,
+  mostrarSobre: true,
   heroPosicaoManual: true,
   heroPosicoes: { ...DEFAULT_HERO_POSICOES },
   categoriasProdutos: { enabled: false, items: [] },
@@ -815,7 +958,8 @@ export function mergeCatalogoConfig(raw) {
   if (!['solido', 'gradiente', 'escuro'].includes(base.temaEstilo)) base.temaEstilo = 'solido';
   if (base.rotuloVitrine !== 'loja' && base.rotuloVitrine !== 'catalogo') base.rotuloVitrine = 'catalogo';
   if (!['ambos', 'produtos', 'servicos'].includes(base.tipo)) base.tipo = 'ambos';
-  if (!['vitrine', 'carrossel', 'grid', 'horizontal', 'vertical'].includes(base.layout)) base.layout = 'vitrine';
+  if (!['vitrine', 'carrossel', 'grid', 'horizontal', 'vertical', 'landing'].includes(base.layout)) base.layout = 'vitrine';
+  if (!CAROUSEL_POSICOES.some((m) => m.id === base.carouselPosicao)) base.carouselPosicao = 'acima';
   if (!HERO_MOLDURAS.some((m) => m.id === base.heroMoldura)) base.heroMoldura = 'cheia';
   if (!HERO_SOBREPOSICOES.some((m) => m.id === base.heroSobreposicao)) base.heroSobreposicao = 'nenhuma';
   if (!HERO_ALTURAS.some((m) => m.id === base.heroAltura)) base.heroAltura = 'normal';
@@ -826,6 +970,16 @@ export function mergeCatalogoConfig(raw) {
   if (!CAROUSEL_SPEEDS.some((m) => m.id === base.carouselSpeed)) base.carouselSpeed = 'normal';
   if (base.carouselAtivo == null) base.carouselAtivo = base.layout === 'carrossel';
   else base.carouselAtivo = !!base.carouselAtivo;
+  if (!LOGO_MOLDURAS.some((m) => m.id === raw?.logoMoldura)) {
+    if (raw?.logoSemMoldura || raw?.logoFormato === 'livre') base.logoMoldura = 'nenhuma';
+    else if (raw?.logoFormato === 'quadrado') base.logoMoldura = 'quadrada';
+    else base.logoMoldura = 'circular';
+  }
+  if (raw?.logoPlaca == null) base.logoPlaca = base.logoMoldura !== 'nenhuma' && !raw?.logoSemMoldura;
+  else base.logoPlaca = !!base.logoPlaca;
+  if (!LOGO_EFEITOS.some((m) => m.id === base.logoEfeito)) base.logoEfeito = 'nenhum';
+  if (!LOGO_FUNDO_IMG.some((m) => m.id === base.logoFundoImg)) base.logoFundoImg = 'manter';
+  base.logoSemMoldura = base.logoMoldura === 'nenhuma' && !base.logoPlaca;
   base.logoEscala = scalePercent(base, 'logoEscala', 100);
   base.nomeEscala = scalePercent(base, 'nomeEscala', 100);
   base.tituloEscala = scalePercent(base, 'tituloEscala', 100);
@@ -931,6 +1085,7 @@ export function getLojaDisplayName(config, profile) {
 export function getLojaLogoUri(config, profile, options = {}) {
   const { forEdit = false } = options;
   const original = config?.fotoCatalogo || profile?.fotoLocal || profile?.foto || null;
+  if (config?.logoTemTransparencia) return original;
   if (forEdit && config?.fotoCatalogoPreview) return config.fotoCatalogoPreview;
   return original;
 }

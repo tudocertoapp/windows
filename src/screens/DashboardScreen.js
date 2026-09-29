@@ -26,6 +26,7 @@ import { playTapSound } from '../utils/sounds';
 import { confirmDestructive, onDeletePress } from '../utils/confirm';
 import { openWhatsApp } from '../utils/whatsapp';
 import { formatCurrency } from '../utils/format';
+import { promptConcluirAgenda } from '../utils/agendaFaturamento';
 import { transactionMatchesViewMode } from '../utils/viewModeFilter';
 import { getBoletoDueDateObject, sortBoletosForDisplay, dedupeBoletos } from '../utils/boletoDates';
 import { getQuoteOfDay } from '../utils/quotes';
@@ -1359,12 +1360,12 @@ export function DashboardScreen() {
             onPress={(ev) => {
               ev?.stopPropagation?.();
               playTapSound();
-              const isEmpresaEvent = showEmpresaFeatures && (e.tipo === 'empresa');
-              if (isEmpresaEvent && e.status !== 'concluido') {
-                openAddModal?.('receita', { fromAgendaEvent: e });
-              } else {
-                updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
-              }
+              promptConcluirAgenda(e, {
+                showEmpresaFeatures,
+                isConcluido: e.status === 'concluido',
+                openAddModal,
+                updateAgendaEvent,
+              });
             }}
             style={{ padding: 6 }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1921,8 +1922,12 @@ export function DashboardScreen() {
                                       onPress={(ev) => {
                                         ev?.stopPropagation?.();
                                         playTapSound();
-                                        if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e });
-                                        else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') });
+                                        promptConcluirAgenda(e, {
+                                          showEmpresaFeatures,
+                                          isConcluido: e.status === 'concluido',
+                                          openAddModal,
+                                          updateAgendaEvent,
+                                        });
                                       }}
                                       style={{ padding: 3 }}
                                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -4136,7 +4141,7 @@ export function DashboardScreen() {
                 </View>
                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
                 <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
-                <TouchableOpacity onPress={() => { playTapSound(); const isEmp = showEmpresaFeatures && (e.tipo === 'empresa'); if (isEmp && e.status !== 'concluido') openAddModal?.('receita', { fromAgendaEvent: e }); else updateAgendaEvent(e.id, { status: (e.status === 'concluido' ? 'pendente' : 'concluido') }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); promptConcluirAgenda(e, { showEmpresaFeatures, isConcluido: e.status === 'concluido', openAddModal, updateAgendaEvent }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
                 <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
               </View>
             </GlassCard>

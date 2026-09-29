@@ -13,7 +13,4 @@ CREATE TABLE IF NOT EXISTS public.catalogo_configs (
 ALTER TABLE public.catalogo_configs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users own catalogo config" ON public.catalogo_configs;
-CREATE POLICY "Users own catalogo config" ON public.catalogo_configs
-  FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE ON public.catalogo_configs TO authenticated;

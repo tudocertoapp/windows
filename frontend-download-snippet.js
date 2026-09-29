@@ -34,7 +34,7 @@ function detectOS() {
 
 // 2. Configura a URL de Download final. 
 function getDownloadLink(os) {
-    const version = '1.0.16'; // mantenha alinhado a desktop-version.json ao publicar
+    const version = '1.0.17'; // mantenha alinhado a desktop-version.json ao publicar
     const baseUrl = 'https://github.com/tudocertoapp/windows/releases/download/latest';
 
     switch (os) {

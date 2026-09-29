@@ -25,13 +25,14 @@ function cleanImage(uri) {
   return isLocalImageUri(uri) ? null : uri;
 }
 
-function sanitizeConfig(raw) {
+function sanitizeConfig(raw, previous) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const config = { ...raw };
-  config.fotoCatalogo = cleanImage(config.fotoCatalogo);
-  config.fotoCatalogoPreview = cleanImage(config.fotoCatalogoPreview);
-  config.fotoFundo = cleanImage(config.fotoFundo);
-  if (!Array.isArray(config.itens)) config.itens = [];
+  const prev = previous && typeof previous === 'object' ? previous : {};
+  const config = { ...prev, ...raw };
+  config.fotoCatalogo = cleanImage(config.fotoCatalogo) || cleanImage(prev.fotoCatalogo);
+  config.fotoCatalogoPreview = cleanImage(config.fotoCatalogoPreview) || cleanImage(prev.fotoCatalogoPreview);
+  config.fotoFundo = cleanImage(config.fotoFundo) || cleanImage(prev.fotoFundo);
+  if (!Array.isArray(config.itens)) config.itens = Array.isArray(prev.itens) ? prev.itens : [];
   config.itens = config.itens
     .filter((row) => row && row.id != null && row.tipo)
     .map((row, index) => ({
@@ -66,11 +67,12 @@ module.exports = async function handler(req, res) {
   if (authError || !userId) return res.status(401).json({ error: 'Sessão inválida. Entre novamente.' });
 
   const body = parseBody(req);
-  const config = sanitizeConfig(body?.config);
-  if (!config) return res.status(400).json({ error: 'Configuração do catálogo inválida.' });
+  const incoming = body?.config;
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+    return res.status(400).json({ error: 'Configuração do catálogo inválida.' });
+  }
 
-  const desiredSlug = normalizeLojaSlug(config.slugPublico);
-  config.slugPublico = desiredSlug;
+  const desiredSlug = normalizeLojaSlug(incoming.slugPublico);
   let warning = null;
   let lojaSlug = desiredSlug || null;
 
@@ -91,6 +93,10 @@ module.exports = async function handler(req, res) {
       existing = onlyCfg.data;
     }
   }
+
+  const config = sanitizeConfig(incoming, existing?.config);
+  if (!config) return res.status(400).json({ error: 'Configuração do catálogo inválida.' });
+  config.slugPublico = desiredSlug;
 
   if (desiredSlug) {
     const canPublish = await userCanPublishPublicStore(supabase, userId);
@@ -119,16 +125,27 @@ module.exports = async function handler(req, res) {
     updated_at: now,
     loja_slug: lojaSlug,
   };
-  let { error } = await supabase.from('catalogo_configs').upsert(row, { onConflict: 'user_id' });
+  let savedRow = null;
+  let { data, error } = await supabase
+    .from('catalogo_configs')
+    .upsert(row, { onConflict: 'user_id' })
+    .select('config,updated_at,loja_slug')
+    .maybeSingle();
+  savedRow = data;
   if (error) {
     const fallback = { user_id: userId, config, updated_at: now };
-    const retry = await supabase.from('catalogo_configs').upsert(fallback, { onConflict: 'user_id' });
+    const retry = await supabase
+      .from('catalogo_configs')
+      .upsert(fallback, { onConflict: 'user_id' })
+      .select('config,updated_at')
+      .maybeSingle();
     error = retry.error;
+    savedRow = retry.data;
   }
 
-  if (error) {
-    return res.status(500).json({ error: error.message || 'Não foi possível salvar o catálogo.' });
+  if (error || !savedRow?.config) {
+    return res.status(500).json({ error: error?.message || 'Não foi possível salvar o catálogo.' });
   }
 
-  return res.status(200).json({ ok: true, config, warning });
-};
+  return res.status(200).json({ ok: true, config: savedRow.config, warning });
+}

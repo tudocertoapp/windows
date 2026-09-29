@@ -24,6 +24,7 @@ import { DatePickerInput } from './DatePickerInput';
 import { TimePickerInput } from './TimePickerInput';
 import { MoneyInput } from './MoneyInput';
 import { parseMoney } from '../utils/format';
+import { promptConcluirAgenda } from '../utils/agendaFaturamento';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 
@@ -236,8 +237,12 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
           ? preOrderItems.map((i) => `${i.name} x${i.qty || 1}`).join(', ')
           : (selectedClient && selectedService ? `${selectedClient.name} - ${selectedService.name}` : (selectedClient?.name || selectedService?.name || editingEvent?.description || ''))),
     };
-    openAddModal?.('receita', { fromAgendaEvent });
-    onClose();
+    promptConcluirAgenda(fromAgendaEvent, {
+      showEmpresaFeatures,
+      openAddModal,
+      updateAgendaEvent,
+      onAfterAction: onClose,
+    });
   };
 
   const handleExcluir = () => {

@@ -86,6 +86,27 @@ export function buildLojaPublicUrl(ownerUserId, config) {
   return `${origin}${LOJA_PUBLIC_PATH}?ref=${encodeURIComponent(String(ownerUserId))}`;
 }
 
+/** Vitrine com o código desta sessão (localhost mostra o visual novo). */
+export function buildLojaPreviewUrl(ownerUserId, config) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    const origin = String(window.location.origin).replace(/\/$/, '');
+    const slug = getLojaSlug(config);
+    if (slug) return `${origin}/${encodeURIComponent(slug)}`;
+    if (ownerUserId) return `${origin}${LOJA_PUBLIC_PATH}?ref=${encodeURIComponent(String(ownerUserId))}`;
+    return origin;
+  }
+  return buildLojaPublicUrl(ownerUserId, config);
+}
+
+export function openLojaPreview(ownerUserId, config) {
+  const url = buildLojaPreviewUrl(ownerUserId, config);
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return url;
+  }
+  return url;
+}
+
 export function buildLojaVercelUrl(ownerUserId, config) {
   return buildLojaPublicUrl(ownerUserId, config);
 }
