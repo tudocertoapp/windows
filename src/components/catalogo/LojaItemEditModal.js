@@ -125,6 +125,9 @@ export function LojaItemEditModal({ visible, item, onSave, onClose, userId, savi
                 ) : (
                   <>
                     <Text style={{ fontWeight: '700', color: colors.primary }}>{photoUri ? 'Trocar foto' : 'Adicionar foto'}</Text>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4, fontWeight: '600' }}>
+                      Tamanho ideal: 800 × 1000 px (retrato 4:5). Quadrada 1000 × 1000 px também serve.
+                    </Text>
                     {photoUri ? (
                       <TouchableOpacity onPress={() => { playTapSound(); setPhotoUri(null); }} style={{ marginTop: 6 }}>
                         <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Remover foto</Text>

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { WebView } from 'react-native-webview';
 import { playTapSound } from '../../utils/sounds';
 
@@ -17,7 +18,16 @@ const HEX6 = /^#([0-9a-f]{6})$/i;
 const HEX3 = /^#([0-9a-f]{3})$/i;
 
 export function normalizeHexColor(raw) {
-  const s = String(raw || '').trim();
+  let s = String(raw || '').trim().replace(/['"]/g, '');
+  const rgb = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgb) {
+    const h = [rgb[1], rgb[2], rgb[3]]
+      .map((n) => Math.max(0, Math.min(255, Number(n))).toString(16).padStart(2, '0'))
+      .join('');
+    return `#${h}`;
+  }
+  if (s && !s.startsWith('#')) s = `#${s}`;
+  if (/^#([0-9a-f]{8})$/i.test(s)) s = s.slice(0, 7);
   if (HEX6.test(s)) return s.toLowerCase();
   const m3 = s.match(HEX3);
   if (m3) {
@@ -29,38 +39,115 @@ export function normalizeHexColor(raw) {
 
 function pickerHtml(hex) {
   const v = normalizeHexColor(hex) || '#6366f1';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/></head><body style="margin:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#fff;gap:16px;padding:16px;box-sizing:border-box"><p style="margin:0;font-size:14px;text-align:center">Toque no campo para abrir o seletor de cor do sistema</p><input type="color" id="p" value="${v}" style="width:min(100%,320px);height:120px;border:none;border-radius:12px;cursor:pointer"/><p id="lbl" style="margin:0;font-weight:700;font-size:16px">${v}</p><script>const p=document.getElementById('p');const l=document.getElementById('lbl');function send(){l.textContent=p.value;window.ReactNativeWebView.postMessage(JSON.stringify({type:'color',value:p.value}));}p.oninput=send;p.onchange=send;</script></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/></head><body style="margin:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#fff;gap:12px;padding:12px;box-sizing:border-box"><input type="color" id="p" value="${v}" style="width:min(100%,280px);height:140px;border:none;border-radius:12px;cursor:pointer;padding:0"/><p id="lbl" style="margin:0;font-weight:700;font-size:16px">${v}</p><script>const p=document.getElementById('p');const l=document.getElementById('lbl');function send(){l.textContent=p.value;window.ReactNativeWebView.postMessage(JSON.stringify({type:'color',value:p.value}));}p.oninput=send;p.onchange=send;</script></body></html>`;
 }
 
-function WebColorInput({ value, onChange, accent, size = 44 }) {
-  const ref = useRef(null);
-  const hex = normalizeHexColor(value) || '#6366f1';
+export function CatalogoHexTools({ hex, onChange, colors, compact = false, dark = false }) {
+  const [draft, setDraft] = useState(hex);
+  const [flash, setFlash] = useState('');
+  useEffect(() => { setDraft(hex); }, [hex]);
+
+  const commit = (raw) => {
+    const n = normalizeHexColor(raw);
+    if (n) {
+      setDraft(n);
+      onChange(n);
+    } else {
+      setDraft(hex);
+    }
+  };
+
+  const copy = async () => {
+    playTapSound();
+    try {
+      await Clipboard.setStringAsync(hex);
+      setFlash('Copiado');
+      setTimeout(() => setFlash(''), 1200);
+    } catch (_) {}
+  };
+
+  const paste = async () => {
+    playTapSound();
+    try {
+      const t = await Clipboard.getStringAsync();
+      const n = normalizeHexColor(t);
+      if (n) {
+        setDraft(n);
+        onChange(n);
+        setFlash('Colado');
+        setTimeout(() => setFlash(''), 1200);
+      } else {
+        setFlash('Código inválido');
+        setTimeout(() => setFlash(''), 1400);
+      }
+    } catch (_) {}
+  };
+
+  const ink = dark ? '#e2e8f0' : (colors?.text || '#0f172a');
+  const muted = dark ? '#94a3b8' : (colors?.textSecondary || '#64748b');
+  const border = dark ? 'rgba(255,255,255,0.18)' : (colors?.border || '#e2e8f0');
+  const bg = dark ? 'rgba(15,23,42,0.9)' : (colors?.bg || '#fff');
+
   return (
-    <>
+    <View style={[st.hexRow, compact && st.hexRowCompact]}>
+      <TextInput
+        style={[st.hexInput, compact && st.hexInputCompact, { color: ink, borderColor: border, backgroundColor: bg }]}
+        value={draft}
+        onChangeText={(t) => {
+          setDraft(t);
+          const n = normalizeHexColor(t);
+          if (n) onChange(n);
+        }}
+        onBlur={() => commit(draft)}
+        onSubmitEditing={() => commit(draft)}
+        placeholder="#000000"
+        placeholderTextColor={muted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={9}
+        selectTextOnFocus
+      />
+      <TouchableOpacity onPress={copy} style={[st.hexBtn, compact && st.hexBtnCompact, { borderColor: border }]} hitSlop={6}>
+        <Ionicons name="copy-outline" size={compact ? 13 : 16} color={ink} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={paste} style={[st.hexBtn, compact && st.hexBtnCompact, { borderColor: border }]} hitSlop={6}>
+        <Ionicons name="clipboard-outline" size={compact ? 13 : 16} color={ink} />
+      </TouchableOpacity>
+      {flash ? <Text style={[st.flash, { color: muted }]} numberOfLines={1}>{flash}</Text> : null}
+    </View>
+  );
+}
+
+function WebSwatch({ hex, onChange, style, children, onOpen }) {
+  const ref = useRef(null);
+  return (
+    <View style={[st.swatchHit, style]}>
       <input
         ref={ref}
         type="color"
         value={hex}
-        onChange={(e) => onChange(normalizeHexColor(e.target.value))}
+        onChange={(e) => {
+          const n = normalizeHexColor(e.target.value);
+          if (n) onChange(n);
+        }}
+        onClick={() => { playTapSound(); onOpen?.(); }}
+        title="Escolher cor"
         style={{
           position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
           opacity: 0,
-          width: 1,
-          height: 1,
-          pointerEvents: 'none',
+          cursor: 'pointer',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          zIndex: 2,
         }}
       />
-      <TouchableOpacity
-        onPress={() => {
-          playTapSound();
-          ref.current?.click?.();
-        }}
-        activeOpacity={0.85}
-        style={[st.brushBtn, { backgroundColor: accent || '#6366f1', width: size, height: size }]}
-      >
-        <Ionicons name="brush" size={size < 40 ? 16 : 20} color="#fff" />
-      </TouchableOpacity>
-    </>
+      <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: hex, borderRadius: style?.borderRadius ?? 10 }]} />
+      {children}
+    </View>
   );
 }
 
@@ -73,12 +160,19 @@ export function CatalogoColorBrush({
   compact = false,
   inline = false,
   toolbar = false,
+  slot = false,
+  selected = false,
+  onRemove,
+  onActivate,
   caption,
+  buttonStyle,
+  wrapStyle,
+  captionColor,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(false);
   const [draftHex, setDraftHex] = useState(normalizeHexColor(value) || '#6366f1');
   const hex = normalizeHexColor(value) || '#6366f1';
-  const toolbarInputRef = useRef(null);
 
   const commitHex = useCallback((next) => {
     const n = normalizeHexColor(next);
@@ -91,12 +185,12 @@ export function CatalogoColorBrush({
     setModalOpen(true);
   };
 
-  const modal = (
+  const nativeModal = Platform.OS === 'web' ? null : (
     <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
       <Pressable style={st.modalBg} onPress={() => setModalOpen(false)}>
-        <Pressable style={[st.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
-          <Text style={[st.modalTitle, { color: colors.text }]}>Seletor de cor</Text>
-          <View style={{ height: 220, borderRadius: 12, overflow: 'hidden', marginBottom: 12 }}>
+        <Pressable style={[st.modalSheet, { backgroundColor: colors?.card || '#0f172a', borderColor: colors?.border || '#334155' }]} onPress={(e) => e.stopPropagation()}>
+          <Text style={[st.modalTitle, { color: colors?.text || '#fff' }]}>Cor</Text>
+          <View style={{ height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 12 }}>
             <WebView
               originWhitelist={['*']}
               source={{ html: pickerHtml(draftHex) }}
@@ -115,8 +209,9 @@ export function CatalogoColorBrush({
               style={{ flex: 1, backgroundColor: '#0f172a' }}
             />
           </View>
+          <CatalogoHexTools hex={draftHex} onChange={(n) => { setDraftHex(n); commitHex(n); }} colors={colors} />
           <TouchableOpacity
-            style={[st.modalOk, { backgroundColor: accent }]}
+            style={[st.modalOk, { backgroundColor: accent || '#64748b' }]}
             onPress={() => { playTapSound(); setModalOpen(false); }}
           >
             <Text style={st.modalOkText}>Pronto</Text>
@@ -126,145 +221,169 @@ export function CatalogoColorBrush({
     </Modal>
   );
 
-  if (toolbar) {
+  const openIfNative = () => {
+    onActivate?.();
+    if (Platform.OS !== 'web') openNativePicker();
+  };
+
+  if (slot) {
     return (
-      <View style={{ position: 'relative', alignItems: 'center', minWidth: caption ? 52 : undefined }}>
+      <View style={[{ position: 'relative' }, wrapStyle]}>
         {Platform.OS === 'web' ? (
-          <input
-            ref={toolbarInputRef}
-            type="color"
-            value={hex}
-            onChange={(e) => commitHex(normalizeHexColor(e.target.value))}
-            style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
+          <WebSwatch
+            hex={hex}
+            onChange={commitHex}
+            style={[st.slot, { borderColor: selected ? (colors?.text || '#fff') : 'transparent' }]}
+            onOpen={() => onActivate?.()}
           />
+        ) : (
+          <TouchableOpacity
+            onPress={() => { onActivate?.(); openNativePicker(); }}
+            activeOpacity={0.85}
+            style={[st.slot, { backgroundColor: hex, borderColor: selected ? (colors?.text || '#fff') : 'transparent' }]}
+          />
+        )}
+        {onRemove ? (
+          <TouchableOpacity style={st.slotRemove} onPress={() => { playTapSound(); onRemove(); }} hitSlop={6}>
+            <Ionicons name="close" size={12} color="#fff" />
+          </TouchableOpacity>
         ) : null}
-        <TouchableOpacity
-          onPress={() => {
-            playTapSound();
-            if (Platform.OS === 'web') toolbarInputRef.current?.click?.();
-            else openNativePicker();
-          }}
-          style={st.toolbarBtn}
-          activeOpacity={0.85}
-        >
-          <View style={[st.toolbarSwatch, { backgroundColor: hex }]} />
-          <Ionicons name="brush" size={14} color="#fff" />
-        </TouchableOpacity>
-        {caption ? <Text style={st.toolbarCaption}>{caption}</Text> : null}
-        {modal}
+        {nativeModal}
       </View>
     );
   }
 
-  const brush = Platform.OS === 'web' ? (
-    <WebColorInput value={hex} onChange={commitHex} accent={accent} size={inline ? 36 : 44} />
+  if (toolbar) {
+    return (
+      <View style={[{ position: 'relative', alignItems: 'center' }, wrapStyle]}>
+        <View style={[st.toolbarBtn, { width: '100%' }, buttonStyle]}>
+          {Platform.OS === 'web' ? (
+            <WebSwatch hex={hex} onChange={commitHex} onOpen={() => setCodeOpen(true)} style={st.toolbarSwatch} />
+          ) : (
+            <TouchableOpacity onPress={openNativePicker} style={[st.toolbarSwatch, { backgroundColor: hex }]} />
+          )}
+          {caption ? (
+            <Text style={[st.toolbarCaption, captionColor ? { color: captionColor } : null]} numberOfLines={1}>{caption}</Text>
+          ) : null}
+          {codeOpen ? (
+            <CatalogoHexTools hex={hex} onChange={commitHex} colors={colors} compact dark />
+          ) : null}
+        </View>
+        {nativeModal}
+      </View>
+    );
+  }
+
+  const swatchEl = Platform.OS === 'web' ? (
+    <WebSwatch
+      hex={hex}
+      onChange={commitHex}
+      style={[inline ? st.swatchInline : st.swatchBig, { borderColor: colors?.border }]}
+      onOpen={openIfNative}
+    />
   ) : (
     <TouchableOpacity
       onPress={openNativePicker}
       activeOpacity={0.85}
-      style={[st.brushBtn, { backgroundColor: accent }, inline && st.brushBtnInline]}
-    >
-      <Ionicons name="brush" size={inline ? 16 : 20} color="#fff" />
-    </TouchableOpacity>
+      style={[inline ? st.swatchInline : st.swatchBig, { backgroundColor: hex, borderColor: colors?.border }]}
+    />
   );
 
   return (
     <View style={inline ? st.wrapInline : (compact ? st.wrapCompact : st.wrap)}>
-      {label && !inline ? <Text style={[st.label, { color: colors.textSecondary }]}>{label}</Text> : null}
-      <View style={[
-        inline ? st.rowInline : st.row,
-        { borderColor: colors.border, backgroundColor: colors.bg },
-      ]}>
-        <View style={[inline ? st.swatchInline : st.swatch, { backgroundColor: hex, borderColor: colors.border }]} />
-        {brush}
-        {inline ? null : (
-          <>
-            <TextInput
-              style={[st.hexInput, { color: colors.text, borderColor: colors.border }]}
-              value={hex}
-              onChangeText={(t) => commitHex(t)}
-              placeholder="#000000"
-              placeholderTextColor={colors.textSecondary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={7}
-            />
-            <Text style={[st.hint, { color: colors.textSecondary }]}>HEX</Text>
-          </>
-        )}
+      {label && !inline ? <Text style={[st.label, { color: colors?.textSecondary }]}>{label}</Text> : null}
+      <View style={st.pickCol}>
+        {swatchEl}
+        <CatalogoHexTools hex={hex} onChange={commitHex} colors={colors} compact={compact || inline} />
       </View>
-      {!compact && !inline ? (
-        <Text style={[st.subHint, { color: colors.textSecondary }]}>
-          Use o pincel para escolher qualquer cor — não há paleta fixa.
-        </Text>
-      ) : null}
-      {modal}
+      {nativeModal}
     </View>
   );
 }
 
 const st = StyleSheet.create({
   wrap: { marginTop: 8 },
-  wrapCompact: { marginTop: 0 },
+  wrapCompact: { marginTop: 4 },
   wrapInline: { marginTop: 0, flexShrink: 0 },
-  toolbarBtn: {
-    minWidth: 40,
-    height: 36,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  toolbarSwatch: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
-  toolbarCaption: { marginTop: 2, fontSize: 9, fontWeight: '700', color: '#94a3b8' },
-  rowInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  swatchInline: { width: 28, height: 28, borderRadius: 8, borderWidth: 1 },
-  brushBtnInline: { width: 36, height: 36, borderRadius: 10 },
-  label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  swatch: { width: 40, height: 40, borderRadius: 10, borderWidth: 1 },
-  brushBtn: {
-    width: 44,
+  pickCol: { gap: 8 },
+  swatchHit: { position: 'relative', overflow: 'hidden' },
+  swatchBig: {
+    width: '100%',
     height: 44,
-    borderRadius: 12,
-    backgroundColor: '#6366f1',
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  swatchInline: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
+  toolbarBtn: {
+    minWidth: 52,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 0,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
+  toolbarSwatch: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    overflow: 'hidden',
+  },
+  toolbarCaption: { fontSize: 9, fontWeight: '800', letterSpacing: 0.1, color: '#fff', textAlign: 'center', maxWidth: 88 },
+  label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
+  hexRow: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%', flexWrap: 'wrap' },
+  hexRowCompact: { gap: 4 },
   hexInput: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 84,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  hint: { fontSize: 11, fontWeight: '700' },
-  subHint: { fontSize: 11, marginTop: 6, lineHeight: 16 },
+  hexInputCompact: {
+    minWidth: 72,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    fontSize: 11,
+    borderRadius: 7,
+  },
+  hexBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hexBtnCompact: { width: 26, height: 26, borderRadius: 7 },
+  flash: { fontSize: 10, fontWeight: '700' },
+  slot: { width: 42, height: 42, borderRadius: 12, borderWidth: 3, overflow: 'hidden' },
+  slotRemove: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    zIndex: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderWidth: 1 },
   modalTitle: { fontSize: 17, fontWeight: '800', marginBottom: 12 },
-  modalOk: { paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  modalOk: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 12 },
   modalOkText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

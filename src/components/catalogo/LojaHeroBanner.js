@@ -9,16 +9,25 @@ import {
   Platform,
   TextInput,
   Pressable,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { isHeroElementVisible, getCatalogoTheme, getCatalogoRotulos, getCatalogoFontColors, HERO_ELEMENTOS, HERO_SCALE_KEYS, clampHeroScale, nudgeHeroItems, alignHeroItems, DEFAULT_HERO_POSICOES } from '../../utils/catalogoStore';
+import { CatalogoGradientFill } from '../../utils/catalogoGradient';
+import { CatalogoGradientControls } from './CatalogoGradientControls';
+import { CatalogoGradientStops } from './CatalogoGradientStops';
+import { isHeroElementVisible, getCatalogoTheme, getCatalogoRotulos, getCatalogoFontColors, clampHeroScale, nudgeHeroItems, alignHeroItems, DEFAULT_HERO_POSICOES, getHeroSafePadPercent, clampHeroPosToSafe, getHeroTextos, addHeroTexto, patchHeroTexto, removeHeroTexto, getHeroItemScale, getHeroExtraPx, isHeroExtraTextId, listHeroElementIds, HERO_EXTRA_TEXT_MAX } from '../../utils/catalogoStore';
 import {
   HERO_COLOR_KEYS,
   HERO_FONT_KEYS,
+  FONTE_FILL_OPTS,
+  FX_DIR_IDS,
   getHeroFontFamily,
-  getCatalogoFonte,
-  ensureCatalogoGoogleFonts,
+  getHeroTextFxLayers,
+  getHeroObjectFx,
+  normalizeFonteEstilo,
+  normalizeFonteEstilos,
+  ensureCatalogoFonts,
 } from '../../utils/catalogoFonts';
 import { playTapSound } from '../../utils/sounds';
 import { CatalogoColorBrush } from './CatalogoColorBrush';
@@ -48,7 +57,14 @@ function publishHeroDock(node) {
   heroDockListeners.forEach((fn) => fn());
 }
 
-export function HeroDockHost({ style }) {
+const heroFxListeners = new Set();
+let heroFxNode = null;
+function publishHeroFx(node) {
+  heroFxNode = node;
+  heroFxListeners.forEach((fn) => fn());
+}
+
+export function HeroDockHost({ style, vertical = false }) {
   const [, bump] = useState(0);
   useEffect(() => {
     const fn = () => bump((n) => n + 1);
@@ -60,9 +76,29 @@ export function HeroDockHost({ style }) {
     <View
       collapsable={false}
       dataSet={{ heroKeep: '1' }}
-      style={[{ minHeight: 46 }, style]}
+      style={[vertical ? { width: 44, flex: 1, flexShrink: 0 } : { minHeight: 46 }, style]}
     >
       {heroDockNode}
+    </View>
+  );
+}
+
+export function HeroFxFloatHost() {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const fn = () => bump((n) => n + 1);
+    heroFxListeners.add(fn);
+    fn();
+    return () => heroFxListeners.delete(fn);
+  }, []);
+  return (
+    <View
+      pointerEvents="box-none"
+      collapsable={false}
+      dataSet={{ heroKeep: '1' }}
+      style={st.fxFloatHost}
+    >
+      {heroFxNode}
     </View>
   );
 }
@@ -72,6 +108,8 @@ function EditableHeroText({
   value,
   placeholder,
   style,
+  backStyle,
+  reflectStyle,
   numberOfLines = 2,
   canEdit,
   editing,
@@ -134,18 +172,40 @@ function EditableHeroText({
     );
   }
 
+  const shown = value || placeholder;
+
   return (
     <Pressable
       onPress={onPress}
       style={canEdit ? st.heroTextHit : undefined}
     >
-      <Text
-        style={[style, canEdit && st.heroTextMove]}
-        numberOfLines={numberOfLines}
-        onDoubleClick={canEdit ? (ev) => { ev?.stopPropagation?.(); startEdit(); } : undefined}
-      >
-        {value || placeholder}
-      </Text>
+      <View style={st.heroTextStack}>
+        {backStyle ? (
+          <Text
+            pointerEvents="none"
+            style={[style, backStyle, st.heroTextFxBack]}
+            numberOfLines={numberOfLines}
+          >
+            {shown}
+          </Text>
+        ) : null}
+        {reflectStyle ? (
+          <Text
+            pointerEvents="none"
+            style={[style, reflectStyle, st.heroTextFxReflect]}
+            numberOfLines={numberOfLines}
+          >
+            {shown}
+          </Text>
+        ) : null}
+        <Text
+          style={[style, canEdit && st.heroTextMove, st.heroTextFxFront]}
+          numberOfLines={numberOfLines}
+          onDoubleClick={canEdit ? (ev) => { ev?.stopPropagation?.(); startEdit(); } : undefined}
+        >
+          {shown}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -227,9 +287,9 @@ function ResizeHandle({ scale, onScale, onDragStart, onDragEnd }) {
     <View
       {...pan.panHandlers}
       style={st.resizeHandle}
-      accessibilityLabel="Redimensionar"
+      accessibilityLabel="Arraste para aumentar ou diminuir"
     >
-      <View style={st.resizeGrip} />
+      <Ionicons name="resize-outline" size={13} color="#fff" style={{ transform: [{ scaleX: -1 }] }} />
     </View>
   );
 }
@@ -243,6 +303,7 @@ function DraggableHeroItem({
   resizable,
   selected,
   scale = 100,
+  safePad,
   onSelect,
   onMove,
   onScale,
@@ -258,6 +319,8 @@ function DraggableHeroItem({
   const [dragPx, setDragPx] = useState(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
+  const safeRef = useRef(safePad);
+  safeRef.current = safePad;
   posRef.current = pos;
   boxRef.current = { w: containerW, h: containerH };
   cb.current = { editable, onMove, onDragStart, onDragEnd, onSelect, id };
@@ -281,16 +344,16 @@ function DraggableHeroItem({
     onPanResponderMove: (_, g) => setDragPx({ dx: g.dx, dy: g.dy }),
     onPanResponderRelease: (_, g) => {
       const box = boxRef.current;
+      const safe = safeRef.current || { x: 4, y: 4 };
       const x = dragOrigin.current.x + g.dx;
       const y = dragOrigin.current.y + g.dy;
       let nx = box.w ? (x / box.w) * 100 : 50;
       let ny = box.h ? (y / box.h) * 100 : 50;
       if (Math.abs(nx - 50) < 3) nx = 50;
       if (Math.abs(ny - 50) < 3) ny = 50;
-      nx = Math.min(96, Math.max(4, nx));
-      ny = Math.min(96, Math.max(4, ny));
+      const clamped = clampHeroPosToSafe({ x: nx, y: ny }, safe);
       setDragPx(null);
-      cb.current.onMove?.(cb.current.id, { x: Math.round(nx * 10) / 10, y: Math.round(ny * 10) / 10 });
+      cb.current.onMove?.(cb.current.id, { x: Math.round(clamped.x * 10) / 10, y: Math.round(clamped.y * 10) / 10 });
       cb.current.onDragEnd?.();
     },
     onPanResponderTerminate: () => {
@@ -301,8 +364,13 @@ function DraggableHeroItem({
 
   if (!containerW || !containerH) return null;
 
-  const centerX = dragPx ? dragOrigin.current.x + dragPx.dx : (pos.x / 100) * containerW;
-  const centerY = dragPx ? dragOrigin.current.y + dragPx.dy : (pos.y / 100) * containerH;
+  const minPxX = ((safePad?.x ?? 4) / 100) * containerW;
+  const minTop = ((safePad?.top ?? safePad?.y ?? 4) / 100) * containerH;
+  const minBottom = ((safePad?.bottom ?? safePad?.y ?? 4) / 100) * containerH;
+  const rawX = dragPx ? dragOrigin.current.x + dragPx.dx : (pos.x / 100) * containerW;
+  const rawY = dragPx ? dragOrigin.current.y + dragPx.dy : (pos.y / 100) * containerH;
+  const centerX = Math.min(containerW - minPxX, Math.max(minPxX, rawX));
+  const centerY = Math.min(containerH - minBottom, Math.max(minTop, rawY));
   const left = centerX - size.w / 2;
   const top = centerY - size.h / 2;
 
@@ -323,7 +391,7 @@ function DraggableHeroItem({
       }}
       style={[
         st.absItem,
-        { left, top, zIndex: selected || dragPx ? 20 : 3, cursor: editable ? (dragPx ? 'grabbing' : 'move') : undefined },
+        { left, top, zIndex: selected || dragPx ? 40 : 3, cursor: editable ? (dragPx ? 'grabbing' : 'move') : undefined },
       ]}
     >
       {selected ? <View pointerEvents="none" style={st.selectRing} /> : null}
@@ -354,6 +422,7 @@ function DockBtn({ icon, label, onPress, ink, icoBg, active, danger }) {
       onPress={() => { playTapSound(); onPress?.(); }}
       style={[st.dockBtn, { backgroundColor: active ? '#2563eb' : icoBg }]}
       activeOpacity={0.85}
+      accessibilityLabel={label}
     >
       <Ionicons name={icon} size={14} color={danger ? '#ef4444' : (active ? '#fff' : ink)} />
       {label ? (
@@ -362,6 +431,340 @@ function DockBtn({ icon, label, onPress, ink, icoBg, active, danger }) {
         </Text>
       ) : null}
     </TouchableOpacity>
+  );
+}
+
+const FX_EFFECT_OPTS = [
+  { id: 'sombra', icon: 'contrast-outline', label: 'Sombra' },
+  { id: 'luz', icon: 'sunny-outline', label: 'Luz' },
+  { id: 'neon', icon: 'flash-outline', label: 'Neon' },
+  { id: 'relevo', icon: 'layers-outline', label: 'Relevo' },
+  { id: 'halo', icon: 'radio-button-off-outline', label: 'Halo' },
+  { id: 'brilho', icon: 'star-outline', label: 'Brilho' },
+  { id: 'extrude', icon: 'cube-outline', label: '3D' },
+  { id: 'reflexo', icon: 'copy-outline', label: 'Reflexo' },
+  { id: 'desfoque', icon: 'cloudy-outline', label: 'Desfoque' },
+  { id: 'vidro', icon: 'diamond-outline', label: 'Vidro' },
+];
+
+const FX_DIR_ICONS = {
+  centro: { icon: 'ellipse', rot: '0deg' },
+  cima: { icon: 'arrow-up', rot: '0deg' },
+  baixo: { icon: 'arrow-down', rot: '0deg' },
+  esquerda: { icon: 'arrow-back', rot: '0deg' },
+  direita: { icon: 'arrow-forward', rot: '0deg' },
+  'cima-esq': { icon: 'arrow-up', rot: '-45deg' },
+  'cima-dir': { icon: 'arrow-up', rot: '45deg' },
+  'baixo-esq': { icon: 'arrow-down', rot: '45deg' },
+  'baixo-dir': { icon: 'arrow-down', rot: '-45deg' },
+};
+
+function FxChip({ icon, label, active, onPress, wide }) {
+  return (
+    <TouchableOpacity
+      onPress={() => { playTapSound(); onPress?.(); }}
+      style={[st.fxChip, wide && st.fxChipWide, active && st.fxChipOn]}
+      activeOpacity={0.85}
+    >
+              {icon ? <Ionicons name={icon} size={12} color={active ? '#fff' : '#cbd5e1'} /> : null}
+      {label ? <Text style={[st.fxChipText, active && st.fxChipTextOn]} numberOfLines={1}>{label}</Text> : null}
+    </TouchableOpacity>
+  );
+}
+
+function FxStepper({ label, value, onMinus, onPlus }) {
+  return (
+    <View style={st.fxStepBar}>
+      <Text style={st.fxStepLabel} numberOfLines={1}>{label}</Text>
+      <TouchableOpacity onPress={() => { playTapSound(); onMinus?.(); }} style={st.fxMini} hitSlop={6}>
+        <Ionicons name="remove" size={12} color="#cbd5e1" />
+      </TouchableOpacity>
+      <Text style={st.fxStepVal}>{value}</Text>
+      <TouchableOpacity onPress={() => { playTapSound(); onPlus?.(); }} style={st.fxMini} hitSlop={6}>
+        <Ionicons name="add" size={12} color="#cbd5e1" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+function FxDirPad({ value, onChange }) {
+  return (
+    <View style={st.fxPad}>
+      {FX_DIR_IDS.map((id) => {
+        const meta = FX_DIR_ICONS[id] || FX_DIR_ICONS.centro;
+        const on = value === id;
+        return (
+          <TouchableOpacity
+            key={id}
+            onPress={() => { playTapSound(); onChange?.(id); }}
+            style={[st.fxPadCell, on && st.fxPadCellOn]}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name={meta.icon}
+              size={id === 'centro' ? 8 : 13}
+              color={on ? '#fff' : '#cbd5e1'}
+              style={{ transform: [{ rotate: meta.rot }] }}
+            />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function HeroFxPanel({
+  config,
+  targetIds,
+  primaryId,
+  colors,
+  accent,
+  onFieldChange,
+  onClose,
+}) {
+  const palette = colors || {};
+  const [winSize, setWinSize] = useState(() => Dimensions.get('window'));
+  useEffect(() => {
+    const sub = Dimensions.addEventListener('change', ({ window: next }) => {
+      if (next?.width) setWinSize(next);
+    });
+    return () => sub?.remove?.();
+  }, []);
+  const panelW = Math.min(winSize.width - 16, Math.max(248, Math.round(Math.min(winSize.width * 0.42, 360))));
+  const panelMaxH = Math.max(220, Math.min(Math.round(winSize.height * 0.7), 420));
+  const [pos, setPos] = useState(() => ({
+    x: Math.max(8, winSize.width - panelW - 12),
+    y: 56,
+  }));
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const origin = useRef({ x: 0, y: 0 });
+  const layoutRef = useRef({ w: panelW, winW: winSize.width, winH: winSize.height });
+  layoutRef.current = { w: panelW, winW: winSize.width, winH: winSize.height };
+
+  const pan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => {
+      origin.current = { ...posRef.current };
+    },
+    onPanResponderMove: (_, g) => {
+      const { w, winW, winH } = layoutRef.current;
+      const next = {
+        x: Math.max(8, Math.min(origin.current.x + g.dx, Math.max(8, winW - w - 8))),
+        y: Math.max(8, Math.min(origin.current.y + g.dy, Math.max(8, winH - 80))),
+      };
+      posRef.current = next;
+      setPos(next);
+    },
+  })).current;
+
+  const ids = targetIds?.length ? targetIds : (primaryId ? [primaryId] : []);
+  if (!ids.length) return null;
+  const colorKey = HERO_COLOR_KEYS[primaryId];
+  const extraItem = isHeroExtraTextId(primaryId) ? getHeroTextos(config).find((t) => t.id === primaryId) : null;
+  const isLogo = primaryId === 'logo' && ids.every((id) => id === 'logo');
+  const fillColor = extraItem?.cor || config?.[colorKey] || config?.logoCor || '#ffffff';
+  const fx = normalizeFonteEstilos(config)[primaryId] || normalizeFonteEstilo(null, fillColor);
+  const accentColor = accent || '#64748b';
+  const textIds = ids.filter((id) => id !== 'logo');
+
+  const applyColor = (c) => {
+    const estilos = { ...normalizeFonteEstilos(config) };
+    let textos = getHeroTextos(config);
+    let extraDirty = false;
+    textIds.forEach((id) => {
+      const key = HERO_COLOR_KEYS[id];
+      if (key) onFieldChange?.(key, c);
+      else if (isHeroExtraTextId(id)) {
+        textos = textos.map((t) => (t.id === id ? { ...t, cor: c } : t));
+        extraDirty = true;
+      }
+      const cur = estilos[id] || normalizeFonteEstilo(null, c);
+      estilos[id] = { ...cur, cores: [c, cur.cores?.[1] || '#60a5fa'] };
+    });
+    if (extraDirty) onFieldChange?.('heroTextos', textos);
+    onFieldChange?.('fonteEstilos', estilos);
+  };
+
+  const applyFx = (patch) => {
+    const estilos = { ...normalizeFonteEstilos(config) };
+    ids.forEach((id) => {
+      const extra = isHeroExtraTextId(id) ? getHeroTextos(config).find((t) => t.id === id) : null;
+      const solid = extra?.cor || (id === 'logo' ? (config?.logoCor || '#ffffff') : (config?.[HERO_COLOR_KEYS[id]] || '#ffffff'));
+      estilos[id] = { ...normalizeFonteEstilo(estilos[id], solid), ...patch };
+    });
+    onFieldChange?.('fonteEstilos', estilos);
+  };
+
+  return (
+    <View
+      style={[st.fxPanel, { left: pos.x, top: pos.y, width: panelW, right: undefined }]}
+      dataSet={{ heroKeep: '1' }}
+    >
+      <View {...pan.panHandlers} style={st.fxDragBar}>
+        <View style={st.fxGrip}>
+          <View style={st.fxGripDot} />
+          <View style={st.fxGripDot} />
+          <View style={st.fxGripDot} />
+        </View>
+        <Text style={st.fxDragText}>ESTÚDIO · EFEITOS</Text>
+        <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }} hitSlop={8} style={st.fxCloseBtn}>
+          <Ionicons name="close" size={14} color="#cbd5e1" />
+        </TouchableOpacity>
+      </View>
+      <ScrollView style={[st.fxPanelScroll, { maxHeight: panelMaxH }]} contentContainerStyle={st.fxPanelBody} nestedScrollEnabled>
+        {!isLogo ? (
+          <>
+            <Text style={st.fxSecTitle}>Preenchimento</Text>
+            <View style={st.fxGrid}>
+              {FONTE_FILL_OPTS.map((opt) => (
+                <FxChip
+                  key={opt.id}
+                  icon={opt.icon}
+                  label={opt.label}
+                  active={fx.fill === opt.id}
+                  onPress={() => applyFx({ fill: opt.id, contorno: opt.id === 'vazado' ? true : fx.contorno })}
+                />
+              ))}
+            </View>
+            <View style={st.fxGrid}>
+              {fx.fill !== 'gradiente' ? (
+                <CatalogoColorBrush
+                  toolbar
+                  caption="Cor"
+                  value={fillColor}
+                  onChange={applyColor}
+                  colors={palette}
+                  accent={accentColor}
+                  wrapStyle={st.fxGrow}
+                  buttonStyle={st.fxChipFill}
+                  captionColor="#e2e8f0"
+                />
+              ) : null}
+            </View>
+            {fx.fill === 'gradiente' ? (
+              <>
+                <CatalogoGradientStops
+                  compact
+                  dark
+                  stops={fx.stops}
+                  cores={fx.cores}
+                  look={{ forma: fx.forma, angulo: fx.angulo, inverter: false }}
+                  onChange={(stops) => applyFx({ stops, cores: stops.map((s) => s.cor) })}
+                  colors={{ text: '#fff', textSecondary: '#94a3b8', border: 'rgba(255,255,255,0.14)', bg: 'rgba(15,23,42,0.8)' }}
+                  accent={accentColor}
+                />
+                <CatalogoGradientControls
+                  compact
+                  look={{ forma: fx.forma, angulo: fx.angulo, inverter: fx.inverter }}
+                  onChange={(look) => applyFx(look)}
+                  colors={{ text: '#fff', textSecondary: '#94a3b8', border: 'rgba(255,255,255,0.14)' }}
+                  accent={accentColor}
+                />
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        <Text style={st.fxSecTitle}>Efeitos</Text>
+        <View style={st.fxGrid}>
+          {!isLogo ? (
+            <FxChip
+              icon="ellipse-outline"
+              label="Contorno"
+              active={!!fx.contorno || fx.fill === 'vazado'}
+              onPress={() => {
+                if (fx.fill === 'vazado') applyFx({ fill: 'solido', contorno: false });
+                else applyFx({ contorno: !fx.contorno });
+              }}
+            />
+          ) : null}
+          {FX_EFFECT_OPTS.map((opt) => (
+            <FxChip
+              key={opt.id}
+              icon={opt.icon}
+              label={opt.label}
+              active={!!fx[opt.id]}
+              onPress={() => applyFx({ [opt.id]: !fx[opt.id] })}
+            />
+          ))}
+          <CatalogoColorBrush
+            toolbar
+            caption="FX"
+            value={fx.fxCor || '#ffffff'}
+            onChange={(c) => applyFx({ fxCor: c })}
+            colors={palette}
+            accent={accentColor}
+            wrapStyle={st.fxGrow}
+            buttonStyle={st.fxChipFill}
+            captionColor="#e2e8f0"
+          />
+        </View>
+        {fx.sombra ? (
+          <View style={st.fxGrid}>
+            <CatalogoColorBrush
+              toolbar
+              caption="Sombra"
+              value={fx.sombraCor || '#000000'}
+              onChange={(c) => applyFx({ sombraCor: c, sombra: true })}
+              colors={palette}
+              accent={accentColor}
+              wrapStyle={st.fxGrow}
+              buttonStyle={st.fxChipFill}
+              captionColor="#e2e8f0"
+            />
+          </View>
+        ) : null}
+        {!isLogo && (fx.contorno || fx.fill === 'vazado') ? (
+          <View style={st.fxGrid}>
+            <CatalogoColorBrush
+              toolbar
+              caption="Linha"
+              value={fx.stroke || '#ffffff'}
+              onChange={(c) => applyFx({ stroke: c, contorno: true })}
+              colors={palette}
+              accent={accentColor}
+              wrapStyle={st.fxGrow}
+              buttonStyle={st.fxChipFill}
+              captionColor="#e2e8f0"
+            />
+            <FxStepper
+              label="Espessura"
+              value={fx.strokeW || 2}
+              onMinus={() => applyFx({ strokeW: Math.max(1, (fx.strokeW || 2) - 1), contorno: true })}
+              onPlus={() => applyFx({ strokeW: Math.min(8, (fx.strokeW || 2) + 1), contorno: true })}
+            />
+          </View>
+        ) : null}
+
+        <View style={st.fxDual}>
+          <FxStepper
+            label="Intensidade"
+            value={fx.intensidade || 5}
+            onMinus={() => applyFx({ intensidade: Math.max(1, (fx.intensidade || 5) - 1) })}
+            onPlus={() => applyFx({ intensidade: Math.min(10, (fx.intensidade || 5) + 1) })}
+          />
+          <FxStepper
+            label="Tamanho"
+            value={fx.fxTamanho || 5}
+            onMinus={() => applyFx({ fxTamanho: Math.max(1, (fx.fxTamanho || 5) - 1) })}
+            onPlus={() => applyFx({ fxTamanho: Math.min(10, (fx.fxTamanho || 5) + 1) })}
+          />
+        </View>
+
+        <View style={st.fxDual}>
+          <View style={st.fxDualCol}>
+            <Text style={st.fxSecTitle}>Direção</Text>
+            <FxDirPad value={fx.fxDir || 'centro'} onChange={(id) => applyFx({ fxDir: id })} />
+          </View>
+          <View style={st.fxDualCol}>
+            <Text style={st.fxSecTitle}>Posição</Text>
+            <FxDirPad value={fx.fxPos || 'centro'} onChange={(id) => applyFx({ fxPos: id })} />
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -379,6 +782,9 @@ export function HeroMoveDock({
   onFieldChange,
   onOpenFonts,
   onPickLogo,
+  onOpenFx,
+  fxPanelOpen,
+  onAddTexto,
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const themeColors = useTheme()?.colors;
@@ -389,22 +795,39 @@ export function HeroMoveDock({
   const isLogoOnly = textIds.length === 0;
   const colorKey = HERO_COLOR_KEYS[primaryId];
   const canRemove = !!primaryId;
+  const canAddTexto = getHeroTextos(config).length < HERO_EXTRA_TEXT_MAX;
   const extras = [
+    { id: 'texto', label: 'Texto', kind: 'texto' },
     { id: 'nome', label: 'Nome', on: config?.usaNomeProfissional === true, key: 'usaNomeProfissional' },
     { id: 'slogan', label: 'Slogan', on: config?.mostrarSlogan === true, key: 'mostrarSlogan' },
-    { id: 'titulo', label: 'Título', on: config?.mostrarTitulo === true, key: 'mostrarTitulo' },
-    { id: 'subtitulo', label: 'Subtítulo', on: config?.mostrarSubtitulo === true, key: 'mostrarSubtitulo' },
     { id: 'logo', label: 'Logo', on: config?.usaLogo !== false, key: 'usaLogo' },
-  ].filter((x) => !x.on);
+  ].filter((x) => (x.kind === 'texto' ? canAddTexto : !x.on));
 
   const applyColor = (c) => {
+    const estilos = { ...normalizeFonteEstilos(config) };
+    let textos = getHeroTextos(config);
+    let extraDirty = false;
     textIds.forEach((id) => {
       const key = HERO_COLOR_KEYS[id];
       if (key) onFieldChange?.(key, c);
+      else if (isHeroExtraTextId(id)) {
+        textos = textos.map((t) => (t.id === id ? { ...t, cor: c } : t));
+        extraDirty = true;
+      }
+      const cur = estilos[id] || normalizeFonteEstilo(null, c);
+      estilos[id] = { ...cur, cores: [c, cur.cores?.[1] || '#60a5fa'] };
     });
+    if (extraDirty) onFieldChange?.('heroTextos', textos);
+    onFieldChange?.('fonteEstilos', estilos);
   };
 
+  const extraPrimary = isHeroExtraTextId(primaryId) ? getHeroTextos(config).find((t) => t.id === primaryId) : null;
+
   const hideSelected = () => {
+    if (isHeroExtraTextId(primaryId)) {
+      onFieldChange?.('heroTextos', removeHeroTexto(config, primaryId));
+      return;
+    }
     if (primaryId === 'subtitulo') onFieldChange?.('mostrarSubtitulo', false);
     if (primaryId === 'titulo') onFieldChange?.('mostrarTitulo', false);
     if (primaryId === 'nome') onFieldChange?.('usaNomeProfissional', false);
@@ -435,14 +858,16 @@ export function HeroMoveDock({
             onPress={onPickLogo}
           />
         ) : null}
-        {!isLogoOnly && colorKey ? (
+        {!isLogoOnly ? (
           <CatalogoColorBrush
             toolbar
             caption="Cor"
-            value={config?.[colorKey] || '#ffffff'}
+            value={extraPrimary?.cor || config?.[colorKey] || '#ffffff'}
             onChange={applyColor}
             colors={palette}
             accent={accent || palette.primary || '#2563eb'}
+            buttonStyle={{ backgroundColor: icoBg }}
+            captionColor={ink}
           />
         ) : null}
         {isLogoOnly && primaryId === 'logo' ? (
@@ -453,6 +878,8 @@ export function HeroMoveDock({
             onChange={(c) => onFieldChange?.('logoCor', c)}
             colors={palette}
             accent={accent || palette.primary || '#2563eb'}
+            buttonStyle={{ backgroundColor: icoBg }}
+            captionColor={ink}
           />
         ) : null}
         {isLogoOnly && primaryId === 'logo' ? (
@@ -506,6 +933,16 @@ export function HeroMoveDock({
         {!isLogoOnly ? (
           <DockBtn icon="text" label="Fonte" ink={ink} icoBg={icoBg} onPress={() => onOpenFonts?.()} />
         ) : null}
+        {primaryId ? (
+          <DockBtn
+            icon="color-wand-outline"
+            label="Efeitos"
+            ink={ink}
+            icoBg={icoBg}
+            active={!!fxPanelOpen}
+            onPress={() => onOpenFx?.()}
+          />
+        ) : null}
         <View style={[st.dockSep, { backgroundColor: palette.border || 'rgba(148,163,184,0.35)' }]} />
         <DockBtn icon="chevron-up" label="Cima" ink={ink} icoBg={icoBg} onPress={() => onNudge?.(0, -4)} />
         <DockBtn icon="chevron-back" label="Esq." ink={ink} icoBg={icoBg} onPress={() => onNudge?.(-4, 0)} />
@@ -515,7 +952,7 @@ export function HeroMoveDock({
         <DockBtn icon="add" label="Maior" ink={ink} icoBg={icoBg} onPress={() => onScaleDelta?.(8)} />
         <View style={[st.dockSep, { backgroundColor: palette.border || 'rgba(148,163,184,0.35)' }]} />
         {extras.length ? (
-          <DockBtn icon="add-circle-outline" label="Incluir" ink={ink} icoBg={icoBg} onPress={() => setAddOpen((v) => !v)} />
+          <DockBtn icon="add-circle-outline" label="Adicionar" ink={ink} icoBg={icoBg} onPress={() => setAddOpen((v) => !v)} />
         ) : null}
         {canRemove ? (
           <DockBtn icon="trash-outline" label="Ocultar" ink={ink} icoBg={icoBg} danger onPress={hideSelected} />
@@ -530,7 +967,11 @@ export function HeroMoveDock({
               style={[st.dockAddChip, { backgroundColor: icoBg }]}
               onPress={() => {
                 playTapSound();
-                onFieldChange?.(x.key, true);
+                if (x.kind === 'texto') {
+                  if (canAddTexto) onAddTexto?.();
+                } else {
+                  onFieldChange?.(x.key, true);
+                }
                 setAddOpen(false);
               }}
             >
@@ -569,11 +1010,15 @@ export function LojaHeroBanner({
   onHeroTextChange,
   onDragStateChange,
   onPickLogo,
+  ownerUserId,
 }) {
+  const uiColors = useTheme()?.colors || {};
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [selectedIds, setSelectedIds] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
+  const [fontPreviewId, setFontPreviewId] = useState(null);
+  const [fxPanelOpen, setFxPanelOpen] = useState(false);
   const [guiding, setGuiding] = useState(false);
   const [wheelLocked, setWheelLocked] = useState(false);
   const hoverLockCount = useRef(0);
@@ -582,6 +1027,7 @@ export function LojaHeroBanner({
   const [logoCutUri, setLogoCutUri] = useState(logoUri);
   const selectedId = selectedIds[selectedIds.length - 1] || '';
   const hasSelection = selectedIds.length > 0;
+  const safePad = getHeroSafePadPercent(config, containerSize.w, containerSize.h);
 
   const emitScrollLock = useCallback(() => {
     const locked = dragLock.current || hoverLockCount.current > 0;
@@ -604,10 +1050,14 @@ export function LojaHeroBanner({
   }, [onHeroScaleChange]);
 
   const handleTextChange = useCallback((id, text) => {
+    if (isHeroExtraTextId(id)) {
+      onHeroTextChange?.('heroTextos', patchHeroTexto(config, id, { texto: text }));
+      return;
+    }
     const key = HERO_TEXT_KEYS[id];
     if (!key) return;
     onHeroTextChange?.(key, text);
-  }, [onHeroTextChange]);
+  }, [onHeroTextChange, config]);
 
   const handleFieldChange = useCallback((key, value) => {
     if (!key) return;
@@ -615,8 +1065,15 @@ export function LojaHeroBanner({
   }, [onHeroTextChange]);
 
   useEffect(() => {
-    ensureCatalogoGoogleFonts();
-  }, []);
+    const texts = selectedIds.filter((id) => id !== 'logo');
+    if (!texts.length) {
+      setFxPanelOpen(false);
+    }
+  }, [selectedIds]);
+
+  useEffect(() => {
+    ensureCatalogoFonts(config);
+  }, [config?.fontesUsuario]);
 
   useEffect(() => {
     let alive = true;
@@ -644,7 +1101,7 @@ export function LojaHeroBanner({
 
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((id) => isHeroElementVisible(config, id)));
-  }, [config.usaNomeProfissional, config.mostrarSlogan, config.mostrarSubtitulo, config.usaLogo, config.mostrarTitulo]);
+  }, [config.usaNomeProfissional, config.mostrarSlogan, config.mostrarSubtitulo, config.usaLogo, config.mostrarTitulo, config.heroTextos]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -675,13 +1132,14 @@ export function LojaHeroBanner({
   const toggleSelect = useCallback((id) => selectItem(id, 'toggle'), [selectItem]);
 
   const selectAllVisible = useCallback(() => {
-    setSelectedIds(HERO_ELEMENTOS.filter((el) => isHeroElementVisible(config, el.id)).map((el) => el.id));
+    setSelectedIds(listHeroElementIds(config).filter((id) => isHeroElementVisible(config, id)));
   }, [config]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds([]);
     setEditingId(null);
     setFontPickerOpen(false);
+    setFxPanelOpen(false);
   }, []);
 
   const canType = heroResizeMode || heroEditMode;
@@ -707,17 +1165,29 @@ export function LojaHeroBanner({
     return () => window.removeEventListener('keydown', onKey);
   }, [canType, clearSelection]);
 
-  const textStyleExtra = (id) => {
-    const family = getHeroFontFamily(config, id);
-    return family ? { fontFamily: family } : null;
+  const textLayers = (id) => {
+    const preview = fontPreviewId && id !== 'logo' ? fontPreviewId : null;
+    const family = getHeroFontFamily(config, id, preview);
+    const color = fonts?.[id];
+    const layers = getHeroTextFxLayers(config, id, color);
+    const fam = family ? { fontFamily: family } : null;
+    return {
+      front: [fam, layers.front],
+      back: layers.back ? [fam, layers.back] : null,
+      reflect: layers.reflect ? [fam, layers.reflect] : null,
+    };
   };
 
-  const renderHeroText = (id, value, placeholder, style, numberOfLines) => (
+  const renderHeroText = (id, value, placeholder, style, numberOfLines) => {
+    const layers = textLayers(id);
+    return (
     <EditableHeroText
       id={id}
       value={value}
       placeholder={placeholder}
-      style={[style, textStyleExtra(id)]}
+      style={[style, layers.front]}
+      backStyle={layers.back}
+      reflectStyle={layers.reflect}
       numberOfLines={numberOfLines}
       canEdit={canType}
       editing={editingId === id}
@@ -725,11 +1195,18 @@ export function LojaHeroBanner({
       onStartEdit={(nextId) => {
         setSelectedIds([nextId]);
         setEditingId(nextId);
+        dragLock.current = true;
+        emitScrollLock();
       }}
-      onEndEdit={() => setEditingId(null)}
+      onEndEdit={() => {
+        setEditingId(null);
+        dragLock.current = false;
+        emitScrollLock();
+      }}
       onChangeText={handleTextChange}
     />
-  );
+    );
+  };
 
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
@@ -753,9 +1230,7 @@ export function LojaHeroBanner({
       if (!dy) return;
       const delta = dy > 0 ? -6 : 6;
       ids.forEach((id) => {
-        const key = HERO_SCALE_KEYS[id];
-        const n = Number(configRef.current?.[key]);
-        const current = Number.isFinite(n) ? n : 100;
+        const current = getHeroItemScale(configRef.current, id);
         handleScaleRef.current(id, current + delta);
       });
     };
@@ -768,18 +1243,18 @@ export function LojaHeroBanner({
   const tituloFallback = rotulos.tituloPadrao;
 
   const handleMove = useCallback((id, pos) => {
-    onHeroPositionChange?.(id, pos);
-  }, [onHeroPositionChange]);
+    onHeroPositionChange?.(id, clampHeroPosToSafe(pos, getHeroSafePadPercent(configRef.current, containerSize.w, containerSize.h)));
+  }, [onHeroPositionChange, containerSize.w, containerSize.h]);
 
-  const currentScale = (id) => {
-    const key = HERO_SCALE_KEYS[id];
-    const n = Number(config?.[key]);
-    return Number.isFinite(n) ? n : 100;
-  };
+  const currentScale = (id) => getHeroItemScale(config, id);
 
   const nudge = (dx, dy) => {
     playTapSound();
-    onHeroPositionChange?.('*', nudgeHeroItems(config, selectedIds, dx, dy));
+    const next = nudgeHeroItems(config, selectedIds, dx, dy);
+    Object.keys(next).forEach((id) => {
+      if (next[id]) next[id] = clampHeroPosToSafe(next[id], safePad);
+    });
+    onHeroPositionChange?.('*', next);
   };
 
   const alignSelected = (side) => {
@@ -808,7 +1283,7 @@ export function LojaHeroBanner({
         onReset={() => {
           playTapSound();
           onHeroPositionChange?.('*', { ...DEFAULT_HERO_POSICOES });
-          Object.keys(HERO_SCALE_KEYS).forEach((id) => handleScale(id, 100));
+          listHeroElementIds(config).forEach((id) => handleScale(id, 100));
         }}
         accent={theme.corPrincipal}
         compact
@@ -821,37 +1296,83 @@ export function LojaHeroBanner({
         onFieldChange={handleFieldChange}
         onOpenFonts={() => setFontPickerOpen(true)}
         onPickLogo={onPickLogo}
+        onOpenFx={() => setFxPanelOpen((v) => !v)}
+        fxPanelOpen={fxPanelOpen}
+        onAddTexto={() => {
+          const prev = getHeroTextos(config);
+          const next = addHeroTexto(config);
+          if (next.length === prev.length) return;
+          handleFieldChange('heroTextos', next);
+          const created = next[next.length - 1];
+          if (created?.id) {
+            setSelectedIds([created.id]);
+            setEditingId(created.id);
+          }
+        }}
       />
     );
     return undefined;
-  }, [canType, config, selectedId, selectedIds, theme.corPrincipal, onPickLogo]);
+  }, [canType, config, selectedId, selectedIds, theme.corPrincipal, onPickLogo, fxPanelOpen]);
 
-  useEffect(() => () => publishHeroDock(null), []);
+  useEffect(() => () => {
+    publishHeroDock(null);
+    publishHeroFx(null);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!canType || !fxPanelOpen || !selectedIds.length) {
+      publishHeroFx(null);
+      return undefined;
+    }
+    publishHeroFx(
+      <HeroFxPanel
+        config={config}
+        targetIds={selectedIds}
+        primaryId={selectedIds[selectedIds.length - 1]}
+        colors={uiColors}
+        accent={theme.corPrincipal}
+        onFieldChange={handleFieldChange}
+        onClose={() => setFxPanelOpen(false)}
+      />
+    );
+    return undefined;
+  }, [canType, fxPanelOpen, selectedIds, config, uiColors, theme.corPrincipal]);
 
   const renderLogo = () => {
     if (!isHeroElementVisible(config, 'logo')) return null;
     const look = hero.logoLook || {};
+    const objFx = getHeroObjectFx(config, 'logo');
     const phStyle = {
       width: look.size || hero.logoPx,
       height: look.size || hero.logoPx,
       justifyContent: 'center',
       alignItems: 'center',
     };
+    const renderMedia = (key) => (logoCutUri ? (
+      <Image
+        key={key}
+        source={{ uri: logoCutUri }}
+        style={look.img}
+        resizeMode={look.resizeMode || 'contain'}
+      />
+    ) : (
+      <View key={key} style={[phStyle, { backgroundColor: look.placa ? undefined : 'transparent' }]}>
+        <Ionicons name="storefront" size={Math.round((look.size || hero.logoPx) * 0.45)} color="#fff" />
+      </View>
+    ));
     return (
-      <View style={look.wrap}>
-        <View style={[look.clip, !look.placa && { backgroundColor: 'transparent' }]}>
-          {logoCutUri ? (
-            <Image
-              source={{ uri: logoCutUri }}
-              style={look.img}
-              resizeMode={look.resizeMode || 'contain'}
-            />
-          ) : (
-            <View style={[phStyle, { backgroundColor: look.placa ? undefined : 'transparent' }]}>
-              <Ionicons name="storefront" size={Math.round((look.size || hero.logoPx) * 0.45)} color="#fff" />
-            </View>
-          )}
+      <View style={[look.wrap, { overflow: 'visible', position: 'relative' }]}>
+        {objFx.glow ? (
+          <View pointerEvents="none" style={objFx.glow}>
+            {renderMedia('glow')}
+          </View>
+        ) : null}
+        <View style={[look.clip, !look.placa && { backgroundColor: 'transparent' }, objFx.front]}>
+          {renderMedia('front')}
         </View>
+        {objFx.reflect ? (
+          <View pointerEvents="none" style={objFx.reflect}>{renderMedia('reflect')}</View>
+        ) : null}
       </View>
     );
   };
@@ -864,13 +1385,14 @@ export function LojaHeroBanner({
         <DraggableHeroItem
           key={id}
           id={id}
-          pos={hero.posicoes[id]}
+          pos={clampHeroPosToSafe(hero.posicoes[id], safePad)}
           containerW={w}
           containerH={h}
           editable={heroEditMode && editingId !== id}
           resizable={heroResizeMode}
           selected={selectedIds.includes(id)}
           scale={currentScale(id)}
+          safePad={safePad}
           onSelect={(id, mode) => selectItem(id, mode)}
           onMove={handleMove}
           onScale={handleScale}
@@ -890,6 +1412,10 @@ export function LojaHeroBanner({
         {wrap('slogan', renderHeroText('slogan', config.slogan, 'Slogan', [st.heroSlogan, { fontSize: hero.sloganPx, color: fonts.slogan, textAlign: 'center', maxWidth: w * 0.9 }], 2))}
         {wrap('titulo', renderHeroText('titulo', config.titulo, tituloFallback, [st.heroTitle, { fontSize: hero.tituloPx, color: fonts.titulo, textAlign: 'center', maxWidth: w * 0.9 }], 3))}
         {wrap('subtitulo', renderHeroText('subtitulo', config.subtitulo, 'Subtítulo', [st.heroSub, { fontSize: hero.subtituloPx, color: fonts.subtitulo, textAlign: 'center', maxWidth: w * 0.9 }], 2))}
+        {getHeroTextos(config).map((item) => wrap(
+          item.id,
+          renderHeroText(item.id, item.texto, 'Novo texto', [st.heroSub, { fontSize: getHeroExtraPx(config, item.id), color: fonts[item.id] || item.cor, textAlign: 'center', maxWidth: w * 0.9, fontWeight: '700' }], 3),
+        ))}
       </>
     );
   };
@@ -931,8 +1457,8 @@ export function LojaHeroBanner({
         alignItems: hero.isRow ? 'center' : hero.contentAlign,
         flexDirection: hero.isRow ? 'row' : 'column',
         gap: hero.isRow ? 16 : (hero.landing ? 8 : 0),
-        paddingVertical: hero.landing ? 48 : 24,
-        paddingHorizontal: hero.landing ? 28 : 24,
+        paddingVertical: (hero.landing ? 48 : 24) + (hero.frame?.padY || 0),
+        paddingHorizontal: (hero.landing ? 28 : 24) + (hero.frame?.padX || 0),
       },
     ]}>
       {wrapFlex('logo', (
@@ -949,6 +1475,10 @@ export function LojaHeroBanner({
         {wrapFlex('slogan', renderHeroText('slogan', config.slogan, 'Slogan', [st.heroSlogan, { fontSize: hero.sloganPx, color: fonts.slogan, textAlign: hero.textAlign }], 2))}
         {wrapFlex('titulo', renderHeroText('titulo', config.titulo, tituloFallback, [st.heroTitle, { textAlign: hero.textAlign, color: fonts.titulo, fontSize: hero.tituloPx }], 3))}
         {wrapFlex('subtitulo', renderHeroText('subtitulo', config.subtitulo, 'Subtítulo', [st.heroSub, { fontSize: hero.subtituloPx, color: fonts.subtitulo, textAlign: hero.textAlign }], 2))}
+        {getHeroTextos(config).map((item) => wrapFlex(
+          item.id,
+          renderHeroText(item.id, item.texto, 'Novo texto', [st.heroSub, { fontSize: getHeroExtraPx(config, item.id), color: fonts[item.id] || item.cor, textAlign: hero.textAlign, fontWeight: '700' }], 3),
+        ))}
       </View>
     </View>
     );
@@ -965,11 +1495,15 @@ export function LojaHeroBanner({
           }
         }}
       >
-      <LinearGradient
-        colors={theme.heroColors.length >= 2 ? theme.heroColors : [theme.corPrincipal, theme.corPrincipal]}
-        start={theme.start}
-        end={theme.end}
-        style={[st.hero, hero.frame?.banner, { minHeight: hero.minHeight, justifyContent: hero.landing ? 'center' : 'flex-end' }]}
+      <CatalogoGradientFill
+        cores={theme.usarGradiente ? theme.cores : [theme.corPrincipal, theme.corPrincipal]}
+        stops={theme.usarGradiente ? theme.stops : undefined}
+        look={theme.look || { forma: 'linear', angulo: 135, inverter: false }}
+        style={[st.hero, hero.frame?.banner, {
+          minHeight: hero.minHeight,
+          justifyContent: hero.landing ? 'center' : 'flex-end',
+          overflow: 'visible',
+        }]}
       >
         {heroBg && (
           <Image source={heroBg} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
@@ -984,38 +1518,85 @@ export function LojaHeroBanner({
             <View style={[st.guideH, { top: '50%' }]} />
           </>
         ) : null}
+        {canType && safePad.active ? (
+          <View pointerEvents="none" style={[st.safeZone, {
+            left: `${safePad.x}%`,
+            right: `${safePad.x}%`,
+            top: `${safePad.top ?? safePad.y}%`,
+            bottom: `${safePad.bottom ?? safePad.y}%`,
+          }]}
+          >
+            <Text style={st.safeZoneLabel}>Área segura</Text>
+          </View>
+        ) : null}
         {hero.manual || heroEditMode ? (
           <View style={[st.manualLayer, { pointerEvents: 'box-none' }]}>{renderManualLayer()}</View>
         ) : (
           renderFlexLayer()
         )}
-      </LinearGradient>
+      </CatalogoGradientFill>
       </View>
       <CatalogoFontPicker
         compact
         live
         visible={fontPickerOpen && canType && selectedIds.some((id) => id !== 'logo')}
-        title={selectedIds.filter((id) => id !== 'logo').length > 1 ? 'Fonte · selecionados' : `Fonte · ${ELEMENT_LABELS[selectedId] || ''}`}
-        value={config?.[HERO_FONT_KEYS[selectedId]]}
+        title={selectedIds.filter((id) => id !== 'logo').length > 1 ? 'Fonte · selecionados' : `Fonte · ${ELEMENT_LABELS[selectedId] || (isHeroExtraTextId(selectedId) ? 'Texto' : '')}`}
+        value={isHeroExtraTextId(selectedId)
+          ? (getHeroTextos(config).find((t) => t.id === selectedId)?.fonte || 'system')
+          : config?.[HERO_FONT_KEYS[selectedId]]}
+        config={config}
+        ownerUserId={ownerUserId}
+        onPreview={setFontPreviewId}
         onSelect={(fontId) => {
+          setFontPreviewId(null);
+          let textos = getHeroTextos(config);
+          let extraDirty = false;
           selectedIds.forEach((id) => {
             const key = HERO_FONT_KEYS[id];
             if (key) handleFieldChange(key, fontId);
+            else if (isHeroExtraTextId(id)) {
+              textos = textos.map((t) => (t.id === id ? { ...t, fonte: fontId } : t));
+              extraDirty = true;
+            }
           });
+          if (extraDirty) handleFieldChange('heroTextos', textos);
         }}
-        onClose={() => setFontPickerOpen(false)}
+        onFontsChange={(patch) => {
+          Object.entries(patch || {}).forEach(([key, val]) => handleFieldChange(key, val));
+        }}
+        onClose={() => {
+          setFontPreviewId(null);
+          setFontPickerOpen(false);
+        }}
       />
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  hero: { minHeight: 200, justifyContent: 'flex-end', overflow: 'hidden' },
+  hero: { minHeight: 200, justifyContent: 'flex-end', overflow: 'visible' },
   heroOverlay: { ...StyleSheet.absoluteFillObject, pointerEvents: 'none' },
   heroContent: { padding: 24, zIndex: 1, width: '100%' },
-  manualLayer: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
+  manualLayer: { ...StyleSheet.absoluteFillObject, zIndex: 6, overflow: 'visible' },
   guideV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.55)', zIndex: 1 },
   guideH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.55)', zIndex: 1 },
+  safeZone: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 10,
+    zIndex: 2,
+  },
+  safeZoneLabel: {
+    position: 'absolute',
+    top: 4,
+    left: 8,
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.72)',
+    letterSpacing: 0.3,
+  },
   absItem: { position: 'absolute', zIndex: 3, maxWidth: '92%', overflow: 'visible' },
   absItemHit: { zIndex: 1 },
   selectRing: {
@@ -1038,33 +1619,63 @@ const st = StyleSheet.create({
     bottom: -7,
     width: 18,
     height: 18,
-    borderRadius: 9,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#2563eb',
+    minWidth: 18,
+    paddingHorizontal: 0,
+    borderRadius: 4,
+    backgroundColor: '#0ea5e9',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.75)',
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 30,
     cursor: 'nwse-resize',
+    shadowColor: '#22d3ee',
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
-  resizeGrip: { width: 6, height: 6, borderRadius: 1, backgroundColor: '#2563eb' },
   heroBrand: { fontSize: 32, fontWeight: '800', color: '#fff', opacity: 0.95, letterSpacing: 0.3 },
   heroTitle: { fontSize: 24, fontWeight: '700', color: '#fff', marginTop: 4 },
   heroSub: { fontSize: 14, color: '#fff', opacity: 0.92, marginTop: 6 },
   heroSlogan: { fontSize: 12, color: '#fff', opacity: 0.85, marginTop: 8, fontStyle: 'italic' },
   heroTextMove: { cursor: 'move', userSelect: 'none' },
   heroTextHit: { cursor: 'move' },
+  heroTextStack: { position: 'relative', overflow: 'visible' },
+  heroTextFxBack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 0,
+    overflow: 'visible',
+  },
+  heroTextFxReflect: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    zIndex: 0,
+    overflow: 'visible',
+  },
+  heroTextFxFront: {
+    position: 'relative',
+    zIndex: 1,
+    overflow: 'visible',
+  },
   heroInlineInput: {
     padding: 0,
     margin: 0,
     minWidth: 120,
+    zIndex: 50,
     outlineStyle: 'none',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
-    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderColor: 'rgba(255,255,255,0.75)',
+    backgroundColor: 'rgba(15,23,42,0.92)',
     borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     cursor: 'text',
   },
   tbBtn: {
@@ -1129,6 +1740,187 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   dockAddText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  fxPanel: {
+    position: 'absolute',
+    minWidth: 248,
+    maxWidth: 360,
+    zIndex: 40,
+    backgroundColor: 'rgba(15, 23, 42, 0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    padding: 0,
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 18,
+    cursor: 'default',
+    overflow: 'hidden',
+  },
+  fxFloatHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 80,
+    pointerEvents: 'box-none',
+  },
+  fxDragBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    cursor: 'grab',
+  },
+  fxGrip: { flexDirection: 'row', gap: 2 },
+  fxGripDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#94a3b8' },
+  fxDragText: { color: '#e2e8f0', fontSize: 9, fontWeight: '800', letterSpacing: 1.1, flex: 1 },
+  fxCloseBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fxPanelScroll: { maxHeight: 340 },
+  fxPanelBody: { padding: 8, gap: 6, width: '100%' },
+  fxPanelTitle: { color: '#e0f2fe', fontSize: 12, fontWeight: '800', letterSpacing: 0.4, marginBottom: 0 },
+  fxSecTitle: {
+    color: '#94a3b8',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  fxGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+    gap: 6,
+    width: '100%',
+  },
+  fxGrow: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '30%',
+    minWidth: 72,
+  },
+  fxChip: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '30%',
+    minWidth: 72,
+    minHeight: 36,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  fxChipFill: {
+    width: '100%',
+    minHeight: 36,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  fxChipWide: { flexBasis: '46%' },
+  fxChipGhost: { flexGrow: 1, flexBasis: '30%', minWidth: 72, minHeight: 36, opacity: 0 },
+  fxChipOn: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  fxChipText: { color: '#e2e8f0', fontSize: 9, fontWeight: '700', textAlign: 'center' },
+  fxChipTextOn: { color: '#fff' },
+  fxMiniRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  fxMini: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  fxStepBar: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '46%',
+    minWidth: 120,
+    height: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  fxStepLabel: { color: '#cbd5e1', fontSize: 8, fontWeight: '800', flex: 1, textTransform: 'uppercase' },
+  fxStepVal: { color: '#fff', fontSize: 11, fontWeight: '800', minWidth: 14, textAlign: 'center' },
+  fxMeter: {
+    width: 74,
+    minHeight: 34,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fxMeterFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  fxMeterText: { color: '#fff', fontSize: 13, fontWeight: '800', zIndex: 1 },
+  fxDual: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', gap: 6, width: '100%' },
+  fxDualCol: { flexGrow: 1, flexShrink: 1, flexBasis: '46%', minWidth: 120, gap: 4 },
+  fxPad: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    width: '100%',
+  },
+  fxPadCell: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '30%',
+    minWidth: 28,
+    aspectRatio: 1,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  fxPadCellOn: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
   tbScale: { color: '#fff', fontSize: 12, fontWeight: '800', minWidth: 40, textAlign: 'center' },
   fontModalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 20 },
   fontSheet: {

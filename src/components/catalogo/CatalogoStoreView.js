@@ -12,9 +12,11 @@ import {
   Modal,
   Pressable,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '../../utils/format';
+import { CatalogoGradientFill } from '../../utils/catalogoGradient';
 import {
   getEffectivePrice,
   getResponsiveGridColumns,
@@ -29,12 +31,18 @@ import {
   isCarouselEnabled,
   getCarouselPosicao,
   getHeroOverlap,
+  getCatalogoPageBg,
+  getCarouselCapa,
+  carouselCapaImageBox,
 } from '../../utils/catalogoStore';
 import { playTapSound } from '../../utils/sounds';
+import { openWhatsApp } from '../../utils/whatsapp';
+import { CarouselCoverEditor } from './CarouselCoverEditor';
 import { getNextAvailableDates } from '../../utils/agendaAvailability';
 import { LojaAgendaPicker } from './LojaAgendaPicker';
 import { LojaHeroBanner } from './LojaHeroBanner';
 import { LojaHeroJunction } from './LojaHeroJunction';
+import { ensureCatalogoFonts } from '../../utils/catalogoFonts';
 
 const { width: SW } = Dimensions.get('window');
 const CATEGORIA_TABS = [
@@ -94,6 +102,8 @@ export function CatalogoStoreView({
   onHeroScaleChange,
   onHeroTextChange,
   onPickLogo,
+  ownerUserId,
+  onCarouselCapaChange,
 }) {
   const [search, setSearch] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('todos');
@@ -113,10 +123,18 @@ export function CatalogoStoreView({
   const [bookingDone, setBookingDone] = useState(null);
   const [heroDragging, setHeroDragging] = useState(false);
   const carouselRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeLock = useRef(false);
+  const carouselIndexRef = useRef(0);
   const [measuredW, setMeasuredW] = useState(0);
   const [mergeW, setMergeW] = useState(0);
+  const [capaEdit, setCapaEdit] = useState(null);
 
   const agendamentoAtivo = config.agendamentoOnline !== false && !!onFetchAvailability;
+
+  useEffect(() => {
+    ensureCatalogoFonts(config);
+  }, [config?.fontesUsuario]);
 
   useEffect(() => {
     if (!agendamentoAtivo || selectedDate) return;
@@ -164,19 +182,23 @@ export function CatalogoStoreView({
     return list;
   }, [items, search, categoriaAtiva, config.tipo, categoriasEnabled, lojaCatId, lojaSubId]);
 
-  const carouselItems = useMemo(
-    () => resolveCarouselItems(config, filtered),
-    [config.carouselScope, filtered]
-  );
+  const carouselItems = useMemo(() => {
+    let list = items || [];
+    if (config.tipo === 'produtos') list = list.filter((i) => i._tipo === 'produto');
+    else if (config.tipo === 'servicos') list = list.filter((i) => i._tipo === 'servico');
+    return resolveCarouselItems(config, list);
+  }, [items, config.carouselScope, config.tipo, config.carouselItemIds]);
   const carousel = useMemo(
     () => getCarouselMetrics(config, storeW, pad),
-    [config.carouselSize, config.carouselEstilo, config.carouselAnim, config.carouselSpeed, storeW]
+    [config.carouselSize, config.carouselEstilo, config.carouselAnim, config.carouselSpeed, config.carouselVisiveis, config.carouselPosicao, storeW]
   );
   const showCarousel = isCarouselEnabled(config) && carouselItems.length > 0;
   const isLanding = config.layout === 'landing';
   const carouselPos = getCarouselPosicao(config);
   const carouselMerged = showCarousel && carouselPos === 'mesclado' && config.layout !== 'horizontal';
-  const carouselAbove = showCarousel && !carouselMerged && carouselPos !== 'abaixo';
+  const carouselBefore = showCarousel && !carouselMerged && carouselPos === 'antes-busca';
+  const carouselAbove = showCarousel && !carouselMerged && carouselPos === 'acima';
+  const carouselSide = showCarousel && !carouselMerged && carouselPos === 'lado';
   const carouselBelow = showCarousel && !carouselMerged && carouselPos === 'abaixo';
   const mergeSpan = cols >= 3 ? 2 : Math.max(1, cols);
   const catalogList = useMemo(() => {
@@ -189,22 +211,40 @@ export function CatalogoStoreView({
     let body = 16;
     body += 38;
     if (config.mostrarPrecos !== false) body += 22;
-    if (interactive && config.mostrarCarrinho !== false) body += 40;
-    return carousel.imgH + body;
-  }, [config.mostrarPrecos, config.mostrarCarrinho, interactive, carousel.imgH]);
+    if (interactive && config.mostrarCarrinho !== false && !carousel.compact) body += 40;
+    return (carousel.stageH || carousel.imgH) + (carousel.compact ? 28 : body);
+  }, [config.mostrarPrecos, config.mostrarCarrinho, interactive, carousel.imgH, carousel.stageH, carousel.compact]);
 
   const carouselStep = (carouselMerged && mergeW > 0) ? mergeW : carousel.step;
-  useEffect(() => {
-    if (!showCarousel || !config.carouselAuto || carouselItems.length <= 1) return;
-    const t = setInterval(() => {
-      setCarouselIndex((prev) => {
-        const next = (prev + 1) % carouselItems.length;
-        carouselRef.current?.scrollToOffset({ offset: next * carouselStep, animated: true });
-        return next;
+
+  carouselIndexRef.current = carouselIndex;
+
+  const goCarousel = useCallback((next) => {
+    const len = carouselItems.length;
+    if (len <= 1) return;
+    const idx = ((next % len) + len) % len;
+    if (carousel.fade) {
+      if (fadeLock.current) return;
+      fadeLock.current = true;
+      Animated.timing(fadeAnim, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => {
+        setCarouselIndex(idx);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 340, useNativeDriver: true }).start(() => {
+          fadeLock.current = false;
+        });
       });
+      return;
+    }
+    setCarouselIndex(idx);
+    carouselRef.current?.scrollToOffset({ offset: idx * carouselStep, animated: true });
+  }, [carousel.fade, carouselItems.length, carouselStep, fadeAnim]);
+
+  useEffect(() => {
+    if (!showCarousel || !config.carouselAuto || carouselItems.length <= carousel.visiveis) return;
+    const t = setInterval(() => {
+      goCarousel(carouselIndexRef.current + 1);
     }, carousel.interval);
     return () => clearInterval(t);
-  }, [showCarousel, config.carouselAuto, carouselItems.length, carouselStep, carousel.interval]);
+  }, [showCarousel, config.carouselAuto, carouselItems.length, carousel.visiveis, carousel.interval, goCarousel]);
 
   useEffect(() => {
     if (!selectedDate || !onFetchAvailability) {
@@ -306,10 +346,13 @@ export function CatalogoStoreView({
   const renderProductCard = (item, opts = {}) => {
     const { fullWidth, carousel: asCarousel, cardWidth } = opts;
     const photo = getItemPhoto(item);
+    const rowId = item._rowId || `${item._tipo}:${item.id}`;
+    const capa = asCarousel ? getCarouselCapa(config, rowId) : null;
     const w = cardWidth || (fullWidth ? '100%' : asCarousel ? carousel.itemW : cardW);
     const h = asCarousel ? carousel.imgH : cardH * 0.55;
-    const fade = asCarousel && carousel.anim === 'destaque';
+    const fade = asCarousel && (carousel.anim === 'destaque' || carousel.anim === 'zoom');
     const active = carouselItems.findIndex((i) => (i._rowId || i.id) === (item._rowId || item.id)) === carouselIndex;
+    const capaBox = asCarousel && photo ? carouselCapaImageBox(capa, carousel.imgW, carousel.imgH) : null;
     return (
       <View
         key={item._rowId || item.id}
@@ -319,29 +362,63 @@ export function CatalogoStoreView({
           {
             width: w,
             minHeight: asCarousel ? undefined : cardH,
-            backgroundColor: cardBg,
-            borderColor: config.corPrincipal + '22',
+            backgroundColor: asCarousel ? 'transparent' : cardBg,
+            borderColor: asCarousel ? 'transparent' : config.corPrincipal + '22',
+            borderWidth: asCarousel ? 0 : 1,
             borderRadius: asCarousel ? carousel.radius : 14,
-            opacity: fade ? (active ? 1 : 0.55) : 1,
-            transform: fade && !active ? [{ scale: 0.94 }] : undefined,
+            overflow: asCarousel ? 'visible' : 'hidden',
+            opacity: fade && asCarousel && !carousel.fade ? (active ? 1 : 0.55) : 1,
+            transform: fade && !active && !carousel.fade ? [{ scale: 0.94 }] : undefined,
           },
         ]}
       >
         {photo ? (
-          <View>
-            <Image source={{ uri: photo }} style={[st.cardImg, { height: h }]} resizeMode="cover" />
+          <View style={asCarousel ? [st.carouselStage, { height: carousel.stageH || h }] : { position: 'relative' }}>
+            {asCarousel ? (
+              <View style={[st.carouselFrame, { width: carousel.imgW, height: carousel.imgH, borderRadius: carousel.radius }]}>
+                <Image source={{ uri: photo }} style={capaBox} resizeMode="cover" />
+                {ownerMode && onCarouselCapaChange ? (
+                  <TouchableOpacity
+                    style={[st.capaBtn, carousel.compact && { width: 22, height: 22, right: 4, bottom: 4 }, { backgroundColor: config.corPrincipal }]}
+                    onPress={() => { playTapSound(); setCapaEdit({ item, uri: photo, rowId }); }}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="crop-outline" size={carousel.compact ? 12 : 14} color="#fff" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : (
+              <Image source={{ uri: photo }} style={[st.cardImg, { height: h }]} resizeMode="cover" />
+            )}
             {renderEditBtn(item)}
           </View>
         ) : (
-          <View style={[st.cardImg, st.cardImgPh, { height: h, backgroundColor: config.corPrincipal + '18' }]}>
-            <Ionicons name={item._tipo === 'servico' ? 'construct' : 'cube'} size={asCarousel ? 48 : 32} color={config.corPrincipal} />
+          <View style={asCarousel
+            ? [st.carouselStage, { height: carousel.stageH || h }]
+            : [st.cardImg, st.cardImgPh, { height: h, backgroundColor: config.corPrincipal + '18' }]}
+          >
+            <View style={asCarousel
+              ? [st.carouselImg, st.cardImgPh, { width: carousel.imgW, height: carousel.imgH, borderRadius: carousel.radius, backgroundColor: config.corPrincipal + '18' }]
+              : undefined}
+            >
+              <Ionicons name={item._tipo === 'servico' ? 'construct' : 'cube'} size={asCarousel ? 40 : 32} color={config.corPrincipal} />
+            </View>
             {renderEditBtn(item)}
           </View>
         )}
-        <View style={[st.cardBody, asCarousel && st.cardBodyCarousel]}>
-          <Text style={[st.cardName, { color: fonts.produto }]} numberOfLines={2}>{item.name}</Text>
+        <View style={[st.cardBody, asCarousel && st.cardBodyCarousel, asCarousel && { alignItems: 'center' }]}>
+          <Text
+            style={[
+              st.cardName,
+              asCarousel && carousel.compact && { fontSize: 11, lineHeight: 14 },
+              { color: fonts.produto, textAlign: asCarousel ? 'center' : 'left' },
+            ]}
+            numberOfLines={carousel.compact ? 1 : 2}
+          >
+            {item.name}
+          </Text>
           {renderPrice(item)}
-          {interactive && config.mostrarCarrinho !== false && (
+          {interactive && config.mostrarCarrinho !== false && !(asCarousel && carousel.compact) && (
             <TouchableOpacity
               style={[st.addBtn, { backgroundColor: config.corPrincipal }]}
               onPress={() => { playTapSound(); onAddToCart?.(item); }}
@@ -428,28 +505,54 @@ export function CatalogoStoreView({
     const embedded = !!opts.embedded;
     const trackW = opts.width > 0 ? opts.width : carousel.itemW;
     const step = Math.max(1, Number(trackW) || carousel.step);
+    const vis = Math.max(1, carousel.visiveis || 1);
+    const fadeItems = [];
+    if (carousel.fade && carouselItems.length) {
+      for (let i = 0; i < vis; i += 1) {
+        fadeItems.push(carouselItems[(carouselIndex + i) % carouselItems.length]);
+      }
+    }
+    const zoom = carousel.anim === 'zoom';
     return (
       <View style={[st.secao, embedded && { marginTop: 0 }]}>
-        <FlatList
-          ref={carouselRef}
-          data={carouselItems}
-          horizontal
-          pagingEnabled={carousel.paging}
-          snapToInterval={step}
-          snapToAlignment="start"
-          decelerationRate={carousel.anim === 'suave' ? 'normal' : 'fast'}
-          disableIntervalMomentum
-          showsHorizontalScrollIndicator={false}
-          style={{ height: carouselCardHeight }}
-          contentContainerStyle={carousel.gap ? { paddingRight: carousel.gap } : undefined}
-          ItemSeparatorComponent={carousel.gap ? () => <View style={{ width: carousel.gap }} /> : undefined}
-          keyExtractor={(i) => i._rowId || String(i.id)}
-          onMomentumScrollEnd={(e) => {
-            const idx = Math.round(e.nativeEvent.contentOffset.x / step);
-            setCarouselIndex(Math.min(Math.max(0, idx), carouselItems.length - 1));
-          }}
-          renderItem={({ item }) => renderProductCard(item, { carousel: true, cardWidth: opts.width > 0 ? opts.width : undefined })}
-        />
+        {carousel.fade ? (
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+              transform: zoom ? [{ scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }] : undefined,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: carousel.gap || 12,
+              minHeight: carouselCardHeight,
+            }}
+          >
+            {fadeItems.map((item) => renderProductCard(item, { carousel: true, cardWidth: trackW }))}
+          </Animated.View>
+        ) : (
+          <FlatList
+            ref={carouselRef}
+            data={carouselItems}
+            horizontal
+            pagingEnabled={carousel.paging}
+            snapToInterval={step}
+            snapToAlignment="start"
+            decelerationRate={carousel.anim === 'suave' ? 'normal' : 'fast'}
+            disableIntervalMomentum
+            showsHorizontalScrollIndicator={false}
+            style={{ height: carouselCardHeight }}
+            contentContainerStyle={{
+              paddingRight: carousel.gap || 0,
+              justifyContent: vis === 1 ? 'center' : 'flex-start',
+            }}
+            ItemSeparatorComponent={carousel.gap ? () => <View style={{ width: carousel.gap }} /> : undefined}
+            keyExtractor={(i) => i._rowId || String(i.id)}
+            onMomentumScrollEnd={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / step);
+              setCarouselIndex(Math.min(Math.max(0, idx), carouselItems.length - 1));
+            }}
+            renderItem={({ item }) => renderProductCard(item, { carousel: true, cardWidth: opts.width > 0 ? opts.width : undefined })}
+          />
+        )}
         {carouselItems.length > 1 && (
           <View style={st.dots}>
             {carouselItems.map((_, i) => (
@@ -526,7 +629,8 @@ export function CatalogoStoreView({
 
   const hero = useMemo(() => buildHeroPresentation(config), [config]);
   const overlap = useMemo(() => getHeroOverlap(config), [config]);
-  const pageBg = theme.corFundo || config.corFundo || '#f8fafc';
+  const pageBg = useMemo(() => getCatalogoPageBg(config), [config]);
+  const pageFill = pageBg.solid;
 
   const handleHeroPositionChange = useCallback((id, pos) => {
     onHeroPositionChange?.(id, pos);
@@ -534,7 +638,7 @@ export function CatalogoStoreView({
 
   return (
     <View
-      style={[st.root, isLanding && st.rootLanding, { backgroundColor: theme.corFundo || config.corFundo || '#f8fafc' }]}
+      style={[st.root, isLanding && st.rootLanding, { backgroundColor: pageFill }]}
       onLayout={(e) => {
         const w = Math.round(e.nativeEvent.layout.width);
         if (w > 0 && w !== measuredW) setMeasuredW(w);
@@ -544,32 +648,40 @@ export function CatalogoStoreView({
         showsVerticalScrollIndicator={false}
         scrollEnabled={!heroDragging}
         nestedScrollEnabled
-        contentContainerStyle={{ paddingBottom: interactive ? 88 : 24 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
         style={heroDragging ? { overflow: 'hidden' } : undefined}
       >
-        <LojaHeroBanner
-          config={config}
-          hero={hero}
-          lojaNome={lojaNome}
-          logoUri={logoUri}
-          heroBg={heroBg}
-          heroEditMode={ownerMode}
-          heroResizeMode={ownerMode}
-          onHeroPositionChange={handleHeroPositionChange}
-          onHeroScaleChange={onHeroScaleChange}
-          onHeroTextChange={onHeroTextChange}
-          onPickLogo={ownerMode ? onPickLogo : undefined}
-          onDragStateChange={setHeroDragging}
-        />
+        <View>
+          <LojaHeroBanner
+            config={config}
+            hero={hero}
+            lojaNome={lojaNome}
+            logoUri={logoUri}
+            heroBg={heroBg}
+            heroEditMode={ownerMode}
+            heroResizeMode={ownerMode}
+            onHeroPositionChange={handleHeroPositionChange}
+            onHeroScaleChange={onHeroScaleChange}
+            onHeroTextChange={onHeroTextChange}
+            onPickLogo={ownerMode ? onPickLogo : undefined}
+            onDragStateChange={setHeroDragging}
+            ownerUserId={ownerUserId}
+          />
+          {overlap.shape ? (
+            <LojaHeroJunction
+              shape={overlap.shape}
+              fill={pageFill}
+              height={overlap.cutH}
+              inset={hero.frame?.mh || 0}
+            />
+          ) : null}
+        </View>
 
-        {overlap.shape ? <LojaHeroJunction shape={overlap.shape} fill={pageBg} /> : null}
-
-        <View
-          style={[
-            overlap.sheet,
-            { backgroundColor: pageBg },
-            overlap.shape ? { marginTop: 0, overflow: 'visible', borderTopLeftRadius: 0, borderTopRightRadius: 0, shadowOpacity: 0, elevation: 0 } : null,
-          ]}
+        <CatalogoGradientFill
+          cores={pageBg.usarGradiente ? pageBg.cores : [pageBg.solid, pageBg.solid]}
+          stops={pageBg.usarGradiente ? pageBg.stops : undefined}
+          look={pageBg.look}
+          style={overlap.sheet}
         >
         {config.mostrarSobre !== false && config.sobreTexto ? (
           <View style={[st.about, isLanding && st.aboutLanding, { backgroundColor: cardBg, borderColor: config.corPrincipal + '22' }]}>
@@ -578,6 +690,8 @@ export function CatalogoStoreView({
         ) : null}
 
         <View style={{ paddingHorizontal: isLanding ? 16 : pad, paddingTop: overlap.id === 'nenhuma' ? (isLanding ? 8 : 0) : 4 }}>
+          {carouselBefore ? renderCarousel() : null}
+
           <View style={[st.searchWrap, isLanding && st.searchLanding, { borderColor: config.corPrincipal + '33', backgroundColor: cardBg }]}>
             <Ionicons name="search" size={18} color={fonts.produto + '66'} />
             <TextInput
@@ -660,30 +774,58 @@ export function CatalogoStoreView({
             </>
           )}
 
-          {carouselAbove ? renderCarousel() : null}
-
-          {renderCatalog()}
-
-          {carouselBelow ? renderCarousel() : null}
+          {carouselSide ? (
+            <View style={[st.sideWrap, storeW < 720 && { flexDirection: 'column' }]}>
+              <View style={[st.sideCarousel, storeW < 720 && { width: '100%' }]}>{renderCarousel()}</View>
+              <View style={st.sideCatalog}>{renderCatalog()}</View>
+            </View>
+          ) : (
+            <>
+              {carouselAbove ? renderCarousel() : null}
+              {renderCatalog()}
+              {carouselBelow ? renderCarousel() : null}
+            </>
+          )}
         </View>
-        </View>
+        </CatalogoGradientFill>
       </ScrollView>
 
-      {interactive && config.mostrarCarrinho !== false && (
-        <>
-          <TouchableOpacity
-            style={[st.cartBar, { backgroundColor: config.corPrincipal }]}
-            onPress={() => { playTapSound(); setCartOpen(true); }}
-            activeOpacity={0.9}
-          >
-            <Ionicons name="cart" size={22} color="#fff" />
-            <Text style={st.cartBarText}>
-              {cartCount > 0 ? `Acessar carrinho (${cartCount})` : 'Acessar carrinho'}
-            </Text>
-            <Text style={st.cartBarTotal}>{cartCount > 0 ? formatCurrency(cartTotal) : ''}</Text>
-          </TouchableOpacity>
+      {interactive && (config.mostrarCarrinho !== false || (config.mostrarWhatsApp !== false && (config.whatsappPedido || profile?.telefone))) ? (
+        <View style={st.topFabs}>
+          {config.mostrarWhatsApp !== false && (config.whatsappPedido || profile?.telefone) ? (
+            <TouchableOpacity
+              style={[st.cartFabTop, { backgroundColor: '#25D366', position: 'relative', top: 0, right: 0 }]}
+              onPress={() => {
+                playTapSound();
+                openWhatsApp(
+                  config.whatsappPedido || profile?.telefone,
+                  `Olá! Vim pela loja de ${getLojaDisplayName(config, profile)}.`,
+                );
+              }}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="logo-whatsapp" size={22} color="#fff" />
+            </TouchableOpacity>
+          ) : null}
+          {config.mostrarCarrinho !== false ? (
+            <TouchableOpacity
+              style={[st.cartFabTop, { backgroundColor: config.corPrincipal, position: 'relative', top: 0, right: 0 }]}
+              onPress={() => { playTapSound(); setCartOpen(true); }}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="cart" size={22} color="#fff" />
+              {cartCount > 0 ? (
+                <View style={st.cartBadge}>
+                  <Text style={st.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
-          <Modal visible={cartOpen} transparent animationType="slide" onRequestClose={() => setCartOpen(false)}>
+      {interactive && config.mostrarCarrinho !== false && (
+        <Modal visible={cartOpen} transparent animationType="slide" onRequestClose={() => setCartOpen(false)}>
             <Pressable style={st.cartOverlay} onPress={() => setCartOpen(false)}>
               <Pressable style={[st.cartSheet, { backgroundColor: cardBg }]} onPress={(e) => e.stopPropagation()}>
                 <View style={st.cartHeader}>
@@ -803,14 +945,30 @@ export function CatalogoStoreView({
               </Pressable>
             </Pressable>
           </Modal>
-        </>
       )}
+      <CarouselCoverEditor
+        visible={!!capaEdit}
+        uri={capaEdit?.uri}
+        value={getCarouselCapa(config, capaEdit?.rowId)}
+        colors={{
+          card: cardBg,
+          border: config.corPrincipal + '33',
+          text: config.corTexto,
+          textSecondary: config.corTexto,
+        }}
+        accent={config.corPrincipal}
+        onClose={() => setCapaEdit(null)}
+        onSave={(capa) => {
+          if (capaEdit?.rowId) onCarouselCapaChange?.(capaEdit.rowId, capa);
+          setCapaEdit(null);
+        }}
+      />
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  root: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  root: { flex: 1, borderRadius: 16, overflow: 'visible' },
   rootLanding: { borderRadius: 0 },
   about: { margin: 16, marginBottom: 0, padding: 16, borderRadius: 12, borderWidth: 1 },
   aboutLanding: { marginHorizontal: 16, marginTop: 18, padding: 20, borderRadius: 20 },
@@ -837,14 +995,56 @@ const st = StyleSheet.create({
   subCatTabs: { marginTop: 8 },
   catChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   catChipText: { fontSize: 12, fontWeight: '700' },
-  secao: { marginTop: 20, overflow: 'hidden' },
+  secao: { marginTop: 20, overflow: 'visible' },
   secaoTitle: { fontSize: 16, fontWeight: '800', marginBottom: 12 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 22, marginBottom: 6 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
   card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 0, width: '100%' },
-  cardCarousel: { marginBottom: 0 },
-  cardBodyCarousel: { paddingTop: 8, paddingHorizontal: 10, paddingBottom: 8 },
+  cardCarousel: { marginBottom: 0, alignItems: 'center' },
+  cardBodyCarousel: { paddingTop: 8, paddingHorizontal: 10, paddingBottom: 8, width: '100%' },
+  carouselStage: { width: '100%', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  carouselFrame: { overflow: 'hidden', alignSelf: 'center', position: 'relative', backgroundColor: '#0f172a' },
+  capaBtn: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 4,
+  },
+  carouselImg: { maxWidth: '100%' },
+  sideWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 8 },
+  sideCarousel: { width: '48%', flexShrink: 0 },
+  sideCatalog: { flex: 1, minWidth: 0 },
+  topFabs: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cartFabTop: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 40,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+  },
   cardImg: { width: '100%' },
   cardImgPh: { justifyContent: 'center', alignItems: 'center' },
   cardBody: { padding: 10, gap: 4 },

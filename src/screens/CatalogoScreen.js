@@ -26,7 +26,7 @@ import { readImageAsBase64 } from '../utils/readImageAsBase64';
 import { filterEventsByDate, generateAvailableSlots } from '../utils/agendaAvailability';
 import { copyLojaPublicLink, shareLojaPublicLink, buildLojaPublicUrl, openLojaPreview } from '../utils/lojaPublicLink';
 import { CatalogoStoreView } from '../components/catalogo/CatalogoStoreView';
-import { HeroDockHost } from '../components/catalogo/LojaHeroBanner';
+import { HeroDockHost, HeroFxFloatHost } from '../components/catalogo/LojaHeroBanner';
 import { CatalogoEditorPanel } from '../components/catalogo/CatalogoEditorPanel';
 import { LojaItemEditModal } from '../components/catalogo/LojaItemEditModal';
 import {
@@ -41,6 +41,8 @@ import {
   getCatalogoRotulos,
   HERO_SCALE_KEYS,
   clampHeroScale,
+  isHeroExtraTextId,
+  patchHeroTexto,
 } from '../utils/catalogoStore';
 
 export function CatalogoScreen({ onClose, isModal }) {
@@ -279,10 +281,23 @@ export function CatalogoScreen({ onClose, isModal }) {
   }, [products, services, openEditItem]);
 
   const handleHeroScaleChange = useCallback((id, value) => {
-    const key = HERO_SCALE_KEYS[id];
-    if (!key) return;
+    const next = clampHeroScale(value);
     markDraftDirty();
-    setDraftConfig((prev) => ({ ...prev, [key]: clampHeroScale(value) }));
+    setDraftConfig((prev) => {
+      const key = HERO_SCALE_KEYS[id];
+      if (key) return { ...prev, [key]: next };
+      if (isHeroExtraTextId(id)) return { ...prev, heroTextos: patchHeroTexto(prev, id, { escala: next }) };
+      return prev;
+    });
+  }, [markDraftDirty]);
+
+  const handleCarouselCapaChange = useCallback((rowId, capa) => {
+    if (!rowId) return;
+    markDraftDirty();
+    setDraftConfig((prev) => ({
+      ...prev,
+      carouselCapas: { ...(prev.carouselCapas || {}), [rowId]: capa },
+    }));
   }, [markDraftDirty]);
 
   const handleHeroTextChange = useCallback((key, text) => {
@@ -384,7 +399,9 @@ export function CatalogoScreen({ onClose, isModal }) {
       onHeroPositionChange={handleHeroPositionChange}
       onHeroScaleChange={handleHeroScaleChange}
       onHeroTextChange={handleHeroTextChange}
+      onCarouselCapaChange={handleCarouselCapaChange}
       onPickLogo={() => pickImage('fotoCatalogo', setUploadingLogo)}
+      ownerUserId={user?.id}
     />
   );
 
@@ -420,8 +437,13 @@ export function CatalogoScreen({ onClose, isModal }) {
             ? <ActivityIndicator size="small" color="#fff" />
             : <Text style={s.saveTopBtnText}>Salvar</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={abrirVitrine} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-          <Ionicons name="open-outline" size={20} color={colors.primary} />
+        <TouchableOpacity
+          onPress={abrirVitrine}
+          disabled={!user?.id}
+          style={[s.viewStoreBtn, { backgroundColor: colors.primaryRgba?.(0.15), opacity: user?.id ? 1 : 0.6 }]}
+        >
+          <Ionicons name="eye-outline" size={16} color={colors.primary} />
+          <Text style={[s.viewStoreBtnText, { color: colors.primary }]}>Visualizar loja</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={copiarLinkLoja} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
           <Ionicons name="link-outline" size={20} color={colors.primary} />
@@ -481,6 +503,7 @@ export function CatalogoScreen({ onClose, isModal }) {
             <View style={{ flex: 1, padding: 12 }}>{loja}</View>
           </View>
         )}
+        <HeroFxFloatHost />
       </View>
 
       <LojaItemEditModal
@@ -503,15 +526,17 @@ const s = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   saveTopBtn: { height: 40, paddingHorizontal: 14, borderRadius: 12, justifyContent: 'center', alignItems: 'center', minWidth: 78 },
   saveTopBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  viewStoreBtn: { height: 40, paddingHorizontal: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  viewStoreBtnText: { fontWeight: '800', fontSize: 13 },
   closeBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   mobileTabs: { flexDirection: 'row', borderBottomWidth: 1 },
   mobileTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
-  body: { flex: 1, flexDirection: 'row' },
+  body: { flex: 1, flexDirection: 'row', position: 'relative' },
   editorCol: { width: 380, maxWidth: '42%', borderRightWidth: 1 },
-  previewCol: { flex: 1 },
+  previewCol: { flex: 1, position: 'relative' },
   previewLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   heroDockHost: { paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1 },
-  previewFrame: { flex: 1, margin: 16, borderRadius: 16, overflow: 'hidden' },
+  previewFrame: { flex: 1, margin: 16, borderRadius: 16, overflow: 'visible' },
   emptyPlan: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 12 },
   emptyTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 22 },

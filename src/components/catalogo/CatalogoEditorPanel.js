@@ -11,12 +11,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { playTapSound } from '../../utils/sounds';
 import { ProductCategoriesEditor } from './ProductCategoriesEditor';
 import { CatalogoColorBrush } from './CatalogoColorBrush';
+import { CatalogoGradientControls } from './CatalogoGradientControls';
+import { CatalogoGradientStops } from './CatalogoGradientStops';
+import { normalizeGradientStops } from '../../utils/catalogoGradient';
 import { CatalogoSizeStepper } from './CatalogoSizeStepper';
-import { ensureCatalogoGoogleFonts } from '../../utils/catalogoFonts';
+import { ensureCatalogoFonts } from '../../utils/catalogoFonts';
 import { LOJA_DEFAULT_HOST, normalizeLojaSlug, buildLojaPublicUrl } from '../../utils/lojaPublicLink';
 import { getApiOrigin } from '../../lib/subscription';
 import { supabase } from '../../lib/supabase';
@@ -30,6 +32,7 @@ import {
   CAROUSEL_SCOPES,
   CAROUSEL_SPEEDS,
   CAROUSEL_POSICOES,
+  CAROUSEL_VISIVEIS,
   LOGO_TAMANHOS,
   LOGO_MOLDURAS,
   LOGO_EFEITOS,
@@ -42,19 +45,27 @@ import {
   TEMAS_ESCUROS,
   TEMAS_PRONTOS,
   applyTemaPronto,
-  GRADIENTE_DIRECOES,
+  snapshotTemaAtual,
+  applyTemaSalvo,
+  upsertTemaSalvo,
+  removeTemaSalvo,
+  TEMAS_SALVOS_MAX,
   TEMA_ESTILOS,
+  FUNDO_ESTILOS,
   buildHeroPresentation,
   getCatalogoTheme,
+  getCatalogoPageBg,
   getCatalogoRotulos,
-  getGradientPoints,
   ROTULO_VITRINE_OPTS,
   syncCatalogoItens,
   itemKey,
+  normalizeCarouselItemIds,
   moveCatalogoItem,
   toggleCatalogoItemVisible,
   getLojaLogoUri,
   normalizeCoresTema,
+  normalizeCoresFundo,
+  getCatalogoImageHints,
 } from '../../utils/catalogoStore';
 
 const TABS = [
@@ -136,15 +147,19 @@ export function CatalogoEditorPanel({
 }) {
   const [tab, setTab] = useState('visual');
   const [colorSlot, setColorSlot] = useState(0);
+  const [fundoSlot, setFundoSlot] = useState(0);
+  const [temaNome, setTemaNome] = useState('');
   const [slugCheck, setSlugCheck] = useState({ status: 'idle', message: '' });
   const accent = draftConfig.corPrincipal || colors.primary;
   const theme = getCatalogoTheme(draftConfig);
+  const pageBg = getCatalogoPageBg(draftConfig);
   const rotulos = getCatalogoRotulos(draftConfig);
   const estilo = theme.estilo;
+  const imgHints = getCatalogoImageHints(draftConfig);
 
   useEffect(() => {
-    ensureCatalogoGoogleFonts();
-  }, []);
+    ensureCatalogoFonts(draftConfig);
+  }, [draftConfig?.fontesUsuario]);
 
   useEffect(() => {
     if (!canPublishPublicStore) {
@@ -235,6 +250,7 @@ export function CatalogoEditorPanel({
         corFundo: draftConfig.corFundo || '#f8fafc',
         corTexto: draftConfig.corTexto || '#0f172a',
         gradienteDirecao: draftConfig.gradienteDirecao || 'diagonal',
+        gradienteStops: normalizeGradientStops(draftConfig.gradienteStops, pack),
       });
       return;
     }
@@ -252,11 +268,12 @@ export function CatalogoEditorPanel({
     }
   };
 
-  const setCorSlot = (cor) => {
+  const setCorAt = (index, cor) => {
     if (!cor) return;
     const cores = normalizeCoresTema(draftConfig);
     const next = [...cores];
-    const idx = Math.min(colorSlot, next.length - 1);
+    const idx = Math.min(Math.max(0, index), next.length - 1);
+    setColorSlot(idx);
     next[idx] = cor;
     updateDraft({
       temaEstilo: estilo === 'solido' ? 'solido' : (estilo === 'escuro' ? 'escuro' : 'gradiente'),
@@ -264,6 +281,8 @@ export function CatalogoEditorPanel({
       corPrincipal: estilo === 'solido' ? cor : next[0],
     });
   };
+
+  const setCorSlot = (cor) => setCorAt(colorSlot, cor);
 
   const addCor = () => {
     const cores = normalizeCoresTema(draftConfig);
@@ -281,6 +300,68 @@ export function CatalogoEditorPanel({
     updateDraft({ coresTema: next, corPrincipal: next[0] });
   };
 
+  const applyFundoEstilo = (next) => {
+    if (next === pageBg.estilo) return;
+    const cores = normalizeCoresFundo(draftConfig);
+    if (next === 'solido') {
+      const cor = cores[0];
+      updateDraft({
+        fundoEstilo: 'solido',
+        corFundo: cor,
+        coresFundo: [cor],
+        corTexto: draftConfig.corTexto || '#0f172a',
+      });
+      return;
+    }
+    const pack = cores.length >= 2 ? cores : [cores[0], '#e2e8f0'];
+    setFundoSlot(0);
+    updateDraft({
+      fundoEstilo: 'gradiente',
+      coresFundo: pack,
+      corFundo: pack[0],
+      fundoGradienteDirecao: draftConfig.fundoGradienteDirecao || 'diagonal',
+      corTexto: draftConfig.corTexto || '#0f172a',
+      fundoGradienteStops: normalizeGradientStops(draftConfig.fundoGradienteStops, pack),
+    });
+  };
+
+  const setFundoCorAt = (index, cor) => {
+    if (!cor) return;
+    const cores = normalizeCoresFundo(draftConfig);
+    if (pageBg.estilo === 'solido') {
+      updateDraft({ fundoEstilo: 'solido', corFundo: cor, coresFundo: [cor], corTexto: draftConfig.corTexto || '#0f172a' });
+      return;
+    }
+    const next = [...cores];
+    const idx = Math.min(Math.max(0, index), Math.max(0, next.length - 1));
+    setFundoSlot(idx);
+    next[idx] = cor;
+    updateDraft({
+      fundoEstilo: 'gradiente',
+      coresFundo: next,
+      corFundo: next[0],
+      corTexto: draftConfig.corTexto || '#0f172a',
+    });
+  };
+
+  const setFundoCorSlot = (cor) => setFundoCorAt(fundoSlot, cor);
+
+  const addFundoCor = () => {
+    const cores = normalizeCoresFundo(draftConfig);
+    if (cores.length >= 4) return;
+    const next = [...cores, '#cbd5e1'];
+    setFundoSlot(next.length - 1);
+    updateDraft({ fundoEstilo: 'gradiente', coresFundo: next, corFundo: next[0] });
+  };
+
+  const removeFundoCor = (index) => {
+    const cores = normalizeCoresFundo(draftConfig);
+    if (cores.length <= 2) return;
+    const next = cores.filter((_, i) => i !== index);
+    setFundoSlot(Math.max(0, index - 1));
+    updateDraft({ coresFundo: next, corFundo: next[0] });
+  };
+
   const refreshItens = (tipo) => {
     const next = { ...draftConfig, tipo };
     updateDraft({ tipo, itens: syncCatalogoItens(next, products, services) });
@@ -289,7 +370,6 @@ export function CatalogoEditorPanel({
   const logoUri = getLojaLogoUri(draftConfig, profile, { forEdit: true });
   useMemo(() => buildHeroPresentation(draftConfig), [draftConfig]);
   const inputStyle = [st.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }];
-  const points = getGradientPoints(draftConfig.gradienteDirecao);
 
   return (
     <ScrollView style={st.scroll} contentContainerStyle={st.scrollContent} showsVerticalScrollIndicator={false}>
@@ -362,6 +442,71 @@ export function CatalogoEditorPanel({
             </View>
           </Card>
 
+          <Card
+            title="Meus temas"
+            hint="Salva o visual atual (cores, degradê, fontes e efeitos). Toque num tema salvo para aplicar. O nome repetido substitui o anterior."
+            colors={colors}
+          >
+            <TextInput
+              style={inputStyle}
+              value={temaNome}
+              onChangeText={setTemaNome}
+              placeholder="Nome do tema"
+              placeholderTextColor={colors.textSecondary}
+              maxLength={40}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                playTapSound();
+                const lista = Array.isArray(draftConfig.temasSalvos) ? draftConfig.temasSalvos : [];
+                if (lista.length >= TEMAS_SALVOS_MAX && !lista.some((t) => String(t.nome || '').trim().toLowerCase() === String(temaNome || '').trim().toLowerCase())) {
+                  return;
+                }
+                const snap = snapshotTemaAtual(draftConfig, temaNome || `Meu tema ${lista.length + 1}`);
+                updateDraft(upsertTemaSalvo(draftConfig, snap));
+                setTemaNome('');
+              }}
+              style={[st.saveTemaBtn, { backgroundColor: accent }]}
+            >
+              <Ionicons name="bookmark-outline" size={16} color="#fff" />
+              <Text style={st.saveTemaText}>Salvar tema atual</Text>
+            </TouchableOpacity>
+            {(draftConfig.temasSalvos || []).length ? (
+              <View style={[st.presetGrid, { marginTop: 12 }]}>
+                {(draftConfig.temasSalvos || []).map((t) => {
+                  const on = (draftConfig.temaPronto || '') === t.id;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      onPress={() => { playTapSound(); updateDraft(applyTemaSalvo(t)); }}
+                      style={[st.presetCard, { borderColor: on ? (t.corPrincipal || accent) : colors.border, backgroundColor: t.corFundo || colors.bg }]}
+                    >
+                      <View style={[st.presetBar, { backgroundColor: t.corPrincipal || accent }]} />
+                      <Text style={{ color: t.corTexto || colors.text, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{t.nome}</Text>
+                      <Text style={{ color: t.corTexto || colors.text, opacity: 0.65, fontSize: 10, fontWeight: '600' }}>Salvo</Text>
+                      <TouchableOpacity
+                        onPress={() => { playTapSound(); updateDraft(removeTemaSalvo(draftConfig, t.id)); }}
+                        hitSlop={8}
+                        style={st.temaTrash}
+                      >
+                        <Ionicons name="trash-outline" size={14} color="#ef4444" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={[st.hint, { color: colors.textSecondary, marginTop: 8, marginBottom: 0 }]}>
+                Nenhum tema salvo ainda. Ajuste as cores e toque em salvar.
+              </Text>
+            )}
+            {(draftConfig.temasSalvos || []).length >= TEMAS_SALVOS_MAX ? (
+              <Text style={[st.hint, { color: colors.textSecondary, marginTop: 8, marginBottom: 0 }]}>
+                Limite de {TEMAS_SALVOS_MAX} temas. O mais antigo sai se você salvar outro.
+              </Text>
+            ) : null}
+          </Card>
+
             <Card title="Estilo do cabeçalho" hint="Sólido usa uma cor. Gradiente usa várias. Escuro deixa a vitrine noturna." colors={colors}>
             <View style={st.estiloGrid}>
               {TEMA_ESTILOS.map((item) => {
@@ -393,37 +538,31 @@ export function CatalogoEditorPanel({
           )}
 
           {estilo === 'gradiente' && (
-            <Card title="Gradiente" hint="Toque numa faixa e use o pincel para escolher qualquer cor. De 2 a 4 cores formam o degradê." colors={colors}>
-              <LinearGradient colors={theme.heroColors} start={points.start} end={points.end} style={st.multiPreview} />
-              <View style={st.slotRow}>
-                {theme.cores.map((cor, index) => (
-                  <TouchableOpacity
-                    key={`${cor}-${index}`}
-                    onPress={() => { playTapSound(); setColorSlot(index); }}
-                    style={[st.slot, { backgroundColor: cor, borderColor: colorSlot === index ? colors.text : 'transparent' }]}
-                  >
-                    {theme.cores.length > 2 ? (
-                      <TouchableOpacity style={st.slotRemove} onPress={() => removeCor(index)} hitSlop={6}>
-                        <Ionicons name="close" size={12} color="#fff" />
-                      </TouchableOpacity>
-                    ) : null}
-                  </TouchableOpacity>
-                ))}
-                {theme.cores.length < 4 ? (
-                  <TouchableOpacity style={[st.slotAdd, { borderColor: colors.border }]} onPress={() => { playTapSound(); addCor(); }}>
-                    <Ionicons name="add" size={18} color={accent} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <CatalogoColorBrush
-                label={`Cor ${colorSlot + 1} do degradê`}
-                value={theme.cores[colorSlot] || theme.cores[0]}
-                onChange={setCorSlot}
+            <Card title="Gradiente" hint="Clique na barra para criar cores. Arraste as setas e o losango para puxar a intensidade para um lado — como no Photoshop." colors={colors}>
+              <CatalogoGradientStops
+                stops={theme.stops}
+                cores={theme.cores}
+                look={theme.look}
+                onChange={(stops) => updateDraft({
+                  temaEstilo: 'gradiente',
+                  gradienteStops: stops,
+                  coresTema: stops.map((s) => s.cor),
+                  corPrincipal: stops[0]?.cor || draftConfig.corPrincipal,
+                })}
                 colors={colors}
                 accent={accent}
               />
-              <Field label="Direção" colors={colors}>
-                <ChipRow options={GRADIENTE_DIRECOES} value={draftConfig.gradienteDirecao || 'diagonal'} onChange={(v) => updateDraft({ gradienteDirecao: v })} colors={colors} accent={accent} />
+              <Field label="Degradê" colors={colors}>
+                <CatalogoGradientControls
+                  look={theme.look}
+                  onChange={(look) => updateDraft({
+                    gradienteForma: look.forma,
+                    gradienteAngulo: look.angulo,
+                    gradienteInverter: look.inverter,
+                  })}
+                  colors={colors}
+                  accent={accent}
+                />
               </Field>
             </Card>
           )}
@@ -465,14 +604,60 @@ export function CatalogoEditorPanel({
             </Card>
           )}
 
-          <Card title="Fundo da página" colors={colors}>
-            <CatalogoColorBrush
-              label="Cor de fundo da vitrine"
-              value={draftConfig.corFundo}
-              onChange={(c) => updateDraft({ corFundo: c, corTexto: draftConfig.corTexto || '#0f172a' })}
-              colors={colors}
-              accent={accent}
-            />
+          <Card title="Fundo da página" hint="Sólido usa uma cor. Gradiente usa várias, do mesmo jeito que o cabeçalho." colors={colors}>
+            <View style={st.estiloGrid}>
+              {FUNDO_ESTILOS.map((item) => {
+                const on = pageBg.estilo === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => { playTapSound(); applyFundoEstilo(item.id); }}
+                    style={[st.estiloCard, { borderColor: on ? accent : colors.border, backgroundColor: on ? accent + '14' : colors.bg }]}
+                  >
+                    <Ionicons name={item.icon} size={18} color={on ? accent : colors.textSecondary} />
+                    <Text style={{ color: on ? accent : colors.text, fontWeight: '700', fontSize: 12 }}>{item.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {pageBg.estilo === 'solido' ? (
+              <CatalogoColorBrush
+                label="Cor de fundo da vitrine"
+                value={pageBg.solid}
+                onChange={setFundoCorSlot}
+                colors={colors}
+                accent={accent}
+              />
+            ) : (
+              <>
+                <CatalogoGradientStops
+                  stops={pageBg.stops}
+                  cores={pageBg.cores}
+                  look={pageBg.look}
+                  onChange={(stops) => updateDraft({
+                    fundoEstilo: 'gradiente',
+                    fundoGradienteStops: stops,
+                    coresFundo: stops.map((s) => s.cor),
+                    corFundo: stops[0]?.cor || draftConfig.corFundo,
+                    corTexto: draftConfig.corTexto || '#0f172a',
+                  })}
+                  colors={colors}
+                  accent={accent}
+                />
+                <Field label="Degradê" colors={colors}>
+                  <CatalogoGradientControls
+                    look={pageBg.look}
+                    onChange={(look) => updateDraft({
+                      fundoGradienteForma: look.forma,
+                      fundoGradienteAngulo: look.angulo,
+                      fundoGradienteInverter: look.inverter,
+                    })}
+                    colors={colors}
+                    accent={accent}
+                  />
+                </Field>
+              </>
+            )}
             <Field label="Foto do banner" colors={colors}>
               <TouchableOpacity onPress={onPickFundo} disabled={uploadingFundo} style={[st.uploadRow, { borderColor: colors.border, backgroundColor: colors.bg }]}>
                 {draftConfig.fotoFundo ? (
@@ -486,6 +671,9 @@ export function CatalogoEditorPanel({
                   {uploadingFundo ? 'Enviando…' : (draftConfig.fotoFundo ? 'Trocar foto' : 'Enviar foto')}
                 </Text>
               </TouchableOpacity>
+              <Text style={[st.hint, { color: colors.textSecondary, marginTop: 8, marginBottom: 0 }]}>
+                Tamanho ideal do banner: {imgHints.banner}. Recorte paisagem para preencher o cabeçalho sem distorcer.
+              </Text>
             </Field>
             <SwitchLine label="Usar foto por cima do tema" value={!!draftConfig.usaFotoFundo} onValueChange={(v) => updateDraft({ usaFotoFundo: v })} colors={colors} accent={accent} />
           </Card>
@@ -511,7 +699,7 @@ export function CatalogoEditorPanel({
               )}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontWeight: '700', color: colors.text }}>{uploadingLogo ? 'Enviando…' : (draftConfig.fotoCatalogo ? 'Trocar logo' : 'Enviar logo')}</Text>
-                <Text style={[st.hint, { color: colors.textSecondary, marginBottom: 0, marginTop: 2 }]}>A versão pública usa a imagem em alta.</Text>
+                <Text style={[st.hint, { color: colors.textSecondary, marginBottom: 0, marginTop: 2 }]}>Tamanho ideal: {imgHints.logo}.</Text>
               </View>
             </TouchableOpacity>
             <View style={[st.headerEditRow, { borderColor: colors.border, backgroundColor: colors.bg, marginTop: 10 }]}>
@@ -588,7 +776,7 @@ export function CatalogoEditorPanel({
             </Field>
           </Card>
 
-          <Card title="Textos do cabeçalho" hint="Padrão: nome, slogan e descrição. Título e subtítulo você adiciona se quiser. Um clique move; dois cliques editam." colors={colors}>
+          <Card title="Textos do cabeçalho" hint="Nome, slogan e descrição. Use Adicionar na pré-visualização para criar mais textos no banner." colors={colors}>
             {draftConfig.usaNomeProfissional === true ? (
               <Field label={rotulos.nomeCampo} colors={colors}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -689,22 +877,10 @@ export function CatalogoEditorPanel({
                   <Text style={st.linkBtnText}>Descrição</Text>
                 </TouchableOpacity>
               ) : null}
-              {draftConfig.mostrarTitulo !== true ? (
-                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ mostrarTitulo: true }); }}>
-                  <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={st.linkBtnText}>Título</Text>
-                </TouchableOpacity>
-              ) : null}
-              {draftConfig.mostrarSubtitulo !== true ? (
-                <TouchableOpacity style={[st.linkBtn, { backgroundColor: accent }]} onPress={() => { playTapSound(); updateDraft({ mostrarSubtitulo: true }); }}>
-                  <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={st.linkBtnText}>Subtítulo</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </Card>
 
-          <Card title="Formato do banner" hint="Altura, moldura e sobreposição. Para mover textos, clique neles na pré-visualização." colors={colors}>
+          <Card title="Formato do banner" hint="Altura, moldura e recorte na base do cabeçalho. Para mover textos, clique neles na pré-visualização." colors={colors}>
             <Field label="Alinhamento dos textos" colors={colors}>
               <ChipRow options={HERO_ALINHAMENTOS} value={draftConfig.heroAlinhamentoTexto || 'centro'} onChange={(v) => updateDraft({ heroAlinhamentoTexto: v })} colors={colors} accent={accent} />
             </Field>
@@ -717,7 +893,7 @@ export function CatalogoEditorPanel({
             <Field label="Moldura do cabeçalho" colors={colors}>
               <ChipRow options={HERO_MOLDURAS} value={draftConfig.heroMoldura || 'cheia'} onChange={(v) => updateDraft({ heroMoldura: v })} colors={colors} accent={accent} />
             </Field>
-            <Field label="Sobreposição na página" colors={colors}>
+            <Field label="Recorte do cabeçalho" colors={colors}>
               <ChipRow options={HERO_SOBREPOSICOES} value={draftConfig.heroSobreposicao || 'nenhuma'} onChange={(v) => updateDraft({ heroSobreposicao: v })} colors={colors} accent={accent} />
             </Field>
           </Card>
@@ -770,6 +946,7 @@ export function CatalogoEditorPanel({
               accent={accent}
             />
             {(draftConfig.layout === 'carrossel' || draftConfig.carouselAtivo === true) ? (
+              <>
               <Field label="Posição do carrossel" colors={colors}>
                 <ChipRow
                   options={CAROUSEL_POSICOES}
@@ -779,12 +956,82 @@ export function CatalogoEditorPanel({
                   accent={accent}
                 />
               </Field>
+              <Field label="Produtos visíveis" colors={colors}>
+                <ChipRow
+                  options={CAROUSEL_VISIVEIS}
+                  value={String(draftConfig.carouselVisiveis || '1')}
+                  onChange={(v) => updateDraft({ carouselVisiveis: v })}
+                  colors={colors}
+                  accent={accent}
+                />
+              </Field>
+              </>
             ) : null}
             <Field label="O que entra no carrossel" colors={colors}>
               <ChipRow options={CAROUSEL_SCOPES} value={draftConfig.carouselScope || 'destaque'} onChange={(v) => updateDraft({ carouselScope: v })} colors={colors} accent={accent} />
             </Field>
+            {draftConfig.carouselScope === 'escolher' ? (
+              <View style={{ marginTop: 10 }}>
+                <Text style={[st.hint, { color: colors.textSecondary }]}>
+                  Marque os produtos ou serviços. A ordem da lista é a ordem do carrossel. Na pré-visualização, o recorte na foto ajusta a capa.
+                </Text>
+                {(() => {
+                  const ids = normalizeCarouselItemIds(draftConfig.carouselItemIds);
+                  return itemRows.filter((row) => row.visible !== false).map((row) => {
+                  const on = ids.includes(row._key);
+                  const pos = on ? ids.indexOf(row._key) : -1;
+                  return (
+                    <View key={row._key} style={[st.itemRow, { borderColor: on ? accent : colors.border, backgroundColor: colors.bg }]}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          playTapSound();
+                          updateDraft({
+                            carouselItemIds: on ? ids.filter((k) => k !== row._key) : [...ids, row._key],
+                          });
+                        }}
+                        hitSlop={8}
+                      >
+                        <Ionicons name={on ? 'checkbox' : 'square-outline'} size={22} color={on ? accent : colors.textSecondary} />
+                      </TouchableOpacity>
+                      <Ionicons name={row.tipo === 'servico' ? 'construct-outline' : 'cube-outline'} size={16} color={accent} />
+                      <Text style={[st.itemName, { color: colors.text, flex: 1 }]} numberOfLines={1}>{row.name}</Text>
+                      {on ? (
+                        <>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (pos <= 0) return;
+                              const next = [...ids];
+                              [next[pos - 1], next[pos]] = [next[pos], next[pos - 1]];
+                              updateDraft({ carouselItemIds: next });
+                            }}
+                            hitSlop={8}
+                          >
+                            <Ionicons name="chevron-up" size={18} color={pos <= 0 ? colors.border : colors.textSecondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (pos < 0 || pos >= ids.length - 1) return;
+                              const next = [...ids];
+                              [next[pos + 1], next[pos]] = [next[pos], next[pos + 1]];
+                              updateDraft({ carouselItemIds: next });
+                            }}
+                            hitSlop={8}
+                          >
+                            <Ionicons name="chevron-down" size={18} color={pos >= ids.length - 1 ? colors.border : colors.textSecondary} />
+                          </TouchableOpacity>
+                        </>
+                      ) : null}
+                    </View>
+                  );
+                  });
+                })()}
+              </View>
+            ) : null}
             <Field label="Tamanho" colors={colors}>
               <ChipRow options={CAROUSEL_SIZES} value={draftConfig.carouselSize || 'medio'} onChange={(v) => updateDraft({ carouselSize: v })} colors={colors} accent={accent} />
+              <Text style={[st.hint, { color: colors.textSecondary, marginTop: 6, marginBottom: 0 }]}>
+                Mínimo e Fino deixam o carrossel bem baixo; o produto pode parecer mais distante.
+              </Text>
             </Field>
             <Field label="Estilo" colors={colors}>
               <ChipRow options={CAROUSEL_ESTILOS} value={draftConfig.carouselEstilo || 'classico'} onChange={(v) => updateDraft({ carouselEstilo: v })} colors={colors} accent={accent} />
@@ -898,7 +1145,8 @@ export function CatalogoEditorPanel({
             <SwitchLine label={rotulos.publicoAtivo} value={draftConfig.lojaPublica !== false} onValueChange={(v) => updateDraft({ lojaPublica: v })} colors={colors} accent={accent} />
           </Card>
 
-          <Card title="WhatsApp" hint="Número que recebe o pedido. Vazio usa o telefone do perfil." colors={colors}>
+          <Card title="WhatsApp" hint="Número que recebe o pedido. Vazio usa o telefone do perfil. O ícone fica ao lado do carrinho no topo da loja." colors={colors}>
+            <SwitchLine label="Mostrar WhatsApp ao lado do carrinho" value={draftConfig.mostrarWhatsApp !== false} onValueChange={(v) => updateDraft({ mostrarWhatsApp: v })} colors={colors} accent={accent} />
             <TextInput style={inputStyle} value={draftConfig.whatsappPedido || ''} onChangeText={(v) => updateDraft({ whatsappPedido: v })} placeholder={profile?.telefone || '(11) 99999-9999'} placeholderTextColor={colors.textSecondary} keyboardType="phone-pad" />
           </Card>
 
@@ -963,8 +1211,19 @@ const st = StyleSheet.create({
   estiloGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   estiloCard: { width: '48%', flexGrow: 1, borderWidth: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  presetCard: { width: '31%', flexGrow: 1, minWidth: 92, borderWidth: 2, borderRadius: 14, padding: 10, gap: 4 },
+  presetCard: { width: '31%', flexGrow: 1, minWidth: 92, borderWidth: 2, borderRadius: 14, padding: 10, gap: 4, position: 'relative' },
   presetBar: { height: 6, borderRadius: 4, marginBottom: 4 },
+  saveTemaBtn: {
+    marginTop: 8,
+    minHeight: 42,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  saveTemaText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  temaTrash: { position: 'absolute', top: 6, right: 6, padding: 2 },
   gradGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   gradCard: { width: '48%', flexGrow: 1, borderRadius: 14, overflow: 'hidden' },
   gradFill: { height: 64, justifyContent: 'flex-end', padding: 8 },

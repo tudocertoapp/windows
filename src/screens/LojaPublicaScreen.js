@@ -5,13 +5,12 @@ import {
   StyleSheet,
   ActivityIndicator,
   SafeAreaView,
-  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { CatalogoStoreView } from '../components/catalogo/CatalogoStoreView';
 import { getApiOrigin } from '../lib/subscription';
-import { mergeCatalogoConfig, buildCartWhatsAppMessage, resolveCatalogoItems } from '../utils/catalogoStore';
+import { mergeCatalogoConfig, buildCartWhatsAppMessage, resolveCatalogoItems, getCatalogoPageBg } from '../utils/catalogoStore';
 import { getPublicLojaRoute } from '../utils/lojaPublicLink';
 import { openWhatsApp } from '../utils/whatsapp';
 
@@ -158,10 +157,8 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp, lojaSlug: loja
     );
   }
 
-  const whatsappFab = store.profile?.telefone || store.config?.whatsappPedido;
-
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: store.config.corFundo || colors.bg }]}>
+    <SafeAreaView style={[s.root, { backgroundColor: getCatalogoPageBg(store.config).solid || colors.bg }]}>
       <CatalogoStoreView
         config={store.config}
         items={store.items}
@@ -176,29 +173,10 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp, lojaSlug: loja
         onBookingComplete={() => setCart([])}
         interactive
       />
-      {whatsappFab ? (
-        <TouchableOpacity
-          style={[s.contactFab, { backgroundColor: '#25D366' }]}
-          onPress={() => openWhatsApp(whatsappFab, `Olá! Vim pela loja online de ${store.profile?.empresa || store.profile?.nome || 'vocês'}.`)}
-        >
-          <Ionicons name="logo-whatsapp" size={26} color="#fff" />
-        </TouchableOpacity>
-      ) : null}
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  contactFab: {
-    position: 'absolute',
-    bottom: 84,
-    left: 24,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-  },
 });

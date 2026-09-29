@@ -1,5 +1,7 @@
 import { formatCurrency } from './format';
 import { normalizeCategoriasProdutos } from './productCategories';
+import { normalizeFontesUsuario, normalizeFontesFavoritas, normalizeFonteEstilos } from './catalogoFonts';
+import { normalizeGradientLook, gradientColors, gradientPoints, normalizeGradientStops } from './catalogoGradient';
 
 export const CATALOGO_CONFIG_KEY = '@tudocerto_catalogo_config';
 
@@ -145,6 +147,8 @@ export function applyTemaPronto(config, id) {
     corPrincipal: t.corPrincipal,
     coresTema: [t.corPrincipal],
     corFundo: t.corFundo,
+    fundoEstilo: 'solido',
+    coresFundo: [t.corFundo],
     corCard: t.corCard,
     corTexto: t.corTexto,
     corFonteNome: t.fonts.nome,
@@ -157,13 +161,97 @@ export function applyTemaPronto(config, id) {
   };
 }
 
+const TEMA_SNAPSHOT_KEYS = [
+  'temaEstilo', 'corPrincipal', 'coresTema',
+  'gradienteDirecao', 'gradienteAngulo', 'gradienteInverter', 'gradienteForma', 'gradienteStops',
+  'corFundo', 'fundoEstilo', 'coresFundo',
+  'fundoGradienteDirecao', 'fundoGradienteAngulo', 'fundoGradienteInverter', 'fundoGradienteForma', 'fundoGradienteStops',
+  'corCard', 'corTexto',
+  'corFonteNome', 'corFonteTitulo', 'corFonteSubtitulo', 'corFonteSlogan',
+  'corFonteProduto', 'corFontePreco', 'corFonteSobre',
+  'fonteNome', 'fonteTitulo', 'fonteSubtitulo', 'fonteSlogan',
+  'fonteEstilos',
+];
+
+export const TEMAS_SALVOS_MAX = 16;
+
+export function normalizeTemasSalvos(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list.slice(0, TEMAS_SALVOS_MAX).map((t, i) => {
+    if (!t || typeof t !== 'object') return null;
+    const id = String(t.id || `usr_${i}`).slice(0, 48);
+    const nome = String(t.nome || t.label || `Meu tema ${i + 1}`).trim().slice(0, 40) || `Meu tema ${i + 1}`;
+    const patch = {};
+    TEMA_SNAPSHOT_KEYS.forEach((k) => {
+      if (t[k] !== undefined) patch[k] = t[k];
+    });
+    return {
+      id,
+      nome,
+      criadoEm: t.criadoEm || Date.now(),
+      corPrincipal: t.corPrincipal || t.coresTema?.[0] || '#6366f1',
+      corFundo: t.corFundo || '#f8fafc',
+      corTexto: t.corTexto || '#0f172a',
+      ...patch,
+    };
+  }).filter(Boolean);
+}
+
+export function snapshotTemaAtual(config, nome) {
+  const patch = {};
+  TEMA_SNAPSHOT_KEYS.forEach((k) => {
+    if (config?.[k] !== undefined) patch[k] = config[k];
+  });
+  return {
+    id: `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    nome: String(nome || 'Meu tema').trim().slice(0, 40) || 'Meu tema',
+    criadoEm: Date.now(),
+    ...patch,
+    corPrincipal: config?.corPrincipal || '#6366f1',
+    corFundo: config?.corFundo || '#f8fafc',
+    corTexto: config?.corTexto || '#0f172a',
+  };
+}
+
+export function applyTemaSalvo(tema) {
+  if (!tema || typeof tema !== 'object') return {};
+  const patch = { temaPronto: tema.id };
+  TEMA_SNAPSHOT_KEYS.forEach((k) => {
+    if (tema[k] !== undefined) patch[k] = tema[k];
+  });
+  return patch;
+}
+
+export function upsertTemaSalvo(config, tema) {
+  const list = normalizeTemasSalvos(config?.temasSalvos);
+  const nomeKey = String(tema?.nome || '').trim().toLowerCase();
+  const idx = list.findIndex((t) => t.nome.trim().toLowerCase() === nomeKey);
+  let next;
+  if (idx >= 0) {
+    next = list.map((t, i) => (i === idx ? { ...tema, id: t.id } : t));
+  } else if (list.length >= TEMAS_SALVOS_MAX) {
+    next = [...list.slice(1), tema];
+  } else {
+    next = [...list, tema];
+  }
+  return { temasSalvos: next, temaPronto: next[idx >= 0 ? idx : next.length - 1]?.id };
+}
+
+export function removeTemaSalvo(config, id) {
+  const list = normalizeTemasSalvos(config?.temasSalvos).filter((t) => t.id !== id);
+  return {
+    temasSalvos: list,
+    temaPronto: config?.temaPronto === id ? '' : config?.temaPronto,
+  };
+}
+
 function hexOr(v, fallback) {
   return HEX_COLOR.test(String(v || '')) ? v : fallback;
 }
 
 export function getCatalogoFontColors(config, theme) {
   const t = theme || getCatalogoTheme(config);
-  return {
+  const colors = {
     nome: hexOr(config?.corFonteNome, '#ffffff'),
     titulo: hexOr(config?.corFonteTitulo, '#ffffff'),
     subtitulo: hexOr(config?.corFonteSubtitulo, '#ffffff'),
@@ -172,6 +260,10 @@ export function getCatalogoFontColors(config, theme) {
     preco: hexOr(config?.corFontePreco, t.corPrincipal),
     sobre: hexOr(config?.corFonteSobre, t.corTexto),
   };
+  getHeroTextos(config).forEach((item) => {
+    colors[item.id] = item.cor;
+  });
+  return colors;
 }
 
 export const TEMAS_ESCUROS = [
@@ -191,6 +283,11 @@ export const TEMA_ESTILOS = [
   { id: 'solido', label: 'Sólido', icon: 'color-fill-outline' },
   { id: 'gradiente', label: 'Gradiente', icon: 'color-filter-outline' },
   { id: 'escuro', label: 'Escuro', icon: 'moon-outline' },
+];
+
+export const FUNDO_ESTILOS = [
+  { id: 'solido', label: 'Sólido', icon: 'color-fill-outline' },
+  { id: 'gradiente', label: 'Gradiente', icon: 'color-filter-outline' },
 ];
 
 export const ROTULO_VITRINE_OPTS = [
@@ -234,13 +331,47 @@ export function normalizeCoresTema(config) {
   const list = raw.map((c) => String(c || '').trim()).filter((c) => HEX_COLOR.test(c));
   if (!list.length && HEX_COLOR.test(String(config?.corPrincipal || ''))) list.push(config.corPrincipal);
   if (!list.length) list.push('#6366f1');
-  return list.slice(0, 4);
+  return list.slice(0, 12);
+}
+
+export function normalizeCoresFundo(config) {
+  const raw = Array.isArray(config?.coresFundo) ? config.coresFundo : [];
+  const list = raw.map((c) => String(c || '').trim()).filter((c) => HEX_COLOR.test(c));
+  if (!list.length && HEX_COLOR.test(String(config?.corFundo || ''))) list.push(config.corFundo);
+  if (!list.length) list.push('#f8fafc');
+  return list.slice(0, 12);
+}
+
+export function getCatalogoPageBg(config) {
+  const estilo = config?.fundoEstilo === 'gradiente' ? 'gradiente' : 'solido';
+  const cores = normalizeCoresFundo(config);
+  const look = normalizeGradientLook({
+    angulo: config?.fundoGradienteAngulo,
+    inverter: config?.fundoGradienteInverter,
+    forma: config?.fundoGradienteForma,
+  }, config?.fundoGradienteDirecao);
+  const stops = normalizeGradientStops(config?.fundoGradienteStops, cores);
+  const usarGradiente = estilo === 'gradiente' && stops.length >= 2;
+  const points = gradientPoints(look.angulo);
+  const solid = cores[0];
+  const painted = usarGradiente ? gradientColors(cores, look.inverter) : [solid, solid];
+  return {
+    estilo,
+    usarGradiente,
+    cores,
+    stops,
+    look,
+    solid,
+    colors: painted.length >= 2 ? painted : [solid, solid],
+    start: points.start,
+    end: points.end,
+  };
 }
 
 export function getGradientPoints(direcao) {
-  if (direcao === 'horizontal') return { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } };
-  if (direcao === 'vertical') return { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
-  return { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } };
+  return gradientPoints(
+    direcao === 'horizontal' ? 90 : direcao === 'vertical' ? 180 : 135,
+  );
 }
 
 export function getCatalogoTheme(config) {
@@ -248,19 +379,28 @@ export function getCatalogoTheme(config) {
   if (!['solido', 'gradiente', 'escuro'].includes(estilo)) estilo = 'solido';
   const cores = normalizeCoresTema(config);
   const escuro = estilo === 'escuro';
-  const usarGradiente = estilo === 'gradiente' && cores.length >= 2;
-  const points = getGradientPoints(config?.gradienteDirecao);
+  const look = normalizeGradientLook({
+    angulo: config?.gradienteAngulo,
+    inverter: config?.gradienteInverter,
+    forma: config?.gradienteForma,
+  }, config?.gradienteDirecao);
+  const stops = normalizeGradientStops(config?.gradienteStops, cores);
+  const usarGradiente = estilo === 'gradiente' && stops.length >= 2;
+  const points = gradientPoints(look.angulo);
   const corPrincipal = HEX_COLOR.test(String(config?.corPrincipal || '')) ? config.corPrincipal : cores[0];
+  const painted = usarGradiente ? gradientColors(cores, look.inverter) : [corPrincipal, corPrincipal];
   return {
     estilo,
     escuro,
     usarGradiente,
     cores,
+    stops,
+    look,
     corPrincipal,
     corFundo: config?.corFundo || (escuro ? '#0f172a' : '#f8fafc'),
     corTexto: config?.corTexto || (escuro ? '#f8fafc' : '#0f172a'),
     cardBg: hexOr(config?.corCard, escuro ? '#1e293b' : '#ffffff'),
-    heroColors: usarGradiente ? cores : [corPrincipal, corPrincipal],
+    heroColors: painted.length >= 2 ? painted : [corPrincipal, corPrincipal],
     start: points.start,
     end: points.end,
   };
@@ -306,9 +446,17 @@ export const CATALOGO_LAYOUTS = [
 ];
 
 export const CAROUSEL_POSICOES = [
-  { id: 'acima', label: 'Acima da grade', icon: 'arrow-up-outline' },
+  { id: 'antes-busca', label: 'Antes da busca', icon: 'arrow-up-outline' },
+  { id: 'acima', label: 'Depois dos filtros', icon: 'funnel-outline' },
+  { id: 'lado', label: 'Metade da página', icon: 'tablet-landscape-outline' },
   { id: 'abaixo', label: 'Abaixo da grade', icon: 'arrow-down-outline' },
   { id: 'mesclado', label: 'Mesclado na grade', icon: 'grid-outline' },
+];
+
+export const CAROUSEL_VISIVEIS = [
+  { id: '1', label: '1' },
+  { id: '2', label: '2' },
+  { id: '3', label: '3' },
 ];
 
 export function getCarouselPosicao(config) {
@@ -412,20 +560,50 @@ export const HERO_MOLDURAS = [
 ];
 
 export const HERO_SOBREPOSICOES = [
-  { id: 'nenhuma', label: 'Separado', icon: 'remove-outline' },
-  { id: 'recorte', label: 'Recorte', icon: 'crop-outline' },
-  { id: 'cartao', label: 'Cartão', icon: 'card-outline' },
+  { id: 'nenhuma', label: 'Reto', icon: 'remove-outline' },
   { id: 'onda', label: 'Onda', icon: 'pulse-outline' },
   { id: 'arco', label: 'Arco', icon: 'rainy-outline' },
-  { id: 'vitrine', label: 'Vitrine', icon: 'storefront-outline' },
-  { id: 'cinta', label: 'Cinta', icon: 'reorder-two-outline' },
-  { id: 'envelope', label: 'Envelope', icon: 'mail-outline' },
-  { id: 'joia', label: 'Joia', icon: 'diamond-outline' },
-  { id: 'flutuante', label: 'Flutuante', icon: 'layers-outline' },
   { id: 'diagonal', label: 'Corte', icon: 'swap-vertical-outline' },
+  { id: 'recorte', label: 'Entalhe', icon: 'crop-outline' },
+  { id: 'vale', label: 'Vale', icon: 'git-commit-outline' },
+  { id: 'escama', label: 'Escama', icon: 'ellipse-outline' },
+  { id: 'zigue', label: 'Zigue', icon: 'analytics-outline' },
+  { id: 'serra', label: 'Serra', icon: 'barcode-outline' },
+  { id: 'degrau', label: 'Degrau', icon: 'layers-outline' },
+  { id: 'petal', label: 'Pétala', icon: 'flower-outline' },
+  { id: 'asa', label: 'Asa', icon: 'airplane-outline' },
+  { id: 'concha', label: 'Concha', icon: 'moon-outline' },
+  { id: 'gota', label: 'Gota', icon: 'water-outline' },
+  { id: 'nuvem', label: 'Nuvem', icon: 'cloud-outline' },
 ];
 
+const HERO_CUT_SHAPES = {
+  nenhuma: { shape: null, h: 0 },
+  onda: { shape: 'onda', h: 48 },
+  arco: { shape: 'arco', h: 46 },
+  diagonal: { shape: 'diagonal', h: 40 },
+  recorte: { shape: 'entalhe', h: 40 },
+  vale: { shape: 'vale', h: 44 },
+  escama: { shape: 'escama', h: 42 },
+  zigue: { shape: 'zigue', h: 40 },
+  serra: { shape: 'serra', h: 38 },
+  degrau: { shape: 'degrau', h: 36 },
+  petal: { shape: 'petal', h: 44 },
+  asa: { shape: 'asa', h: 46 },
+  concha: { shape: 'concha', h: 48 },
+  gota: { shape: 'gota', h: 46 },
+  nuvem: { shape: 'nuvem', h: 44 },
+  cartao: { shape: 'ondabaixa', h: 32 },
+  vitrine: { shape: 'concha', h: 48 },
+  cinta: { shape: 'degrau', h: 36 },
+  envelope: { shape: 'asa', h: 46 },
+  joia: { shape: 'gota', h: 46 },
+  flutuante: { shape: 'nuvem', h: 44 },
+};
+
 export const CAROUSEL_SIZES = [
+  { id: 'minimo', label: 'Mínimo', imgH: 48 },
+  { id: 'fino', label: 'Fino', imgH: 72 },
   { id: 'pequeno', label: 'Pequeno', imgH: 118 },
   { id: 'medio', label: 'Médio', imgH: 200 },
   { id: 'grande', label: 'Grande', imgH: 286 },
@@ -443,9 +621,12 @@ export const CAROUSEL_ANIMS = [
   { id: 'deslize', label: 'Deslize', icon: 'swap-horizontal-outline' },
   { id: 'suave', label: 'Suave', icon: 'leaf-outline' },
   { id: 'destaque', label: 'Destaque', icon: 'color-filter-outline' },
+  { id: 'fade', label: 'Fade', icon: 'contrast-outline' },
+  { id: 'zoom', label: 'Zoom', icon: 'expand-outline' },
 ];
 
 export const CAROUSEL_SCOPES = [
+  { id: 'escolher', label: 'Escolher itens' },
   { id: 'destaque', label: 'Destaques' },
   { id: 'produtos', label: 'Só produtos' },
   { id: 'servicos', label: 'Só serviços' },
@@ -483,6 +664,63 @@ export const HERO_SCALE_KEYS = {
   subtitulo: 'subtituloEscala',
   slogan: 'sloganEscala',
 };
+
+export const HERO_EXTRA_TEXT_MAX = 12;
+
+export function isHeroExtraTextId(id) {
+  return typeof id === 'string' && id.startsWith('txt_');
+}
+
+export function getHeroTextos(config) {
+  const raw = Array.isArray(config?.heroTextos) ? config.heroTextos : [];
+  const seen = new Set();
+  const out = [];
+  raw.forEach((item, i) => {
+    if (!item || typeof item !== 'object') return;
+    const id = isHeroExtraTextId(item.id) ? item.id : `txt_${i}_${String(item.id || 'x').replace(/[^a-z0-9]/gi, '').slice(0, 8)}`;
+    if (seen.has(id) || out.length >= HERO_EXTRA_TEXT_MAX) return;
+    seen.add(id);
+    out.push({
+      id,
+      texto: typeof item.texto === 'string' ? item.texto : 'Novo texto',
+      escala: clampHeroScale(item.escala ?? 100),
+      cor: hexOr(item.cor, '#ffffff'),
+      fonte: item.fonte || 'system',
+    });
+  });
+  return out;
+}
+
+export function addHeroTexto(config) {
+  const list = getHeroTextos(config);
+  if (list.length >= HERO_EXTRA_TEXT_MAX) return list;
+  const id = `txt_${Date.now().toString(36)}${Math.floor(Math.random() * 36).toString(36)}`;
+  return [...list, { id, texto: 'Novo texto', escala: 100, cor: '#ffffff', fonte: 'system' }];
+}
+
+export function patchHeroTexto(config, id, patch) {
+  return getHeroTextos(config).map((item) => (item.id === id ? { ...item, ...patch } : item));
+}
+
+export function removeHeroTexto(config, id) {
+  return getHeroTextos(config).filter((item) => item.id !== id);
+}
+
+export function getHeroItemScale(config, id) {
+  const key = HERO_SCALE_KEYS[id];
+  if (key) return clampHeroScale(config?.[key] ?? 100);
+  const extra = getHeroTextos(config).find((t) => t.id === id);
+  return clampHeroScale(extra?.escala ?? 100);
+}
+
+export function getHeroExtraPx(config, id) {
+  const extra = getHeroTextos(config).find((t) => t.id === id);
+  return Math.round(18 * (extra?.escala || 100) / 100);
+}
+
+export function listHeroElementIds(config) {
+  return [...HERO_ELEMENT_IDS, ...getHeroTextos(config).map((t) => t.id)];
+}
 
 export function clampHeroScale(n) {
   const v = Math.round(Number(n) || 100);
@@ -534,17 +772,25 @@ export function getHeroFrame(config) {
     editorial: { mh: 22, mv: 8, tl: 4, tr: 4, bl: 44, br: 44 },
     joia: { mh: 14, mv: 10, tl: 86, tr: 14, bl: 14, br: 86 },
   };
-  const overlapOn = config?.heroSobreposicao && config.heroSobreposicao !== 'nenhuma';
   const p = presets[id] || presets.cheia;
+  const corner = Math.max(p.tl, p.tr, p.bl, p.br);
+  const clip = corner > 12 ? Math.round(corner * 0.32) : 0;
+  const overlapOn = config?.heroSobreposicao && config.heroSobreposicao !== 'nenhuma';
   return {
     id,
+    mh: p.mh,
+    mv: p.mv,
+    clip,
+    padX: p.mh + clip,
+    padY: p.mv + clip,
+    active: p.mh > 0 || p.mv > 0 || clip > 0,
     wrap: {
       marginHorizontal: p.mh,
       marginTop: p.mv,
       marginBottom: overlapOn ? 0 : (p.mv ? p.mv + 2 : 0),
     },
     banner: {
-      overflow: 'hidden',
+      overflow: 'visible',
       borderTopLeftRadius: p.tl,
       borderTopRightRadius: p.tr,
       borderBottomLeftRadius: p.bl,
@@ -563,100 +809,152 @@ export function getHeroFrame(config) {
 }
 
 export function getHeroOverlap(config) {
-  const id = HERO_SOBREPOSICOES.some((m) => m.id === config?.heroSobreposicao)
-    ? config.heroSobreposicao
-    : 'nenhuma';
-  const frame = getHeroFrame({ ...config, heroSobreposicao: 'nenhuma' });
-  const bl = frame.banner.borderBottomLeftRadius || 0;
-  const br = frame.banner.borderBottomRightRadius || 0;
-  const insetFrame = frame.wrap.marginHorizontal || 0;
-  const presets = {
-    nenhuma: { pull: 0, padTop: 16, tl: 0, tr: 0, inset: 0, shape: null, shadow: false },
-    recorte: { pull: 38, padTop: 22, tl: Math.max(18, bl), tr: Math.max(18, br), inset: insetFrame, shape: null, shadow: false },
-    cartao: { pull: 46, padTop: 20, tl: 28, tr: 28, inset: Math.max(12, insetFrame), shape: null, shadow: true },
-    onda: { pull: 34, padTop: 8, tl: 0, tr: 0, inset: 0, shape: 'onda', shadow: false },
-    arco: { pull: 42, padTop: 8, tl: 0, tr: 0, inset: 8, shape: 'arco', shadow: false },
-    vitrine: { pull: 58, padTop: 22, tl: 32, tr: 32, inset: 16, shape: null, shadow: true },
-    cinta: { pull: 24, padTop: 16, tl: 18, tr: 18, inset: 28, shape: null, shadow: true },
-    envelope: { pull: 50, padTop: 20, tl: 6, tr: 6, inset: 20, shape: null, shadow: true },
-    joia: { pull: 44, padTop: 22, tl: 52, tr: 14, inset: Math.max(12, insetFrame), shape: null, shadow: true },
-    flutuante: { pull: 54, padTop: 20, tl: 24, tr: 24, inset: 18, shape: null, shadow: true },
-    diagonal: { pull: 36, padTop: 10, tl: 0, tr: 0, inset: 0, shape: 'diagonal', shadow: false },
-  };
-  const p = presets[id] || presets.nenhuma;
+  const raw = config?.heroSobreposicao;
+  const id = HERO_CUT_SHAPES[raw] ? raw : 'nenhuma';
+  const cut = HERO_CUT_SHAPES[id] || HERO_CUT_SHAPES.nenhuma;
   return {
     id,
-    shape: p.shape,
+    shape: cut.shape,
+    cutH: cut.h,
     sheet: {
-      marginTop: p.pull ? -p.pull : 0,
-      marginHorizontal: p.inset,
-      paddingTop: p.padTop,
-      borderTopLeftRadius: p.tl,
-      borderTopRightRadius: p.tr,
-      overflow: p.shape ? 'visible' : 'hidden',
-      zIndex: 4,
-      ...(p.shadow
-        ? {
-          shadowColor: '#000',
-          shadowOpacity: 0.16,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: 10,
-        }
-        : null),
+      marginTop: 0,
+      paddingTop: cut.h ? 4 : 16,
+      overflow: 'visible',
+      zIndex: 1,
     },
   };
 }
 
+export function getCarouselVisiveis(config) {
+  const n = Math.round(Number(config?.carouselVisiveis) || 1);
+  return Math.min(3, Math.max(1, n));
+}
+
 export function getCarouselMetrics(config, storeW, pad = 12) {
-  const size = CAROUSEL_SIZES.find((s) => s.id === config?.carouselSize) || CAROUSEL_SIZES[1];
+  const size = CAROUSEL_SIZES.find((s) => s.id === config?.carouselSize) || CAROUSEL_SIZES.find((s) => s.id === 'medio');
   const estilo = CAROUSEL_ESTILOS.some((s) => s.id === config?.carouselEstilo) ? config.carouselEstilo : 'classico';
   const anim = CAROUSEL_ANIMS.some((s) => s.id === config?.carouselAnim) ? config.carouselAnim : 'deslize';
   const speed = CAROUSEL_SPEEDS.find((s) => s.id === config?.carouselSpeed) || CAROUSEL_SPEEDS[1];
-  const inner = Math.max(160, storeW - pad * 2);
-  let imgH = size.imgH;
-  let itemW = inner;
-  let gap = 0;
-  let paging = true;
+  const visiveis = getCarouselVisiveis(config);
+  const lado = config?.carouselPosicao === 'lado';
+  const inner = Math.max(160, (lado ? storeW * 0.5 : storeW) - pad * 2);
+  let gap = visiveis > 1 ? 12 : 0;
+  let itemW = visiveis > 1
+    ? Math.max(140, Math.floor((inner - gap * (visiveis - 1)) / visiveis))
+    : inner;
   let radius = 16;
-  if (estilo === 'compacto') {
-    imgH = Math.round(size.imgH * 0.7);
-    radius = 12;
-  } else if (estilo === 'vitrine') {
-    itemW = Math.round(inner * 0.78);
-    gap = 12;
-    paging = false;
+  if (estilo === 'compacto') radius = 12;
+  else if (estilo === 'vitrine') {
+    if (visiveis === 1) itemW = Math.round(inner * 0.78);
+    gap = Math.max(gap, 12);
     radius = 22;
   } else if (estilo === 'capa') {
-    imgH = Math.round(size.imgH * 1.28);
-    itemW = Math.round(inner * 0.58);
-    gap = 14;
-    paging = false;
+    if (visiveis === 1) itemW = Math.round(inner * 0.56);
+    gap = Math.max(gap, 14);
     radius = 28;
   } else if (estilo === 'editorial') {
-    imgH = Math.round(size.imgH * 0.92);
-    itemW = Math.round(inner * 0.86);
-    gap = 10;
-    paging = false;
+    if (visiveis === 1) itemW = Math.round(inner * 0.72);
+    gap = Math.max(gap, 10);
     radius = 8;
   }
-  if (anim === 'suave') paging = false;
+  const imgH = size.imgH;
+  const imgW = Math.min(
+    Math.round(itemW * (visiveis > 1 ? 0.84 : 0.62)),
+    Math.max(40, Math.round(imgH / 0.9)),
+  );
+  const fade = anim === 'fade' || anim === 'zoom';
   return {
     imgH,
+    imgW,
+    stageH: imgH + (imgH < 80 ? 8 : 20),
+    compact: imgH < 90,
     itemW,
     gap,
-    paging: anim === 'deslize' ? paging : false,
+    visiveis,
+    lado,
+    paging: anim === 'deslize' && visiveis === 1 && !fade,
     radius,
     interval: speed.ms,
     anim,
     estilo,
+    fade,
     step: itemW + gap,
+  };
+}
+
+export function getCatalogoImageHints(config) {
+  const bannerMap = { mini: 320, compacta: 420, normal: 560, alta: 720, cinema: 960 };
+  const bannerH = config?.layout === 'landing'
+    ? 1400
+    : (bannerMap[config?.heroAltura] || 560);
+  const logoPx = LOGO_TAMANHOS.find((t) => t.id === (config?.logoTamanho || 'medio'))?.px || 72;
+  const logoUp = Math.max(512, logoPx * 8);
+  return {
+    banner: `1920 × ${bannerH} px (paisagem)`,
+    logo: `${logoUp} × ${logoUp} px (quadrada)`,
+    produto: '800 × 1000 px (retrato 4:5)',
+    produtoAlt: '1000 × 1000 px se quiser quadrada',
+  };
+}
+
+export function normalizeCarouselItemIds(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const seen = new Set();
+  const out = [];
+  list.forEach((id) => {
+    const k = String(id || '').trim();
+    if (!k || seen.has(k) || out.length >= 24) return;
+    seen.add(k);
+    out.push(k);
+  });
+  return out;
+}
+
+export function normalizeCarouselCapas(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  Object.keys(src).slice(0, 40).forEach((key) => {
+    out[key] = normalizeCarouselCapa(src[key]);
+  });
+  return out;
+}
+
+export function normalizeCarouselCapa(raw) {
+  const x = Math.round(Number(raw?.x));
+  const y = Math.round(Number(raw?.y));
+  const zoom = Math.round(Number(raw?.zoom));
+  return {
+    x: Number.isFinite(x) ? Math.min(100, Math.max(0, x)) : 50,
+    y: Number.isFinite(y) ? Math.min(100, Math.max(0, y)) : 50,
+    zoom: Number.isFinite(zoom) ? Math.min(280, Math.max(100, zoom)) : 100,
+  };
+}
+
+export function getCarouselCapa(config, rowId) {
+  return normalizeCarouselCapa(config?.carouselCapas?.[rowId]);
+}
+
+export function carouselCapaImageBox(capa, w, h) {
+  const c = normalizeCarouselCapa(capa);
+  const z = c.zoom / 100;
+  const bw = w * z;
+  const bh = h * z;
+  return {
+    width: bw,
+    height: bh,
+    position: 'absolute',
+    left: -((c.x / 100) * (bw - w)),
+    top: -((c.y / 100) * (bh - h)),
   };
 }
 
 export function resolveCarouselItems(config, filtered) {
   const scope = config?.carouselScope || 'destaque';
   let list = filtered || [];
+  if (scope === 'escolher') {
+    const map = new Map(list.map((i) => [i._rowId || itemKey(i._tipo || i.tipo, i.id), i]));
+    return normalizeCarouselItemIds(config?.carouselItemIds).map((id) => map.get(id)).filter(Boolean);
+  }
   if (scope === 'produtos') list = list.filter((i) => i._tipo === 'produto');
   else if (scope === 'servicos') list = list.filter((i) => i._tipo === 'servico');
   return list.slice(0, Math.min(16, list.length));
@@ -823,10 +1121,14 @@ export function buildHeroPresentation(config) {
 
 export function getHeroPosicoes(config) {
   const raw = config?.heroPosicoes || {};
-  return HERO_ELEMENT_IDS.reduce((acc, id) => {
+  const extras = getHeroTextos(config);
+  const ids = [...HERO_ELEMENT_IDS, ...extras.map((t) => t.id)];
+  return ids.reduce((acc, id) => {
+    const extraIdx = extras.findIndex((t) => t.id === id);
+    const fallbackY = extraIdx >= 0 ? Math.min(90, 38 + extraIdx * 9) : 50;
     acc[id] = {
       x: clampPercent(raw[id]?.x ?? DEFAULT_HERO_POSICOES[id]?.x ?? 50),
-      y: clampPercent(raw[id]?.y ?? DEFAULT_HERO_POSICOES[id]?.y ?? 50),
+      y: clampPercent(raw[id]?.y ?? DEFAULT_HERO_POSICOES[id]?.y ?? fallbackY),
     };
     return acc;
   }, {});
@@ -836,6 +1138,35 @@ function clampPercent(v) {
   const n = Number(v);
   if (Number.isNaN(n)) return 50;
   return Math.min(96, Math.max(4, n));
+}
+
+export function getHeroSafePadPercent(config, w, h) {
+  const frame = getHeroFrame(config);
+  const overlap = getHeroOverlap(config);
+  const px = Math.max(w || 0, 1);
+  const py = Math.max(h || 0, 1);
+  const x = frame.active ? Math.min(26, Math.max(8, (frame.padX / px) * 100 + 3)) : 4;
+  const yTop = frame.active ? Math.min(26, Math.max(8, (frame.padY / py) * 100 + 3)) : 4;
+  const yBottom = overlap.cutH
+    ? Math.max(yTop, Math.min(36, (overlap.cutH / py) * 100 + 8))
+    : yTop;
+  return {
+    x,
+    y: yTop,
+    top: yTop,
+    bottom: yBottom,
+    active: !!(frame.active || overlap.cutH),
+  };
+}
+
+export function clampHeroPosToSafe(pos, safe) {
+  const minX = safe?.x ?? 4;
+  const minTop = safe?.top ?? safe?.y ?? 4;
+  const minBottom = safe?.bottom ?? safe?.y ?? 4;
+  return {
+    x: Math.min(100 - minX, Math.max(minX, Number(pos?.x) || 50)),
+    y: Math.min(100 - minBottom, Math.max(minTop, Number(pos?.y) || 50)),
+  };
 }
 
 export function isHeroElementVisible(config, id) {
@@ -851,7 +1182,7 @@ export function isHeroElementVisible(config, id) {
     case 'slogan':
       return config?.mostrarSlogan === true;
     default:
-      return false;
+      return getHeroTextos(config).some((t) => t.id === id);
   }
 }
 
@@ -862,6 +1193,10 @@ export const DEFAULT_CATALOGO_CONFIG = {
   temaEstilo: 'solido',
   coresTema: ['#6366f1'],
   gradienteDirecao: 'diagonal',
+  gradienteAngulo: 135,
+  gradienteInverter: false,
+  gradienteForma: 'linear',
+  gradienteStops: [],
   rotuloVitrine: 'catalogo',
   logoEscala: 100,
   nomeEscala: 100,
@@ -870,6 +1205,13 @@ export const DEFAULT_CATALOGO_CONFIG = {
   sloganEscala: 100,
   corPrincipal: '#6366f1',
   corFundo: '#f8fafc',
+  fundoEstilo: 'solido',
+  coresFundo: ['#f8fafc'],
+  fundoGradienteDirecao: 'diagonal',
+  fundoGradienteAngulo: 135,
+  fundoGradienteInverter: false,
+  fundoGradienteForma: 'linear',
+  fundoGradienteStops: [],
   corCard: '#ffffff',
   corTexto: '#0f172a',
   temaPronto: 'claro',
@@ -884,6 +1226,10 @@ export const DEFAULT_CATALOGO_CONFIG = {
   fonteTitulo: 'system',
   fonteSubtitulo: 'system',
   fonteSlogan: 'system',
+  fontesUsuario: [],
+  fontesFavoritas: [],
+  fonteEstilos: {},
+  temasSalvos: [],
   titulo: 'Minha Loja',
   subtitulo: 'Confira nossos produtos e serviços',
   slogan: 'Qualidade e atendimento que você merece',
@@ -895,6 +1241,7 @@ export const DEFAULT_CATALOGO_CONFIG = {
   mostrarPrecos: true,
   mostrarPromocao: true,
   mostrarCarrinho: true,
+  mostrarWhatsApp: true,
   carouselAuto: true,
   carouselAtivo: false,
   carouselSize: 'medio',
@@ -903,6 +1250,9 @@ export const DEFAULT_CATALOGO_CONFIG = {
   carouselScope: 'destaque',
   carouselSpeed: 'normal',
   carouselPosicao: 'acima',
+  carouselVisiveis: '1',
+  carouselItemIds: [],
+  carouselCapas: {},
   heroMoldura: 'cheia',
   heroSobreposicao: 'nenhuma',
   cardSize: 'medio',
@@ -934,6 +1284,7 @@ export const DEFAULT_CATALOGO_CONFIG = {
   mostrarSobre: true,
   heroPosicaoManual: true,
   heroPosicoes: { ...DEFAULT_HERO_POSICOES },
+  heroTextos: [],
   categoriasProdutos: { enabled: false, items: [] },
   itens: [],
   lojaPublica: true,
@@ -952,15 +1303,50 @@ export const DEFAULT_CATALOGO_CONFIG = {
 export function mergeCatalogoConfig(raw) {
   const base = { ...DEFAULT_CATALOGO_CONFIG, ...(raw || {}) };
   if (!Array.isArray(base.itens)) base.itens = [];
+  base.heroTextos = getHeroTextos(base);
   base.heroPosicoes = getHeroPosicoes(base);
+  base.temasSalvos = normalizeTemasSalvos(base.temasSalvos);
   base.coresTema = normalizeCoresTema(base);
+  base.coresFundo = normalizeCoresFundo(base);
+  if (base.fundoEstilo !== 'gradiente') base.fundoEstilo = 'solido';
+  if (!['diagonal', 'horizontal', 'vertical'].includes(base.fundoGradienteDirecao)) {
+    base.fundoGradienteDirecao = 'diagonal';
+  }
+  const fundoLook = normalizeGradientLook({
+    angulo: base.fundoGradienteAngulo,
+    inverter: base.fundoGradienteInverter,
+    forma: base.fundoGradienteForma,
+  }, base.fundoGradienteDirecao);
+  base.fundoGradienteAngulo = fundoLook.angulo;
+  base.fundoGradienteInverter = fundoLook.inverter;
+  base.fundoGradienteForma = fundoLook.forma;
+  base.fundoGradienteStops = normalizeGradientStops(base.fundoGradienteStops, base.coresFundo);
+  if (base.fundoEstilo === 'gradiente') {
+    base.coresFundo = base.fundoGradienteStops.map((s) => s.cor);
+    if (base.coresFundo[0]) base.corFundo = base.coresFundo[0];
+  }
   if (base.temaEstilo === 'cores') base.temaEstilo = 'gradiente';
   if (!['solido', 'gradiente', 'escuro'].includes(base.temaEstilo)) base.temaEstilo = 'solido';
+  const temaLook = normalizeGradientLook({
+    angulo: base.gradienteAngulo,
+    inverter: base.gradienteInverter,
+    forma: base.gradienteForma,
+  }, base.gradienteDirecao);
+  base.gradienteAngulo = temaLook.angulo;
+  base.gradienteInverter = temaLook.inverter;
+  base.gradienteForma = temaLook.forma;
+  base.gradienteStops = normalizeGradientStops(base.gradienteStops, base.coresTema);
+  if (base.temaEstilo === 'gradiente') {
+    base.coresTema = base.gradienteStops.map((s) => s.cor);
+    if (base.coresTema[0]) base.corPrincipal = base.coresTema[0];
+  }
   if (base.rotuloVitrine !== 'loja' && base.rotuloVitrine !== 'catalogo') base.rotuloVitrine = 'catalogo';
   if (!['ambos', 'produtos', 'servicos'].includes(base.tipo)) base.tipo = 'ambos';
   if (!['vitrine', 'carrossel', 'grid', 'horizontal', 'vertical', 'landing'].includes(base.layout)) base.layout = 'vitrine';
   if (!CAROUSEL_POSICOES.some((m) => m.id === base.carouselPosicao)) base.carouselPosicao = 'acima';
   if (!HERO_MOLDURAS.some((m) => m.id === base.heroMoldura)) base.heroMoldura = 'cheia';
+  const legacyCut = { cartao: 'onda', vitrine: 'concha', cinta: 'degrau', envelope: 'asa', joia: 'gota', flutuante: 'nuvem' };
+  if (legacyCut[base.heroSobreposicao]) base.heroSobreposicao = legacyCut[base.heroSobreposicao];
   if (!HERO_SOBREPOSICOES.some((m) => m.id === base.heroSobreposicao)) base.heroSobreposicao = 'nenhuma';
   if (!HERO_ALTURAS.some((m) => m.id === base.heroAltura)) base.heroAltura = 'normal';
   if (!CAROUSEL_SIZES.some((m) => m.id === base.carouselSize)) base.carouselSize = 'medio';
@@ -968,6 +1354,11 @@ export function mergeCatalogoConfig(raw) {
   if (!CAROUSEL_ANIMS.some((m) => m.id === base.carouselAnim)) base.carouselAnim = 'deslize';
   if (!CAROUSEL_SCOPES.some((m) => m.id === base.carouselScope)) base.carouselScope = 'destaque';
   if (!CAROUSEL_SPEEDS.some((m) => m.id === base.carouselSpeed)) base.carouselSpeed = 'normal';
+  if (!['1', '2', '3'].includes(String(base.carouselVisiveis))) base.carouselVisiveis = '1';
+  else base.carouselVisiveis = String(base.carouselVisiveis);
+  base.carouselItemIds = normalizeCarouselItemIds(base.carouselItemIds);
+  base.carouselCapas = normalizeCarouselCapas(base.carouselCapas);
+  if (base.mostrarWhatsApp == null) base.mostrarWhatsApp = true;
   if (base.carouselAtivo == null) base.carouselAtivo = base.layout === 'carrossel';
   else base.carouselAtivo = !!base.carouselAtivo;
   if (!LOGO_MOLDURAS.some((m) => m.id === raw?.logoMoldura)) {
@@ -989,6 +1380,9 @@ export function mergeCatalogoConfig(raw) {
   base.usaDominioProprio = !!base.usaDominioProprio;
   base.dominioPublico = typeof base.dominioPublico === 'string' ? base.dominioPublico.trim().toLowerCase() : '';
   base.slugPublico = typeof base.slugPublico === 'string' ? base.slugPublico.trim().toLowerCase() : '';
+  base.fontesUsuario = normalizeFontesUsuario(base.fontesUsuario);
+  base.fontesFavoritas = normalizeFontesFavoritas(base.fontesFavoritas, base);
+  base.fonteEstilos = normalizeFonteEstilos(base);
   return base;
 }
 
