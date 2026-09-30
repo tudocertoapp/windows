@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { playTapSound } from '../../utils/sounds';
 
-export function clampScale(n, min = 50, max = 200) {
+export function clampScale(n, min = 15, max = 400) {
   const v = Math.round(Number(n) || 100);
   return Math.min(max, Math.max(min, v));
 }
@@ -15,8 +15,8 @@ export function CatalogoSizeStepper({
   colors,
   accent,
   step = 5,
-  min = 50,
-  max = 200,
+  min = 15,
+  max = 400,
   compact = false,
 }) {
   const v = clampScale(value, min, max);

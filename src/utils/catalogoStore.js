@@ -321,7 +321,7 @@ export function getCatalogoRotulos(config) {
 function scalePercent(config, key, fallback = 100) {
   const n = Number(config?.[key]);
   if (!Number.isFinite(n)) return fallback;
-  return Math.min(200, Math.max(50, Math.round(n)));
+  return Math.min(400, Math.max(15, Math.round(n)));
 }
 
 const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -438,9 +438,8 @@ export function alignHeroItems(config, ids, align) {
 
 export const CATALOGO_LAYOUTS = [
   { id: 'vitrine', label: 'Vitrine', icon: 'sparkles-outline' },
-  { id: 'carrossel', label: 'Carrossel + grade', icon: 'albums-outline' },
   { id: 'grid', label: 'Grade', icon: 'grid-outline' },
-  { id: 'horizontal', label: 'Horizontal', icon: 'reorder-two-outline' },
+  { id: 'horizontal', label: 'Linha horizontal', icon: 'reorder-two-outline' },
   { id: 'vertical', label: 'Lista', icon: 'list-outline' },
   { id: 'landing', label: 'Landing', icon: 'phone-portrait-outline' },
 ];
@@ -714,8 +713,7 @@ export function getHeroItemScale(config, id) {
 }
 
 export function getHeroExtraPx(config, id) {
-  const extra = getHeroTextos(config).find((t) => t.id === id);
-  return Math.round(18 * (extra?.escala || 100) / 100);
+  return 18;
 }
 
 export function listHeroElementIds(config) {
@@ -724,31 +722,29 @@ export function listHeroElementIds(config) {
 
 export function clampHeroScale(n) {
   const v = Math.round(Number(n) || 100);
-  return Math.min(200, Math.max(50, v));
+  return Math.min(400, Math.max(15, v));
 }
 
 export function getLogoPx(config) {
   const row = LOGO_TAMANHOS.find((t) => t.id === (config?.logoTamanho || 'medio'));
-  const base = row?.px || 72;
-  return Math.round(base * scalePercent(config, 'logoEscala', 100) / 100);
+  return row?.px || 72;
 }
 
 export function getTituloPx(config) {
   const row = TITULO_TAMANHOS.find((t) => t.id === (config?.tituloTamanho || 'medio'));
-  const base = row?.px || 24;
-  return Math.round(base * scalePercent(config, 'tituloEscala', 100) / 100);
+  return row?.px || 24;
 }
 
-export function getHeroNomePx(config) {
-  return Math.round(32 * scalePercent(config, 'nomeEscala', 100) / 100);
+export function getHeroNomePx() {
+  return 32;
 }
 
-export function getHeroSubtituloPx(config) {
-  return Math.round(14 * scalePercent(config, 'subtituloEscala', 100) / 100);
+export function getHeroSubtituloPx() {
+  return 14;
 }
 
-export function getHeroSloganPx(config) {
-  return Math.round(12 * scalePercent(config, 'sloganEscala', 100) / 100);
+export function getHeroSloganPx() {
+  return 12;
 }
 
 export function getHeroMinHeight(config) {
@@ -961,7 +957,7 @@ export function resolveCarouselItems(config, filtered) {
 }
 
 export function isCarouselEnabled(config) {
-  return config?.layout === 'carrossel' || config?.carouselAtivo === true;
+  return config?.carouselAtivo === true;
 }
 
 export function getHeroTextAlign(config) {
@@ -1000,6 +996,7 @@ export function getLogoPresentation(config, logoPx) {
   const placaCor = config?.logoPlacaCor || 'rgba(255,255,255,0.22)';
   const bordaCor = config?.logoBordaCor || '#ffffff';
   const tint = config?.logoCor && config.logoCor !== 'none' ? config.logoCor : null;
+  const invert = !!config?.logoInverter;
   const semBorda = moldura === 'nenhuma';
 
   let radius = 0;
@@ -1042,11 +1039,16 @@ export function getLogoPresentation(config, logoPx) {
     shadow = { shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 4, shadowOffset: { width: 2, height: 3 }, elevation: 4 };
   }
 
-  const imgFilter = efeito === 'pb'
-    ? [{ grayscale: 1 }]
-    : efeito === 'suave'
-      ? [{ opacity: 0.92 }, { brightness: 1.08 }]
-      : undefined;
+  const cssFilters = [
+    invert ? 'invert(1)' : '',
+    efeito === 'pb' ? 'grayscale(1)' : '',
+    efeito === 'suave' ? 'brightness(1.08)' : '',
+  ].filter(Boolean);
+  const imgFilter = [
+    ...(invert ? [{ invert: 1 }] : []),
+    ...(efeito === 'pb' ? [{ grayscale: 1 }] : []),
+    ...(efeito === 'suave' ? [{ opacity: 0.92 }, { brightness: 1.08 }] : []),
+  ];
 
   return {
     size,
@@ -1066,10 +1068,10 @@ export function getLogoPresentation(config, logoPx) {
       width: size,
       height: size,
       ...(tint ? { tintColor: tint } : {}),
-      ...(efeito === 'pb' ? { filter: 'grayscale(1)' } : {}),
-      ...(efeito === 'suave' ? { filter: 'brightness(1.08)', opacity: 0.94 } : {}),
+      ...(cssFilters.length ? { filter: cssFilters.join(' ') } : {}),
+      ...(efeito === 'suave' ? { opacity: 0.94 } : {}),
     },
-    imgFilter,
+    imgFilter: imgFilter.length ? imgFilter : undefined,
     resizeMode: 'contain',
   };
 }
@@ -1253,6 +1255,9 @@ export const DEFAULT_CATALOGO_CONFIG = {
   carouselVisiveis: '1',
   carouselItemIds: [],
   carouselCapas: {},
+  carouselMostrarPreco: true,
+  carouselMostrarEstoque: false,
+  carouselCliqueDetalhe: true,
   heroMoldura: 'cheia',
   heroSobreposicao: 'nenhuma',
   cardSize: 'medio',
@@ -1273,6 +1278,7 @@ export const DEFAULT_CATALOGO_CONFIG = {
   logoEfeito: 'nenhum',
   logoFundoImg: 'manter',
   logoCor: '',
+  logoInverter: false,
   logoTemTransparencia: false,
   heroDisposicao: 'centro',
   heroAlinhamentoTexto: 'centro',
@@ -1342,7 +1348,11 @@ export function mergeCatalogoConfig(raw) {
   }
   if (base.rotuloVitrine !== 'loja' && base.rotuloVitrine !== 'catalogo') base.rotuloVitrine = 'catalogo';
   if (!['ambos', 'produtos', 'servicos'].includes(base.tipo)) base.tipo = 'ambos';
-  if (!['vitrine', 'carrossel', 'grid', 'horizontal', 'vertical', 'landing'].includes(base.layout)) base.layout = 'vitrine';
+  if (base.layout === 'carrossel') {
+    base.carouselAtivo = true;
+    base.layout = 'vitrine';
+  }
+  if (!['vitrine', 'grid', 'horizontal', 'vertical', 'landing'].includes(base.layout)) base.layout = 'vitrine';
   if (!CAROUSEL_POSICOES.some((m) => m.id === base.carouselPosicao)) base.carouselPosicao = 'acima';
   if (!HERO_MOLDURAS.some((m) => m.id === base.heroMoldura)) base.heroMoldura = 'cheia';
   const legacyCut = { cartao: 'onda', vitrine: 'concha', cinta: 'degrau', envelope: 'asa', joia: 'gota', flutuante: 'nuvem' };
@@ -1358,8 +1368,14 @@ export function mergeCatalogoConfig(raw) {
   else base.carouselVisiveis = String(base.carouselVisiveis);
   base.carouselItemIds = normalizeCarouselItemIds(base.carouselItemIds);
   base.carouselCapas = normalizeCarouselCapas(base.carouselCapas);
+  if (base.carouselMostrarPreco == null) base.carouselMostrarPreco = true;
+  else base.carouselMostrarPreco = !!base.carouselMostrarPreco;
+  base.carouselMostrarEstoque = !!base.carouselMostrarEstoque;
+  if (base.carouselCliqueDetalhe == null) base.carouselCliqueDetalhe = true;
+  else base.carouselCliqueDetalhe = !!base.carouselCliqueDetalhe;
+  base.logoInverter = !!base.logoInverter;
   if (base.mostrarWhatsApp == null) base.mostrarWhatsApp = true;
-  if (base.carouselAtivo == null) base.carouselAtivo = base.layout === 'carrossel';
+  if (base.carouselAtivo == null) base.carouselAtivo = false;
   else base.carouselAtivo = !!base.carouselAtivo;
   if (!LOGO_MOLDURAS.some((m) => m.id === raw?.logoMoldura)) {
     if (raw?.logoSemMoldura || raw?.logoFormato === 'livre') base.logoMoldura = 'nenhuma';
@@ -1413,7 +1429,12 @@ export function syncCatalogoItens(config, products, services) {
   return defaults.map((d, idx) => {
     const prev = map.get(itemKey(d.tipo, d.id));
     return prev
-      ? { ...d, visible: prev.visible !== false, order: typeof prev.order === 'number' ? prev.order : idx }
+      ? {
+        ...d,
+        visible: prev.visible !== false,
+        order: typeof prev.order === 'number' ? prev.order : idx,
+        descricao: prev.descricao || '',
+      }
       : { ...d, order: idx };
   }).sort((a, b) => a.order - b.order);
 }
@@ -1436,7 +1457,13 @@ export function resolveCatalogoItems(config, products, services, search = '') {
     .map((row) => {
       const src = row.tipo === 'servico' ? servMap.get(String(row.id)) : prodMap.get(String(row.id));
       if (!src) return null;
-      return { ...src, _tipo: row.tipo, _order: row.order, _rowId: itemKey(row.tipo, row.id) };
+      return {
+        ...src,
+        _tipo: row.tipo,
+        _order: row.order,
+        _rowId: itemKey(row.tipo, row.id),
+        description: src.description || src.descricao || row.descricao || '',
+      };
     })
     .filter(Boolean);
 

@@ -747,9 +747,16 @@ export function CatalogoEditorPanel({
             ) : null}
             <CatalogoColorBrush
               compact
-              label="Cor da logo (filtro)"
+              label="Cor da logo"
               value={draftConfig.logoCor || '#ffffff'}
               onChange={(c) => updateDraft({ logoCor: c })}
+              colors={colors}
+              accent={accent}
+            />
+            <SwitchLine
+              label="Inverter cores da logo"
+              value={!!draftConfig.logoInverter}
+              onValueChange={(v) => updateDraft({ logoInverter: v })}
               colors={colors}
               accent={accent}
             />
@@ -791,6 +798,13 @@ export function CatalogoEditorPanel({
                     <Ionicons name="trash-outline" size={18} color="#ef4444" />
                   </TouchableOpacity>
                 </View>
+                <CatalogoSizeStepper
+                  compact
+                  value={draftConfig.nomeEscala ?? 100}
+                  onChange={(v) => updateDraft({ nomeEscala: v })}
+                  colors={colors}
+                  accent={accent}
+                />
               </Field>
             ) : null}
             {draftConfig.mostrarSlogan === true ? (
@@ -904,19 +918,21 @@ export function CatalogoEditorPanel({
         <>
           <Card title="O que aparece" colors={colors}>
             <ChipRow options={CATALOGO_TIPOS} value={draftConfig.tipo} onChange={refreshItens} colors={colors} accent={accent} />
-            <Field label="Layout" colors={colors}>
+            <Field label="Formato do catálogo" colors={colors}>
               <ChipRow
                 options={CATALOGO_LAYOUTS}
-                value={draftConfig.layout}
+                value={draftConfig.layout === 'carrossel' ? 'vitrine' : draftConfig.layout}
                 onChange={(v) => updateDraft({
                   layout: v,
-                  ...(v === 'carrossel' ? { carouselAtivo: true } : {}),
                   ...(v === 'landing' ? { heroPosicaoManual: false, heroAlinhamentoTexto: 'centro' } : {}),
                 })}
                 colors={colors}
                 accent={accent}
               />
             </Field>
+            <Text style={[st.hint, { color: colors.textSecondary, marginTop: 8, marginBottom: 0 }]}>
+              Grade, linha horizontal e lista valem só para o catálogo. O carrossel liga e desliga à parte, abaixo.
+            </Text>
             {draftConfig.layout === 'landing' ? (
               <Text style={[st.hint, { color: colors.textSecondary, marginTop: 8 }]}>
                 Landing empilha o cabeçalho no estilo celular e a vitrine vira uma página vertical.
@@ -935,17 +951,17 @@ export function CatalogoEditorPanel({
 
           <Card
             title="Carrossel"
-            hint="Pode ser só produtos, só serviços ou os dois. O tamanho, o estilo e a animação valem na pré-visualização e no link público."
+            hint="Independente da grade. Pode ligar o carrossel e, ao mesmo tempo, usar grade, linha horizontal ou lista."
             colors={colors}
           >
             <SwitchLine
               label="Mostrar carrossel"
-              value={draftConfig.layout === 'carrossel' || draftConfig.carouselAtivo === true}
-              onValueChange={(v) => updateDraft({ carouselAtivo: v, ...(v ? {} : { layout: draftConfig.layout === 'carrossel' ? 'vitrine' : draftConfig.layout }) })}
+              value={draftConfig.carouselAtivo === true}
+              onValueChange={(v) => updateDraft({ carouselAtivo: v })}
               colors={colors}
               accent={accent}
             />
-            {(draftConfig.layout === 'carrossel' || draftConfig.carouselAtivo === true) ? (
+            {draftConfig.carouselAtivo === true ? (
               <>
               <Field label="Posição do carrossel" colors={colors}>
                 <ChipRow
@@ -965,8 +981,6 @@ export function CatalogoEditorPanel({
                   accent={accent}
                 />
               </Field>
-              </>
-            ) : null}
             <Field label="O que entra no carrossel" colors={colors}>
               <ChipRow options={CAROUSEL_SCOPES} value={draftConfig.carouselScope || 'destaque'} onChange={(v) => updateDraft({ carouselScope: v })} colors={colors} accent={accent} />
             </Field>
@@ -1043,6 +1057,22 @@ export function CatalogoEditorPanel({
               <ChipRow options={CAROUSEL_SPEEDS} value={draftConfig.carouselSpeed || 'normal'} onChange={(v) => updateDraft({ carouselSpeed: v })} colors={colors} accent={accent} />
             </Field>
             <SwitchLine label="Carrossel automático" value={draftConfig.carouselAuto !== false} onValueChange={(v) => updateDraft({ carouselAuto: v })} colors={colors} accent={accent} />
+            <SwitchLine label="Mostrar preço no carrossel" value={draftConfig.carouselMostrarPreco !== false} onValueChange={(v) => updateDraft({ carouselMostrarPreco: v })} colors={colors} accent={accent} />
+            <SwitchLine label="Mostrar quantidade em estoque no carrossel" value={!!draftConfig.carouselMostrarEstoque} onValueChange={(v) => updateDraft({ carouselMostrarEstoque: v })} colors={colors} accent={accent} />
+            <SwitchLine
+              label="Abrir produto ao clicar (sem adicionar no carrossel)"
+              value={draftConfig.carouselCliqueDetalhe !== false}
+              onValueChange={(v) => updateDraft({ carouselCliqueDetalhe: v })}
+              colors={colors}
+              accent={accent}
+            />
+            {draftConfig.carouselCliqueDetalhe !== false ? (
+              <Text style={[st.hint, { color: colors.textSecondary, marginTop: 6, marginBottom: 0 }]}>
+                No carrossel some o botão de carrinho. O cliente vê fotos, descrição, estoque (se ativo) e adiciona só na ficha do produto.
+              </Text>
+            ) : null}
+              </>
+            ) : null}
           </Card>
 
           <Card title="Categorias" colors={colors}>

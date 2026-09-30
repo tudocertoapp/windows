@@ -105,6 +105,7 @@ function toProduct(r) {
     allowDiscount: data.allow_discount !== false,
     stock: data.stock ?? 0,
     minStock: data.min_stock ?? 0,
+    description: data.description || '',
     supplierId: data.supplier_id,
     categoryId: data.category_id || null,
     subcategoryId: data.subcategory_id || null,
@@ -688,6 +689,7 @@ export function FinanceProvider({ children }) {
       ...(p.supplierId != null && { supplier_id: p.supplierId }),
       ...(p.categoryId != null && { category_id: p.categoryId }),
       ...(p.subcategoryId != null && { subcategory_id: p.subcategoryId }),
+      ...(p.description != null && { description: p.description }),
       ...(photoUris.length > 0 && { photo_uris: photoUris }),
     };
     const { data, error } = await supabase.from('products').insert({
@@ -712,7 +714,7 @@ export function FinanceProvider({ children }) {
     if (data.discount != null) up.discount = data.discount;
     if (data.unit != null) up.unit = data.unit;
     if (data.photoUri !== undefined) up.photo_uri = data.photoUri;
-    if (data.code !== undefined || data.barcode !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.categoryId !== undefined || data.subcategoryId !== undefined || data.photoUris !== undefined) {
+    if (data.code !== undefined || data.barcode !== undefined || data.allowDiscount !== undefined || data.stock !== undefined || data.minStock !== undefined || data.supplierId !== undefined || data.categoryId !== undefined || data.subcategoryId !== undefined || data.photoUris !== undefined || data.description !== undefined) {
       const curr = (await supabase.from('products').select('data').eq('id', id).single()).data?.data || {};
       const photoUris = data.photoUris !== undefined ? (data.photoUris?.length ? data.photoUris : []) : undefined;
       up.data = {
@@ -725,6 +727,7 @@ export function FinanceProvider({ children }) {
         ...(data.supplierId !== undefined && { supplier_id: data.supplierId }),
         ...(data.categoryId !== undefined && { category_id: data.categoryId || null }),
         ...(data.subcategoryId !== undefined && { subcategory_id: data.subcategoryId || null }),
+        ...(data.description !== undefined && { description: data.description }),
         ...(photoUris !== undefined && { photo_uris: photoUris }),
       };
     }

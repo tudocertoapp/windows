@@ -71,6 +71,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   const { user } = useAuth();
   const isDesktopWeb = Platform.OS === 'web' && useIsDesktopLayout();
   const [name, setName] = useState(editingItem?.name || '');
+  const [description, setDescription] = useState(editingItem?.description || '');
   const [costPrice, setCostPrice] = useState(editingItem?.costPrice != null ? String(editingItem.costPrice) : '');
   const [price, setPrice] = useState(editingItem?.price != null ? String(editingItem.price) : '');
   const [discount, setDiscount] = useState(editingItem?.discount != null ? String(editingItem.discount) : '');
@@ -101,6 +102,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
   React.useEffect(() => {
     if (visible && editingItem) {
       setName(editingItem.name || '');
+      setDescription(editingItem.description || '');
       setCostPrice(editingItem.costPrice != null ? String(editingItem.costPrice) : '');
       setPrice(editingItem.price != null ? String(editingItem.price) : '');
       setDiscount(editingItem.discount != null ? String(editingItem.discount) : '');
@@ -120,6 +122,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
       setSubcategoryId(editingItem.subcategoryId || null);
     } else if (visible && !editingItem) {
       setName('');
+      setDescription('');
       setCostPrice('');
       setPrice('');
       setDiscount('');
@@ -170,6 +173,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
         costPrice: c,
         discount: d,
         unit: unit.trim() || 'un',
+        description: description.trim(),
         photoUris: photoUris.length > 0 ? photoUris : null,
         code: code.trim() || generateInternalProductCode(products),
         barcode: onlyDigits(barcode) || generateBarcode13(products),
@@ -243,6 +247,16 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
 
               <Text style={[s.label, { color: colors.textSecondary }]}>NOME (EX: CAMISA)</Text>
               <TextInput style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }, sectionGap]} placeholder="Camisa, Calça..." value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
+
+              <Text style={[s.label, { color: colors.textSecondary }]}>DESCRIÇÃO (LOJA)</Text>
+              <TextInput
+                style={[s.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg, minHeight: 72, textAlignVertical: 'top' }, sectionGap]}
+                placeholder="Detalhes que o cliente vê ao abrir o produto"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                placeholderTextColor={colors.textSecondary}
+              />
 
               {categoriasProdutos.enabled && !isCompositeProduct && (
                 <View style={sectionGap}>

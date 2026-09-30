@@ -28,7 +28,8 @@ import { copyLojaPublicLink, shareLojaPublicLink, buildLojaPublicUrl, openLojaPr
 import { CatalogoStoreView } from '../components/catalogo/CatalogoStoreView';
 import { HeroDockHost, HeroFxFloatHost } from '../components/catalogo/LojaHeroBanner';
 import { CatalogoEditorPanel } from '../components/catalogo/CatalogoEditorPanel';
-import { LojaItemEditModal } from '../components/catalogo/LojaItemEditModal';
+import { ProductFormModal } from '../components/ProductFormModal';
+import { ServicoFormModal } from '../components/ServicoFormModal';
 import {
   DEFAULT_CATALOGO_CONFIG,
   resolveCatalogoItems,
@@ -61,6 +62,7 @@ export function CatalogoScreen({ onClose, isModal }) {
   const [mobileTab, setMobileTab] = useState('loja');
   const [cart, setCart] = useState([]);
   const [previewW, setPreviewW] = useState(Dimensions.get('window').width);
+  const [previewDevice, setPreviewDevice] = useState('desktop');
   const [editingItem, setEditingItem] = useState(null);
   const [savingItem, setSavingItem] = useState(false);
   const [cloudSaveStatus, setCloudSaveStatus] = useState('idle');
@@ -321,12 +323,30 @@ export function CatalogoScreen({ onClose, isModal }) {
 
   const saveEditedItem = async (data) => {
     if (!editingItem?.id) return;
+    if (data?._skipAdd) {
+      setEditingItem(null);
+      return;
+    }
     setSavingItem(true);
     try {
+      const payload = {
+        ...data,
+        photoUri: data.photoUri || data.photoUris?.[0] || null,
+      };
       if (editingItem._tipo === 'servico') {
-        await updateService(editingItem.id, data);
+        await updateService(editingItem.id, payload);
       } else {
-        await updateProduct(editingItem.id, data);
+        await updateProduct(editingItem.id, payload);
+      }
+      if (data.description != null) {
+        const rowId = editingItem._rowId || itemKey(editingItem._tipo || 'produto', editingItem.id);
+        markDraftDirty();
+        setDraftConfig((prev) => ({
+          ...prev,
+          itens: (prev.itens || []).map((row) => (
+            itemKey(row.tipo, row.id) === rowId ? { ...row, descricao: data.description } : row
+          )),
+        }));
       }
       setEditingItem(null);
       Alert.alert('Salvo', 'Produto/serviço atualizado no app e na loja.');
@@ -392,7 +412,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       onRemoveFromCart={removeFromCart}
       onSendWhatsApp={sendCartWhatsApp}
       onFetchAvailability={previewConfig.agendamentoOnline !== false ? fetchLocalAvailability : undefined}
-      previewWidth={isDesktop ? previewW - 32 : previewW}
+      previewWidth={previewDevice === 'mobile' ? 390 : (isDesktop ? previewW - 32 : previewW)}
       interactive
       ownerMode
       onEditItem={openEditItem}
@@ -402,6 +422,7 @@ export function CatalogoScreen({ onClose, isModal }) {
       onCarouselCapaChange={handleCarouselCapaChange}
       onPickLogo={() => pickImage('fotoCatalogo', setUploadingLogo)}
       ownerUserId={user?.id}
+      layoutMode={previewDevice === 'mobile' || !isDesktop ? 'mobile' : 'desktop'}
     />
   );
 
@@ -489,10 +510,26 @@ export function CatalogoScreen({ onClose, isModal }) {
             >
               <View style={[s.previewLabel, { borderBottomColor: colors.border }]}>
                 <Ionicons name="eye-outline" size={16} color={colors.textSecondary} />
-                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>Pré-visualização ao vivo</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>Pré-visualização</Text>
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); setPreviewDevice('desktop'); }}
+                  style={[s.deviceChip, previewDevice === 'desktop' && { backgroundColor: colors.primary }]}
+                >
+                  <Ionicons name="desktop-outline" size={14} color={previewDevice === 'desktop' ? '#fff' : colors.textSecondary} />
+                  <Text style={{ color: previewDevice === 'desktop' ? '#fff' : colors.textSecondary, fontSize: 11, fontWeight: '800' }}>Desktop</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); setPreviewDevice('mobile'); }}
+                  style={[s.deviceChip, previewDevice === 'mobile' && { backgroundColor: colors.primary }]}
+                >
+                  <Ionicons name="phone-portrait-outline" size={14} color={previewDevice === 'mobile' ? '#fff' : colors.textSecondary} />
+                  <Text style={{ color: previewDevice === 'mobile' ? '#fff' : colors.textSecondary, fontSize: 11, fontWeight: '800' }}>Celular</Text>
+                </TouchableOpacity>
               </View>
               {heroDockBar}
-              <View style={s.previewFrame}>{loja}</View>
+              <View style={[s.previewFrame, previewDevice === 'mobile' && s.previewPhone]}>
+                {loja}
+              </View>
             </View>
           </>
         ) : mobileTab === 'editar' ? (
@@ -506,14 +543,21 @@ export function CatalogoScreen({ onClose, isModal }) {
         <HeroFxFloatHost />
       </View>
 
-      <LojaItemEditModal
-        visible={!!editingItem}
-        item={editingItem}
-        onSave={saveEditedItem}
-        onClose={() => setEditingItem(null)}
-        userId={user?.id}
-        saving={savingItem}
-      />
+      {editingItem?._tipo === 'servico' ? (
+        <ServicoFormModal
+          visible={!!editingItem}
+          servico={editingItem}
+          onSave={saveEditedItem}
+          onClose={() => setEditingItem(null)}
+        />
+      ) : (
+        <ProductFormModal
+          visible={!!editingItem}
+          editingItem={editingItem}
+          onSave={saveEditedItem}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </View>
   );
 }
@@ -533,10 +577,22 @@ const s = StyleSheet.create({
   mobileTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
   body: { flex: 1, flexDirection: 'row', position: 'relative' },
   editorCol: { width: 380, maxWidth: '42%', borderRightWidth: 1 },
-  previewCol: { flex: 1, position: 'relative' },
+  previewCol: { flex: 1, position: 'relative', overflow: 'visible' },
   previewLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
-  heroDockHost: { paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1 },
+  deviceChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   previewFrame: { flex: 1, margin: 16, borderRadius: 16, overflow: 'visible' },
+  previewPhone: {
+    width: 390,
+    maxWidth: '100%',
+    alignSelf: 'center',
+    marginVertical: 12,
+    borderRadius: 28,
+    borderWidth: 8,
+    borderColor: '#0f172a',
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  heroDockHost: { paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1, overflow: 'visible', zIndex: 30 },
   emptyPlan: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 12 },
   emptyTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 22 },

@@ -26,6 +26,8 @@ export function LojaItemEditModal({ visible, item, onSave, onClose, userId, savi
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [discount, setDiscount] = useState('');
+  const [description, setDescription] = useState('');
+  const [stock, setStock] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -36,6 +38,8 @@ export function LojaItemEditModal({ visible, item, onSave, onClose, userId, savi
     setName(item.name || '');
     setPrice(item.price != null ? String(item.price).replace('.', ',') : '');
     setDiscount(item.discount != null ? String(item.discount).replace('.', ',') : '');
+    setDescription(item.description || item.descricao || '');
+    setStock(item.stock != null ? String(item.stock) : '');
     setPhotoUri(item.photoUri || item.photoUris?.[0] || null);
   }, [visible, item]);
 
@@ -78,9 +82,11 @@ export function LojaItemEditModal({ visible, item, onSave, onClose, userId, savi
       name: name.trim(),
       price: p,
       discount: d,
+      description: description.trim(),
       photoUri: photoUri || null,
       photoUris: photoUri ? [photoUri] : null,
     };
+    if (!isServico) payload.stock = parseInt(String(stock).replace(/\D/g, ''), 10) || 0;
     onSave?.(payload);
   };
 
@@ -167,6 +173,30 @@ export function LojaItemEditModal({ visible, item, onSave, onClose, userId, savi
                 />
               </View>
             </View>
+
+            <Text style={[st.label, { color: colors.textSecondary, marginTop: 12 }]}>Descrição</Text>
+            <TextInput
+              style={[st.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg, minHeight: 80, textAlignVertical: 'top' }]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="O cliente vê isto ao clicar no produto"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+            />
+            {!isServico ? (
+              <>
+                <Text style={[st.label, { color: colors.textSecondary }]}>Quantidade em estoque</Text>
+                <TextInput
+                  style={[st.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
+                  value={stock}
+                  onChangeText={setStock}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </>
+            ) : null}
+
           </ScrollView>
 
           <TouchableOpacity

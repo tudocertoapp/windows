@@ -38,6 +38,7 @@ import {
 import { playTapSound } from '../../utils/sounds';
 import { openWhatsApp } from '../../utils/whatsapp';
 import { CarouselCoverEditor } from './CarouselCoverEditor';
+import { LojaItemDetailModal } from './LojaItemDetailModal';
 import { getNextAvailableDates } from '../../utils/agendaAvailability';
 import { LojaAgendaPicker } from './LojaAgendaPicker';
 import { LojaHeroBanner } from './LojaHeroBanner';
@@ -104,6 +105,7 @@ export function CatalogoStoreView({
   onPickLogo,
   ownerUserId,
   onCarouselCapaChange,
+  layoutMode,
 }) {
   const [search, setSearch] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('todos');
@@ -129,6 +131,7 @@ export function CatalogoStoreView({
   const [measuredW, setMeasuredW] = useState(0);
   const [mergeW, setMergeW] = useState(0);
   const [capaEdit, setCapaEdit] = useState(null);
+  const [detailItem, setDetailItem] = useState(null);
 
   const agendamentoAtivo = config.agendamentoOnline !== false && !!onFetchAvailability;
 
@@ -148,6 +151,7 @@ export function CatalogoStoreView({
   const cardBg = theme.cardBg;
   const qtyTone = qtyColors(theme);
   const storeW = measuredW || previewWidth || SW;
+  const isMobileChrome = layoutMode === 'mobile' || (layoutMode !== 'desktop' && storeW > 0 && storeW < 640);
   const cols = getResponsiveGridColumns(storeW);
   const gap = 10;
   const pad = 12;
@@ -312,6 +316,12 @@ export function CatalogoStoreView({
   const cardHeights = { pequeno: 180, medio: 220, grande: 280 };
   const cardH = cardHeights[config.cardSize] || cardHeights.medio;
 
+  const openItemDetail = (item) => {
+    if (!interactive || !item) return;
+    playTapSound();
+    setDetailItem(item);
+  };
+
   const renderPrice = (item) => {
     if (config.mostrarPrecos === false) return null;
     const price = Number(item.price) || 0;
@@ -335,7 +345,7 @@ export function CatalogoStoreView({
     return (
       <TouchableOpacity
         style={[st.editBtn, { backgroundColor: config.corPrincipal }]}
-        onPress={() => { playTapSound(); onEditItem(item); }}
+        onPress={(e) => { e?.stopPropagation?.(); playTapSound(); onEditItem(item); }}
         hitSlop={8}
       >
         <Ionicons name="pencil" size={14} color="#fff" />
@@ -353,9 +363,15 @@ export function CatalogoStoreView({
     const fade = asCarousel && (carousel.anim === 'destaque' || carousel.anim === 'zoom');
     const active = carouselItems.findIndex((i) => (i._rowId || i.id) === (item._rowId || item.id)) === carouselIndex;
     const capaBox = asCarousel && photo ? carouselCapaImageBox(capa, carousel.imgW, carousel.imgH) : null;
+    const cliqueDetalhe = interactive && (!asCarousel || config.carouselCliqueDetalhe !== false);
+    const hideCarouselCart = asCarousel && (config.carouselCliqueDetalhe !== false || carousel.compact);
+    const stockN = item._tipo === 'servico' ? null : Number(item.stock);
+    const showStock = asCarousel && config.carouselMostrarEstoque && Number.isFinite(stockN);
+    const CardWrap = cliqueDetalhe ? Pressable : View;
     return (
-      <View
+      <CardWrap
         key={item._rowId || item.id}
+        onPress={cliqueDetalhe ? () => openItemDetail(item) : undefined}
         style={[
           st.card,
           asCarousel && st.cardCarousel,
@@ -380,7 +396,7 @@ export function CatalogoStoreView({
                 {ownerMode && onCarouselCapaChange ? (
                   <TouchableOpacity
                     style={[st.capaBtn, carousel.compact && { width: 22, height: 22, right: 4, bottom: 4 }, { backgroundColor: config.corPrincipal }]}
-                    onPress={() => { playTapSound(); setCapaEdit({ item, uri: photo, rowId }); }}
+                    onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setCapaEdit({ item, uri: photo, rowId }); }}
                     hitSlop={8}
                   >
                     <Ionicons name="crop-outline" size={carousel.compact ? 12 : 14} color="#fff" />
@@ -417,8 +433,13 @@ export function CatalogoStoreView({
           >
             {item.name}
           </Text>
-          {renderPrice(item)}
-          {interactive && config.mostrarCarrinho !== false && !(asCarousel && carousel.compact) && (
+          {(!asCarousel || config.carouselMostrarPreco !== false) ? renderPrice(item) : null}
+          {showStock ? (
+            <Text style={[st.stockLine, { color: stockN > 0 ? fonts.produto : '#ef4444' }]} numberOfLines={1}>
+              {stockN > 0 ? `${stockN} un.` : 'Esgotado'}
+            </Text>
+          ) : null}
+          {interactive && config.mostrarCarrinho !== false && !hideCarouselCart && (
             <TouchableOpacity
               style={[st.addBtn, { backgroundColor: config.corPrincipal }]}
               onPress={() => { playTapSound(); onAddToCart?.(item); }}
@@ -431,14 +452,14 @@ export function CatalogoStoreView({
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </CardWrap>
     );
   };
 
   const renderListItem = (item) => {
     const photo = getItemPhoto(item);
     return (
-      <View key={item._rowId || item.id} style={[st.listRow, { borderColor: config.corPrincipal + '22', backgroundColor: cardBg }]}>
+      <Pressable key={item._rowId || item.id} onPress={() => openItemDetail(item)} style={[st.listRow, { borderColor: config.corPrincipal + '22', backgroundColor: cardBg }]}>
         <View style={{ position: 'relative' }}>
           {photo ? (
             <Image source={{ uri: photo }} style={st.listImg} resizeMode="cover" />
@@ -465,14 +486,14 @@ export function CatalogoStoreView({
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         )}
-      </View>
+      </Pressable>
     );
   };
 
   const renderLandingItem = (item) => {
     const photo = getItemPhoto(item);
     return (
-      <View key={item._rowId || item.id} style={[st.landingCard, { borderColor: config.corPrincipal + '22', backgroundColor: cardBg }]}>
+      <Pressable key={item._rowId || item.id} onPress={() => openItemDetail(item)} style={[st.landingCard, { borderColor: config.corPrincipal + '22', backgroundColor: cardBg }]}>
         <View style={{ position: 'relative' }}>
           {photo ? (
             <Image source={{ uri: photo }} style={st.landingImg} resizeMode="cover" />
@@ -497,7 +518,7 @@ export function CatalogoStoreView({
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </Pressable>
     );
   };
 
@@ -648,7 +669,7 @@ export function CatalogoStoreView({
         showsVerticalScrollIndicator={false}
         scrollEnabled={!heroDragging}
         nestedScrollEnabled
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: isMobileChrome && config.mostrarCarrinho !== false ? 88 : 24 }}
         style={heroDragging ? { overflow: 'hidden' } : undefined}
       >
         <View>
@@ -790,7 +811,7 @@ export function CatalogoStoreView({
         </CatalogoGradientFill>
       </ScrollView>
 
-      {interactive && (config.mostrarCarrinho !== false || (config.mostrarWhatsApp !== false && (config.whatsappPedido || profile?.telefone))) ? (
+      {interactive && config.mostrarCarrinho !== false && !isMobileChrome ? (
         <View style={st.topFabs}>
           {config.mostrarWhatsApp !== false && (config.whatsappPedido || profile?.telefone) ? (
             <TouchableOpacity
@@ -807,21 +828,34 @@ export function CatalogoStoreView({
               <Ionicons name="logo-whatsapp" size={22} color="#fff" />
             </TouchableOpacity>
           ) : null}
-          {config.mostrarCarrinho !== false ? (
-            <TouchableOpacity
-              style={[st.cartFabTop, { backgroundColor: config.corPrincipal, position: 'relative', top: 0, right: 0 }]}
-              onPress={() => { playTapSound(); setCartOpen(true); }}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="cart" size={22} color="#fff" />
-              {cartCount > 0 ? (
-                <View style={st.cartBadge}>
-                  <Text style={st.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity
+            style={[st.cartFabTop, { backgroundColor: config.corPrincipal, position: 'relative', top: 0, right: 0 }]}
+            onPress={() => { playTapSound(); setCartOpen(true); }}
+            activeOpacity={0.88}
+          >
+            <Ionicons name="cart" size={22} color="#fff" />
+            {cartCount > 0 ? (
+              <View style={st.cartBadge}>
+                <Text style={st.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
         </View>
+      ) : null}
+      {interactive && config.mostrarCarrinho !== false && isMobileChrome ? (
+        <TouchableOpacity
+          style={[st.bottomCartBar, { backgroundColor: config.corPrincipal }]}
+          onPress={() => { playTapSound(); setCartOpen(true); }}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="cart" size={22} color="#fff" />
+          <Text style={st.bottomCartText}>Carrinho</Text>
+          {cartCount > 0 ? (
+            <View style={st.bottomCartBadge}>
+              <Text style={st.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
       ) : null}
 
       {interactive && config.mostrarCarrinho !== false && (
@@ -830,6 +864,20 @@ export function CatalogoStoreView({
               <Pressable style={[st.cartSheet, { backgroundColor: cardBg }]} onPress={(e) => e.stopPropagation()}>
                 <View style={st.cartHeader}>
                   <Text style={[st.cartTitle, { color: config.corTexto }]}>Seu carrinho</Text>
+                  {config.mostrarWhatsApp !== false && (config.whatsappPedido || profile?.telefone) ? (
+                    <TouchableOpacity
+                      style={st.cartWaIcon}
+                      onPress={() => {
+                        playTapSound();
+                        openWhatsApp(
+                          config.whatsappPedido || profile?.telefone,
+                          `Olá! Vim pela loja de ${getLojaDisplayName(config, profile)}.`,
+                        );
+                      }}
+                    >
+                      <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity onPress={() => setCartOpen(false)}>
                     <Ionicons name="close" size={24} color={config.corTexto} />
                   </TouchableOpacity>
@@ -963,6 +1011,17 @@ export function CatalogoStoreView({
           setCapaEdit(null);
         }}
       />
+      <LojaItemDetailModal
+        visible={!!detailItem}
+        item={detailItem}
+        config={config}
+        fonts={fonts}
+        cardBg={cardBg}
+        mostrarEstoque={!!config.carouselMostrarEstoque}
+        mostrarCarrinho={interactive && config.mostrarCarrinho !== false}
+        onAddToCart={onAddToCart}
+        onClose={() => setDetailItem(null)}
+      />
     </View>
   );
 }
@@ -1045,6 +1104,42 @@ const st = StyleSheet.create({
     shadowOpacity: 0.28,
     shadowRadius: 6,
   },
+  bottomCartBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    zIndex: 40,
+    minHeight: 52,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+  },
+  bottomCartText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  bottomCartBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  cartWaIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#25D36622',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cardImg: { width: '100%' },
   cardImgPh: { justifyContent: 'center', alignItems: 'center' },
   cardBody: { padding: 10, gap: 4 },
@@ -1052,6 +1147,7 @@ const st = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 },
   priceOld: { fontSize: 11, textDecorationLine: 'line-through' },
   price: { fontSize: 15, fontWeight: '800' },
+  stockLine: { fontSize: 11, fontWeight: '700', marginTop: 2 },
   promoBadge: { backgroundColor: '#ef4444', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
   promoText: { fontSize: 9, fontWeight: '800', color: '#fff' },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 10 },
@@ -1089,8 +1185,8 @@ const st = StyleSheet.create({
   cartBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   cartOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   cartSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 32, maxHeight: '80%' },
-  cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  cartTitle: { fontSize: 18, fontWeight: '800' },
+  cartHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  cartTitle: { flex: 1, fontSize: 18, fontWeight: '800' },
   cartEmpty: { alignItems: 'center', paddingVertical: 32, gap: 8 },
   cartLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1 },
   cartThumb: { width: 52, height: 52, borderRadius: 10 },

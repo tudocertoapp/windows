@@ -246,7 +246,13 @@ function HeroWheelLock({ enabled, scale, onScale, onHoverLock, onSelect, style, 
       dataSet={dataSet}
       {...(panHandlers || {})}
       onLayout={onLayout}
-      style={style}
+      style={[
+        style,
+        {
+          transform: [{ scale: Math.max(0.15, Number(scale || 100) / 100) }],
+          transformOrigin: 'center center',
+        },
+      ]}
       onPointerEnter={enabled ? lockOn : undefined}
       onPointerLeave={enabled ? lockOff : undefined}
     >
@@ -416,21 +422,30 @@ function DraggableHeroItem({
   );
 }
 
-function DockBtn({ icon, label, onPress, ink, icoBg, active, danger }) {
+function DockBtn({ icon, label, onPress, ink, icoBg, active, danger, fill }) {
   return (
     <TouchableOpacity
       onPress={() => { playTapSound(); onPress?.(); }}
-      style={[st.dockBtn, { backgroundColor: active ? '#2563eb' : icoBg }]}
+      style={[st.dockBtn, fill && st.dockBtnFill, { backgroundColor: active ? '#2563eb' : icoBg }]}
       activeOpacity={0.85}
       accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={14} color={danger ? '#ef4444' : (active ? '#fff' : ink)} />
+      <Ionicons name={icon} size={16} color={danger ? '#ef4444' : (active ? '#fff' : ink)} />
       {label ? (
         <Text style={[st.dockBtnLabel, { color: danger ? '#ef4444' : (active ? '#fff' : ink) }]} numberOfLines={1}>
           {label}
         </Text>
       ) : null}
     </TouchableOpacity>
+  );
+}
+
+function DockSlot({ children, open, fly }) {
+  return (
+    <View style={[st.dockSlot, open && { zIndex: 30 }]}>
+      {children}
+      {open && fly ? <View style={st.dockFlyCol}>{fly}</View> : null}
+    </View>
   );
 }
 
@@ -746,7 +761,7 @@ function HeroFxPanel({
             onPlus={() => applyFx({ intensidade: Math.min(10, (fx.intensidade || 5) + 1) })}
           />
           <FxStepper
-            label="Tamanho"
+            label="Tamanho do efeito"
             value={fx.fxTamanho || 5}
             onMinus={() => applyFx({ fxTamanho: Math.max(1, (fx.fxTamanho || 5) - 1) })}
             onPlus={() => applyFx({ fxTamanho: Math.min(10, (fx.fxTamanho || 5) + 1) })}
@@ -786,7 +801,7 @@ export function HeroMoveDock({
   fxPanelOpen,
   onAddTexto,
 }) {
-  const [addOpen, setAddOpen] = useState(false);
+  const [fly, setFly] = useState(null);
   const themeColors = useTheme()?.colors;
   const palette = colors || themeColors || {};
   const ids = selectedIds?.length ? selectedIds : (selectedId ? [selectedId] : []);
@@ -835,98 +850,85 @@ export function HeroMoveDock({
     if (primaryId === 'logo') onFieldChange?.('usaLogo', false);
   };
 
+  const toggleFly = (id) => setFly((cur) => (cur === id ? null : id));
+
   const ink = palette.text || '#fff';
   const icoBg = palette.bg || palette.primaryRgba?.(0.12) || 'rgba(148,163,184,0.18)';
+  const flyBg = palette.card || '#0f172a';
+  const flyBorder = palette.border || 'rgba(148,163,184,0.35)';
+
+  const colorBrush = (
+    <CatalogoColorBrush
+      toolbar
+      caption="Cor"
+      value={isLogoOnly
+        ? (config?.logoCor || config?.logoPlacaCor || '#ffffff')
+        : (extraPrimary?.cor || config?.[colorKey] || '#ffffff')}
+      onChange={isLogoOnly
+        ? (c) => onFieldChange?.('logoCor', c)
+        : applyColor}
+      colors={palette}
+      accent={accent || palette.primary || '#2563eb'}
+      wrapStyle={st.dockSlot}
+      buttonStyle={[st.dockBtn, { backgroundColor: icoBg, width: '100%' }]}
+      captionColor={ink}
+    />
+  );
 
   return (
     <View style={[st.dockPro, { backgroundColor: palette.card || 'transparent', borderColor: palette.border || 'transparent' }]} dataSet={{ heroKeep: '1' }}>
       <View style={st.dockProRow}>
-        {[
-          { id: 'esquerda', icon: 'arrow-back-outline', label: 'Esquerda' },
-          { id: 'centro', icon: 'scan-outline', label: 'Centro' },
-          { id: 'direita', icon: 'arrow-forward-outline', label: 'Direita' },
-        ].map((al) => (
-          <DockBtn key={al.id} icon={al.icon} label={al.label} ink={ink} icoBg={icoBg} onPress={() => onAlign?.(al.id)} />
-        ))}
-        <View style={[st.dockSep, { backgroundColor: palette.border || 'rgba(148,163,184,0.35)' }]} />
-        {primaryId === 'logo' && onPickLogo ? (
-          <DockBtn
-            icon="image-outline"
-            label="Trocar logo"
-            ink={ink}
-            icoBg={icoBg}
-            onPress={onPickLogo}
-          />
-        ) : null}
-        {!isLogoOnly ? (
-          <CatalogoColorBrush
-            toolbar
-            caption="Cor"
-            value={extraPrimary?.cor || config?.[colorKey] || '#ffffff'}
-            onChange={applyColor}
-            colors={palette}
-            accent={accent || palette.primary || '#2563eb'}
-            buttonStyle={{ backgroundColor: icoBg }}
-            captionColor={ink}
-          />
-        ) : null}
+        {colorBrush}
+
         {isLogoOnly && primaryId === 'logo' ? (
-          <CatalogoColorBrush
-            toolbar
-            caption="Cor"
-            value={config?.logoCor || config?.logoPlacaCor || '#ffffff'}
-            onChange={(c) => onFieldChange?.('logoCor', c)}
-            colors={palette}
-            accent={accent || palette.primary || '#2563eb'}
-            buttonStyle={{ backgroundColor: icoBg }}
-            captionColor={ink}
-          />
+          <DockSlot
+            open={fly === 'logo'}
+            fly={(
+              <View style={[st.dockFlyInner, { backgroundColor: flyBg, borderColor: flyBorder }]}>
+                {onPickLogo ? (
+                  <DockBtn fill icon="image-outline" label="Trocar logo" ink={ink} icoBg={icoBg} onPress={onPickLogo} />
+                ) : null}
+                <DockBtn fill icon="sync-outline" label="Inverter" active={!!config?.logoInverter} ink={ink} icoBg={icoBg} onPress={() => onFieldChange?.('logoInverter', !config?.logoInverter)} />
+                <DockBtn fill icon={config?.logoPlaca ? 'color-fill' : 'color-fill-outline'} label="Fundo" active={!!config?.logoPlaca} ink={ink} icoBg={icoBg} onPress={() => onFieldChange?.('logoPlaca', !config?.logoPlaca)} />
+                <DockBtn
+                  fill
+                  icon="cut-outline"
+                  label="Transparente"
+                  active={config?.logoFundoImg && config.logoFundoImg !== 'manter'}
+                  ink={ink}
+                  icoBg={icoBg}
+                  onPress={() => {
+                    const on = config?.logoFundoImg && config.logoFundoImg !== 'manter';
+                    if (on) onFieldChange?.('logoFundoImg', 'manter');
+                    else {
+                      onFieldChange?.('logoFundoImg', 'sem-branco');
+                      onFieldChange?.('logoPlaca', false);
+                      onFieldChange?.('logoMoldura', 'nenhuma');
+                    }
+                  }}
+                />
+                <DockBtn
+                  fill
+                  icon={config?.logoMoldura === 'nenhuma' ? 'image-outline' : 'ellipse-outline'}
+                  label={config?.logoMoldura === 'nenhuma' ? 'Sem moldura' : 'Moldura'}
+                  active={config?.logoMoldura !== 'nenhuma'}
+                  ink={ink}
+                  icoBg={icoBg}
+                  onPress={() => {
+                    if (config?.logoMoldura === 'nenhuma') onFieldChange?.('logoMoldura', 'circular');
+                    else {
+                      onFieldChange?.('logoMoldura', 'nenhuma');
+                      onFieldChange?.('logoPlaca', false);
+                    }
+                  }}
+                />
+              </View>
+            )}
+          >
+            <DockBtn icon="image-outline" label="Logo" active={fly === 'logo'} ink={ink} icoBg={icoBg} onPress={() => toggleFly('logo')} />
+          </DockSlot>
         ) : null}
-        {isLogoOnly && primaryId === 'logo' ? (
-          <DockBtn
-            icon={config?.logoPlaca ? 'color-fill' : 'color-fill-outline'}
-            label="Fundo"
-            active={!!config?.logoPlaca}
-            ink={ink}
-            icoBg={icoBg}
-            onPress={() => onFieldChange?.('logoPlaca', !config?.logoPlaca)}
-          />
-        ) : null}
-        {isLogoOnly && primaryId === 'logo' ? (
-          <DockBtn
-            icon="cut-outline"
-            label="Transparente"
-            active={config?.logoFundoImg && config.logoFundoImg !== 'manter'}
-            ink={ink}
-            icoBg={icoBg}
-            onPress={() => {
-              const on = config?.logoFundoImg && config.logoFundoImg !== 'manter';
-              if (on) {
-                onFieldChange?.('logoFundoImg', 'manter');
-              } else {
-                onFieldChange?.('logoFundoImg', 'sem-branco');
-                onFieldChange?.('logoPlaca', false);
-                onFieldChange?.('logoMoldura', 'nenhuma');
-              }
-            }}
-          />
-        ) : null}
-        {isLogoOnly && primaryId === 'logo' ? (
-          <DockBtn
-            icon={config?.logoMoldura === 'nenhuma' ? 'image-outline' : 'ellipse-outline'}
-            label={config?.logoMoldura === 'nenhuma' ? 'Sem moldura' : 'Moldura'}
-            active={config?.logoMoldura !== 'nenhuma'}
-            ink={ink}
-            icoBg={icoBg}
-            onPress={() => {
-              if (config?.logoMoldura === 'nenhuma') onFieldChange?.('logoMoldura', 'circular');
-              else {
-                onFieldChange?.('logoMoldura', 'nenhuma');
-                onFieldChange?.('logoPlaca', false);
-              }
-            }}
-          />
-        ) : null}
+
         {textIds.length === 1 ? (
           <DockBtn icon="pencil" label="Editar" ink={ink} icoBg={icoBg} onPress={() => onEditText?.(textIds[0])} />
         ) : null}
@@ -943,43 +945,61 @@ export function HeroMoveDock({
             onPress={() => onOpenFx?.()}
           />
         ) : null}
-        <View style={[st.dockSep, { backgroundColor: palette.border || 'rgba(148,163,184,0.35)' }]} />
-        <DockBtn icon="chevron-up" label="Cima" ink={ink} icoBg={icoBg} onPress={() => onNudge?.(0, -4)} />
-        <DockBtn icon="chevron-back" label="Esq." ink={ink} icoBg={icoBg} onPress={() => onNudge?.(-4, 0)} />
-        <DockBtn icon="chevron-forward" label="Dir." ink={ink} icoBg={icoBg} onPress={() => onNudge?.(4, 0)} />
-        <DockBtn icon="chevron-down" label="Baixo" ink={ink} icoBg={icoBg} onPress={() => onNudge?.(0, 4)} />
-        <DockBtn icon="remove" label="Menor" ink={ink} icoBg={icoBg} onPress={() => onScaleDelta?.(-8)} />
-        <DockBtn icon="add" label="Maior" ink={ink} icoBg={icoBg} onPress={() => onScaleDelta?.(8)} />
-        <View style={[st.dockSep, { backgroundColor: palette.border || 'rgba(148,163,184,0.35)' }]} />
+
+        <DockSlot
+          open={fly === 'move'}
+          fly={(
+            <View style={[st.dockFlyInner, { backgroundColor: flyBg, borderColor: flyBorder }]}>
+              <DockBtn fill icon="arrow-back-outline" label="Esquerda" ink={ink} icoBg={icoBg} onPress={() => onAlign?.('esquerda')} />
+              <DockBtn fill icon="scan-outline" label="Centro" ink={ink} icoBg={icoBg} onPress={() => onAlign?.('centro')} />
+              <DockBtn fill icon="arrow-forward-outline" label="Direita" ink={ink} icoBg={icoBg} onPress={() => onAlign?.('direita')} />
+              <DockBtn fill icon="chevron-up" label="Cima" ink={ink} icoBg={icoBg} onPress={() => onNudge?.(0, -4)} />
+              <DockBtn fill icon="chevron-back" label="Esq." ink={ink} icoBg={icoBg} onPress={() => onNudge?.(-4, 0)} />
+              <DockBtn fill icon="chevron-forward" label="Dir." ink={ink} icoBg={icoBg} onPress={() => onNudge?.(4, 0)} />
+              <DockBtn fill icon="chevron-down" label="Baixo" ink={ink} icoBg={icoBg} onPress={() => onNudge?.(0, 4)} />
+              <DockBtn fill icon="remove" label="Menor" ink={ink} icoBg={icoBg} onPress={() => onScaleDelta?.(-8)} />
+              <DockBtn fill icon="add" label="Maior" ink={ink} icoBg={icoBg} onPress={() => onScaleDelta?.(8)} />
+            </View>
+          )}
+        >
+          <DockBtn icon="move-outline" label="Ajustar" active={fly === 'move'} ink={ink} icoBg={icoBg} onPress={() => toggleFly('move')} />
+        </DockSlot>
+
         {extras.length ? (
-          <DockBtn icon="add-circle-outline" label="Adicionar" ink={ink} icoBg={icoBg} onPress={() => setAddOpen((v) => !v)} />
+          <DockSlot
+            open={fly === 'add'}
+            fly={(
+              <View style={[st.dockFlyInner, { backgroundColor: flyBg, borderColor: flyBorder }]}>
+                {extras.map((x) => (
+                  <DockBtn
+                    key={x.id}
+                    fill
+                    icon={x.kind === 'texto' ? 'text-outline' : 'add-outline'}
+                    label={x.label}
+                    ink={ink}
+                    icoBg={icoBg}
+                    onPress={() => {
+                      if (x.kind === 'texto') {
+                        if (canAddTexto) onAddTexto?.();
+                      } else {
+                        onFieldChange?.(x.key, true);
+                      }
+                      setFly(null);
+                    }}
+                  />
+                ))}
+              </View>
+            )}
+          >
+            <DockBtn icon="add-circle-outline" label="Adicionar" active={fly === 'add'} ink={ink} icoBg={icoBg} onPress={() => toggleFly('add')} />
+          </DockSlot>
         ) : null}
+
         {canRemove ? (
           <DockBtn icon="trash-outline" label="Ocultar" ink={ink} icoBg={icoBg} danger onPress={hideSelected} />
         ) : null}
         <DockBtn icon="refresh-outline" label="Resetar" ink={ink} icoBg={icoBg} onPress={onReset} />
       </View>
-      {addOpen && extras.length ? (
-        <View style={st.dockAddRow}>
-          {extras.map((x) => (
-            <TouchableOpacity
-              key={x.id}
-              style={[st.dockAddChip, { backgroundColor: icoBg }]}
-              onPress={() => {
-                playTapSound();
-                if (x.kind === 'texto') {
-                  if (canAddTexto) onAddTexto?.();
-                } else {
-                  onFieldChange?.(x.key, true);
-                }
-                setAddOpen(false);
-              }}
-            >
-              <Text style={[st.dockAddText, { color: ink }]}>{x.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -1423,7 +1443,14 @@ export function LojaHeroBanner({
   const renderFlexLayer = () => {
     const wrapFlex = (id, node) => {
       if (!isHeroElementVisible(config, id)) return null;
-      if (!heroResizeMode) return node;
+      if (!heroResizeMode) {
+        const s = Math.max(0.15, currentScale(id) / 100);
+        return (
+          <View key={id} style={{ transform: [{ scale: s }], transformOrigin: 'center center' }}>
+            {node}
+          </View>
+        );
+      }
       const on = selectedIds.includes(id);
       return (
         <HeroWheelLock
@@ -1698,37 +1725,60 @@ const st = StyleSheet.create({
     marginBottom: 0,
   },
   dockPro: {
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 0,
     borderWidth: 0,
     borderBottomWidth: 1,
+    overflow: 'visible',
+    zIndex: 24,
   },
   dockProRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexWrap: 'nowrap',
+    alignItems: 'stretch',
+    justifyContent: 'space-between',
     gap: 4,
+    overflow: 'visible',
   },
-  dockIco: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  dockSlot: {
+    flex: 1,
+    minWidth: 0,
+    position: 'relative',
+    zIndex: 2,
+  },
+  dockFlyCol: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    zIndex: 80,
+  },
+  dockFlyInner: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 4,
+    gap: 4,
+    overflow: 'hidden',
   },
   dockBtn: {
-    minWidth: 52,
-    paddingHorizontal: 6,
-    paddingVertical: 5,
+    flex: 1,
+    minWidth: 0,
+    height: 48,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
   },
-  dockBtnLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.1, maxWidth: 72, textAlign: 'center' },
+  dockBtnFill: {
+    flex: 0,
+    width: '100%',
+    minWidth: 0,
+  },
+  dockBtnLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.1, maxWidth: '100%', textAlign: 'center' },
   dockSep: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.14)', marginHorizontal: 4 },
   dockAddRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 6 },
   dockAddChip: {
