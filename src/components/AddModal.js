@@ -633,12 +633,12 @@ export function AddModal({ type, params, onClose }) {
           )}
           <View style={{ position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8, zIndex: 2 }}>
             {type !== 'tarefa' && type !== 'receita' && type !== 'despesa' && (
-              <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
-                <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
+              <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }} onPress={() => Keyboard.dismiss()}>
+                <Ionicons name="keyboard-outline" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={onClose}>
-              <Ionicons name="close" size={20} color={colors.primary} />
+            <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }} onPress={onClose}>
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <Text style={[styles.title, { color: colors.primary }]}>{type === 'receita' ? (params?.editTransaction ? 'EDITAR RECEITA' : 'ADICIONAR RECEITA') : (type === 'despesa' && params?.editTransaction ? 'EDITAR DESPESA' : getTitle())}</Text>
@@ -685,8 +685,8 @@ export function AddModal({ type, params, onClose }) {
                             {sel?.foto ? (
                               <Image source={{ uri: sel.foto }} style={{ width: 36, height: 36, borderRadius: 18 }} />
                             ) : (
-                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                                <Ionicons name="person-outline" size={18} color={colors.primary} />
+                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
                               </View>
                             )}
                             <Text style={{ flex: 1, color: sel?.name ? colors.text : colors.textSecondary }} numberOfLines={1}>
@@ -701,11 +701,11 @@ export function AddModal({ type, params, onClose }) {
                       <View style={{ marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, maxHeight: 320 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                           <TouchableOpacity onPress={() => { playTapSound(); setShowClientPicker(false); setShowNewClientForm(false); setSearchClient(''); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Ionicons name="arrow-back" size={20} color={colors.primary} />
+                            <Ionicons name="arrow-back" size={20} color={colors.textSecondary} />
                             <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>Voltar</Text>
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => { playTapSound(); setShowNewClientForm(true); setSearchClient(''); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Ionicons name="person-add-outline" size={18} color={colors.primary} />
+                            <Ionicons name="person-add-outline" size={18} color={colors.textSecondary} />
                             <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>Cadastrar cliente</Text>
                           </TouchableOpacity>
                         </View>
@@ -753,7 +753,7 @@ export function AddModal({ type, params, onClose }) {
                                     <Image source={{ uri: c.foto }} style={{ width: 44, height: 44, borderRadius: 22 }} />
                                   ) : (
                                     <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                                      <Ionicons name="person-outline" size={22} color={colors.primary} />
+                                      <Ionicons name="person-outline" size={22} color={colors.textSecondary} />
                                     </View>
                                   )}
                                   <View style={{ flex: 1 }}>
@@ -785,7 +785,7 @@ export function AddModal({ type, params, onClose }) {
                   <View style={[styles.pdvBox, styles.pdvCard, { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primaryRgba(0.06), padding: 24, minHeight: 280, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 8 }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                       <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colors.primaryRgba(0.25), justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="cart-outline" size={30} color={colors.primary} />
+                        <Ionicons name="cart-outline" size={30} color={colors.textSecondary} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 }}>Ponto de Venda</Text>
@@ -814,8 +814,8 @@ export function AddModal({ type, params, onClose }) {
                                   {(p.photoUri || p.photoUris?.[0]) ? (
                                     <Image source={{ uri: p.photoUri || p.photoUris[0] }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
                                   ) : (
-                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                                      <Ionicons name="cube-outline" size={20} color={colors.primary} />
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                                      <Ionicons name="cube-outline" size={20} color={colors.textSecondary} />
                                     </View>
                                   )}
                                   <Text style={{ color: colors.text, fontWeight: '500', flex: 1 }} numberOfLines={1}>{p.name}</Text>
@@ -832,8 +832,8 @@ export function AddModal({ type, params, onClose }) {
                                   {s.photoUri ? (
                                     <Image source={{ uri: s.photoUri }} style={{ width: 40, height: 40, borderRadius: 20 }} resizeMode="cover" />
                                   ) : (
-                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                                      <Ionicons name="construct-outline" size={20} color={colors.primary} />
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                                      <Ionicons name="construct-outline" size={20} color={colors.textSecondary} />
                                     </View>
                                   )}
                                   <Text style={{ color: colors.text, fontWeight: '500', flex: 1 }} numberOfLines={1}>{s.name}</Text>
@@ -928,8 +928,8 @@ export function AddModal({ type, params, onClose }) {
                       onPress={() => setShowFormaPagamentoPickerRec(true)}
                     >
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                          <Ionicons name={([...TODAS_FORMAS_PAGAMENTO_RECEITA, ...customFormasPagamentoRec].find((f) => f.id === formaPagamento) || TODAS_FORMAS_PAGAMENTO_RECEITA[0]).icon} size={18} color={colors.primary} />
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                          <Ionicons name={([...TODAS_FORMAS_PAGAMENTO_RECEITA, ...customFormasPagamentoRec].find((f) => f.id === formaPagamento) || TODAS_FORMAS_PAGAMENTO_RECEITA[0]).icon} size={18} color={colors.textSecondary} />
                         </View>
                         <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>{([...TODAS_FORMAS_PAGAMENTO_RECEITA, ...customFormasPagamentoRec].find((f) => f.id === formaPagamento) || TODAS_FORMAS_PAGAMENTO_RECEITA[0]).label}</Text>
                       </View>
@@ -951,15 +951,15 @@ export function AddModal({ type, params, onClose }) {
                                     <Ionicons name={fp.icon} size={18} color={formaPagamento === fp.id ? '#fff' : colors.text} />
                                   </View>
                                   <Text style={{ fontSize: 15, fontWeight: '600', color: formaPagamento === fp.id ? colors.primary : colors.text, flex: 1 }}>{fp.label}</Text>
-                                  {formaPagamento === fp.id && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+                                  {formaPagamento === fp.id && <Ionicons name="checkmark-circle" size={22} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                               ))}
                               <TouchableOpacity
                                 style={[styles.formaPagItem, { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: colors.border }]}
                                 onPress={() => { setShowFormaPagamentoPickerRec(false); setNewFormaNome(''); setShowAddFormaModalRec(true); }}
                               >
-                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.15), justifyContent: 'center', alignItems: 'center' }}>
-                                  <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name="add-circle-outline" size={20} color={colors.textSecondary} />
                                 </View>
                                 <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary }}>Adicionar nova forma de pagamento</Text>
                               </TouchableOpacity>
@@ -1008,7 +1008,7 @@ export function AddModal({ type, params, onClose }) {
                                   <Ionicons name="business-outline" size={18} color={receitaBankId === b.id ? '#fff' : colors.text} />
                                 </View>
                                 <Text style={{ fontSize: 15, fontWeight: '600', color: receitaBankId === b.id ? colors.primary : colors.text, flex: 1 }}>{getBankName(b)}</Text>
-                                {receitaBankId === b.id && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+                                {receitaBankId === b.id && <Ionicons name="checkmark-circle" size={22} color={colors.textSecondary} />}
                               </TouchableOpacity>
                             ))
                           )}
@@ -1242,8 +1242,8 @@ export function AddModal({ type, params, onClose }) {
                   onPress={() => setShowFormaPagamentoPickerDesp(true)}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                      <Ionicons name={([...TODAS_FORMAS_PAGAMENTO_DESPESA, ...customFormasPagamentoDesp].find((f) => f.id === formaPagamentoDespesa) || FORMAS_PAGAMENTO_DESPESA[0]).icon} size={18} color={colors.primary} />
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name={([...TODAS_FORMAS_PAGAMENTO_DESPESA, ...customFormasPagamentoDesp].find((f) => f.id === formaPagamentoDespesa) || FORMAS_PAGAMENTO_DESPESA[0]).icon} size={18} color={colors.textSecondary} />
                     </View>
                     <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>{([...TODAS_FORMAS_PAGAMENTO_DESPESA, ...customFormasPagamentoDesp].find((f) => f.id === formaPagamentoDespesa) || FORMAS_PAGAMENTO_DESPESA[0]).label}</Text>
                   </View>
@@ -1265,15 +1265,15 @@ export function AddModal({ type, params, onClose }) {
                                 <Ionicons name={fp.icon} size={18} color={formaPagamentoDespesa === fp.id ? '#fff' : colors.text} />
                               </View>
                               <Text style={{ fontSize: 15, fontWeight: '600', color: formaPagamentoDespesa === fp.id ? colors.primary : colors.text, flex: 1 }}>{fp.label}</Text>
-                              {formaPagamentoDespesa === fp.id && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+                              {formaPagamentoDespesa === fp.id && <Ionicons name="checkmark-circle" size={22} color={colors.textSecondary} />}
                             </TouchableOpacity>
                           ))}
                           <TouchableOpacity
                             style={[styles.formaPagItem, { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: colors.border }]}
                             onPress={() => { setShowFormaPagamentoPickerDesp(false); setNewFormaNome(''); setShowAddFormaModalDesp(true); }}
                           >
-                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.15), justifyContent: 'center', alignItems: 'center' }}>
-                              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                              <Ionicons name="add-circle-outline" size={20} color={colors.textSecondary} />
                             </View>
                             <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary }}>Adicionar nova forma de pagamento</Text>
                           </TouchableOpacity>
@@ -1369,7 +1369,7 @@ export function AddModal({ type, params, onClose }) {
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity style={[styles.input, { borderColor: colors.border, borderStyle: 'dashed', alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center' }]} onPress={pickImage}>
-                    <Ionicons name="camera-outline" size={24} color={colors.primary} />
+                    <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
                     <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>Adicionar foto do produto</Text>
                   </TouchableOpacity>
                 )}
@@ -1393,7 +1393,7 @@ export function AddModal({ type, params, onClose }) {
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity style={[styles.input, { borderColor: colors.border, borderStyle: 'dashed', alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center' }]} onPress={pickImage}>
-                    <Ionicons name="camera-outline" size={24} color={colors.primary} />
+                    <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
                     <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>Adicionar foto do serviço</Text>
                   </TouchableOpacity>
                 )}

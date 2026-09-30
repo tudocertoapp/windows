@@ -163,7 +163,7 @@ export function MetasESonhosScreen({ onClose, isModal }) {
         <Text style={[topBarStyles.title, { color: colors.text }]}>Metas e sonhos</Text>
         {isModal && (
           <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }} style={[topBarStyles.menuBtn, { backgroundColor: 'transparent' }]}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -174,14 +174,14 @@ export function MetasESonhosScreen({ onClose, isModal }) {
             onPress={openNew}
             style={[mes.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.08) || colors.primary + '15' }]}
           >
-            <AppIcon name="add-circle-outline" size={24} color={colors.primary} />
+            <AppIcon name="add-circle-outline" size={24} color={colors.textSecondary} />
             <Text style={[mes.addBtnText, { color: colors.primary }]}>Nova meta ou sonho</Text>
           </TouchableOpacity>
 
           {goals.length === 0 ? (
             <View style={mes.empty}>
               <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: colors.primaryRgba?.(0.15) || colors.primary + '25', justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="heart" size={48} color={colors.primary} />
+                <Ionicons name="heart" size={48} color={colors.textSecondary} />
               </View>
               <Text style={[mes.emptyText, { color: colors.text }]}>Nenhuma meta cadastrada</Text>
               <Text style={[mes.emptyText, { color: colors.textSecondary, fontSize: 13, textAlign: 'center' }]}>
@@ -204,7 +204,7 @@ export function MetasESonhosScreen({ onClose, isModal }) {
                         <Image source={{ uri: goal.photoUris[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
                         <View style={[mes.goalPhotoPlaceholder, { backgroundColor: colors.primaryRgba?.(0.3) || colors.primary + '40' }]}>
-                          <Ionicons name="heart" size={40} color={colors.primary} />
+                          <Ionicons name="heart" size={40} color={colors.textSecondary} />
                         </View>
                       )}
                     </View>
@@ -269,7 +269,7 @@ export function MetasESonhosScreen({ onClose, isModal }) {
 
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
                       <TouchableOpacity onPress={() => openEdit(goal)} style={{ padding: 8 }}>
-                        <Ionicons name="pencil" size={22} color={colors.primary} />
+                        <Ionicons name="pencil" size={22} color={colors.textSecondary} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => handleDelete(goal)} style={{ padding: 8 }}>
                         <Ionicons name="trash-outline" size={22} color="#ef4444" />
@@ -302,7 +302,7 @@ export function MetasESonhosScreen({ onClose, isModal }) {
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity onPress={pickImage} style={[mes.photoAdd, { borderColor: colors.primary + '80' }]}>
-                  <Ionicons name="add" size={28} color={colors.primary} />
+                  <Ionicons name="add" size={28} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <ScrollView

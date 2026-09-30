@@ -163,8 +163,8 @@ export function PerfilScreen({ onClose, isModal }) {
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Meu Perfil</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -180,7 +180,7 @@ export function PerfilScreen({ onClose, isModal }) {
             />
           </View>
           <TouchableOpacity style={[ps.photoBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={handleFoto}>
-            <Ionicons name="camera-outline" size={20} color={colors.primary} />
+            <Ionicons name="camera-outline" size={20} color={colors.textSecondary} />
             <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Carregar ou editar foto</Text>
           </TouchableOpacity>
           {foto && (
@@ -197,7 +197,7 @@ export function PerfilScreen({ onClose, isModal }) {
                 await updateProfile({ foto: lastFoto });
               }}
             >
-              <Ionicons name="arrow-undo-outline" size={20} color={colors.primary} />
+              <Ionicons name="arrow-undo-outline" size={20} color={colors.textSecondary} />
               <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Restaurar última foto</Text>
             </TouchableOpacity>
           )}

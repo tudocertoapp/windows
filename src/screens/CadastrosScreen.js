@@ -532,8 +532,8 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{sectionInfo.label}</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -557,14 +557,14 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {section === 'produtos' && showEmpresaFeatures && (
             <TouchableOpacity
-              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba?.(0.15), justifyContent: 'center', alignItems: 'center' }}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}
               onPress={() => { playTapSound(); setCategoriesModalOpen(true); }}
             >
-              <Ionicons name="folder-outline" size={20} color={colors.primary} />
+              <Ionicons name="folder-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }} onPress={openAdd}>
-            <Ionicons name="add" size={22} color="#fff" />
+          <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }} onPress={openAdd}>
+            <Ionicons name="add" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -622,12 +622,12 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{editingItem ? 'Editar' : 'Novo cadastro'}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {section !== 'tarefas' && (
-                <TouchableOpacity onPress={() => Keyboard.dismiss()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="keyboard-outline" size={18} color={colors.primary} />
+                <TouchableOpacity onPress={() => Keyboard.dismiss()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="keyboard-outline" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => { setShowForm(false); setEditingItem(null); setFormData({}); }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="close" size={20} color={colors.primary} />
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -690,7 +690,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                   <Image source={{ uri: formData.foto }} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                 ) : (
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="camera" size={24} color={colors.primary} />
+                    <Ionicons name="camera" size={24} color={colors.textSecondary} />
                   </View>
                 )}
                 <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{formData.foto ? 'Trocar foto' : 'Carregar foto'}</Text>
@@ -881,10 +881,10 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                 {showReorder && (
                   <View style={{ flexDirection: 'column', gap: 2 }}>
                     <TouchableOpacity onPress={() => { playTapSound(); moveUp(t); }} style={{ padding: 4 }}>
-                      <Ionicons name="chevron-up" size={18} color={colors.primary} />
+                      <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { playTapSound(); moveDown(t); }} style={{ padding: 4 }}>
-                      <Ionicons name="chevron-down" size={18} color={colors.primary} />
+                      <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -900,7 +900,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                   )}
                 </View>
                 <TouchableOpacity onPress={() => { playTapSound(); openEdit(t); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="pencil" size={22} color={colors.primary} />
+                  <Ionicons name="pencil" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => { playTapSound(); update(t.id, { checked: !t.checked }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name={t.checked ? 'arrow-undo' : 'checkmark-done'} size={22} color={t.checked ? colors.textSecondary : '#10b981'} />
@@ -961,7 +961,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                         <Image source={{ uri: mediaUri }} style={{ width: 88, height: 88, borderRadius: 14, overflow: 'hidden' }} resizeMode="cover" />
                       ) : (
                         <View style={{ width: 88, height: 88, borderRadius: 14, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primaryRgba?.(0.1) ?? (colors.primary + '1A') }}>
-                          <Ionicons name={sectionInfo.icon} size={32} color={colors.primary} />
+                          <Ionicons name={sectionInfo.icon} size={32} color={colors.textSecondary} />
                         </View>
                       )}
                     </View>
@@ -980,7 +980,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                     )}
                     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
                       <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
-                        <Ionicons name="pencil" size={18} color={colors.primary} />
+                        <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
                         <Ionicons name="trash-outline" size={18} color="#ef4444" />
@@ -998,7 +998,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                   <Image source={{ uri: (section === 'clientes' ? item.foto : (item.photoUri || item.photoUris?.[0])) }} style={[cs.listIcon, { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' }]} resizeMode="cover" />
                 ) : (
                   <View style={[cs.listIcon, { backgroundColor: 'transparent' }]}>
-                    <Ionicons name={sectionInfo.icon} size={20} color={colors.primary} />
+                    <Ionicons name={sectionInfo.icon} size={20} color={colors.textSecondary} />
                   </View>
                 )}
                 <View style={cs.listBody}>
@@ -1034,7 +1034,7 @@ export function CadastrosScreen({ route, initialSection, initialEditItemId, onCl
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
-                    <Ionicons name="pencil" size={18} color={colors.primary} />
+                    <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => confirmDelete(item)} style={{ padding: 8, borderRadius: 8, backgroundColor: 'transparent' }}>
                     <Ionicons name="trash-outline" size={18} color="#ef4444" />

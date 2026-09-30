@@ -363,7 +363,7 @@ export function CatalogoScreen({ onClose, isModal }) {
           <View style={[s.topBar, { borderBottomColor: colors.border }]}>
             <Text style={[s.topBarTitle, { color: colors.text }]}>{rotulos.menuLabel}</Text>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-              <Ionicons name="close" size={24} color={colors.primary} />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
@@ -463,18 +463,18 @@ export function CatalogoScreen({ onClose, isModal }) {
           disabled={!user?.id}
           style={[s.viewStoreBtn, { backgroundColor: colors.primaryRgba?.(0.15), opacity: user?.id ? 1 : 0.6 }]}
         >
-          <Ionicons name="eye-outline" size={16} color={colors.primary} />
+          <Ionicons name="eye-outline" size={16} color={colors.textSecondary} />
           <Text style={[s.viewStoreBtnText, { color: colors.primary }]}>Visualizar loja</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={copiarLinkLoja} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-          <Ionicons name="link-outline" size={20} color={colors.primary} />
+          <Ionicons name="link-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={compartilharLoja} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-          <Ionicons name="share-social-outline" size={20} color={colors.primary} />
+          <Ionicons name="share-social-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
         {isModal && onClose && (
           <TouchableOpacity onPress={onClose} style={[s.iconBtn, { backgroundColor: colors.primaryRgba?.(0.15), marginLeft: 8 }]}>
-            <Ionicons name="close" size={22} color={colors.primary} />
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>

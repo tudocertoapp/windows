@@ -193,12 +193,12 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
               <View style={[styles.titleRow, { flex: 1, gap: 6 }]}>
                 <View style={{ width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="people-outline" size={22} color={colors.primary} />
+                  <Ionicons name="people-outline" size={22} color={colors.textSecondary} />
                 </View>
                 <Text style={[styles.title, { color: colors.text }]}>{isEdit ? 'Editar aniversariante' : 'Cadastro de aniversariante'}</Text>
               </View>
               <TouchableOpacity style={[styles.closeBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]} onPress={onClose}>
-                <Ionicons name="close" size={20} color={colors.primary} />
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={{ paddingBottom: 12 }}>
@@ -208,7 +208,7 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
                   <Image source={{ uri: foto }} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                 ) : (
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="camera" size={24} color={colors.primary} />
+                    <Ionicons name="camera" size={24} color={colors.textSecondary} />
                   </View>
                 )}
                 <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{foto ? 'Trocar foto' : 'Carregar foto'}</Text>
@@ -222,7 +222,7 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
                 <TextInput style={[styles.input, styles.phoneInput, { borderColor: colors.border, color: colors.text }]} placeholder="Telefone (para enviar parabéns)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textSecondary} />
                 {hasContacts ? (
                   <TouchableOpacity onPress={openContactPicker} style={[styles.contactBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba?.(0.15) ?? colors.primary + '25' }]}>
-                    <Ionicons name="people-outline" size={20} color={colors.primary} />
+                    <Ionicons name="people-outline" size={20} color={colors.textSecondary} />
                     <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Contatos</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -260,7 +260,7 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
                 />
                 {loadingContacts ? (
                   <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                    <ActivityIndicator size="large" color={colors.textSecondary} />
                   </View>
                 ) : contacts.length === 0 ? (
                   <Text style={{ paddingVertical: 24, textAlign: 'center', color: colors.textSecondary }}>
@@ -279,8 +279,8 @@ export function PessoaModal({ visible, pessoa, onSave, onClose }) {
                     onPress={() => selectContact(item)}
                     style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: colors.border + '60' }}
                   >
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                      <Ionicons name="person" size={20} color={colors.primary} />
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="person" size={20} color={colors.textSecondary} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
                       <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }} numberOfLines={1}>{item.name || 'Sem nome'}</Text>

@@ -225,7 +225,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.text }]}>{editingItem ? 'EDITAR PRODUTO' : 'NOVO PRODUTO'}</Text>
               <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                <Ionicons name="close" size={22} color={colors.primary} />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>
@@ -241,7 +241,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
                   </View>
                 ))}
                 <TouchableOpacity onPress={pickImage} style={[s.photoAdd, { borderColor: colors.primary + '80' }]}>
-                  <Ionicons name="add" size={28} color={colors.primary} />
+                  <Ionicons name="add" size={28} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -330,7 +330,7 @@ export function ProductFormModal({ visible, onClose, onSave, editingItem }) {
                         </View>
                       ))}
                       <TouchableOpacity style={[s.addCompositeBtn, { backgroundColor: colors.primaryRgba(0.2), borderColor: colors.primary }]} onPress={() => addCompositeItem(null)}>
-                        <Ionicons name="add" size={20} color={colors.primary} />
+                        <Ionicons name="add" size={20} color={colors.textSecondary} />
                         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Adicionar produto</Text>
                       </TouchableOpacity>
                       {showProductPicker && (

@@ -289,7 +289,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                   : (tipo === 'pessoal' ? 'ADICIONAR EVENTO' : 'ADICIONAR ATENDIMENTO')}
               </Text>
               <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => { playTapSound(); onClose(); }}>
-                <Ionicons name="close" size={22} color={colors.primary} />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -348,7 +348,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                     </View>
                   </View>
                   <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
-                    <Ionicons name="time-outline" size={18} color={colors.primary} />
+                    <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
                     <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
                   </TouchableOpacity>
                 </>
@@ -385,8 +385,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                         {selectedClient?.foto ? (
                           <Image source={{ uri: selectedClient.foto }} style={{ width: 36, height: 36, borderRadius: 18 }} resizeMode="cover" />
                         ) : (
-                          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                            <Ionicons name="person-outline" size={18} color={colors.primary} />
+                          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                            <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
                           </View>
                         )}
                         <Text style={[s.selectText, { flex: 1, color: selectedClient ? colors.text : colors.textSecondary }]} numberOfLines={1}>
@@ -411,13 +411,13 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                                       </TouchableOpacity>
                                       <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, minWidth: 24, textAlign: 'center' }}>{item.qty || 1}</Text>
                                       <TouchableOpacity onPress={() => { playTapSound(); setPreOrderItems((prev) => prev.map((x, i) => i === idx ? { ...x, qty: (x.qty || 1) + 1 } : x)); }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primaryRgba?.(0.3) || colors.primary + '40', justifyContent: 'center', alignItems: 'center' }}>
-                                        <Ionicons name="add" size={16} color={colors.primary} />
+                                        <Ionicons name="add" size={16} color={colors.textSecondary} />
                                       </TouchableOpacity>
                                       <Text style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 4 }}>R$ {((item.price || 0) * (item.qty || 1)).toFixed(2).replace('.', ',')}</Text>
                                     </View>
                                   </View>
                                   <TouchableOpacity onPress={() => { playTapSound(); setEditingItemIdx(idx); setEditingItemPrice(String(item.price || 0).replace('.', ',')); }} style={{ padding: 6 }}>
-                                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                                    <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
                                   </TouchableOpacity>
                                   <TouchableOpacity onPress={() => { playTapSound(); setPreOrderItems((prev) => prev.filter((_, i) => i !== idx)); }} style={{ padding: 6 }}>
                                     <Ionicons name="trash-outline" size={18} color="#ef4444" />
@@ -432,7 +432,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                             onPress={() => setShowItemPicker(true)}
                           >
                             <Text style={[s.selectText, { color: colors.primary, fontWeight: '700' }]}>Adicionar produto ou serviço</Text>
-                            <Ionicons name="add-circle" size={20} color={colors.primary} />
+                            <Ionicons name="add-circle" size={20} color={colors.textSecondary} />
                           </TouchableOpacity>
                         </>
                       ) : (
@@ -447,8 +447,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                             {selectedService?.photoUri ? (
                               <Image source={{ uri: selectedService.photoUri }} style={{ width: 36, height: 36, borderRadius: 18 }} resizeMode="cover" />
                             ) : (
-                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                                <Ionicons name="construct-outline" size={18} color={colors.primary} />
+                              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="construct-outline" size={18} color={colors.textSecondary} />
                               </View>
                             )}
                             <Text style={[s.selectText, { flex: 1, color: selectedService ? colors.text : colors.textSecondary }]} numberOfLines={1}>
@@ -487,7 +487,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                         </View>
                       </View>
                       <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
-                        <Ionicons name="time-outline" size={18} color={colors.primary} />
+                        <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
                         <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
                       </TouchableOpacity>
                     </>
@@ -534,7 +534,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                       <Image source={{ uri: c.foto }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
                     ) : (
                       <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="person-outline" size={22} color={colors.primary} />
+                        <Ionicons name="person-outline" size={22} color={colors.textSecondary} />
                       </View>
                     )}
                     <Text style={{ color: colors.text, flex: 1 }}>{c.name}</Text>
@@ -564,7 +564,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                       <Image source={{ uri: s.photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} resizeMode="cover" />
                     ) : (
                       <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="construct-outline" size={22} color={colors.primary} />
+                        <Ionicons name="construct-outline" size={22} color={colors.textSecondary} />
                       </View>
                     )}
                     <Text style={{ color: colors.text, flex: 1 }}>{s.name} — R$ {(s.price || 0).toFixed(2)}</Text>
@@ -626,7 +626,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                     }}
                   >
                     <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryRgba?.(0.2) || colors.primary + '30', justifyContent: 'center', alignItems: 'center' }}>
-                      <Ionicons name={item.source === 'produto' ? 'cube-outline' : 'construct-outline'} size={22} color={colors.primary} />
+                      <Ionicons name={item.source === 'produto' ? 'cube-outline' : 'construct-outline'} size={22} color={colors.textSecondary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: colors.text, fontWeight: '600' }}>{item.name}</Text>

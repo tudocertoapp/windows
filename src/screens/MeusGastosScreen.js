@@ -57,7 +57,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         <View style={[s.header, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
           <Text style={[s.headerTitle, { color: colors.text }]}>Meus gastos</Text>
           <TouchableOpacity onPress={onClose} style={[s.headerBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
-            <Ionicons name="chevron-back" size={22} color={colors.primary} />
+            <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       )}
@@ -75,17 +75,9 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         <>
           <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
-              Linha do tempo de gastos: envie comprovante, áudio ou texto que o sistema interpreta e registra sem IA generativa.
+              Linha do tempo de gastos: envie comprovante, áudio ou texto. A foto é reduzida no aparelho e lida com Gemini Flash no servidor.
             </Text>
             <VisionOcrStatusBadge colors={colors} onStatusChange={onOcrStatusChange} />
-            {isWeb && ocrReady === false ? (
-              <Text style={{ color: '#b45309', fontSize: 12, marginTop: 8, lineHeight: 18 }}>
-                Para ler comprovantes no PC: abra um terminal na pasta do projeto e execute{' '}
-                <Text style={{ fontWeight: '700' }}>npm run web:dev</Text>
-                {' '}(ou <Text style={{ fontWeight: '700' }}>npm run web:api</Text> junto com o app). Reinicie o Expo com{' '}
-                <Text style={{ fontWeight: '700' }}>npx expo start --clear</Text> após alterar o .env.
-              </Text>
-            ) : null}
           </View>
           <View
             style={[

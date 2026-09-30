@@ -37,7 +37,7 @@ const ds = StyleSheet.create({
   modalBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
 });
 
-const iconBtnStyle = { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(37,99,235,0.15)', borderWidth: 1, borderColor: '#2563eb' + '50' };
+const iconBtnStyle = { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', borderWidth: 0 };
 
 export function ContasDoMesCard({
   contasPagas,
@@ -102,9 +102,9 @@ export function ContasDoMesCard({
       borderRadius: actionBtnSize / 2,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: btnColor + '26',
-      borderWidth: 1,
-      borderColor: btnColor + '50',
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      borderColor: 'transparent',
     }),
     [actionBtnSize, btnColor]
   );
@@ -149,12 +149,12 @@ export function ContasDoMesCard({
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 {onAddFatura ? (
                   <TouchableOpacity onPress={() => { tap(); onAddFatura(); }} style={actionBtnStyle}>
-                    <Ionicons name="add" size={actionIconSize} color={btnColor} />
+                    <Ionicons name="add" size={actionIconSize} color={colors?.textSecondary} />
                   </TouchableOpacity>
                 ) : null}
                 {onOpenFaturas ? (
                   <TouchableOpacity onPress={() => { tap(); onOpenFaturas(); }} style={actionBtnStyle}>
-                    <AppIcon name="expand-outline" size={expandIconSize} color={btnColor} />
+                    <AppIcon name="expand-outline" size={expandIconSize} color={colors?.textSecondary} />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -174,13 +174,13 @@ export function ContasDoMesCard({
           rightActions={(onOpenFaturas || onAddFatura) ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {onAddFatura && (
-                <TouchableOpacity onPress={() => { tap(); onAddFatura(); }} style={[iconBtnStyle, { backgroundColor: btnColor + '26', borderColor: btnColor + '50' }]}>
-                  <Ionicons name="add" size={24} color={btnColor} />
+                <TouchableOpacity onPress={() => { tap(); onAddFatura(); }} style={[iconBtnStyle]}>
+                  <Ionicons name="add" size={24} color={colors?.textSecondary} />
                 </TouchableOpacity>
               )}
               {onOpenFaturas && (
-                <TouchableOpacity onPress={() => { tap(); onOpenFaturas(); }} style={[iconBtnStyle, { backgroundColor: btnColor + '26', borderColor: btnColor + '50' }]}>
-                  <AppIcon name="expand-outline" size={22} color={btnColor} />
+                <TouchableOpacity onPress={() => { tap(); onOpenFaturas(); }} style={[iconBtnStyle]}>
+                  <AppIcon name="expand-outline" size={22} color={colors?.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -193,25 +193,25 @@ export function ContasDoMesCard({
             {['dia', 'mes', 'ano', 'periodo'].map((f) => (
               <TouchableOpacity
                 key={f}
-                style={[ds.filterTab, compactMode && { paddingVertical: 6 }, { backgroundColor: filter === f ? btnColor + '40' : btnColor + '20' }]}
+                style={[ds.filterTab, compactMode && { paddingVertical: 6 }, { backgroundColor: 'transparent' }]}
                 onPress={() => { tap(); onFilterChange?.(f); }}
               >
-                <Text style={[ds.filterTabText, { color: colors?.text }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
+                <Text style={[ds.filterTabText, { color: filter === f ? colors?.primary : colors?.textSecondary }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
               </TouchableOpacity>
             ))}
           </View>
           {isPeriodo ? (
-            <TouchableOpacity style={[ds.periodoTouch, { backgroundColor: btnColor + '25' }]} onPress={() => { tap(); setTempStart(filterStartDate || tempStart); setTempEnd(filterEndDate || tempEnd); setShowPeriodModal(true); }}>
+            <TouchableOpacity style={[ds.periodoTouch, { backgroundColor: 'transparent' }]} onPress={() => { tap(); setTempStart(filterStartDate || tempStart); setTempEnd(filterEndDate || tempEnd); setShowPeriodModal(true); }}>
               <Text style={[ds.filterTabText, { color: colors?.text, fontSize: filterTabFs }]}>{filterLabel}</Text>
               <Text style={{ fontSize: webDesk ? scaleWebDesktop(11, true) : 11, color: colors?.textSecondary, marginTop: 2 }}>Toque para alterar</Text>
             </TouchableOpacity>
           ) : (
             <View style={[ds.navRow, compactMode && { marginTop: 6, marginBottom: 6 }]}>
-              <TouchableOpacity onPress={() => { tap(); onFilterDatePrev?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+              <TouchableOpacity onPress={() => { tap(); onFilterDatePrev?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: 'transparent' }}>
                 <Ionicons name="chevron-back" size={chevronSz} color={colors?.text} />
               </TouchableOpacity>
               <Text style={{ fontSize: navMidFs, fontWeight: '600', color: colors?.text }}>{filterLabel}</Text>
-              <TouchableOpacity onPress={() => { tap(); onFilterDateNext?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+              <TouchableOpacity onPress={() => { tap(); onFilterDateNext?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: 'transparent' }}>
                 <Ionicons name="chevron-forward" size={chevronSz} color={colors?.text} />
               </TouchableOpacity>
             </View>

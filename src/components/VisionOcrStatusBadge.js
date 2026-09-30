@@ -28,7 +28,7 @@ export function VisionOcrStatusBadge({ colors, compact = false, onStatusChange }
   if (loading) {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: compact ? 4 : 8 }}>
-        <ActivityIndicator size="small" color={colors.primary} />
+        <ActivityIndicator size="small" color={colors.textSecondary} />
         <Text style={{ fontSize: 11, color: colors.textSecondary }}>Verificando OCR...</Text>
       </View>
     );

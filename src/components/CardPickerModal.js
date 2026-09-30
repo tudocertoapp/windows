@@ -70,7 +70,7 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
         <View style={[s.content, { backgroundColor: colors.card, borderColor: colors.border, pointerEvents: 'box-none' }]}>
           <View style={[s.header, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 80 }}>
-              <Ionicons name="arrow-back" size={22} color={colors.primary} />
+              <Ionicons name="arrow-back" size={22} color={colors.textSecondary} />
               <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary }}>Voltar</Text>
             </TouchableOpacity>
             <Text style={[s.title, { color: colors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>Organize a tela do seu jeito!</Text>
@@ -95,7 +95,7 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
               visibleCards.map((card, index) => (
                 <View key={card.id} style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}>
                   <View style={[s.iconWrap, { backgroundColor: 'transparent' }]}>
-                    <Ionicons name={card.icon} size={22} color={colors.primary} />
+                    <Ionicons name={card.icon} size={22} color={colors.textSecondary} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[s.itemLabel, { color: colors.text }]}>{card.label}</Text>
@@ -139,18 +139,18 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
                   <TouchableOpacity
                     key={card.id}
                     onPress={() => { playTapSound(); onAddCard(card.id); }}
-                    style={[s.item, s.addableItem, { backgroundColor: colors.bg, borderColor: colors.primary + '50', borderStyle: 'dashed' }]}
+                    style={[s.item, s.addableItem, { backgroundColor: colors.bg, borderColor: colors.border, borderStyle: 'dashed' }]}
                     activeOpacity={0.8}
                   >
                     <View style={[s.iconWrap, { backgroundColor: colors.primaryRgba?.(0.15) ?? colors.primary + '25' }]}>
-                      <Ionicons name={card.icon} size={22} color={colors.primary} />
+                      <Ionicons name={card.icon} size={22} color={colors.textSecondary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.itemLabel, { color: colors.text }]}>{card.label}</Text>
                       <Text style={[s.itemScreen, { color: colors.textSecondary }]}>{card.screen}</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+                      <Ionicons name="add-circle-outline" size={24} color={colors.textSecondary} />
                       <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Exibir</Text>
                     </View>
                   </TouchableOpacity>
@@ -165,18 +165,18 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
                   <TouchableOpacity
                     key={card.id}
                     onPress={() => { playTapSound(); onAddCard(card.id); }}
-                    style={[s.item, s.addableItem, { backgroundColor: colors.bg, borderColor: colors.primary + '50', borderStyle: 'dashed' }]}
+                    style={[s.item, s.addableItem, { backgroundColor: colors.bg, borderColor: colors.border, borderStyle: 'dashed' }]}
                     activeOpacity={0.8}
                   >
                     <View style={[s.iconWrap, { backgroundColor: colors.primaryRgba?.(0.15) ?? colors.primary + '25' }]}>
-                      <Ionicons name={card.icon} size={22} color={colors.primary} />
+                      <Ionicons name={card.icon} size={22} color={colors.textSecondary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.itemLabel, { color: colors.text }]}>{card.label}</Text>
                       <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Página Dinheiro</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+                      <Ionicons name="add-circle-outline" size={24} color={colors.textSecondary} />
                       <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Adicionar</Text>
                     </View>
                   </TouchableOpacity>

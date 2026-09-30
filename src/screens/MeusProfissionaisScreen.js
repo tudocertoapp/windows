@@ -145,7 +145,7 @@ export function MeusProfissionaisScreen({ onClose, isModal }) {
         </View>
         {isModal && onClose ? (
           <TouchableOpacity onPress={onClose} style={s.iconBtn}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -183,14 +183,14 @@ export function MeusProfissionaisScreen({ onClose, isModal }) {
                   <Image source={{ uri: r.foto }} style={s.avatar} />
                 ) : (
                   <View style={[s.avatarPh, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-                    <Ionicons name="storefront" size={20} color={colors.primary} />
+                    <Ionicons name="storefront" size={20} color={colors.textSecondary} />
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
                   <Text style={[s.cardName, { color: colors.text }]} numberOfLines={1}>{r.displayName || r.empresa || r.nome}</Text>
                   {r.subtitulo ? <Text style={{ fontSize: 12, color: colors.textSecondary }} numberOfLines={1}>{r.subtitulo}</Text> : null}
                 </View>
-                <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+                <Ionicons name="add-circle-outline" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -199,7 +199,7 @@ export function MeusProfissionaisScreen({ onClose, isModal }) {
         <Text style={[s.sectionTitle, { color: colors.textSecondary }]}>SALVOS ({favoritos.length})</Text>
 
         {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+          <ActivityIndicator color={colors.textSecondary} style={{ marginTop: 24 }} />
         ) : favoritos.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="heart-outline" size={48} color={colors.textSecondary} />
@@ -215,7 +215,7 @@ export function MeusProfissionaisScreen({ onClose, isModal }) {
                   <Image source={{ uri: prof.foto }} style={s.cardAvatar} />
                 ) : (
                   <View style={[s.cardAvatarPh, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-                    <Ionicons name="storefront" size={28} color={colors.primary} />
+                    <Ionicons name="storefront" size={28} color={colors.textSecondary} />
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
@@ -227,7 +227,7 @@ export function MeusProfissionaisScreen({ onClose, isModal }) {
               </TouchableOpacity>
               <View style={[s.cardActions, { borderTopColor: colors.border }]}>
                 <TouchableOpacity style={s.actionBtn} onPress={() => openLoja(prof)}>
-                  <Ionicons name="bag-outline" size={18} color={colors.primary} />
+                  <Ionicons name="bag-outline" size={18} color={colors.textSecondary} />
                   <Text style={[s.actionText, { color: colors.primary }]}>Loja</Text>
                 </TouchableOpacity>
                 {prof.telefone ? (

@@ -6,6 +6,7 @@ import { playTapSound } from '../utils/sounds';
 import { PLANS, usePlan } from '../contexts/PlanContext';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
+import { chromeBtnBox, chromeBtnColors } from '../utils/chromeButton';
 
 const OPTIONS = [
   { id: 'pessoal', label: 'Pessoal', icon: 'person-outline', color: '#10b981', fn: 9 },
@@ -195,14 +196,9 @@ export function ViewModeToggle({
     >
       {options.map((opt) => {
         const active = viewMode === opt.id;
-        const accent = opt.id === 'pessoal' ? colors.primary : opt.color;
-        const activeBg = accent;
-        const inactiveBg = colors.card || colors.bgSecondary;
-        const activeColor = '#fff';
-        const inactiveColor = colors.textSecondary;
-        const segmentLikeHeader = useDesktopHeaderSplit;
-        const labelColor = segmentLikeHeader ? (active ? '#fff' : colors.text) : (active ? activeColor : inactiveColor);
-        const iconColor = segmentLikeHeader ? (active ? '#fff' : colors.text) : (active ? activeColor : inactiveColor);
+        const chrome = chromeBtnColors(colors, active);
+        const labelColor = chrome.fg;
+        const iconColor = chrome.fg;
         return (
           <TouchableOpacity
             key={opt.id}
@@ -224,15 +220,7 @@ export function ViewModeToggle({
                 ? { height: scaleWebDesktop(36, true) }
                 : (useDesktopInlineCards ? { height: (inlineCardHeight ?? 40) } : { aspectRatio: 4.5 })),
               borderRadius: useDesktopHeaderSplit ? scaleWebDesktop(12, true) : (useDesktopInlineCards ? 14 : (inline ? 8 : (useWebLayout ? 10 : 14))),
-              borderWidth: 1,
-              borderColor: useDesktopInlineCards
-                ? (active ? accent : `${accent}55`)
-                : (active ? accent : (colors.border || 'rgba(255,255,255,0.15)')),
-              backgroundColor: useDesktopHeaderSplit
-                ? (active ? accent : (opt.id === 'pessoal' ? colors.primaryRgba(0.15) : 'rgba(99,102,241,0.15)'))
-                : useDesktopInlineCards
-                ? (active ? `${accent}28` : `${accent}16`)
-                : (active ? activeBg : inactiveBg),
+              ...chromeBtnBox(colors, { active }),
               alignItems: 'center',
               justifyContent: 'center',
               paddingVertical: useDesktopHeaderSplit ? 7 : (useDesktopInlineCards ? 10 : (inline ? 5 : (useWebLayout ? 6 : 8))),
@@ -253,25 +241,25 @@ export function ViewModeToggle({
                   paddingVertical: 1,
                   backgroundColor: colors.bg,
                   borderWidth: 1,
-                  borderColor: accent,
+                  borderColor: colors.primary,
                   zIndex: VIEW_MODE_TOGGLE_Z + 4,
                   elevation: 12,
                 }}
               >
-                <Text style={{ fontSize: 9, fontWeight: '800', color: accent }}>{`F${opt.fn}`}</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: colors.primary }}>{`F${opt.fn}`}</Text>
               </View>
             ) : null}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: useDesktopHeaderSplit ? scaleWebDesktop(6, true) : (useDesktopInlineCards ? 6 : (inline ? 4 : (useWebLayout ? 6 : 8))) }}>
               <Ionicons
                 name={opt.icon}
                 size={useDesktopHeaderSplit ? scaleWebDesktop(15, true) : (useDesktopInlineCards ? 16 : (inline ? 14 : (useWebLayout ? 17 : 22)))}
-                color={segmentLikeHeader ? iconColor : ((useDesktopInlineCards) ? accent : (active ? activeColor : inactiveColor))}
+                color={iconColor}
               />
               <Text
                 style={{
                   fontSize: useDesktopHeaderSplit ? scaleWebDesktop(11, true) : (useDesktopInlineCards ? 12 : (inline ? 11 : (useWebLayout ? 11 : 13))),
                   fontWeight: '700',
-                  color: segmentLikeHeader ? labelColor : ((useDesktopInlineCards) ? accent : (active ? activeColor : inactiveColor)),
+                  color: labelColor,
                   letterSpacing: 0.2,
                 }}
                 numberOfLines={1}

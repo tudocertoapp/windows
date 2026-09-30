@@ -178,11 +178,11 @@ export function OrcamentosMainScreen({ onClose }) {
           <Text style={[modalS.title, { color: colors.text }]}>Faturamento concluído!</Text>
           <Text style={[modalS.sub, { color: colors.textSecondary }]}>O que deseja fazer agora?</Text>
           <TouchableOpacity onPress={handlePostFaturamentoPrint} disabled={pdfLoading} style={[modalS.btn, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-            <Ionicons name="print-outline" size={22} color={colors.primary} />
+            <Ionicons name="print-outline" size={22} color={colors.textSecondary} />
             <Text style={[modalS.btnText, { color: colors.primary }]}>Imprimir comprovante</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePostFaturamentoPdf} disabled={pdfLoading} style={[modalS.btn, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-            {pdfLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="document-outline" size={22} color={colors.primary} />}
+            {pdfLoading ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name="document-outline" size={22} color={colors.textSecondary} />}
             <Text style={[modalS.btnText, { color: colors.primary }]}>Gerar PDF</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePostFaturamentoWhatsApp} style={[modalS.btn, { backgroundColor: '#25D36620' }]}>

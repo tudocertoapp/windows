@@ -137,7 +137,7 @@ export function OrcamentoScreen({ onClose, isModal }) {
         <Text style={[topBarStyles.title, { color: colors.text }]}>Meu Orçamento</Text>
         {isModal && (
           <TouchableOpacity onPress={onClose} style={[topBarStyles.menuBtn, { backgroundColor: 'transparent' }]}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -202,7 +202,7 @@ export function OrcamentoScreen({ onClose, isModal }) {
                             style={{ padding: 8 }}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <AppIcon name="pencil-outline" size={20} color={colors.primary} />
+                            <AppIcon name="pencil-outline" size={20} color={colors.textSecondary} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => removeBudgetLimit(category)}
@@ -261,7 +261,7 @@ export function OrcamentoScreen({ onClose, isModal }) {
               onPress={() => { playTapSound(); setShowAddList((v) => !v); }}
               style={[os.addLimitBtn, { borderColor: colors.primary + '60', backgroundColor: (colors.primaryRgba && colors.primaryRgba(0.08)) || colors.primary + '15' }]}
             >
-              <AppIcon name={showAddList ? 'chevron-up' : 'add-circle-outline'} size={22} color={colors.primary} />
+              <AppIcon name={showAddList ? 'chevron-up' : 'add-circle-outline'} size={22} color={colors.textSecondary} />
               <Text style={[os.addBtnText, { color: colors.primary }]}>
                 {showAddList ? 'Ocultar categorias' : withoutLimit.length > 0 ? 'Escolher categorias para adicionar limite' : 'Nenhuma categoria disponível'}
               </Text>
@@ -287,7 +287,7 @@ export function OrcamentoScreen({ onClose, isModal }) {
                         onPress={() => { setEditingLimit(category); setInputVal(''); }}
                         style={{ padding: 8, borderRadius: 10, backgroundColor: colors.primary + '20' }}
                       >
-                        <AppIcon name="add-outline" size={22} color={colors.primary} />
+                        <AppIcon name="add-outline" size={22} color={colors.textSecondary} />
                       </TouchableOpacity>
                     ) : null}
                   </View>

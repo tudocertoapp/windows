@@ -300,6 +300,12 @@ export function getThemeColors(themeMode, primaryHex, secondaryHex = null, custo
     income: '#6ee7b7',
     isDarkBg: darkBg,
     cardIconColor,
+    chromeBtnBg: card,
+    chromeBtnBorder: border,
+    chromeBtnFg: textSecondary,
+    chromeBtnActiveBg: primaryRgba(0.14),
+    chromeBtnActiveBorder: `${primaryHex}44`,
+    chromeBtnActiveFg: primaryHex,
   };
 }
 

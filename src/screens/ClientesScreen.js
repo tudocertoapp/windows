@@ -81,8 +81,8 @@ export function ClientesScreen({ onClose, isModal }) {
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Clientes</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -118,7 +118,7 @@ export function ClientesScreen({ onClose, isModal }) {
                 <Image source={{ uri: c.foto }} style={[cls.avatar, { backgroundColor: colors.primaryRgba(0.2) }]} resizeMode="cover" />
               ) : (
                 <View style={[cls.avatar, { backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Ionicons name="person" size={28} color={colors.primary} />
+                  <Ionicons name="person" size={28} color={colors.textSecondary} />
                 </View>
               )}
               <View style={cls.cardBody}>
@@ -134,10 +134,10 @@ export function ClientesScreen({ onClose, isModal }) {
                 {c.phone ? <Text style={[cls.cardInfo, { color: colors.textSecondary }]}>{c.phone}</Text> : null}
                 <View style={cls.actionRow}>
                   <TouchableOpacity onPress={() => { playTapSound(); setVerClienteDetalhe(c); }} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>
-                    <Ionicons name="eye-outline" size={18} color={colors.primary} />
+                    <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => openEdit(c)} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>
-                    <Ionicons name="pencil" size={18} color={colors.primary} />
+                    <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                   {c.phone?.trim() ? (
                     <TouchableOpacity onPress={() => openWhatsApp(c.phone)} style={[cls.actionBtn, { backgroundColor: 'transparent' }]}>

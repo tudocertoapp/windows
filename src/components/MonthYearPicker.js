@@ -60,7 +60,7 @@ export function MonthYearPicker({ month, year, onChange, colors, style }) {
         }}
         activeOpacity={0.85}
       >
-        <Ionicons name="calendar" size={20} color={colors.primary} />
+        <Ionicons name="calendar" size={20} color={colors.textSecondary} />
         <Text style={[s.triggerText, { color: colors.text }]}>{formatMonthYearLabel(month, year)}</Text>
         <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
       </TouchableOpacity>
@@ -84,7 +84,7 @@ export function MonthYearPicker({ month, year, onChange, colors, style }) {
                 style={s.yearBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Ionicons name="chevron-back" size={26} color={colors.primary} />
+                <Ionicons name="chevron-back" size={26} color={colors.textSecondary} />
               </TouchableOpacity>
               <Text style={[s.yearText, { color: colors.text }]}>{pickerYear}</Text>
               <TouchableOpacity
@@ -95,7 +95,7 @@ export function MonthYearPicker({ month, year, onChange, colors, style }) {
                 style={s.yearBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Ionicons name="chevron-forward" size={26} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={26} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 

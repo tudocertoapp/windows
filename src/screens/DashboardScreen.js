@@ -41,6 +41,7 @@ import {
   triggerDesktopDownload,
 } from '../constants/desktopDownload';
 import { loadCatalogoRotulosLocal } from '../utils/catalogoPersist';
+import { chromeBtnBox } from '../utils/chromeButton';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
@@ -278,28 +279,16 @@ export function DashboardScreen() {
     [services],
   );
   const { banks, cards, addToBank, deductFromBank, addToCardBalance, deductFromCardBalance, getBankById } = useBanks();
-  const { colors, themeMode } = useTheme();
-  const isDarkTheme = themeMode === 'dark' || colors?.isDarkBg;
-  const quickRowTheme = useMemo(() => {
-    const p = colors.primary;
-    return isDarkTheme
-      ? {
-          btnBg: 'rgba(24,24,27,0.92)',
-          btnBorder: p,
-          chipBorder: p,
-          chipText: '#a1a1aa',
-          icon: p,
-          text: '#e4e4e7',
-        }
-      : {
-          btnBg: 'rgba(248,250,252,0.96)',
-          btnBorder: p,
-          chipBorder: p,
-          chipText: '#64748b',
-          icon: p,
-          text: '#1f2937',
-        };
-  }, [isDarkTheme, colors.primary]);
+  const { colors } = useTheme();
+  const quickRowTheme = useMemo(() => ({
+    btnBg: colors.card,
+    btnBorder: colors.border,
+    chipBg: colors.bg,
+    chipBorder: colors.primary,
+    chipText: colors.primary,
+    icon: colors.textSecondary,
+    text: colors.textSecondary,
+  }), [colors.bg, colors.border, colors.card, colors.primary, colors.textSecondary]);
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, plan, PLANS } = usePlan();
   const { isGuest, user } = useAuth();
   const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV, openCatalogo } = useMenu();
@@ -1027,16 +1016,14 @@ export function DashboardScreen() {
   }, [aReceber]);
 
   const cardIconColor = colors.cardIconColor;
-  const cardActionButtonStyle = {
+  const cardActionButtonStyle = chromeBtnBox(colors, {
+    ghost: true,
     width: CARD_ACTION_SIZE,
     height: CARD_ACTION_SIZE,
     borderRadius: CARD_ACTION_SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.primary + '26',
-    borderWidth: 1,
-    borderColor: colors.primary + '50',
-  };
+  });
   const cardHeaderActionsStyle = {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1081,7 +1068,7 @@ export function DashboardScreen() {
                   {title}
                 </Text>
               </View>
-              {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
+              {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />}
             </View>
           </View>
         ) : (
@@ -1093,7 +1080,7 @@ export function DashboardScreen() {
               <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{title}</Text>
               <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>{subtitle}</Text>
             </View>
-            {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />}
+            {headerRightActions ?? <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />}
           </View>
         )}
         {extraHeaderContent}
@@ -1231,13 +1218,13 @@ export function DashboardScreen() {
                   </View>
                   <View style={cardHeaderActionsStyle}>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
-                      <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1264,13 +1251,13 @@ export function DashboardScreen() {
                 </View>
                 <View style={cardHeaderActionsStyle}>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
-                    <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
-                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
-                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1298,7 +1285,7 @@ export function DashboardScreen() {
                   )}
                 </View>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="pencil" size={22} color={colors.primary} />
+                  <Ionicons name="pencil" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
                 {showConcluidasProximos ? (
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateCheckListItem(t.id, { checked: false }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1354,7 +1341,7 @@ export function DashboardScreen() {
           </View>
           <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
           <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="pencil" size={18} color={colors.primary} />
+            <Ionicons name="pencil" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(ev) => {
@@ -1387,13 +1374,13 @@ export function DashboardScreen() {
       (
         <View style={cardHeaderActionsStyle}>
           <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasAgendamentos(!showConcluidasAgendamentos); }} style={cardActionButtonStyle}>
-            <AppIcon name={showConcluidasAgendamentos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+            <AppIcon name={showConcluidasAgendamentos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', null); }} style={cardActionButtonStyle}>
-            <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+            <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('agendamentos'); }} style={cardActionButtonStyle}>
-            <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+            <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ),
@@ -1441,13 +1428,13 @@ export function DashboardScreen() {
                   </View>
                   <View style={cardHeaderActionsStyle}>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setShowConcluidasProximos(!showConcluidasProximos); }} style={cardActionButtonStyle}>
-                      <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name={showConcluidasProximos ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('tarefa', null); }} style={cardActionButtonStyle}>
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximos'); }} style={cardActionButtonStyle}>
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1477,7 +1464,7 @@ export function DashboardScreen() {
                         style={{ padding: 6 }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Ionicons name="pencil" size={18} color={colors.primary} />
+                        <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                       </TouchableOpacity>
                       {showConcluidasProximos ? (
                         <TouchableOpacity
@@ -1570,13 +1557,13 @@ export function DashboardScreen() {
                     },
                   ]}
                 >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>Hoje</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textSecondary }}>Hoje</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { initialDate: formatBrShort(agendaCardDate) }); }} style={cardActionButtonStyle}>
-                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); navigation?.navigate?.('Agenda'); }} style={cardActionButtonStyle}>
-                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1594,7 +1581,7 @@ export function DashboardScreen() {
                     style={{ width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', marginRight: 8 }}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="chevron-back" size={20} color={colors.primary} />
+                    <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
 
                   <View style={{ flexDirection: 'row', gap: 2, flex: 1, justifyContent: 'space-between' }}>
@@ -1643,7 +1630,7 @@ export function DashboardScreen() {
                     style={{ width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', marginLeft: 8 }}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               );
@@ -1734,9 +1721,9 @@ export function DashboardScreen() {
 
                 <TouchableOpacity
                   onPress={() => { playTapSound(); setAgendaCardShowMonthPicker(false); }}
-                  style={{ marginTop: 12, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: colors.primaryRgba(0.12), borderWidth: 1, borderColor: colors.primary + '55' }}
+                  style={{ marginTop: 12, paddingVertical: 14, borderRadius: 12, alignItems: 'center', ...chromeBtnBox(colors) }}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.primary }}>Fechar</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary }}>Fechar</Text>
                 </TouchableOpacity>
               </TouchableOpacity>
             </View>
@@ -1916,7 +1903,7 @@ export function DashboardScreen() {
                                 <View style={{ width: compactActions ? 76 : 30, marginLeft: 4, justifyContent: 'center', alignItems: 'center' }}>
                                   <View style={actionRailStyle}>
                                     <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 3 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                      <Ionicons name="pencil" size={actionIconSize} color={colors.primary} />
+                                      <Ionicons name="pencil" size={actionIconSize} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                       onPress={(ev) => {
@@ -1980,17 +1967,17 @@ export function DashboardScreen() {
                   <View style={{ position: 'absolute', top: 10, right: timelineZoomRight, flexDirection: 'row', gap: 8 }} pointerEvents="box-none">
                     <TouchableOpacity
                       onPress={() => { playTapSound(); setAgendaCardZoom((z) => Math.max(0.6, Number((z - 0.1).toFixed(2)))); }}
-                      style={[cardActionButtonStyle, { backgroundColor: colors.card, borderColor: colors.border + '80' }]}
+                      style={cardActionButtonStyle}
                       activeOpacity={0.9}
                     >
-                      <Ionicons name="remove" size={18} color={colors.primary} />
+                      <Ionicons name="remove" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => { playTapSound(); setAgendaCardZoom((z) => Math.min(2.0, Number((z + 0.1).toFixed(2)))); }}
-                      style={[cardActionButtonStyle, { backgroundColor: colors.card, borderColor: colors.border + '80' }]}
+                      style={cardActionButtonStyle}
                       activeOpacity={0.9}
                     >
-                      <Ionicons name="add" size={18} color={colors.primary} />
+                      <Ionicons name="add" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                   </View>
@@ -2541,17 +2528,15 @@ export function DashboardScreen() {
                   paddingVertical: scaleWebDesktop(4, true),
                   paddingHorizontal: scaleWebDesktop(10, true),
                   borderRadius: 999,
-                  backgroundColor: colors.primary + '12',
-                  borderWidth: 1,
-                  borderColor: colors.primary + '28',
+                  ...chromeBtnBox(colors),
                 }}
               >
                 <Ionicons
                   name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'}
                   size={scaleWebDesktop(14, true)}
-                  color={colors.primary}
+                  color={colors.textSecondary}
                 />
-                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>
+                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>
                   {quoteType === 'motivacional' ? 'Versículo do dia' : 'Frase do dia'}
                 </Text>
               </TouchableOpacity>
@@ -2566,13 +2551,11 @@ export function DashboardScreen() {
                   paddingVertical: scaleWebDesktop(4, true),
                   paddingHorizontal: scaleWebDesktop(10, true),
                   borderRadius: 999,
-                  backgroundColor: colors.primary + '18',
-                  borderWidth: 1,
-                  borderColor: colors.primary + '33',
+                  ...chromeBtnBox(colors),
                 }}
               >
-                <Ionicons name="share-social-outline" size={scaleWebDesktop(14, true)} color={colors.primary} />
-                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>
+                <Ionicons name="share-social-outline" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
+                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>
                   {quoteType === 'motivacional' ? 'Compartilhar frase' : 'Compartilhar versículo'}
                 </Text>
               </TouchableOpacity>
@@ -2616,13 +2599,13 @@ export function DashboardScreen() {
                 onPress={(e) => { e.stopPropagation(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
                 style={cardActionButtonStyle}
               >
-                <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                <Ionicons name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'} size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={(e) => { e.stopPropagation(); playTapSound(); openImageGenerator?.({ quote, quoteType }); }}
                 style={cardActionButtonStyle}
               >
-                <Ionicons name="share-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                <Ionicons name="share-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             </View>
@@ -2804,7 +2787,7 @@ export function DashboardScreen() {
                                   style={{ padding: 4, backgroundColor: 'transparent', borderRadius: 8 }}
                                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                 >
-                                  <Ionicons name="logo-whatsapp" size={16} color={colors.primary} />
+                                  <Ionicons name="logo-whatsapp" size={16} color={colors.textSecondary} />
                                 </TouchableOpacity>
                               ) : null}
                             </View>
@@ -2843,7 +2826,7 @@ export function DashboardScreen() {
                                 style={{ padding: 6, backgroundColor: 'transparent', borderRadius: 10 }}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               >
-                                <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+                                <Ionicons name="logo-whatsapp" size={20} color={colors.textSecondary} />
                               </TouchableOpacity>
                             ) : null}
                           </View>
@@ -2871,10 +2854,10 @@ export function DashboardScreen() {
                   </TouchableOpacity>
                   <View style={cardHeaderActionsStyle}>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }} style={cardActionButtonStyle}>
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }} style={cardActionButtonStyle}>
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -2912,7 +2895,7 @@ export function DashboardScreen() {
                                 style={{ padding: 4, backgroundColor: 'transparent', borderRadius: 8 }}
                                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                               >
-                                <Ionicons name="logo-whatsapp" size={16} color={colors.primary} />
+                                <Ionicons name="logo-whatsapp" size={16} color={colors.textSecondary} />
                               </TouchableOpacity>
                             ) : null}
                           </View>
@@ -2949,7 +2932,7 @@ export function DashboardScreen() {
                               style={{ padding: 8, backgroundColor: 'transparent', borderRadius: 10 }}
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
-                              <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
+                              <Ionicons name="logo-whatsapp" size={22} color={colors.textSecondary} />
                             </TouchableOpacity>
                           ) : null}
                         </View>
@@ -2974,13 +2957,11 @@ export function DashboardScreen() {
                     paddingVertical: scaleWebDesktop(4, true),
                     paddingHorizontal: scaleWebDesktop(10, true),
                     borderRadius: 999,
-                    backgroundColor: colors.primary + '12',
-                    borderWidth: 1,
-                    borderColor: colors.primary + '28',
+                    ...chromeBtnBox(colors),
                   }}
                 >
-                  <Ionicons name="add" size={scaleWebDesktop(14, true)} color={colors.primary} />
-                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>Cliente</Text>
+                  <Ionicons name="add" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
+                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>Cliente</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }}
@@ -2993,13 +2974,11 @@ export function DashboardScreen() {
                     paddingVertical: scaleWebDesktop(4, true),
                     paddingHorizontal: scaleWebDesktop(10, true),
                     borderRadius: 999,
-                    backgroundColor: colors.primary + '18',
-                    borderWidth: 1,
-                    borderColor: colors.primary + '33',
+                    ...chromeBtnBox(colors),
                   }}
                 >
-                  <AppIcon name="expand-outline" size={scaleWebDesktop(14, true)} color={colors.primary} />
-                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.primary }}>Ver todos</Text>
+                  <AppIcon name="expand-outline" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
+                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>Ver todos</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3026,7 +3005,7 @@ export function DashboardScreen() {
                   style={cardActionButtonStyle}
                   activeOpacity={0.9}
                 >
-                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -3070,10 +3049,10 @@ export function DashboardScreen() {
                 </View>
                 <View style={cardHeaderActionsStyle}>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
-                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={cardActionButtonStyle}>
-                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -3094,10 +3073,10 @@ export function DashboardScreen() {
               </View>
               <View style={cardHeaderActionsStyle}>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ create: true }); }} style={cardActionButtonStyle}>
-                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                  <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.(); }} style={cardActionButtonStyle}>
-                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                  <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -3116,7 +3095,7 @@ export function DashboardScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.anotacoes + '40', marginLeft: 4 }}>
                   <Text style={{ fontSize: 15, color: colors.text, flex: 1 }} numberOfLines={1}>{n.title || 'Sem título'}</Text>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAnotacoes?.({ editNoteId: n.id }); }} style={{ padding: 6 }}>
-                    <Ionicons name="pencil" size={16} color={colors.primary} />
+                    <Ionicons name="pencil" size={16} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={(e) => {
@@ -3184,13 +3163,13 @@ export function DashboardScreen() {
                       }}
                       style={cardActionButtonStyle}
                     >
-                      <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -3224,29 +3203,29 @@ export function DashboardScreen() {
                     }}
                     style={cardActionButtonStyle}
                   >
-                    <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
-                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary || colors.primary} />
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openListaCompras?.(); }} style={cardActionButtonStyle}>
-                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary || colors.primary} />
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
             )}
             <View style={{ width: '100%', marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('todos'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: filtroListaCompras === 'todos' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'todos' ? colors.primary : colors.border }}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('todos'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, ...chromeBtnBox(colors, { active: filtroListaCompras === 'todos' }) }}>
                   <Ionicons name="list" size={14} color={filtroListaCompras === 'todos' ? colors.primary : colors.textSecondary} />
                   <Text style={{ fontSize: 12, color: filtroListaCompras === 'todos' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Todos</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('pessoal'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: filtroListaCompras === 'pessoal' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'pessoal' ? colors.primary : colors.border }}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('pessoal'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, ...chromeBtnBox(colors, { active: filtroListaCompras === 'pessoal' }) }}>
                   <Ionicons name="person-outline" size={14} color={filtroListaCompras === 'pessoal' ? colors.primary : colors.textSecondary} />
                   <Text style={{ fontSize: 12, color: filtroListaCompras === 'pessoal' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Pessoal</Text>
                 </TouchableOpacity>
                 {showEmpresaFeatures && (
-                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('empresa'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: filtroListaCompras === 'empresa' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: filtroListaCompras === 'empresa' ? colors.primary : colors.border }}>
+                <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setFiltroListaCompras('empresa'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, ...chromeBtnBox(colors, { active: filtroListaCompras === 'empresa' }) }}>
                   <Ionicons name="business-outline" size={14} color={filtroListaCompras === 'empresa' ? colors.primary : colors.textSecondary} />
                   <Text style={{ fontSize: 12, color: filtroListaCompras === 'empresa' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Empresa</Text>
                 </TouchableOpacity>
@@ -3275,7 +3254,7 @@ export function DashboardScreen() {
                       style={{ padding: 6 }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Ionicons name="pencil" size={16} color={colors.primary} />
+                      <Ionicons name="pencil" size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={(e) => { e?.stopPropagation?.(); playTapSound(); updateShoppingItem(i.id, { checked: !i.checked }); }}
@@ -3308,14 +3287,14 @@ export function DashboardScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <TouchableOpacity
               onPress={() => { playTapSound(); setWebProductivityTab('anotacoes'); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: webProductivityTab === 'anotacoes' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: webProductivityTab === 'anotacoes' ? colors.primary : colors.border }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, ...chromeBtnBox(colors, { active: webProductivityTab === 'anotacoes' }) }}
             >
               <Ionicons name="document-text-outline" size={14} color={webProductivityTab === 'anotacoes' ? colors.primary : colors.textSecondary} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: webProductivityTab === 'anotacoes' ? colors.primary : colors.textSecondary }}>Minhas anotações</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { playTapSound(); setWebProductivityTab('compras'); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: webProductivityTab === 'compras' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: webProductivityTab === 'compras' ? colors.primary : colors.border }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, ...chromeBtnBox(colors, { active: webProductivityTab === 'compras' }) }}
             >
               <Ionicons name="cart-outline" size={14} color={webProductivityTab === 'compras' ? colors.primary : colors.textSecondary} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: webProductivityTab === 'compras' ? colors.primary : colors.textSecondary }}>Minhas compras</Text>
@@ -3325,13 +3304,13 @@ export function DashboardScreen() {
                 onPress={() => { playTapSound(); webProductivityTab === 'anotacoes' ? openAnotacoes?.() : openListaCompras?.(); }}
                 style={cardActionButtonStyle}
               >
-                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { playTapSound(); webProductivityTab === 'anotacoes' ? openAnotacoes?.() : openListaCompras?.(); }}
                 style={cardActionButtonStyle}
               >
-                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -3355,10 +3334,10 @@ export function DashboardScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => { playTapSound(); setShowConcluidasProdCompras(!showConcluidasProdCompras); }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, ...chromeBtnBox(colors) }}
                 >
-                  <AppIcon name={showConcluidasProdCompras ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.primary} />
-                  <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>
+                  <AppIcon name={showConcluidasProdCompras ? 'list-outline' : 'checkmark-done-outline'} size={16} color={colors.textSecondary} />
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '600' }}>
                     {showConcluidasProdCompras ? 'Ver pendentes' : 'Ver compras concluídas'}
                   </Text>
                 </TouchableOpacity>
@@ -3465,7 +3444,7 @@ export function DashboardScreen() {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityLabel="Editar"
             >
-              <Ionicons name="pencil" size={18} color={colors.primary} />
+              <Ionicons name="pencil" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
             {b.paid && showContasPagasProxFaturas ? (
               <TouchableOpacity
@@ -3556,7 +3535,7 @@ export function DashboardScreen() {
                       <AppIcon
                         name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'}
                         size={CARD_ACTION_ICON_SIZE}
-                        color={colors.primary}
+                        color={colors.textSecondary}
                       />
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -3567,7 +3546,7 @@ export function DashboardScreen() {
                       }}
                       style={cardActionButtonStyle}
                     >
-                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                      <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={(e) => {
@@ -3577,7 +3556,7 @@ export function DashboardScreen() {
                       }}
                       style={cardActionButtonStyle}
                     >
-                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                      <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -3618,13 +3597,13 @@ export function DashboardScreen() {
                     }}
                     style={cardActionButtonStyle}
                   >
-                    <AppIcon name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    <AppIcon name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('boletos'); }} style={cardActionButtonStyle}>
-                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                    <Ionicons name="add" size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setExpandedCard('proximasfaturas'); }} style={cardActionButtonStyle}>
-                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.primary} />
+                    <AppIcon name="expand-outline" size={CARD_EXPAND_ICON_SIZE} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -3926,11 +3905,11 @@ export function DashboardScreen() {
         {editMode && (
           <View style={{ marginHorizontal: useWebLayout ? WEB_DESKTOP_PAGE_PAD : 16, marginTop: useWebLayout ? WEB_DESKTOP_ROW_GAP : 16 }}>
             <TouchableOpacity
-              style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary + '80', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+              style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
               onPress={() => setShowCardPicker(true)}
             >
-              <AppIcon name="add-circle-outline" size={26} color={colors.primary} />
-              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary }}>Adicionar card</Text>
+              <AppIcon name="add-circle-outline" size={26} color={colors.textSecondary} />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textSecondary }}>Adicionar card</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
@@ -3991,7 +3970,7 @@ export function DashboardScreen() {
                     borderRadius: 7,
                     paddingHorizontal: 6,
                     paddingVertical: 1,
-                    backgroundColor: colors.bg,
+                    backgroundColor: quickRowTheme.chipBg,
                     borderWidth: 1,
                     borderColor: quickRowTheme.chipBorder,
                   }}
@@ -4084,12 +4063,10 @@ export function DashboardScreen() {
                 borderRadius: Platform.OS === 'web' ? 16 : 20,
                 justifyContent: 'center',
                 alignItems: 'center',
-                backgroundColor: colors.primary + '26',
-                borderWidth: 1,
-                borderColor: colors.primary + '50',
+                ...chromeBtnBox(colors, { ghost: true }),
               }}
             >
-              <Ionicons name="add" size={Platform.OS === 'web' ? 18 : 22} color={colors.primary} />
+              <Ionicons name="add" size={Platform.OS === 'web' ? 18 : 22} color={colors.textSecondary} />
             </TouchableOpacity>
           ) : null
         }
@@ -4108,11 +4085,11 @@ export function DashboardScreen() {
                 <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }}>{t.title}</Text>
                 {(t.date || t.timeStart) && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>{[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}</Text>}
               </View>
-              <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('tarefas', { editItemId: t.id }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('tarefas', { editItemId: t.id }); }}><Ionicons name="pencil" size={20} color={colors.textSecondary} /></TouchableOpacity>
               {showConcluidasProximos ? (
                 <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: false }); }}><Ionicons name="arrow-undo" size={20} color={colors.textSecondary} /></TouchableOpacity>
               ) : (
-                <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: true }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: true }); }}><Ionicons name="checkmark-done" size={20} color={colors.textSecondary} /></TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Excluir esta tarefa?', deleteCheckListItem, t.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
             </View>
@@ -4140,8 +4117,8 @@ export function DashboardScreen() {
                   {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
                 </View>
                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
-                <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
-                <TouchableOpacity onPress={() => { playTapSound(); promptConcluirAgenda(e, { showEmpresaFeatures, isConcluido: e.status === 'concluido', openAddModal, updateAgendaEvent }); }}><Ionicons name="checkmark-done" size={20} color={colors.primary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.textSecondary} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => { playTapSound(); promptConcluirAgenda(e, { showEmpresaFeatures, isConcluido: e.status === 'concluido', openAddModal, updateAgendaEvent }); }}><Ionicons name="checkmark-done" size={20} color={colors.textSecondary} /></TouchableOpacity>
                 <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
               </View>
             </GlassCard>
@@ -4150,7 +4127,7 @@ export function DashboardScreen() {
         {expandedCard === 'anotacoes' && notes.map((n) => (
           <View key={n.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.card, marginBottom: 8 }}>
             <Text style={{ flex: 1, fontSize: 15, color: colors.text }}>{n.title || 'Sem título'}</Text>
-            <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAnotacoes?.({ editNoteId: n.id }); }}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAnotacoes?.({ editNoteId: n.id }); }}><Ionicons name="pencil" size={20} color={colors.textSecondary} /></TouchableOpacity>
             <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Quer excluir esta anotação?', deleteNote, n.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
           </View>
         ))}
@@ -4158,7 +4135,7 @@ export function DashboardScreen() {
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', marginBottom: 16 }}>
               <TouchableOpacity onPress={() => { playTapSound(); setShowConcluidasListaCompras(!showConcluidasListaCompras); }} style={cardActionButtonStyle}>
-                <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.primary} />
+                <AppIcon name={showConcluidasListaCompras ? 'list-outline' : 'checkmark-done-outline'} size={CARD_ACTION_ICON_SIZE} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             {(() => {
@@ -4169,7 +4146,7 @@ export function DashboardScreen() {
                   <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: i.checked ? colors.primary : colors.border, backgroundColor: i.checked ? colors.primary : 'transparent', justifyContent: 'center', alignItems: 'center' }}>{i.checked && <Ionicons name="checkmark" size={12} color="#fff" />}</View>
                   <Text style={{ flex: 1, fontSize: 15, color: colors.text, textDecorationLine: i.checked ? 'line-through' : 'none' }}>{i.title}</Text>
                   <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openListaCompras?.(); }}>
-                    <Ionicons name="pencil" size={20} color={colors.primary} />
+                    <Ionicons name="pencil" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => { playTapSound(); updateShoppingItem(i.id, { checked: !i.checked }); }}>
                     <Ionicons name={i.checked ? 'arrow-undo' : 'checkmark-done'} size={20} color={i.checked ? colors.textSecondary : '#10b981'} />
@@ -4197,7 +4174,7 @@ export function DashboardScreen() {
                 <AppIcon
                   name={showContasPagasProxFaturas ? 'list-outline' : 'checkmark-done-outline'}
                   size={CARD_ACTION_ICON_SIZE}
-                  color={colors.primary}
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
@@ -4223,7 +4200,7 @@ export function DashboardScreen() {
                       style={{ padding: 6 }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Ionicons name="pencil" size={18} color={colors.primary} />
+                      <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                     {b.paid && showContasPagasProxFaturas ? (
                       <TouchableOpacity

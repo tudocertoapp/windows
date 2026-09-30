@@ -95,7 +95,7 @@ export function NovoOrcamentoScreen({ editingOrcamento, onBack, onSaved }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <View style={[s.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => { playTapSound(); onBack?.(); }} style={s.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.text }]}>{editingOrcamento ? 'Editar Orçamento' : 'Novo Orçamento'}</Text>
         <TouchableOpacity onPress={handleSave} disabled={saving} style={[s.saveBtn, { backgroundColor: saving ? colors.textSecondary : colors.primary }]}>
@@ -185,7 +185,7 @@ export function NovoOrcamentoScreen({ editingOrcamento, onBack, onSaved }) {
           <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
             <Text style={[s.modalTitle, { color: colors.text }]}>Selecionar cliente</Text>
             <TouchableOpacity onPress={() => setClientPickerOpen(false)}>
-              <Ionicons name="close" size={24} color={colors.primary} />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <TextInput

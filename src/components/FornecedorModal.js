@@ -97,7 +97,7 @@ export function FornecedorModal({ visible, fornecedor, onSave, onClose }) {
             <View style={[s.header, sectionGap]}>
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR FORNECEDOR' : 'NOVO FORNECEDOR'}</Text>
               <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                <Ionicons name="close" size={22} color={colors.primary} />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]} contentContainerStyle={s.scrollContent}>

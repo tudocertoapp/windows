@@ -167,7 +167,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
           <Text style={[topBarStyles.title, { color: colors.text }]}>Lista de compras</Text>
           {isModal && (
             <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }} style={[topBarStyles.menuBtn, { backgroundColor: 'transparent' }]}>
-              <Ionicons name="close" size={24} color={colors.primary} />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -223,7 +223,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
               onPress={openNew}
               style={[lcs.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.08) || colors.primary + '15', flex: 1, minWidth: 140 }]}
             >
-              <AppIcon name="add-circle-outline" size={24} color={colors.primary} />
+              <AppIcon name="add-circle-outline" size={24} color={colors.textSecondary} />
               <Text style={[lcs.addBtnText, { color: colors.primary }]}>Adicionar item</Text>
             </TouchableOpacity>
           </View>
@@ -266,7 +266,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
                   </View>
                   <View style={lcs.itemActions}>
                     <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="pencil" size={22} color={colors.primary} />
+                      <Ionicons name="pencil" size={22} color={colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleDelete(item)} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Ionicons name="trash-outline" size={22} color="#ef4444" />
@@ -275,7 +275,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
                       onPress={() => handleConvertToTask(item)}
                       style={[lcs.convertBtn, { backgroundColor: colors.primaryRgba?.(0.12) ?? colors.primary + '20', borderWidth: 1, borderColor: colors.primary + '40', marginTop: 0 }]}
                     >
-                      <Ionicons name="checkbox-outline" size={18} color={colors.primary} />
+                      <Ionicons name="checkbox-outline" size={18} color={colors.textSecondary} />
                       <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Virar tarefa</Text>
                     </TouchableOpacity>
                   </View>
@@ -336,7 +336,7 @@ export function ListaComprasScreen({ onClose, isModal }) {
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity onPress={pickImage} style={[lcs.photoAdd, { borderColor: colors.primary + '80' }]}>
-                  <Ionicons name="add" size={28} color={colors.primary} />
+                  <Ionicons name="add" size={28} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }}>O que precisa comprar?</Text>

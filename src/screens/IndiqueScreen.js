@@ -36,8 +36,8 @@ export function IndiqueScreen({ onClose, isModal }) {
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Indique um Amigo</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -56,7 +56,7 @@ export function IndiqueScreen({ onClose, isModal }) {
           </View>
           <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 }}>LINK DE INDICAÇÃO</Text>
           <View style={[is.linkBox, { borderColor: colors.border, backgroundColor: colors.bg }]}>
-            <Ionicons name="link" size={20} color={colors.primary} />
+            <Ionicons name="link" size={20} color={colors.textSecondary} />
             <Text style={{ flex: 1, fontSize: 12, color: colors.text }} numberOfLines={2}>{linkIndicacao}</Text>
           </View>
           <TouchableOpacity style={[is.btn, { backgroundColor: colors.primary, marginTop: 16 }]} onPress={handleShare}>
@@ -72,8 +72,8 @@ export function IndiqueScreen({ onClose, isModal }) {
             { icon: 'gift', text: 'Vocês ganham benefícios exclusivos' },
           ].map((b, i) => (
             <View key={i} style={is.beneficio}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name={b.icon} size={20} color={colors.primary} />
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name={b.icon} size={20} color={colors.textSecondary} />
               </View>
               <Text style={{ flex: 1, fontSize: 14, color: colors.text }}>{b.text}</Text>
             </View>

@@ -138,7 +138,7 @@ export function TopBar({
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       accessibilityLabel="Menu"
     >
-      <Ionicons name="menu" size={24} color={colors.primary} />
+      <Ionicons name="menu" size={24} color={colors.textSecondary} />
     </TouchableOpacity>
   ) : null;
 
@@ -171,7 +171,7 @@ export function TopBar({
           onPress={() => { playTapSound(); onWhatsApp(); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="logo-whatsapp" size={24} color={colors.primary} />
+          <Ionicons name="logo-whatsapp" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
       {!isWebDesktop && onChat ? (
@@ -180,7 +180,7 @@ export function TopBar({
           onPress={() => { playTapSound(); onChat(); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <AppIcon name="chatbubbles-outline" size={24} color={colors.primary} />
+          <AppIcon name="chatbubbles-outline" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
       {isWebDesktop && !hideMenu && !isHome ? (
@@ -190,7 +190,7 @@ export function TopBar({
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityLabel="Abrir menu"
         >
-          <Ionicons name="menu" size={24} color={colors.primary} />
+          <Ionicons name="menu" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : onCalculadora && !isWebDesktop ? (
         <TouchableOpacity
@@ -198,7 +198,7 @@ export function TopBar({
           onPress={() => { playTapSound(); onCalculadora(); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <AppIcon name="calculator-outline" size={24} color={colors.primary} />
+          <AppIcon name="calculator-outline" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
       {!isWebDesktop && onManageCards ? (
@@ -207,7 +207,7 @@ export function TopBar({
           onPress={() => { playTapSound(); onManageCards(); }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <AppIcon name="grid-outline" size={24} color={colors.primary} />
+          <AppIcon name="grid-outline" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : !isWebDesktop && !hideOrganize && onOrganize ? (
         <TouchableOpacity style={{ padding: 8 }} onPress={() => { playTapSound(); onOrganize?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -367,9 +367,9 @@ export function TopBar({
     borderRadius: WEB_DESKTOP_ORGANIZE_BTN / 2,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
     zIndex: 2000,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   });
@@ -385,7 +385,7 @@ export function TopBar({
         accessibilityLabel="Gerenciar cards do Início"
         style={railBtnStyle(cardsRailTop)}
       >
-        <Ionicons name="layers-outline" size={22} color={colors.primary} />
+        <Ionicons name="layers-outline" size={22} color={colors.textSecondary} />
       </TouchableOpacity>
     ) : null;
 

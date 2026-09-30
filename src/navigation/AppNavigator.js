@@ -943,7 +943,7 @@ export function AppNavigator() {
                       }}
                       accessibilityLabel="Abrir calculadora"
                     >
-                      <Ionicons name="calculator-outline" size={24} color={colors.primary} />
+                      <Ionicons name="calculator-outline" size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -963,7 +963,7 @@ export function AppNavigator() {
                   }}
                   accessibilityLabel={showCalcMenu ? 'Fechar menu' : 'Abrir menu'}
                 >
-                  <Ionicons name={showCalcMenu ? 'chevron-forward' : 'chevron-back'} size={24} color={colors.primary} />
+                  <Ionicons name={showCalcMenu ? 'chevron-forward' : 'chevron-back'} size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             )}

@@ -68,12 +68,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('Use POST /api/vision/ocr');
+  res.end('Use GET ou POST /api/vision/ocr');
 });
 
 server.listen(PORT, () => {
-  const key = process.env.GOOGLE_VISION_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_VISION_API_KEY || '';
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
   console.log(`[vision-dev] http://localhost:${PORT}/api/vision/ocr`);
-  console.log(`[vision-dev] Chave Vision: ${key ? 'OK (' + key.length + ' chars)' : 'AUSENTE — configure .env'}`);
+  console.log(`[vision-dev] Chave Gemini: ${key ? 'OK (' + key.length + ' chars)' : 'AUSENTE — GEMINI_API_KEY no .env'}`);
   console.log('[vision-dev] No .env do app: EXPO_PUBLIC_VISION_API_URL=http://localhost:' + PORT);
 });

@@ -138,7 +138,7 @@ export function AnotacoesScreen({ onClose, isModal, initialEditNoteId, initialCr
         <Text style={[topBarStyles.title, { color: colors.text }]}>Minhas anotações</Text>
         {isModal && (
           <TouchableOpacity onPress={onClose} style={[topBarStyles.menuBtn, { backgroundColor: 'transparent' }]}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -148,7 +148,7 @@ export function AnotacoesScreen({ onClose, isModal, initialEditNoteId, initialCr
             onPress={openNew}
             style={[ans.addBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primaryRgba?.(0.08) || colors.primary + '15' }]}
           >
-            <AppIcon name="add-circle-outline" size={24} color={colors.primary} />
+            <AppIcon name="add-circle-outline" size={24} color={colors.textSecondary} />
             <Text style={[ans.addBtnText, { color: colors.primary }]}>Nova anotação</Text>
           </TouchableOpacity>
 
@@ -170,7 +170,7 @@ export function AnotacoesScreen({ onClose, isModal, initialEditNoteId, initialCr
                 </TouchableOpacity>
                 <View style={ans.noteActions}>
                   <TouchableOpacity onPress={() => openEdit(note)} style={{ padding: 8, borderRadius: 10, backgroundColor: colors.primaryRgba?.(0.15) || colors.primary + '20' }}>
-                    <AppIcon name="pencil-outline" size={18} color={colors.primary} />
+                    <AppIcon name="pencil-outline" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDelete(note)} style={{ padding: 8, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.15)' }}>
                     <AppIcon name="trash-outline" size={18} color="#ef4444" />

@@ -11,7 +11,7 @@ const BTN_SIZE = 56;
 const DRAG_THRESHOLD = 8;
 
 export function FloatingCalculatorButton({ onPress }) {
-  const { primaryColor } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [position, setPosition] = useState(null);
   const animPos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -98,12 +98,9 @@ export function FloatingCalculatorButton({ onPress }) {
           width: BTN_SIZE,
           height: BTN_SIZE,
           borderRadius: BTN_SIZE / 2,
-          backgroundColor: primaryColor,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          elevation: 10,
+          backgroundColor: 'transparent',
+          shadowOpacity: 0,
+          elevation: 0,
           transform: [
             { translateX: animPos.x },
             { translateY: animPos.y },
@@ -112,7 +109,7 @@ export function FloatingCalculatorButton({ onPress }) {
       ]}
     >
       <View style={styles.touch}>
-        <Ionicons name="calculator-outline" size={28} color="#fff" />
+        <Ionicons name="calculator-outline" size={28} color={colors.textSecondary} />
       </View>
     </Animated.View>
   );

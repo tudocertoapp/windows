@@ -49,14 +49,14 @@ export function OrcamentoItensList({ items, setItems, products, services, colors
         onPress={() => { playTapSound(); setPickerType('produto'); setPickerOpen(true); }}
         style={[s.addBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba?.(0.1) }]}
       >
-        <Ionicons name="cube-outline" size={20} color={colors.primary} />
+        <Ionicons name="cube-outline" size={20} color={colors.textSecondary} />
         <Text style={[s.addBtnText, { color: colors.primary }]}>Adicionar produto</Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() => { playTapSound(); setPickerType('servico'); setPickerOpen(true); }}
         style={[s.addBtn, { borderColor: colors.primary, backgroundColor: colors.primaryRgba?.(0.1) }]}
       >
-        <Ionicons name="construct-outline" size={20} color={colors.primary} />
+        <Ionicons name="construct-outline" size={20} color={colors.textSecondary} />
         <Text style={[s.addBtnText, { color: colors.primary }]}>Adicionar serviço</Text>
       </TouchableOpacity>
 
@@ -109,7 +109,7 @@ export function OrcamentoItensList({ items, setItems, products, services, colors
           <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
             <Text style={[s.modalTitle, { color: colors.text }]}>{pickerType === 'produto' ? 'Selecionar produto' : 'Selecionar serviço'}</Text>
             <TouchableOpacity onPress={() => setPickerOpen(false)}>
-              <Ionicons name="close" size={24} color={colors.primary} />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <TextInput

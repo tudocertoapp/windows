@@ -958,19 +958,19 @@ export function AgendaScreen() {
                   style={[as.compactIconBtn, { backgroundColor: colors.bg, width: 32, height: 32, borderRadius: 10 }]}
                   onPress={() => { playTapSound(); setSearchQuery(''); setShowSearchModal(true); }}
                 >
-                  <Ionicons name="search" size={18} color={colors.primary} />
+                  <Ionicons name="search" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => { playTapSound(); scrollToToday(); }}
                   style={[as.compactIconBtn, { backgroundColor: 'transparent', width: 32, height: 32, borderRadius: 10 }]}
                 >
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary }}>Hoje</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textSecondary }}>Hoje</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[as.compactAddBtn, { backgroundColor: colors.bg, width: 36, height: 36, borderRadius: 18 }]}
+                  style={[as.compactAddBtn, { backgroundColor: 'transparent', width: 36, height: 36, borderRadius: 18 }]}
                   onPress={() => { playTapSound(); handleAddPress(); }}
                 >
-                  <Ionicons name="add" size={22} color={colors.primary} />
+                  <Ionicons name="add" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -991,19 +991,19 @@ export function AgendaScreen() {
                   style={[as.compactIconBtn, { backgroundColor: colors.bg }]}
                   onPress={() => { playTapSound(); setSearchQuery(''); setShowSearchModal(true); }}
                 >
-                  <Ionicons name="search" size={22} color={colors.primary} />
+                  <Ionicons name="search" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => { playTapSound(); scrollToToday(); }}
                   style={[as.compactIconBtn, { backgroundColor: isToday(selectedDate) ? colors.primaryRgba?.(0.2) ?? colors.primary + '33' : colors.bg }]}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Hoje</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>Hoje</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[as.compactAddBtn, { backgroundColor: colors.bg }]}
+                  style={[as.compactAddBtn, { backgroundColor: 'transparent' }]}
                   onPress={() => { playTapSound(); handleAddPress(); }}
                 >
-                  <Ionicons name="add" size={24} color={colors.primary} />
+                  <Ionicons name="add" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1037,7 +1037,7 @@ export function AgendaScreen() {
                   backgroundColor: colors.bg,
                 }}
               >
-                <Ionicons name="chevron-back" size={22} color={colors.primary} />
+                <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
               <View style={{ flex: 1, flexDirection: 'row', minWidth: 0 }}>{desktopWeekDays.map((d) => renderAgendaDayCell(d))}</View>
               <TouchableOpacity
@@ -1053,7 +1053,7 @@ export function AgendaScreen() {
                   backgroundColor: colors.bg,
                 }}
               >
-                <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           ) : (
@@ -1367,7 +1367,7 @@ export function AgendaScreen() {
                               style={[as.eventActionBtn, { backgroundColor: colors.bg + 'E6' }]}
                               activeOpacity={0.7}
                             >
-                              <Ionicons name="pencil" size={18} color={colors.primary} />
+                              <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={(ev) => {
@@ -1440,14 +1440,14 @@ export function AgendaScreen() {
               onPress={zoomOutTimeline}
               accessibilityLabel="Diminuir zoom da agenda"
             >
-              <Ionicons name="remove" size={18} color={colors.primary} />
+              <Ionicons name="remove" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[as.compactIconBtn, { backgroundColor: colors.card, width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: (colors.border || '#e5e7eb') + 'CC' }]}
               onPress={zoomInTimeline}
               accessibilityLabel="Aumentar zoom da agenda"
             >
-              <Ionicons name="add" size={18} color={colors.primary} />
+              <Ionicons name="add" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1541,7 +1541,7 @@ export function AgendaScreen() {
                 }}
                 style={{ padding: 8 }}
               >
-                <Ionicons name="chevron-back" size={24} color={colors.primary} />
+                <Ionicons name="chevron-back" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
               <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text, minWidth: 60, textAlign: 'center' }}>{pickerYear}</Text>
               <TouchableOpacity
@@ -1551,7 +1551,7 @@ export function AgendaScreen() {
                 }}
                 style={{ padding: 8 }}
               >
-                <Ionicons name="chevron-forward" size={24} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={[as.calendarMonthRow, { marginTop: 8 }]}>

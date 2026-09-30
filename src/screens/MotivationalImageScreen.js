@@ -181,8 +181,8 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Criar imagem</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -276,7 +276,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={[mis.shareBtn, { margin: 0, paddingVertical: 10, backgroundColor: colors.primaryRgba(0.12), borderWidth: 1, borderColor: colors.primary }]} onPress={() => { setShowFontList((v) => !v); setShowFontSizeList(false); }}>
-                <Ionicons name="text-outline" size={18} color={colors.primary} />
+                <Ionicons name="text-outline" size={18} color={colors.textSecondary} />
                 <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>Fonte: {fontPreset.label}</Text>
               </TouchableOpacity>
               {showFontList ? (
@@ -289,7 +289,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
                 </ScrollView>
               ) : null}
               <TouchableOpacity style={[mis.shareBtn, { margin: 0, paddingVertical: 10, backgroundColor: colors.primaryRgba(0.12), borderWidth: 1, borderColor: colors.primary }]} onPress={() => { setShowFontSizeList((v) => !v); setShowFontList(false); }}>
-                <Ionicons name="resize-outline" size={18} color={colors.primary} />
+                <Ionicons name="resize-outline" size={18} color={colors.textSecondary} />
                 <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>Tamanho: {fontSize}</Text>
               </TouchableOpacity>
               {showFontSizeList ? (
@@ -303,7 +303,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
               ) : null}
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity style={[mis.shareBtn, { flex: 1, margin: 0, paddingVertical: 10, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary }]} onPress={pickBackgroundImage}>
-                  <Ionicons name="image-outline" size={18} color={colors.primary} />
+                  <Ionicons name="image-outline" size={18} color={colors.textSecondary} />
                   <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>Foto</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[mis.shareBtn, { flex: 1, margin: 0, paddingVertical: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => setBgImageUri(null)}>
@@ -378,7 +378,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
         {!isWebDesktop ? <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, paddingHorizontal: 16, marginTop: 16 }}>Foto de fundo:</Text> : null}
         {!isWebDesktop ? <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 8 }}>
           <TouchableOpacity style={[mis.shareBtn, { flex: 1, margin: 0, paddingVertical: 12, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary }]} onPress={pickBackgroundImage}>
-            <Ionicons name="image-outline" size={20} color={colors.primary} />
+            <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
             <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Escolher foto</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[mis.shareBtn, { flex: 1, margin: 0, paddingVertical: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => setBgImageUri(null)}>
@@ -412,7 +412,7 @@ export function MotivationalImageScreen({ onClose, isModal, initialQuote, initia
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Compartilhar frase</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[mis.shareBtn, { flex: 1, backgroundColor: colors.primaryRgba(0.15), borderWidth: 1, borderColor: colors.primary }]} onPress={saveToGallery}>
-            <Ionicons name="download-outline" size={22} color={colors.primary} />
+            <Ionicons name="download-outline" size={22} color={colors.textSecondary} />
             <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>{Platform.OS === 'web' ? 'Salvar imagem' : 'Salvar na galeria'}</Text>
           </TouchableOpacity>
         </View>

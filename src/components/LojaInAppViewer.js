@@ -33,14 +33,14 @@ export function LojaInAppViewer({ ownerUserId, title, onClose, colors }) {
     <SafeAreaView style={[s.root, { backgroundColor: colors.bg }]} edges={['top', 'left', 'right']}>
       <View style={[s.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }} style={s.backBtn} accessibilityLabel="Voltar">
-          <Ionicons name="arrow-back" size={22} color={colors.primary} />
+          <Ionicons name="arrow-back" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[s.headerTitle, { color: colors.text }]} numberOfLines={1}>{headerTitle}</Text>
           <Text style={[s.headerSub, { color: colors.textSecondary }]} numberOfLines={1}>Agendar · Carrinho · WhatsApp</Text>
         </View>
         <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }} style={s.backBtn}>
-          <Ionicons name="close" size={22} color={colors.primary} />
+          <Ionicons name="close" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -48,7 +48,7 @@ export function LojaInAppViewer({ ownerUserId, title, onClose, colors }) {
         <View style={{ flex: 1 }}>
           {loading && (
             <View style={s.loadingOverlay}>
-              <ActivityIndicator size="large" color={colors.primary} />
+              <ActivityIndicator size="large" color={colors.textSecondary} />
               <Text style={{ color: colors.textSecondary, marginTop: 12 }}>Abrindo loja...</Text>
             </View>
           )}

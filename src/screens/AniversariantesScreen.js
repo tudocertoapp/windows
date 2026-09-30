@@ -101,8 +101,8 @@ export function AniversariantesScreen({ onClose, isModal }) {
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Cadastro de aniversariantes</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -135,7 +135,7 @@ export function AniversariantesScreen({ onClose, isModal }) {
                 <Image source={{ uri: c.foto }} style={[s.avatar, { backgroundColor: colors.primaryRgba?.(0.2) }]} resizeMode="cover" />
               ) : (
                 <View style={[s.avatar, { backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }]}>
-                  <Ionicons name="person" size={28} color={colors.primary} />
+                  <Ionicons name="person" size={28} color={colors.textSecondary} />
                 </View>
               )}
               <View style={s.cardBody}>
@@ -144,7 +144,7 @@ export function AniversariantesScreen({ onClose, isModal }) {
                 {c.phone && <Text style={[s.cardInfo, { color: colors.textSecondary }]}>{c.phone}</Text>}
                 <View style={s.actionRow}>
                   <TouchableOpacity onPress={() => { playTapSound(); setEditingClient(c); setModalVisible(true); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
-                    <Ionicons name="pencil" size={18} color={colors.primary} />
+                    <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                   {c.phone?.trim() && (
                     <TouchableOpacity onPress={() => { playTapSound(); openWhatsApp(c.phone); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>

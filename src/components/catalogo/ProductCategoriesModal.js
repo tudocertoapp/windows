@@ -63,7 +63,7 @@ export function ProductCategoriesModal({
             </TouchableOpacity>
           </View>
           {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 24 }} />
+            <ActivityIndicator color={colors.textSecondary} style={{ marginVertical: 24 }} />
           ) : (
             <ProductCategoriesEditor value={value} onChange={setValue} colors={colors} />
           )}

@@ -116,17 +116,14 @@ export function DesktopRailMenuButton({ onPress, active, colors }) {
         borderRadius: size / 2,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: active ? colors.primaryRgba(0.14) : colors.card,
-        borderWidth: 1,
-        borderColor: active ? colors.primary + '44' : colors.border,
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+        borderColor: 'transparent',
         ...(Platform.OS === 'web'
-          ? { display: 'flex', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', cursor: 'pointer' }
+          ? { display: 'flex', boxShadow: 'none', cursor: 'pointer' }
           : {
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.18,
-              shadowRadius: 12,
-              elevation: 12,
+              shadowOpacity: 0,
+              elevation: 0,
             }),
       }}
     >
@@ -185,11 +182,7 @@ function RailItem({ icon, label, onPress, active, colors, ionIcon, shortcut }) {
           playTapSound();
           onPress?.();
         }}
-        style={[
-          s.roundBtn,
-          { borderColor: colors.border },
-          active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
-        ]}
+        style={[s.roundBtn]}
         accessibilityLabel={shortcut ? `${label} (${shortcut})` : label}
         accessibilityRole="button"
       >
@@ -346,8 +339,6 @@ export function RightSideTabBar({
                 }}
                 style={[
                   s.bottomRoundBtn,
-                  { borderColor: colors.border },
-                  active && { backgroundColor: colors.primaryRgba(0.14), borderColor: colors.primary + '44' },
                 ]}
                 accessibilityLabel={shortcutById[it.key] ? `${it.label} (${shortcutById[it.key]})` : it.label}
                 accessibilityRole="button"
@@ -382,13 +373,12 @@ export function RightSideTabBar({
           style={[
             s.island,
             {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-              ...(Platform.OS === 'web'
-                ? {
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.08)',
-                  }
-                : {}),
+              backgroundColor: 'transparent',
+              borderColor: 'transparent',
+              borderWidth: 0,
+              elevation: 0,
+              shadowOpacity: 0,
+              ...(Platform.OS === 'web' ? { boxShadow: 'none' } : {}),
             },
           ]}
         >
@@ -453,15 +443,12 @@ const s = StyleSheet.create({
     flexShrink: 0,
     alignSelf: 'center',
     borderRadius: ISLAND_RADIUS,
-    borderWidth: 1,
+    borderWidth: 0,
     paddingVertical: 12,
     paddingHorizontal: 7,
     overflow: 'visible',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   islandInner: {
     flexDirection: 'column',
@@ -473,10 +460,12 @@ const s = StyleSheet.create({
     width: BTN,
     height: BTN,
     borderRadius: BTN / 2,
-    borderWidth: 1,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none', boxShadow: 'none' } : {}),
   },
   addRound: {
     width: ADD_BTN,
@@ -508,7 +497,8 @@ const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    borderWidth: 1,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',

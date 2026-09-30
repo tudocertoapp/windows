@@ -487,7 +487,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
         onPress={() => { playTapSound(); setTab('contatos'); }}
       >
         {loadingContacts ? (
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator size="small" color={colors.textSecondary} />
         ) : (
           <Ionicons name="call-outline" size={18} color={tab === 'contatos' ? '#fff' : colors.primary} />
         )}
@@ -506,7 +506,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
             <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>WhatsApp e CRM</Text>
             {onClose ? (
               <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }} onPress={() => { playTapSound(); onClose(); }}>
-                <Ionicons name="close" size={22} color={colors.primary} />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -549,7 +549,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                 onPress={loadContacts}
                 disabled={loadingContacts}
               >
-                {loadingContacts ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="refresh-outline" size={22} color={colors.primary} />}
+                {loadingContacts ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name="refresh-outline" size={22} color={colors.textSecondary} />}
                 <Text style={[s.importBtnText, { color: colors.primary }]}>{contacts.length ? 'Atualizar lista' : 'Carregar contatos'}</Text>
               </TouchableOpacity>
               {canImportContactsFile ? (
@@ -558,7 +558,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                   onPress={importContactsFromFile}
                   disabled={importingFile || loadingContacts}
                 >
-                  {importingFile ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="document-attach-outline" size={22} color={colors.primary} />}
+                  {importingFile ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name="document-attach-outline" size={22} color={colors.textSecondary} />}
                   <Text style={[s.importBtnText, { color: colors.primary }]}>Carregar contatos por arquivo</Text>
                 </TouchableOpacity>
               ) : null}
@@ -597,7 +597,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                         });
                       }}
                     >
-                      <Ionicons name="person-add" size={20} color={colors.primary} />
+                      <Ionicons name="person-add" size={20} color={colors.textSecondary} />
                     </TouchableOpacity>
                   )}
                   {showEmpresaFeatures && user?.id && (
@@ -609,7 +609,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                         openWhatsApp(phone, getClientRegistrationWhatsAppMessage(fullUrl));
                       }}
                     >
-                      <Ionicons name="link" size={20} color={colors.primary} />
+                      <Ionicons name="link" size={20} color={colors.textSecondary} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -675,7 +675,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                       <Image source={{ uri: c.foto }} style={[s.crmAvatar, { backgroundColor: colors.primaryRgba?.(0.2) }]} resizeMode="cover" />
                     ) : (
                       <View style={[s.crmAvatar, { backgroundColor: colors.primaryRgba?.(0.2), justifyContent: 'center', alignItems: 'center' }]}>
-                        <Ionicons name="person" size={24} color={colors.primary} />
+                        <Ionicons name="person" size={24} color={colors.textSecondary} />
                       </View>
                     )}
                   </View>
@@ -684,10 +684,10 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                       <Text style={[s.crmCardName, s.crmCardNameFlex, { color: colors.text }]} numberOfLines={1}>{c.name}</Text>
                       <View style={s.crmNameRight}>
                         <TouchableOpacity onPress={() => { playTapSound(); setVerClienteDetalhe(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
-                          <Ionicons name="eye-outline" size={18} color={colors.primary} />
+                          <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => { playTapSound(); setNewClientFromContact(null); setEditingClient(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
-                          <Ionicons name="pencil" size={18} color={colors.primary} />
+                          <Ionicons name="pencil" size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                         {c.phone?.trim() ? (
                           <TouchableOpacity onPress={() => { playTapSound(); setConversarClientModal(c); }} style={[s.actionBtn, { backgroundColor: 'transparent' }]}>
@@ -740,7 +740,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                   onPress={() => { playTapSound(); setFrasesDropdownOpen(!frasesDropdownOpen); }}
                   style={[s.frasesChevronBtn, { borderLeftColor: colors.border }]}
                 >
-                  <Ionicons name={frasesDropdownOpen ? 'chevron-up' : 'chevron-down'} size={22} color={colors.primary} />
+                  <Ionicons name={frasesDropdownOpen ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               {frasesDropdownOpen && (
@@ -769,7 +769,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                       </TouchableOpacity>
                       <View style={s.fraseActions}>
                         <TouchableOpacity onPress={() => startEditTemplate(idx)} style={s.fraseActionBtn}>
-                          <Ionicons name="pencil-outline" size={18} color={colors.primary} />
+                          <Ionicons name="pencil-outline" size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => openWhatsappModal(t)} style={s.fraseActionBtn}>
                           <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
@@ -825,14 +825,14 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                           style={[s.editRoundBtn, { backgroundColor: 'transparent' }]}
                           onPress={() => { playTapSound(); setEditingClient(c); }}
                         >
-                          <Ionicons name="pencil" size={20} color={colors.primary} />
+                          <Ionicons name="pencil" size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
                         style={[s.whatsappRoundBtn, { backgroundColor: 'transparent' }]}
                         onPress={() => { playTapSound(); setConversarClientModal(c); }}
                       >
-                        <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+                        <Ionicons name="logo-whatsapp" size={20} color={colors.textSecondary} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -867,7 +867,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                 ))}
                 {editingTemplatePhotos.length < 2 && (
                   <TouchableOpacity onPress={pickTemplatePhoto} style={{ width: 56, height: 56, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="add" size={24} color={colors.primary} />
+                    <Ionicons name="add" size={24} color={colors.textSecondary} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -938,7 +938,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                 setConversarFraseFilter('');
               }}
             >
-              <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+              <Ionicons name="logo-whatsapp" size={20} color={colors.textSecondary} />
               <Text style={[s.conversarChamarText, { color: colors.text }]}>Apenas conversar</Text>
             </TouchableOpacity>
             <Text style={[s.sectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>Ou escolha uma frase</Text>
@@ -966,7 +966,7 @@ export function MensagensWhatsAppScreen({ onClose, isModal = false }) {
                     setConversarFraseFilter('');
                   }}
                 >
-                  <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
+                  <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
                   <Text style={[s.fraseText, { flex: 1, color: colors.text }]} numberOfLines={2}>{txt}{(typeof t === 'object' && t?.photos?.length) ? ` 📷` : ''}</Text>
                   <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
                 </TouchableOpacity>

@@ -29,6 +29,7 @@ import { getCategoryColor } from '../constants/colors';
 import { formatCurrency } from '../utils/format';
 import { transactionMatchesViewMode } from '../utils/viewModeFilter';
 import { playTapSound } from '../utils/sounds';
+import { chromeBtnBox } from '../utils/chromeButton';
 import { buildOverviewKpis } from '../utils/overviewKpis';
 import { KpiBarList } from '../components/charts/KpiBarList';
 import { CardPickerModal } from '../components/CardPickerModal';
@@ -463,21 +464,21 @@ export function DinheiroScreen({ route }) {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
               <TouchableOpacity
                 onPress={() => { playTapSound(); setFaturasFiltroTipo('todos'); }}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'todos' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'todos' ? colors.primary : colors.border }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, ...chromeBtnBox(colors, { active: faturasFiltroTipo === 'todos' }) }}
               >
                 <Ionicons name="list" size={14} color={faturasFiltroTipo === 'todos' ? colors.primary : colors.textSecondary} />
                 <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'todos' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Todos</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { playTapSound(); setFaturasFiltroTipo('pessoal'); }}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'pessoal' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'pessoal' ? colors.primary : colors.border }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, ...chromeBtnBox(colors, { active: faturasFiltroTipo === 'pessoal' }) }}
               >
                 <Ionicons name="person-outline" size={14} color={faturasFiltroTipo === 'pessoal' ? colors.primary : colors.textSecondary} />
                 <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'pessoal' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Pessoal</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { playTapSound(); setFaturasFiltroTipo('empresa'); }}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, backgroundColor: faturasFiltroTipo === 'empresa' ? colors.primary + '30' : colors.primaryRgba?.(0.08) ?? colors.primary + '15', borderWidth: 1, borderColor: faturasFiltroTipo === 'empresa' ? colors.primary : colors.border }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, ...chromeBtnBox(colors, { active: faturasFiltroTipo === 'empresa' }) }}
               >
                 <Ionicons name="business-outline" size={14} color={faturasFiltroTipo === 'empresa' ? colors.primary : colors.textSecondary} />
                 <Text style={{ fontSize: 12, color: faturasFiltroTipo === 'empresa' ? colors.primary : colors.textSecondary, fontWeight: '600' }}>Empresa</Text>
@@ -764,9 +765,9 @@ export function DinheiroScreen({ route }) {
             </Text>
             <TouchableOpacity
               onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.(tx.type === 'income' ? 'receita' : 'despesa', { editTransaction: tx }); }}
-              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary + '26', borderWidth: 1, borderColor: colors.primary + '50', flexShrink: 0 }}
+              style={chromeBtnBox(colors, { ghost: true, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', flexShrink: 0 })}
             >
-              <Ionicons name="pencil" size={18} color={colors.primary} />
+              <Ionicons name="pencil" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
@@ -777,7 +778,7 @@ export function DinheiroScreen({ route }) {
                   { text: labelExcluir, style: 'destructive', onPress: () => handleDeleteTransaction(tx) },
                 ]);
               }}
-              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primaryRgba(0.08), borderWidth: 1, borderColor: colors.border, flexShrink: 0 }}
+              style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', borderWidth: 0, flexShrink: 0 }}
             >
               <Ionicons name="trash-outline" size={18} color="#ef4444" />
             </TouchableOpacity>

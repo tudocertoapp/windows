@@ -198,10 +198,10 @@ export function FaturaModal({ visible, fatura, onSave, onClose }) {
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR FATURA' : 'NOVA FATURA'}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={() => Keyboard.dismiss()}>
-                  <Ionicons name="keyboard-outline" size={20} color={colors.primary} />
+                  <Ionicons name="keyboard-outline" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                  <Ionicons name="close" size={22} color={colors.primary} />
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>

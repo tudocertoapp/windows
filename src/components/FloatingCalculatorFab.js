@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { playTapSound } from '../utils/sounds';
+import { chromeBtnBox } from '../utils/chromeButton';
 
 const DRAG_THRESHOLD = 6;
 const SIZE = 56;
@@ -91,11 +92,11 @@ export function FloatingCalculatorFab({ visible, onPress }) {
           playTapSound();
           onPress?.();
         }}
-        style={[styles.fab, { backgroundColor: colors.primary, borderColor: colors.primary + '99' }]}
+        style={[styles.fab, chromeBtnBox(colors, { ghost: true })]}
         accessibilityLabel="Abrir calculadora"
       >
         <View style={styles.inner}>
-          <Ionicons name="calculator-outline" size={24} color="#fff" />
+          <Ionicons name="calculator-outline" size={24} color={colors.textSecondary} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -117,12 +118,9 @@ const styles = StyleSheet.create({
     borderRadius: SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 20,
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   inner: {
     width: SIZE,

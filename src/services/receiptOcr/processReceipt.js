@@ -1,5 +1,8 @@
-import { googleVisionOcrText } from '../googleVisionOCR';
+import { localOcrText, isLocalOcrAvailable } from '../localOcr';
 import { extractReceiptData, isValidReceiptData } from '../../utils/receiptOcr/extractReceiptData';
+import { resizeReceiptImage } from '../../utils/resizeReceiptImage';
+import { getVisionOcrEndpoint } from '../../lib/visionApi';
+import { readReceiptViaProxy, formatVisionProxyError } from '../googleVisionOCR.shared';
 
 const receiptCache = new Map();
 const MAX_CACHE = 8;
@@ -18,10 +21,21 @@ function cacheSet(key, value) {
   receiptCache.set(key, value);
 }
 
-async function readWithCloudVision(imageUri, imageBase64, opts = {}) {
-  const image = imageBase64 ? { uri: imageUri, base64: imageBase64 } : imageUri;
-  const text = await googleVisionOcrText(image, { languageHints: opts.languageHints || ['pt'] });
-  return text;
+function fromFields(fields, rawText, source) {
+  const data = {
+    total: typeof fields?.total === 'number' && Number.isFinite(fields.total) ? fields.total : null,
+    date: fields?.date ? String(fields.date) : null,
+    store: String(fields?.store || ''),
+    rawText: rawText || '',
+  };
+  if (!data.total || !data.date) {
+    const extracted = extractReceiptData(rawText);
+    if (!data.total) data.total = extracted.total;
+    if (!data.date) data.date = extracted.date;
+    if (!data.store) data.store = extracted.store;
+    if (!data.rawText) data.rawText = extracted.rawText;
+  }
+  return { ...data, source };
 }
 
 /**
@@ -37,32 +51,82 @@ export async function processReceipt(arg1) {
   const cached = cacheGet(key);
   if (cached) return { ...cached, success: true };
 
-  onStage?.('cloud-start');
-  let rawText = '';
   let lastError = '';
+  let rawText = '';
+  const sourceUri =
+    imageUri.startsWith('data:') || !imageBase64
+      ? imageUri
+      : `data:image/jpeg;base64,${String(imageBase64).replace(/^data:image\/\w+;base64,/, '')}`;
 
+  onStage?.('resize');
+  let resized;
   try {
-    rawText = await readWithCloudVision(imageUri, imageBase64);
-    const cloudData = extractReceiptData(rawText);
-    if (isValidReceiptData(cloudData)) {
-      const out = { ...cloudData, success: true, source: 'cloud' };
-      cacheSet(key, out);
-      onStage?.('cloud-success');
-      return out;
-    }
-    lastError = rawText
-      ? 'Li o comprovante, mas não encontrei valor total e data com clareza. Tente uma foto mais nítida ou cadastre manualmente.'
-      : 'O OCR não retornou texto. Verifique a chave API e se a imagem está legível.';
+    resized = await resizeReceiptImage(sourceUri);
   } catch (e) {
-    lastError = e?.message || 'Erro ao ler imagem com Google Vision';
-    console.warn('[processReceipt]', lastError);
+    lastError = e?.message || 'Não foi possível reduzir a imagem';
+    console.warn('[processReceipt] resize', lastError);
+  }
+  if (!resized?.base64 && imageBase64) {
+    resized = {
+      uri: sourceUri,
+      base64: String(imageBase64).replace(/^data:image\/\w+;base64,/, ''),
+      mime: 'image/jpeg',
+    };
   }
 
-  onStage?.('cloud-failed');
+  const endpoint = getVisionOcrEndpoint();
+  if (resized?.base64 && endpoint) {
+    onStage?.('gemini-start');
+    try {
+      const remote = await readReceiptViaProxy(resized.base64, resized.mime);
+      rawText = remote?.text || '';
+      const data = fromFields(remote, rawText, 'gemini');
+      if (isValidReceiptData(data)) {
+        const out = { ...data, success: true, source: 'gemini' };
+        cacheSet(key, out);
+        onStage?.('gemini-success');
+        return out;
+      }
+      lastError = rawText
+        ? 'A IA leu o comprovante, mas não encontrou valor total e data com clareza. Tente uma foto mais nítida ou cadastre manualmente.'
+        : 'A IA não retornou texto. Use uma foto mais nítida ou cadastre manualmente.';
+    } catch (e) {
+      lastError = formatVisionProxyError(e);
+      console.warn('[processReceipt] gemini', lastError);
+    }
+    onStage?.('gemini-failed');
+  } else if (!endpoint) {
+    lastError = 'Servidor OCR não configurado (EXPO_PUBLIC_SITE_URL).';
+  }
+
+  if (isLocalOcrAvailable()) {
+    onStage?.('local-start');
+    try {
+      const image = resized?.base64
+        ? { uri: resized.uri || imageUri, base64: resized.base64 }
+        : sourceUri;
+      rawText = await localOcrText(image);
+      const data = fromFields(null, rawText, 'local');
+      if (isValidReceiptData(data)) {
+        const out = { ...data, success: true, source: 'local' };
+        cacheSet(key, out);
+        onStage?.('local-success');
+        return out;
+      }
+      lastError = rawText
+        ? 'Li o comprovante, mas não encontrei valor total e data com clareza. Tente uma foto mais nítida ou cadastre manualmente.'
+        : lastError || 'O OCR não retornou texto. Use uma foto mais nítida ou cadastre manualmente.';
+    } catch (e) {
+      lastError = e?.message || lastError || 'Erro ao ler imagem';
+      console.warn('[processReceipt] local', lastError);
+    }
+    onStage?.('local-failed');
+  }
+
   return {
     success: false,
-    source: 'cloud-failed',
-    error: lastError,
+    source: lastError ? 'failed' : 'failed',
+    error: lastError || 'Não foi possível ler o comprovante.',
     rawText: rawText || undefined,
   };
 }

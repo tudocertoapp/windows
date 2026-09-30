@@ -92,7 +92,7 @@ export function OrcamentosScreen({ onClose, onNewOrcamento, onViewOrcamento, onE
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
         <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <TouchableOpacity onPress={() => playTapSound() || onClose?.()} style={{ padding: 8, marginRight: 8 }}>
-            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Orçamentos</Text>
         </View>
@@ -110,7 +110,7 @@ export function OrcamentosScreen({ onClose, onNewOrcamento, onViewOrcamento, onE
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <View style={[s.headerBar, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }} style={s.headerBack}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.text }]}>Orçamentos</Text>
         <View style={{ width: 40 }} />
@@ -175,7 +175,7 @@ export function OrcamentosScreen({ onClose, onNewOrcamento, onViewOrcamento, onE
 
       {loading ? (
         <View style={s.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.textSecondary} />
         </View>
       ) : filtered.length === 0 ? (
         <View style={s.empty}>

@@ -169,7 +169,7 @@ export function OrdemServicoScreen({ onClose }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <View style={[s.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={handleBack} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.text }]}>Ordem de Serviço</Text>
         <TouchableOpacity onPress={openAdd} style={[s.addBtn, { backgroundColor: colors.primary }]}>
@@ -181,7 +181,7 @@ export function OrdemServicoScreen({ onClose }) {
         {ordensServico.length === 0 ? (
           <GlassCard colors={colors} style={[s.card, { borderColor: colors.border }]}>
             <View style={s.emptyIconWrap}>
-              <Ionicons name="document-text-outline" size={56} color={colors.primary} />
+              <Ionicons name="document-text-outline" size={56} color={colors.textSecondary} />
             </View>
             <Text style={[s.emptyTitle, { color: colors.text }]}>Nenhuma ordem de serviço</Text>
             <Text style={[s.emptySub, { color: colors.textSecondary }]}>Cadastre ordens para controlar os serviços prestados</Text>
@@ -232,7 +232,7 @@ export function OrdemServicoScreen({ onClose }) {
             <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[s.modalTitle, { color: colors.text }]}>Nova Ordem de Serviço</Text>
               <TouchableOpacity onPress={() => setShowForm(false)} style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.15) }]}>
-                <Ionicons name="close" size={22} color={colors.primary} />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView

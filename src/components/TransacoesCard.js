@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GlassCard } from './GlassCard';
 import { AppIcon } from './AppIcon';
 import { ScrollableCardList } from './ScrollableCardList';
+import { chromeBtnBox } from '../utils/chromeButton';
 
 const s = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1, padding: 16 },
@@ -57,9 +58,9 @@ export function TransacoesCard({ transactions, formatCurrency, mask, colors, ico
         rightActions={onVerMais ? (
           <TouchableOpacity
             onPress={() => { playTapSound?.(); onVerMais(); }}
-            style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', backgroundColor: primary + '26', borderWidth: 1, borderColor: primary + '50' }}
+            style={chromeBtnBox(colors, { ghost: true, width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' })}
           >
-            <AppIcon name="expand-outline" size={22} color={primary} />
+            <AppIcon name="expand-outline" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
       />
@@ -90,14 +91,14 @@ export function TransacoesCard({ transactions, formatCurrency, mask, colors, ico
             {m(fmt(tx.amount))}
           </Text>
           {onEdit && (
-            <TouchableOpacity onPress={() => { playTapSound?.(); onEdit(tx); }} style={{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: primary + '20' }}>
+            <TouchableOpacity onPress={() => { playTapSound?.(); onEdit(tx); }} style={{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}>
               <Ionicons name="pencil" size={16} color={primary} />
             </TouchableOpacity>
           )}
           {onDelete && (
             <TouchableOpacity
               onPress={() => { playTapSound?.(); Alert.alert(deleteLabel, deleteMessage, [{ text: 'Não' }, { text: deleteLabel, style: 'destructive', onPress: () => onDelete(tx) }]); }}
-              style={{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ef444420' }}
+              style={{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}
             >
               <Ionicons name="trash-outline" size={16} color="#ef4444" />
             </TouchableOpacity>

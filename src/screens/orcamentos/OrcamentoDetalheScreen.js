@@ -70,7 +70,7 @@ export function OrcamentoDetalheScreen({ orcamento, cliente, onBack, onEdit, onF
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <View style={[s.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => { playTapSound(); onBack?.(); }} style={s.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.text }]}>Orçamento {orcamento.numero}</Text>
       </View>
@@ -137,16 +137,16 @@ export function OrcamentoDetalheScreen({ orcamento, cliente, onBack, onEdit, onF
 
         <View style={s.actions}>
           <TouchableOpacity onPress={handlePdf} disabled={loadingPdf} style={[s.actionBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-            {loadingPdf ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="document-outline" size={22} color={colors.primary} />}
+            {loadingPdf ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name="document-outline" size={22} color={colors.textSecondary} />}
             <Text style={[s.actionText, { color: colors.primary }]}>Gerar PDF</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePrint} disabled={loadingPdf} style={[s.actionBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-            <Ionicons name="print-outline" size={22} color={colors.primary} />
+            <Ionicons name="print-outline" size={22} color={colors.textSecondary} />
             <Text style={[s.actionText, { color: colors.primary }]}>Imprimir</Text>
           </TouchableOpacity>
           {orcamento.status !== 'faturado' && (
             <TouchableOpacity onPress={() => { playTapSound(); onEdit?.(); }} style={[s.actionBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]}>
-              <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+              <Ionicons name="pencil-outline" size={22} color={colors.textSecondary} />
               <Text style={[s.actionText, { color: colors.primary }]}>Editar</Text>
             </TouchableOpacity>
           )}

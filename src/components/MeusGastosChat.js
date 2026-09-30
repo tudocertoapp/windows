@@ -1036,7 +1036,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 {item.action?.iconName ? (
-                  <Ionicons name={item.action.iconName} size={16} color={colors.primary} />
+                  <Ionicons name={item.action.iconName} size={16} color={colors.textSecondary} />
                 ) : null}
                 <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '800' }}>{item.action.label}</Text>
               </View>
@@ -1259,7 +1259,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
                 runImagePickerAfterModalClose(takePhotoWithCamera);
               }}
             >
-              <Ionicons name="camera-outline" size={24} color={colors.primary} />
+              <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
               <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '700', marginLeft: 10 }}>Tirar foto</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1269,7 +1269,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
                 runImagePickerAfterModalClose(pickImageFromGallery);
               }}
             >
-              <Ionicons name="images-outline" size={24} color={colors.primary} />
+              <Ionicons name="images-outline" size={24} color={colors.textSecondary} />
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600', marginLeft: 10 }}>Buscar na galeria</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setCameraChoiceVisible(false)} style={{ marginTop: 10, paddingVertical: 8 }}>
@@ -1287,7 +1287,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
               onPress={() => setPreviewImageUri(null)}
               style={[s.previewCloseBtn, { backgroundColor: colors.primaryRgba(0.25) }]}
             >
-              <Ionicons name="close" size={22} color={colors.primary} />
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
             {previewImageUri ? (
               <Image source={{ uri: previewImageUri }} style={s.previewImage} resizeMode="contain" />

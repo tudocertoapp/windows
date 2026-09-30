@@ -130,7 +130,7 @@ export function TarefaFormModal({ visible, tarefa, onSave, onClose }) {
               <Text style={[s.title, { color: colors.primary }]}>{isEdit ? 'EDITAR TAREFA' : 'NOVA TAREFA'}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-                  <Ionicons name="close" size={22} color={colors.primary} />
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -172,7 +172,7 @@ export function TarefaFormModal({ visible, tarefa, onSave, onClose }) {
                     </View>
                   </View>
                   <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -8, marginBottom: GAP }}>
-                    <Ionicons name="time-outline" size={18} color={colors.primary} />
+                    <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
                     <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
                   </TouchableOpacity>
                 </>

@@ -1,7 +1,6 @@
 /**
- * Configuração Expo - lê a chave Google Vision de variável de ambiente.
- * Crie um arquivo .env com: EXPO_PUBLIC_GOOGLE_VISION_API_KEY=sua_chave
- * O Expo carrega .env automaticamente ao iniciar.
+ * Configuração Expo.
+ * OCR de comprovante: GEMINI_API_KEY só no servidor (Vercel / .env). Não use EXPO_PUBLIC_ para essa chave.
  *
  * Versão mobile: edite mobile-version.json (ou `npm run sync:mobile-version`).
  * android.versionCode e ios.buildNumber derivam automaticamente do semver (monótonos).

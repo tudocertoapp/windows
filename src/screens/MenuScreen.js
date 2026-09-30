@@ -112,7 +112,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         activeOpacity={0.6}
       >
         <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: iconBox, height: iconBox, borderRadius: drawerDesktop ? 9 : (isCompact ? 8 : 10), marginTop: drawerDesktop ? 1 : 0 }]}>
-          <AppIcon name={icon} size={iconSz} color={colors.primary} />
+          <AppIcon name={icon} size={iconSz} color={colors.textSecondary} />
         </View>
         <View style={{ flex: 1, minWidth: drawerDesktop ? 0 : undefined }}>
           <Text
@@ -138,7 +138,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
         <View style={[topBarStyles.bar, { backgroundColor: colors.bg }]}>
           <Text style={[topBarStyles.title, { color: colors.text }]}>Menu</Text>
           <TouchableOpacity style={[topBarStyles.menuBtn, { backgroundColor: 'transparent' }]} onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       )}
@@ -184,11 +184,11 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
               style={{ flexDirection: 'row', alignItems: 'center', marginTop: isCompact ? 4 : 8, gap: 4 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="rocket-outline" size={isCompact ? 12 : 14} color={colors.primary} />
+              <Ionicons name="rocket-outline" size={isCompact ? 12 : 14} color={colors.textSecondary} />
               <Text style={{ fontSize: isCompact ? 10 : 12, fontWeight: '600', color: colors.primary }} numberOfLines={drawerDesktop ? 2 : 1}>
                 {planLabel || 'Plano Básico'}
               </Text>
-              <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+              <Ionicons name="chevron-forward" size={12} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -203,7 +203,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
                 activeOpacity={0.7}
               >
                 <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: drawerDesktop ? 32 : (isCompact ? 30 : 36), height: drawerDesktop ? 32 : (isCompact ? 30 : 36), borderRadius: drawerDesktop ? 9 : (isCompact ? 8 : 10) }]}>
-                  <AppIcon name="business-outline" size={drawerDesktop ? 20 : (isCompact ? 18 : 22)} color={colors.primary} />
+                  <AppIcon name="business-outline" size={drawerDesktop ? 20 : (isCompact ? 18 : 22)} color={colors.textSecondary} />
                 </View>
                 <View style={{ flex: 1, minWidth: drawerDesktop ? 0 : undefined }}>
                   <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 13 : 14 }]}>Empresa</Text>
@@ -236,7 +236,7 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             activeOpacity={0.7}
           >
             <View style={[ms.menuIconBox, { backgroundColor: 'transparent', width: drawerDesktop ? 32 : (isCompact ? 30 : 36), height: drawerDesktop ? 32 : (isCompact ? 30 : 36), borderRadius: drawerDesktop ? 9 : (isCompact ? 8 : 10) }]}>
-              <AppIcon name="settings-outline" size={drawerDesktop ? 20 : (isCompact ? 18 : 22)} color={colors.primary} />
+              <AppIcon name="settings-outline" size={drawerDesktop ? 20 : (isCompact ? 18 : 22)} color={colors.textSecondary} />
             </View>
             <View style={{ flex: 1, minWidth: drawerDesktop ? 0 : undefined }}>
               <Text style={[ms.menuLabel, { color: colors.text, fontSize: isCompact ? 13 : 14 }]}>Configurações</Text>

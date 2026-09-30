@@ -122,12 +122,12 @@ export function LojaItemEditModal({ visible, item, onSave, onClose, userId, savi
                 <Image source={{ uri: photoUri }} style={st.photo} resizeMode="cover" />
               ) : (
                 <View style={[st.photo, st.photoPh, { backgroundColor: colors.primary + '18' }]}>
-                  <Ionicons name="camera" size={28} color={colors.primary} />
+                  <Ionicons name="camera" size={28} color={colors.textSecondary} />
                 </View>
               )}
               <View style={{ flex: 1 }}>
                 {uploading ? (
-                  <ActivityIndicator color={colors.primary} />
+                  <ActivityIndicator color={colors.textSecondary} />
                 ) : (
                   <>
                     <Text style={{ fontWeight: '700', color: colors.primary }}>{photoUri ? 'Trocar foto' : 'Adicionar foto'}</Text>

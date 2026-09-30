@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
-import { googleVisionOcrText } from '../services/googleVisionOCR';
+import { processReceipt } from '../services/receiptOcr/processReceipt';
 import { parseReceipt } from '../utils/parseReceipt';
 
 function brDateToIso(dateStr) {
@@ -45,9 +45,19 @@ export function ReceiptScannerScreen({ onClose, isModal }) {
     setOcrText('');
     setParsed(null);
     try {
-      const text = await googleVisionOcrText(picked, { languageHints: ['pt'] });
+      const receipt = await processReceipt({ imageUri: picked.uri, imageBase64: picked.base64 });
+      const text = receipt.rawText || '';
       setOcrText(text);
-      setParsed(parseReceipt(text));
+      if (receipt.success) {
+        setParsed({
+          store: receipt.store,
+          value: receipt.total,
+          date: receipt.date,
+          rawText: text,
+        });
+      } else {
+        setParsed(parseReceipt(text));
+      }
     } catch (e) {
       Alert.alert('Erro no OCR', e?.message || 'Não consegui ler esse comprovante.');
     } finally {
@@ -108,7 +118,7 @@ export function ReceiptScannerScreen({ onClose, isModal }) {
         <Text style={[s.headerTitle, { color: colors.text }]}>Scanner de comprovante</Text>
         {isModal && (
           <TouchableOpacity onPress={onClose} style={[s.headerBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
-            <Ionicons name="close" size={22} color={colors.primary} />
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -124,7 +134,7 @@ export function ReceiptScannerScreen({ onClose, isModal }) {
               <Text style={s.btnText}>Scan receipt</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={pickFromGallery} style={[s.btn, { backgroundColor: colors.primaryRgba(0.15), borderColor: colors.primary + '60', borderWidth: 1 }]}>
-              <Ionicons name="image" size={18} color={colors.primary} />
+              <Ionicons name="image" size={18} color={colors.textSecondary} />
               <Text style={[s.btnText, { color: colors.primary }]}>Galeria</Text>
             </TouchableOpacity>
           </View>
@@ -139,7 +149,7 @@ export function ReceiptScannerScreen({ onClose, isModal }) {
 
         {scanning ? (
           <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color={colors.textSecondary} />
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>Lendo comprovante…</Text>
           </View>
         ) : null}

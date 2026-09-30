@@ -69,7 +69,7 @@ export function PoliticaPrivacidadeScreen({ onClose, isModal }) {
             style={[topBarStyles.menuBtn, { backgroundColor: colors.primaryRgba(0.2) }]}
             onPress={() => { playTapSound(); onClose(); }}
           >
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       )}

@@ -142,7 +142,7 @@ export function LojaPublicaScreen({ ownerUserId: ownerUserIdProp, lojaSlug: loja
   if (loading) {
     return (
       <SafeAreaView style={[s.root, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 80 }} />
+        <ActivityIndicator size="large" color={colors.textSecondary} style={{ marginTop: 80 }} />
         <Text style={{ textAlign: 'center', color: colors.textSecondary, marginTop: 16 }}>Carregando loja...</Text>
       </SafeAreaView>
     );

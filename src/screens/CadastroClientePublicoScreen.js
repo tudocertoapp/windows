@@ -95,7 +95,7 @@ export function CadastroClientePublicoScreen({ ownerUserId: ownerUserIdProp }) {
     return (
       <SafeAreaView style={[s.wrap, { backgroundColor: colors.bg }]}>
         <View style={[s.inner, s.successBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.primary} />
+          <Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />
           <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, textAlign: 'center' }}>Link inválido</Text>
           <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center' }}>
             Este link de cadastro não está correto. Solicite um novo link pelo WhatsApp.
@@ -109,7 +109,7 @@ export function CadastroClientePublicoScreen({ ownerUserId: ownerUserIdProp }) {
     return (
       <SafeAreaView style={[s.wrap, { backgroundColor: colors.bg }]}>
         <View style={[s.inner, s.successBox, { borderColor: colors.primary + '50', backgroundColor: colors.primaryRgba(0.08) }]}>
-          <Ionicons name="checkmark-circle" size={56} color={colors.primary} />
+          <Ionicons name="checkmark-circle" size={56} color={colors.textSecondary} />
           <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, textAlign: 'center' }}>Cadastro enviado!</Text>
           <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center' }}>
             Obrigado, {name.trim()}. A empresa já recebeu seus dados.

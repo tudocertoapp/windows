@@ -90,8 +90,8 @@ export function AReceberScreen({ onClose, isModal }) {
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>{isVendasPrazo ? 'Vendas a prazo' : 'A Receber'}</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -117,7 +117,7 @@ export function AReceberScreen({ onClose, isModal }) {
           <View key={r.id} style={[ars.item, { backgroundColor: r.status === 'pago' ? colors.primaryRgba(0.1) : colors.card, borderColor: colors.border, opacity: r.status === 'pago' ? 0.7 : 1, flexDirection: 'column', alignItems: 'stretch' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <View style={[ars.itemIcon, { backgroundColor: 'transparent' }]}>
-                <Ionicons name={r.status === 'pago' ? 'checkmark-circle' : 'calendar-outline'} size={22} color={colors.primary} />
+                <Ionicons name={r.status === 'pago' ? 'checkmark-circle' : 'calendar-outline'} size={22} color={colors.textSecondary} />
               </View>
               <View style={ars.itemBody}>
                 <Text style={[ars.itemDesc, { color: colors.text }]}>{r.description || 'Parcela'}</Text>
@@ -129,7 +129,7 @@ export function AReceberScreen({ onClose, isModal }) {
             </View>
             <View style={ars.actionRow}>
               <TouchableOpacity onPress={() => openEdit(r)} style={[ars.actionBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
-                <Ionicons name="pencil" size={16} color={colors.primary} />
+                <Ionicons name="pencil" size={16} color={colors.textSecondary} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Editar</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleConcluir(r)} style={[ars.actionBtn, { backgroundColor: r.status === 'pago' ? colors.textSecondary + '30' : colors.primaryRgba(0.2) }]}>

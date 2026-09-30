@@ -121,7 +121,7 @@ export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListening
       <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[s.box, { backgroundColor: colors.card }]}>
           <TouchableOpacity style={[s.closeBtn, { backgroundColor: colors.primaryRgba(0.2) }]} onPress={onClose}>
-            <Ionicons name="close" size={20} color={colors.primary} />
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <VoiceRecorder
@@ -180,7 +180,7 @@ export function AssistantModal({ visible, onClose, onOpenAdd, autoStartListening
           <View style={s.quickGrid}>
             {QUICK_ACTIONS.map((a) => (
               <TouchableOpacity key={a.id} style={[s.quickBtn, { backgroundColor: 'transparent' }]} onPress={() => handleQuick(a.id)}>
-                <Ionicons name={a.icon} size={18} color={colors.primary} />
+                <Ionicons name={a.icon} size={18} color={colors.textSecondary} />
                 <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>{a.label}</Text>
               </TouchableOpacity>
             ))}

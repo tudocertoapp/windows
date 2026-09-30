@@ -308,7 +308,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
           <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>Pro</Text>
         </View>
       )}
-      {selected && !locked && <Ionicons name="checkmark-circle" size={24} color={colors.primary} />}
+      {selected && !locked && <Ionicons name="checkmark-circle" size={24} color={colors.textSecondary} />}
     </TouchableOpacity>
   );
 
@@ -321,7 +321,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
             style={[topBarStyles.menuBtn, { backgroundColor: colors.primaryRgba(0.2) }]}
             onPress={() => { playTapSound(); onClose(); }}
           >
-            <Ionicons name="close" size={24} color={colors.primary} />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       )}
@@ -412,7 +412,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
               }}
             >
               <View style={[ts.colorSwatch, { backgroundColor: 'transparent', borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary }]}>
-                <Ionicons name="add" size={24} color={colors.primary} style={{ position: 'absolute', top: 6, left: 6 }} />
+                <Ionicons name="add" size={24} color={colors.textSecondary} style={{ position: 'absolute', top: 6, left: 6 }} />
               </View>
               <Text style={[ts.colorName, { color: colors.primary, fontWeight: '600' }]}>Criar cor personalizada</Text>
               {!hasPremiumColors && <View style={[ts.lockBadge, { backgroundColor: colors.border + '60' }]}><Ionicons name="lock-closed" size={14} color={colors.textSecondary} /></View>}
@@ -433,7 +433,7 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
               >
                 <View style={[ts.colorSwatch, { backgroundColor: item.hex }]} />
                 <Text style={[ts.colorName, { color: colors.text }]}>{item.name}</Text>
-                {primaryColor.toLowerCase() === item.hex.toLowerCase() && <Ionicons name="checkmark-circle" size={24} color={colors.primary} />}
+                {primaryColor.toLowerCase() === item.hex.toLowerCase() && <Ionicons name="checkmark-circle" size={24} color={colors.textSecondary} />}
               </TouchableOpacity>
             ))}
             <View style={[ts.colorGrid, { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12 }]}>

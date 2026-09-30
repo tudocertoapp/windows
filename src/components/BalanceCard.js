@@ -111,25 +111,25 @@ export function BalanceCard({
             {['dia', 'mes', 'ano', 'periodo'].map((f) => (
               <TouchableOpacity
                 key={f}
-                style={[ds.filterTab, compactMode && { paddingVertical: 6 }, { backgroundColor: filter === f ? btnColor + '40' : btnColor + '20' }]}
+                style={[ds.filterTab, compactMode && { paddingVertical: 6 }, { backgroundColor: 'transparent' }]}
                 onPress={() => { playTapSound(); onFilterChange?.(f); }}
               >
-                <Text style={[ds.filterTabText, { color: colors.text }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
+                <Text style={[ds.filterTabText, { color: filter === f ? colors.primary : colors.textSecondary }]}>{f === 'dia' ? 'Dia' : f === 'mes' ? 'Mês' : f === 'ano' ? 'Ano' : 'Período'}</Text>
               </TouchableOpacity>
             ))}
           </View>
           {isPeriodo ? (
-            <TouchableOpacity style={[ds.periodoTouch, { backgroundColor: btnColor + '25' }]} onPress={() => { playTapSound(); setTempStart(filterStartDate || tempStart); setTempEnd(filterEndDate || tempEnd); setShowPeriodModal(true); }}>
+            <TouchableOpacity style={[ds.periodoTouch, { backgroundColor: 'transparent' }]} onPress={() => { playTapSound(); setTempStart(filterStartDate || tempStart); setTempEnd(filterEndDate || tempEnd); setShowPeriodModal(true); }}>
               <Text style={[ds.periodoLabel, { color: colors.text }]}>{filterLabel}</Text>
               <Text style={{ fontSize: 11, color: colors.textSecondary }}>Toque para alterar</Text>
             </TouchableOpacity>
           ) : (
             <View style={[ds.navRow, compactMode && { marginTop: 6 }]}>
-              <TouchableOpacity onPress={() => { playTapSound(); onFilterDatePrev?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+              <TouchableOpacity onPress={() => { playTapSound(); onFilterDatePrev?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: 'transparent' }}>
                 <Ionicons name="chevron-back" size={18} color={colors.text} />
               </TouchableOpacity>
               <Text style={{ fontSize: compactMode ? 12 : 13, fontWeight: '600', color: colors.text }}>{filterLabel}</Text>
-              <TouchableOpacity onPress={() => { playTapSound(); onFilterDateNext?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: btnColor + '30' }}>
+              <TouchableOpacity onPress={() => { playTapSound(); onFilterDateNext?.(); }} style={{ padding: compactMode ? 5 : 6, borderRadius: 8, backgroundColor: 'transparent' }}>
                 <Ionicons name="chevron-forward" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>

@@ -1581,42 +1581,42 @@ export function PDVScreen({ onClose, lockedMode = false }) {
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F1</Text>
           </View>
-          <Ionicons name="add" size={18} color={colors.primary} />
+          <Ionicons name="add" size={18} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Adicionar Item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => selectedItem && setSelectedItem(null)}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F2</Text>
           </View>
-          <Ionicons name="create-outline" size={16} color={colors.primary} />
+          <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Editar item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => requestCancelAction('item')}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F3</Text>
           </View>
-          <Ionicons name="remove-circle-outline" size={16} color={colors.primary} />
+          <Ionicons name="remove-circle-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cancelar item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => requestCancelAction('pedido')}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F4</Text>
           </View>
-          <Ionicons name="close-circle-outline" size={16} color={colors.primary} />
+          <Ionicons name="close-circle-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cancelar pedido</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('cliente'); playTapSound(); }}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F5</Text>
           </View>
-          <Ionicons name="person-outline" size={16} color={colors.primary} />
+          <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cliente</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('finalizacao'); playTapSound(); }}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F6</Text>
           </View>
-          <Ionicons name="settings-outline" size={16} color={colors.primary} />
+          <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Pagamento</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -1627,21 +1627,21 @@ export function PDVScreen({ onClose, lockedMode = false }) {
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F7</Text>
           </View>
-          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+          <Ionicons name="checkmark-circle" size={18} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]} numberOfLines={1}>Faturar</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }, !completedSale && styles.footerBtnDisabled]} onPress={handlePrint} disabled={!completedSale}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F8</Text>
           </View>
-          <Ionicons name="print-outline" size={16} color={colors.primary} />
+          <Ionicons name="print-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Imprimir</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => setShowPdvConfigModal(true)}>
           <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F9</Text>
           </View>
-          <Ionicons name="settings-outline" size={16} color={colors.primary} />
+          <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Config. PDV</Text>
         </TouchableOpacity>
       </View>
@@ -1910,7 +1910,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
                     <Text style={styles.printBtnText}>Imprimir cupom</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.novaBtn, { borderColor: colors.border }]} onPress={handleNovaVenda}>
-                    <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+                    <Ionicons name="add-circle-outline" size={22} color={colors.textSecondary} />
                     <Text style={[styles.novaBtnText, { color: colors.primary }]}>Nova venda</Text>
                   </TouchableOpacity>
                 </View>

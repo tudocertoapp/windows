@@ -26,7 +26,7 @@ export function CategoryPicker({ categories, value, onChange, placeholder, color
           onPress={() => setOpen(true)}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {sel ? <Ionicons name={sel.icon} size={18} color={colors.primary} /> : null}
+            {sel ? <Ionicons name={sel.icon} size={18} color={colors.textSecondary} /> : null}
             <Text style={{ fontSize: 15, color: sel ? colors.text : colors.textSecondary }}>{sel?.label || placeholder}</Text>
           </View>
           <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
@@ -42,7 +42,7 @@ export function CategoryPicker({ categories, value, onChange, placeholder, color
                   <TouchableOpacity key={cat.id} style={[s.item, { borderBottomColor: colors.border }]} onPress={() => { onChange(cat.id); setOpen(false); }}>
                     <Ionicons name={cat.icon} size={20} color={value === cat.id ? colors.primary : colors.textSecondary} />
                     <Text style={{ flex: 1, fontSize: 15, fontWeight: value === cat.id ? '600' : '500', color: value === cat.id ? colors.primary : colors.text }}>{cat.label}</Text>
-                    {value === cat.id && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+                    {value === cat.id && <Ionicons name="checkmark-circle" size={22} color={colors.textSecondary} />}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -82,7 +82,7 @@ export function SubcategoryPicker({ subcategories, value, onChange, placeholder,
                 {subcategories.map((sub) => (
                   <TouchableOpacity key={sub} style={[s.item, { borderBottomColor: colors.border }]} onPress={() => { onChange(sub); setOpen(false); }}>
                     <Text style={{ flex: 1, fontSize: 15, fontWeight: value === sub ? '600' : '500', color: value === sub ? colors.primary : colors.text }}>{sub}</Text>
-                    {value === sub && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+                    {value === sub && <Ionicons name="checkmark-circle" size={22} color={colors.textSecondary} />}
                   </TouchableOpacity>
                 ))}
               </ScrollView>

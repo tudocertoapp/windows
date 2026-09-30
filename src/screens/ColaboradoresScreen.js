@@ -20,6 +20,7 @@ import { TopBar } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
 import { onDeletePress } from '../utils/confirm';
 import { useIsDesktopLayout } from '../utils/platformLayout';
+import { chromeBtnBox, chromeBtnColors } from '../utils/chromeButton';
 
 const FUNCOES = ['Vendedor', 'Gerente', 'Serviços gerais', 'Atendimento', 'Administrativo', 'Caixa', 'Outro'];
 const ESTADO_CIVIL = ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)', 'Outro'];
@@ -183,7 +184,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
   const header = isModal ? (
     <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Colaboradores</Text>
-      <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }}><Ionicons name="close" size={24} color={colors.primary} /></TouchableOpacity>
+      <TouchableOpacity onPress={() => { playTapSound(); onClose?.(); }}><Ionicons name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
     </View>
   ) : (
     <TopBar title="Colaboradores" colors={colors} hideOrganize />
@@ -196,7 +197,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
       {header}
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
         <TouchableOpacity onPress={openCreate} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary + '70', borderRadius: 12, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-          <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+          <Ionicons name="add-circle-outline" size={22} color={colors.textSecondary} />
           <Text style={{ color: colors.primary, fontWeight: '700' }}>Cadastrar colaborador</Text>
         </TouchableOpacity>
       </View>
@@ -224,7 +225,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
                   <Text style={{ color: colors.primary, marginTop: 4, fontWeight: '600' }}>Pagamentos registrados: {toMoney(pagos)}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity onPress={() => openEdit(c)}><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+                  <TouchableOpacity onPress={() => openEdit(c)}><Ionicons name="pencil" size={20} color={colors.textSecondary} /></TouchableOpacity>
                   <TouchableOpacity onPress={() => openPayment(c)}><Ionicons name="cash-outline" size={20} color="#10b981" /></TouchableOpacity>
                   <TouchableOpacity onPress={() => {
                     playTapSound();
@@ -244,7 +245,7 @@ export function ColaboradoresScreen({ onClose, isModal }) {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{editing ? 'Editar colaborador' : 'Novo colaborador'}</Text>
                 <TouchableOpacity onPress={() => setFormOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close" size={24} color={colors.primary} />
+                  <Ionicons name="close" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 14, paddingBottom: 28 }} showsVerticalScrollIndicator>
@@ -393,8 +394,8 @@ export function ColaboradoresScreen({ onClose, isModal }) {
             <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>Pagamento de salário/comissão</Text>
             <Text style={{ color: colors.textSecondary }}>{selected?.nome || ''}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity onPress={() => setPayTipo('salario')} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: payTipo === 'salario' ? colors.primary : colors.border, backgroundColor: payTipo === 'salario' ? colors.primary + '26' : 'transparent', alignItems: 'center' }}><Text style={{ color: payTipo === 'salario' ? colors.primary : colors.textSecondary }}>Salário</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => setPayTipo('comissao')} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: payTipo === 'comissao' ? colors.primary : colors.border, backgroundColor: payTipo === 'comissao' ? colors.primary + '26' : 'transparent', alignItems: 'center' }}><Text style={{ color: payTipo === 'comissao' ? colors.primary : colors.textSecondary }}>Comissão</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setPayTipo('salario')} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', ...chromeBtnBox(colors, { active: payTipo === 'salario' }) }}><Text style={{ color: chromeBtnColors(colors, payTipo === 'salario').fg }}>Salário</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setPayTipo('comissao')} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', ...chromeBtnBox(colors, { active: payTipo === 'comissao' }) }}><Text style={{ color: chromeBtnColors(colors, payTipo === 'comissao').fg }}>Comissão</Text></TouchableOpacity>
             </View>
             <TextInput value={payValor} onChangeText={setPayValor} placeholder="Valor (R$)" keyboardType="decimal-pad" placeholderTextColor={colors.textSecondary} style={[s.input, { borderColor: colors.border, color: colors.text }]} />
             <TextInput value={payObs} onChangeText={setPayObs} placeholder="Observação (opcional)" placeholderTextColor={colors.textSecondary} style={[s.input, { borderColor: colors.border, color: colors.text }]} />

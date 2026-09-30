@@ -555,7 +555,7 @@ export function EmpresaRelatorioScreen({ onClose }) {
 
   const ExportBtn = ({ icon, label, onPress }) => (
     <TouchableOpacity style={[s.exportBtn, { backgroundColor: colors.primaryRgba?.(0.2), borderColor: colors.primary }]} onPress={onPress} disabled={exporting}>
-      {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name={icon} size={18} color={colors.primary} />}
+      {exporting ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name={icon} size={18} color={colors.textSecondary} />}
       <Text style={[s.exportBtnText, { color: colors.primary }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -602,7 +602,7 @@ export function EmpresaRelatorioScreen({ onClose }) {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
         <View style={[s.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleBack} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
           <Text style={[s.headerTitle, { color: colors.text }]}>{report?.label || 'Relatório'}</Text>
         </View>
@@ -860,7 +860,7 @@ export function EmpresaRelatorioScreen({ onClose }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <View style={[s.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={handleBack} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.text }]}>Relatórios</Text>
       </View>

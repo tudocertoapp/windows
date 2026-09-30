@@ -57,15 +57,15 @@ export function OrcamentoItemRow({ orcamento, cliente, colors, onView, onEdit, o
       </TouchableOpacity>
       <View style={s.actions}>
         <TouchableOpacity onPress={() => handleAction('view')} style={[s.actionBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-          <Ionicons name="eye-outline" size={18} color={colors.primary} />
+          <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         {orcamento.status !== 'faturado' && (
           <TouchableOpacity onPress={() => handleAction('edit')} style={[s.actionBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-            <Ionicons name="pencil-outline" size={18} color={colors.primary} />
+            <Ionicons name="pencil-outline" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
         <TouchableOpacity onPress={() => handleAction('pdf')} style={[s.actionBtn, { backgroundColor: colors.primaryRgba?.(0.15) }]}>
-          <Ionicons name="document-outline" size={18} color={colors.primary} />
+          <Ionicons name="document-outline" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         {orcamento.status !== 'faturado' && (
           <TouchableOpacity onPress={() => handleAction('faturar')} style={[s.actionBtn, { backgroundColor: '#22c55e20' }]}>

@@ -231,8 +231,8 @@ export function AssinaturaScreen({ onClose, isModal }) {
       {isModal && onClose ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, backgroundColor: colors.card, borderBottomColor: colors.border }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Planos</Text>
-          <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryRgba(0.2), justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="close" size={24} color={colors.primary} />
+          <TouchableOpacity onPress={() => { playTapSound(); onClose(); }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -296,7 +296,7 @@ export function AssinaturaScreen({ onClose, isModal }) {
               }}
             >
               {syncingSubscription ? (
-                <ActivityIndicator color={colors.primary} />
+                <ActivityIndicator color={colors.textSecondary} />
               ) : (
                 <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>
                   Já paguei no Stripe — ativar plano nesta conta
@@ -333,7 +333,7 @@ export function AssinaturaScreen({ onClose, isModal }) {
               <Text style={[as.preco, { color: colors.primary }]}>{p.preco}</Text>
               {p.desc.map((d, i) => (
                 <View key={i} style={as.item}>
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  <Ionicons name="checkmark-circle" size={20} color={colors.textSecondary} />
                   <Text style={{ fontSize: 14, color: colors.text }}>{d}</Text>
                 </View>
               ))}

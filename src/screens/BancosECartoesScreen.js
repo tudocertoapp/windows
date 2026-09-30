@@ -146,7 +146,7 @@ function BankCard({ bank, getBankName, getCardsByBankId, formatMoney, openEditBa
         </TouchableOpacity>
         <View style={{ flexDirection: 'row', gap: 4 }}>
           <TouchableOpacity onPress={() => openEditBank(bank)} style={{ padding: 8 }}>
-            <Ionicons name="pencil-outline" size={20} color={colors.primary} />
+            <Ionicons name="pencil-outline" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleRemoveBank(bank)} style={{ padding: 8 }}>
             <Ionicons name="trash-outline" size={20} color="#ef4444" />
@@ -156,7 +156,7 @@ function BankCard({ bank, getBankName, getCardsByBankId, formatMoney, openEditBa
       <View style={[bc.cardBody, { paddingTop: 8, paddingHorizontal: 16 }]}>
         {temDebito && (
           <View style={[bc.cardItem, { backgroundColor: colors.bg }]}>
-            <Ionicons name="wallet-outline" size={20} color={colors.primary} />
+            <Ionicons name="wallet-outline" size={20} color={colors.textSecondary} />
             <View style={bc.cardInfo}>
               <Text style={[bc.cardTitle, { color: colors.text }]}>Débito</Text>
               <Text style={[bc.cardSub, { color: colors.textSecondary }]}>{mask(formatMoney(bank.saldo))} · Saldo corrente</Text>
@@ -165,7 +165,7 @@ function BankCard({ bank, getBankName, getCardsByBankId, formatMoney, openEditBa
         )}
         {temCredito && bankCards.length > 0 && bankCards.map((card) => (
           <TouchableOpacity key={card.id} style={[bc.cardItem, { backgroundColor: colors.bg }]} onPress={() => openEditCard(card)} activeOpacity={0.7}>
-            <Ionicons name="card-outline" size={20} color={colors.primary} />
+            <Ionicons name="card-outline" size={20} color={colors.textSecondary} />
             <View style={[bc.cardInfo, { flex: 1 }]}>
               <Text style={[bc.cardTitle, { color: colors.text }]}>{card.name}</Text>
               <Text style={[bc.cardSub, { color: colors.textSecondary }]}>Bandeira: {BANDEIRAS_OPTS.find((b) => b.id === card.bandeira)?.label || card.bandeira} · Fech. {card.diaFechamento} Venc. {card.diaVencimento} · {mask(formatMoney(card.saldo || 0))}</Text>
@@ -177,7 +177,7 @@ function BankCard({ bank, getBankName, getCardsByBankId, formatMoney, openEditBa
         ))}
         {temCredito && bankCards.length === 0 && (
           <TouchableOpacity style={[bc.cardItem, { backgroundColor: colors.bg, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.border }]} onPress={() => onAddCardToBank?.(bank)} activeOpacity={0.7}>
-            <Ionicons name="card-outline" size={20} color={colors.primary} />
+            <Ionicons name="card-outline" size={20} color={colors.textSecondary} />
             <View style={bc.cardInfo}>
               <Text style={[bc.cardTitle, { color: colors.text }]}>Crédito</Text>
               <Text style={[bc.cardSub, { color: colors.textSecondary }]}>Adicionar cartão</Text>
@@ -462,7 +462,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
               style={[topBarStyles.menuBtn, { backgroundColor: colors.primaryRgba(0.2) }]}
               onPress={() => { playTapSound(); onClose(); }}
             >
-              <Ionicons name="close" size={24} color={colors.primary} />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
@@ -536,7 +536,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
             style={[bc.addBtn, { borderColor: colors.primary }]}
             onPress={() => { playTapSound(); openAddBank(); }}
           >
-            <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+            <Ionicons name="add-circle-outline" size={24} color={colors.textSecondary} />
             <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary }}>Banco ou Cartão</Text>
           </TouchableOpacity>
 
@@ -666,12 +666,12 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                         onSubmitEditing={() => Keyboard.dismiss()}
                       />
                       <TouchableOpacity style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 10 }} onPress={() => { playTapSound(); setShowBankList((v) => !v); Keyboard.dismiss(); }}>
-                        <Ionicons name={showBankList ? 'chevron-up' : 'chevron-down'} size={22} color={colors.primary} />
+                        <Ionicons name={showBankList ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textSecondary} />
                       </TouchableOpacity>
                       {showBankList && (
                         <View style={[bc.suggestList, { maxHeight: 240, borderColor: colors.border, backgroundColor: colors.bg, marginTop: 4 }]}>
                           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => { playTapSound(); setShowBankList(false); Keyboard.dismiss(); }}>
-                            <Ionicons name="chevron-up" size={18} color={colors.primary} />
+                            <Ionicons name="chevron-up" size={18} color={colors.textSecondary} />
                             <Text style={[bc.pickerItemText, { color: colors.primary }]}>Ocultar lista</Text>
                           </TouchableOpacity>
                           <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
@@ -725,7 +725,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                           {BANDEIRAS_OPTS.map((b, i) => (
                             <TouchableOpacity key={b.id} style={[bc.suggestItem, i === BANDEIRAS_OPTS.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, bandeira: b.id, cardBandeira: form.cardBandeira || b.id })); setShowBandeiraList(false); }}>
                               <Text style={[bc.pickerItemText, { color: form.bandeira === b.id ? colors.primary : colors.text }]}>{b.label}</Text>
-                              {form.bandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                              {form.bandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.textSecondary} />}
                             </TouchableOpacity>
                           ))}
                         </ScrollView>
@@ -750,7 +750,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                                 <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.hex, borderWidth: 1, borderColor: colors.border }} />
                                 <Text style={[bc.pickerItemText, { color: form.cor === c.id ? colors.primary : colors.text }]}>{c.label}</Text>
                               </View>
-                              {form.cor === c.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                              {form.cor === c.id && <Ionicons name="checkmark" size={18} color={colors.textSecondary} />}
                             </TouchableOpacity>
                           ))}
                         </ScrollView>
@@ -782,7 +782,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                               {BANDEIRAS_OPTS.map((b, i) => (
                                 <TouchableOpacity key={b.id} style={[bc.suggestItem, i === BANDEIRAS_OPTS.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, bandeira: b.id })); setShowBandeiraList(false); }}>
                                   <Text style={[bc.pickerItemText, { color: form.bandeira === b.id ? colors.primary : colors.text }]}>{b.label}</Text>
-                                  {form.bandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                                  {form.bandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                               ))}
                             </ScrollView>
@@ -807,7 +807,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                                     <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.hex, borderWidth: 1, borderColor: colors.border }} />
                                     <Text style={[bc.pickerItemText, { color: form.cor === c.id ? colors.primary : colors.text }]}>{c.label}</Text>
                                   </View>
-                                  {form.cor === c.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                                  {form.cor === c.id && <Ionicons name="checkmark" size={18} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                               ))}
                             </ScrollView>
@@ -830,7 +830,7 @@ export function BancosECartoesScreen({ onClose, isModal }) {
                               {BANDEIRAS_OPTS.map((b, i) => (
                                 <TouchableOpacity key={b.id} style={[bc.suggestItem, i === BANDEIRAS_OPTS.length - 1 && bc.suggestItemLast, { borderBottomColor: colors.border }]} onPress={() => { playTapSound(); setForm((f) => ({ ...f, cardBandeira: b.id })); setShowBandeiraCardList(false); }}>
                                   <Text style={[bc.pickerItemText, { color: form.cardBandeira === b.id ? colors.primary : colors.text }]}>{b.label}</Text>
-                                  {form.cardBandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                                  {form.cardBandeira === b.id && <Ionicons name="checkmark" size={18} color={colors.textSecondary} />}
                                 </TouchableOpacity>
                               ))}
                             </ScrollView>

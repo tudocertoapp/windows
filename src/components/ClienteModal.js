@@ -203,12 +203,12 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
               <View style={[styles.titleRow, { flex: 1 }]}>
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryRgba?.(0.2) ?? (colors.primary + '25'), justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="person-outline" size={22} color={colors.primary} />
+                  <Ionicons name="person-outline" size={22} color={colors.textSecondary} />
                 </View>
                 <Text style={[styles.title, { color: colors.text }]}>{isEdit ? 'Editar cliente' : 'Novo cliente'}</Text>
               </View>
               <TouchableOpacity style={[styles.closeBtn, { backgroundColor: colors.primaryRgba?.(0.2) }]} onPress={onClose}>
-                <Ionicons name="close" size={20} color={colors.primary} />
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled style={isDesktopWeb ? { flex: 1 } : { maxHeight: 520 }} contentContainerStyle={{ paddingBottom: 12 }}>
@@ -230,14 +230,14 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                       style={[styles.shareBtn, { borderColor: colors.border, backgroundColor: colors.bg }]}
                       onPress={() => copyClientRegistrationLink(user.id)}
                     >
-                      <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                      <Ionicons name="copy-outline" size={18} color={colors.textSecondary} />
                       <Text style={[styles.shareBtnText, { color: colors.text }]}>Copiar link</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.shareBtn, { borderColor: colors.border, backgroundColor: colors.bg }]}
                       onPress={() => shareClientRegistrationLink(user.id)}
                     >
-                      <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+                      <Ionicons name="share-social-outline" size={18} color={colors.textSecondary} />
                       <Text style={[styles.shareBtnText, { color: colors.text }]}>Compartilhar</Text>
                     </TouchableOpacity>
                   </View>
@@ -249,7 +249,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                   <Image source={{ uri: foto }} style={{ width: 56, height: 56, borderRadius: 28 }} resizeMode="cover" />
                 ) : (
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="camera" size={24} color={colors.primary} />
+                    <Ionicons name="camera" size={24} color={colors.textSecondary} />
                   </View>
                 )}
                 <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{foto ? 'Trocar foto' : 'Carregar foto'}</Text>
@@ -291,7 +291,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                       <TouchableOpacity key={o.id} onPress={() => { setNivel(o.id); setShowNivelPicker(false); }} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 }}>
                         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: o.color }} />
                         <Text style={{ flex: 1, fontSize: 15, color: colors.text }}>{o.label}</Text>
-                        {nivel === o.id && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+                        {nivel === o.id && <Ionicons name="checkmark" size={20} color={colors.textSecondary} />}
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -317,7 +317,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                         )}
                         <Text style={{ flex: 1, fontSize: 15, color: colors.text }}>{e.label}</Text>
                         <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
-                          {tags.includes(e.id) && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                          {tags.includes(e.id) && <Ionicons name="checkmark" size={16} color={colors.textSecondary} />}
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -327,7 +327,7 @@ export function ClienteModal({ visible, cliente, onSave, onClose, defaultTipo })
                         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: e.color }} />
                         <Text style={{ flex: 1, fontSize: 15, color: colors.text }}>{e.label}</Text>
                         <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
-                          {tags.includes(e.id) && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                          {tags.includes(e.id) && <Ionicons name="checkmark" size={16} color={colors.textSecondary} />}
                         </View>
                       </TouchableOpacity>
                     ))}

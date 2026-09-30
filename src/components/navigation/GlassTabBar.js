@@ -332,9 +332,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     position: 'relative',
     overflow: 'visible',
-    backgroundColor: 'rgba(9,9,11,0.96)',
-    borderWidth: 1,
-    borderColor: '#27272a',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   tabContentActive: {
     minWidth: 64,
@@ -367,9 +367,7 @@ const styles = StyleSheet.create({
     marginTop: Platform.OS === 'web' ? -32 : -26,
   },
   addButton: {
-    backgroundColor: 'rgba(9,9,11,0.96)',
-    borderWidth: 1,
-    borderColor: '#27272a',
+    borderWidth: 0,
     width: 56,
     height: 56,
     borderRadius: 28,

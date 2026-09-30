@@ -11,7 +11,7 @@ export function getVisionApiKey() {
   return String(fromExtra || fromEnv).trim();
 }
 
-export async function ocrViaProxy(base64, languageHints = ['pt']) {
+export async function readReceiptViaProxy(base64, mimeType = 'image/jpeg') {
   const endpoint = getVisionOcrEndpoint();
   if (!endpoint) {
     throw new Error('Servidor OCR não configurado (EXPO_PUBLIC_SITE_URL).');
@@ -19,12 +19,21 @@ export async function ocrViaProxy(base64, languageHints = ['pt']) {
 
   const { data } = await axios.post(
     endpoint,
-    { imageBase64: base64, languageHints },
+    { imageBase64: base64, mimeType },
     { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
   );
 
   if (data?.error) throw new Error(data.error);
-  return typeof data?.text === 'string' ? data.text.trim() : '';
+  const text = typeof data?.text === 'string' ? data.text.trim() : '';
+  const total = typeof data?.total === 'number' && Number.isFinite(data.total) ? data.total : null;
+  const date = typeof data?.date === 'string' ? data.date.trim() : '';
+  const store = typeof data?.store === 'string' ? data.store.trim() : '';
+  return { text, total, date, store, source: data?.source || 'gemini-flash' };
+}
+
+export async function ocrViaProxy(base64, languageHints = ['pt']) {
+  const result = await readReceiptViaProxy(base64);
+  return result.text;
 }
 
 export async function ocrViaDirectGoogle(base64, apiKey, languageHints = ['pt']) {
@@ -64,7 +73,7 @@ export function formatVisionProxyError(proxyErr) {
     'Erro ao ler comprovante';
 
   if (status === 404) {
-    return 'Servidor OCR indisponível. Faça deploy na Vercel com EXPO_PUBLIC_GOOGLE_VISION_API_KEY na rota /api/vision/ocr.';
+    return 'Servidor OCR indisponível. Faça deploy na Vercel com GEMINI_API_KEY na rota /api/vision/ocr.';
   }
   if (/ECONNREFUSED|Network Error|Failed to fetch|timeout/i.test(String(msg))) {
     return 'Sem conexão com o servidor OCR. Verifique internet ou tente novamente.';
