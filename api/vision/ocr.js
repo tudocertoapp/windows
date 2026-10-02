@@ -1,7 +1,11 @@
 /**
  * Lê comprovante com Gemini Flash. A chave fica só no servidor (Vercel / .env).
  * Variável: GEMINI_API_KEY
+ *
+ * Assistente Groq (task=assistant) usa a mesma função para caber no plano Hobby.
  */
+const { isAssistantRequest, handleAssistant } = require('../_lib/assistantChat');
+
 function getGeminiApiKey() {
   return (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '').trim();
 }
@@ -11,7 +15,7 @@ function cors(res, req) {
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
 function guessMime(base64) {
@@ -112,6 +116,19 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   res.setHeader('Content-Type', 'application/json');
+
+  let earlyBody = req.body;
+  if (typeof earlyBody === 'string') {
+    try {
+      earlyBody = JSON.parse(earlyBody || '{}');
+    } catch (_) {
+      earlyBody = {};
+    }
+  }
+  if (isAssistantRequest(req, earlyBody && typeof earlyBody === 'object' ? earlyBody : {})) {
+    req.body = earlyBody;
+    return handleAssistant(req, res);
+  }
 
   const apiKey = getGeminiApiKey();
 

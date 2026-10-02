@@ -15,7 +15,7 @@ export async function askAccountAssistant({ message, history = [] }) {
   try {
     const { data } = await axios.post(
       endpoint,
-      { message, history },
+      { message, history, task: 'assistant' },
       {
         timeout: 28000,
         headers: {

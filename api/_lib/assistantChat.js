@@ -1,11 +1,11 @@
 /**
  * Assistente da conta: Groq (Llama) no servidor.
- * Variável: GROQ_API_KEY (opcional GROQ_MODEL). Fallback: GEMINI_API_KEY.
+ * Chamado pela mesma função do OCR para caber no plano Hobby da Vercel.
  */
 const { createClient } = require('@supabase/supabase-js');
-const { getSupabaseAdmin, cors, parseBody } = require('../_lib/supabaseAdmin');
-const { buildAccountSnapshot } = require('../_lib/accountSnapshot');
-const { llmStatus, chatWithAccountLlm } = require('../_lib/llmChat');
+const { getSupabaseAdmin, parseBody } = require('./supabaseAdmin');
+const { buildAccountSnapshot } = require('./accountSnapshot');
+const { llmStatus, chatWithAccountLlm } = require('./llmChat');
 
 function bearerToken(req) {
   const h = req.headers.authorization || req.headers.Authorization || '';
@@ -60,8 +60,14 @@ function systemPrompt(snapshot, firstName) {
   ].join('\n');
 }
 
-module.exports = async function handler(req, res) {
-  cors(res, req, 'GET,POST,OPTIONS');
+function isAssistantRequest(req, body) {
+  const url = String(req.url || '');
+  if (/[?&]task=assistant\b/i.test(url)) return true;
+  if (body && (body.task === 'assistant' || body.assistant === true)) return true;
+  return false;
+}
+
+async function handleAssistant(req, res) {
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -120,4 +126,6 @@ module.exports = async function handler(req, res) {
     const status = e?.status >= 400 && e.status < 600 ? e.status : 502;
     res.status(status).json({ error: e?.message || 'Falha ao consultar a IA.' });
   }
-};
+}
+
+module.exports = { isAssistantRequest, handleAssistant };

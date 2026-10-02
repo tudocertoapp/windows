@@ -1,12 +1,11 @@
 /**
- * Servidor local para APIs Vercel (OCR + assistente Groq).
+ * Servidor local para /api/vision/ocr (OCR + assistente Groq na mesma rota).
  * Uso: npm run web:api
  * No .env: EXPO_PUBLIC_VISION_API_URL=http://localhost:3000
  */
 require('dotenv').config();
 const http = require('http');
-const ocrHandler = require('../api/vision/ocr');
-const assistantHandler = require('../api/assistant/chat');
+const handler = require('../api/vision/ocr');
 
 const PORT = Number(process.env.VISION_DEV_PORT || 3000);
 
@@ -19,18 +18,13 @@ function readBody(req) {
   });
 }
 
-function routeOf(url) {
-  const path = String(url || '').split('?')[0];
-  if (path === '/api/vision/ocr' || path.startsWith('/api/vision/ocr/')) return 'ocr';
-  if (path === '/api/assistant/chat' || path.startsWith('/api/assistant/chat/')) return 'assistant';
-  return null;
-}
-
 const server = http.createServer(async (req, res) => {
-  const route = routeOf(req.url);
-  if (!route) {
+  const pathOnly = String(req.url || '').split('?')[0];
+  const isOcr = pathOnly === '/api/vision/ocr';
+  const isLegacyAssistant = pathOnly === '/api/assistant/chat';
+  if (!isOcr && !isLegacyAssistant) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('Use /api/vision/ocr ou /api/assistant/chat');
+    res.end('Use GET ou POST /api/vision/ocr (assistente: ?task=assistant)');
     return;
   }
 
@@ -43,9 +37,13 @@ const server = http.createServer(async (req, res) => {
       body = {};
     }
   }
+  if (isLegacyAssistant) {
+    body = { ...(body && typeof body === 'object' ? body : {}), task: 'assistant' };
+  }
   const mockReq = {
     method: req.method,
     headers: req.headers,
+    url: isLegacyAssistant ? '/api/vision/ocr?task=assistant' : req.url,
     body,
   };
   const mockRes = {
@@ -73,7 +71,6 @@ const server = http.createServer(async (req, res) => {
     },
   };
   try {
-    const handler = route === 'assistant' ? assistantHandler : ocrHandler;
     await handler(mockReq, mockRes);
   } catch (e) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -85,7 +82,7 @@ server.listen(PORT, () => {
   const gemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
   const groq = process.env.GROQ_API_KEY || '';
   console.log(`[vision-dev] http://localhost:${PORT}/api/vision/ocr`);
-  console.log(`[vision-dev] http://localhost:${PORT}/api/assistant/chat`);
+  console.log(`[vision-dev] Assistente: http://localhost:${PORT}/api/vision/ocr?task=assistant`);
   console.log(`[vision-dev] Gemini: ${gemini ? 'OK' : 'AUSENTE'}`);
   console.log(`[vision-dev] Groq: ${groq ? 'OK' : 'AUSENTE — GROQ_API_KEY no .env'}`);
   console.log('[vision-dev] No .env do app: EXPO_PUBLIC_VISION_API_URL=http://localhost:' + PORT);
