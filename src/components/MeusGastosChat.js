@@ -32,6 +32,8 @@ import VoiceRecorder from './VoiceRecorder';
 import { processReceipt } from '../services/receiptOcr/processReceipt';
 import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { getVisionConfigHint } from '../lib/visionStatus';
+import { askAccountAssistant } from '../services/accountAssistant';
+import { useAuth } from '../contexts/AuthContext';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 
 /** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
@@ -301,6 +303,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const { colors } = useTheme();
   const { transactions, addTransaction } = useFinance();
   const { openAddModal } = useMenu();
+  const { user, isGuest } = useAuth();
   const insets = useSafeAreaInsets();
   const isDesktopLayout = useIsDesktopLayout();
   const isWebMobile = Platform.OS === 'web' && !isDesktopLayout;
@@ -329,7 +332,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
         id: 'intro-assistant',
         from: 'assistant',
         kind: 'text',
-        text: `Envie texto, áudio ou foto. Ex: "${ex}" Registro o gasto automaticamente.`,
+        text: `Envie texto, áudio ou foto. Ex: "${ex}" Registro o gasto. Também posso responder sobre sua conta: quanto entrou, o que mais vende, estoque e dicas.`,
         createdAt: nowIso(),
       },
     ];
@@ -621,6 +624,44 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
     });
   };
 
+  const replyWithAccountAssistant = async (userText) => {
+    if (isGuest || !user) {
+      appendMessage({
+        id: `assistant-ai-login-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: 'Faça login para eu ler os lançamentos, produtos e vendas da sua conta.',
+        createdAt: nowIso(),
+      });
+      return;
+    }
+    const loadingId = `assistant-ai-${Date.now()}`;
+    appendMessage({
+      id: loadingId,
+      from: 'assistant',
+      kind: 'text',
+      text: 'Consultando os dados da sua conta...',
+      createdAt: nowIso(),
+    });
+    const history = messages
+      .filter((m) => m.kind === 'text' && m.text && m.id !== 'intro-assistant')
+      .filter((m) => !String(m.text).startsWith('Consultando os dados'))
+      .slice(-8)
+      .map((m) => ({
+        role: m.from === 'user' ? 'user' : 'assistant',
+        content: String(m.text || '').slice(0, 800),
+      }));
+    const result = await askAccountAssistant({ message: userText, history });
+    setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+    appendMessage({
+      id: `assistant-ai-reply-${Date.now()}`,
+      from: 'assistant',
+      kind: 'text',
+      text: result.ok ? result.reply : result.error,
+      createdAt: nowIso(),
+    });
+  };
+
   const handleUserContent = async ({ kind, text, imageUri, imageBase64, skipUserBubble = false, hideTranscriptInChat = false, recordedAt = null }) => {
     const baseId = Date.now();
     const normalizedText = typeof text === 'string' ? text.trim() : '';
@@ -759,13 +800,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
           });
           return;
         }
-        appendMessage({
-          id: `assistant-voice-no-val-${Date.now()}`,
-          from: 'assistant',
-          kind: 'text',
-          text: 'Não identifiquei um valor no áudio. Inclua o valor (ex.: “cinquenta reais” ou “50,00”) ou digite na caixa acima e envie.',
-          createdAt: nowIso(),
-        });
+        await replyWithAccountAssistant(filteredText);
         return;
       }
 
@@ -804,6 +839,8 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
         });
         return;
       }
+      await replyWithAccountAssistant(filteredText);
+      return;
     }
     await registerExpenseAndReply(filteredText, kind === 'voice' ? 'áudio' : 'texto');
   };
@@ -1301,7 +1338,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
 
 const s = StyleSheet.create({
   container: { flex: 1, minHeight: 0, minWidth: 0 },
-  embeddedContainer: { minHeight: 0 },
+  embeddedContainer: { minHeight: 0, height: '100%', overflow: 'hidden' },
   /** Lista + faixa de entrada em coluna (fixa botões na base no card mobile) */
   chatMainColumn: { flex: 1, minHeight: 0, minWidth: 0, flexDirection: 'column' },
   msgRow: { flexDirection: 'row', marginVertical: 4 },
