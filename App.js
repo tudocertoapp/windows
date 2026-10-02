@@ -55,11 +55,24 @@ function getPublicCadastroOwnerId() {
   return new URLSearchParams(window.location.search).get('ref') || '';
 }
 
+/** Na web, /inicio e o app pedem login. Só loja pública e cadastro de cliente ficam abertos. */
+function webPathWantsLoginScreen() {
+  if (typeof window === 'undefined') return false;
+  const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
+  if (path === '/' || path === '') return false;
+  const first = path.split('/').filter(Boolean)[0] || '';
+  const lower = first.toLowerCase();
+  if (lower === 'loja' || lower === 'cadastro-cliente') return false;
+  return true;
+}
+
 function AppContent() {
   const publicCadastroOwnerId = getPublicCadastroOwnerId();
   const publicLojaRoute = Platform.OS === 'web' ? getPublicLojaRoute() : null;
   const { user, isGuest, loading } = useAuth();
-  const [showLogin, setShowLogin] = useState(false);
+  const isWeb = Platform.OS === 'web';
+  const canUseApp = Boolean(user) || (!isWeb && isGuest);
+  const [showLogin, setShowLogin] = useState(() => (isWeb ? webPathWantsLoginScreen() : false));
   const [splashDone, setSplashDone] = useState(false);
   const [postLoginSplash, setPostLoginSplash] = useState(false);
   const hadUserRef = useRef(false);
@@ -67,11 +80,16 @@ function AppContent() {
   const brandIntroPlayedRef = useRef(false);
 
   useEffect(() => {
-    if (user || isGuest) {
+    if (canUseApp) {
       if (!hadUserRef.current && showLogin) setPostLoginSplash(true);
       hadUserRef.current = true;
     } else hadUserRef.current = false;
-  }, [user, isGuest, showLogin]);
+  }, [canUseApp, showLogin]);
+
+  useEffect(() => {
+    if (!isWeb || user || loading) return;
+    if (webPathWantsLoginScreen()) setShowLogin(true);
+  }, [isWeb, user, loading]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
@@ -129,7 +147,6 @@ function AppContent() {
     }
   }, []);
 
-  const isWeb = Platform.OS === 'web';
   const showSplash = loading || !splashDone || postLoginSplash;
   const splashDuration = isWeb ? 1500 : 4000;
 
@@ -163,7 +180,7 @@ function AppContent() {
     );
   }
 
-  if (!user && !isGuest) {
+  if (!canUseApp) {
     if (!showLogin) {
       return <LandingScreen onStart={() => setShowLogin(true)} />;
     }

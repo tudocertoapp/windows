@@ -119,7 +119,10 @@ export function AuthProvider({ children }) {
     await signOut();
   };
 
-  const enterAsGuest = () => setIsGuest(true);
+  const enterAsGuest = () => {
+    if (Platform.OS === 'web') return;
+    setIsGuest(true);
+  };
 
   /** Web: envia e-mail com link para redefinir senha (Supabase Auth > URL Configuration deve incluir o redirectTo). */
   const resetPasswordForEmail = async (email) => {
