@@ -10,6 +10,7 @@ import { AppIcon } from './AppIcon';
 import { playTapSound } from '../utils/sounds';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import { getWebDesktopGridButtonMetrics, VIEW_MODE_TOGGLE_TOP_GAP } from './ViewModeToggle';
+import { KeyboardShortcutsToggle } from './KeyboardShortcutsToggle';
 import { WEB_DESKTOP_RAIL_WIDTH, WEB_DESKTOP_RAIL_VIEWPORT_MARGIN } from './navigation/RightSideTabBar';
 
 /** Padding direito da coluna da rail no AppNavigator — centraliza o botão na faixa da tabbar. */
@@ -166,6 +167,7 @@ export function TopBar({
 
   const homeTrailingActions = (
     <>
+      <KeyboardShortcutsToggle />
       {!isWebDesktop && onWhatsApp ? (
         <TouchableOpacity
           style={{ padding: 8, backgroundColor: 'transparent' }}

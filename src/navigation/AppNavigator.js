@@ -64,6 +64,7 @@ import {
   buildGlassTabShortcuts,
 } from '../components/navigation/RightSideTabBar';
 import { useIsDesktopLayout, isElectronWebClient, WEB_MOBILE_TAB_BAR_RESERVE, isDesktopOnlyFeatureClient } from '../utils/platformLayout';
+import { useKeyboardShortcuts } from '../contexts/KeyboardShortcutsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createAppWebLinking, isWebCadastroPathSlug } from './webNavigationLinking';
 import { useWebModalUrlSync } from './useWebModalUrlSync';
@@ -177,6 +178,7 @@ export function AppNavigator() {
   const [calculatorHistory, setCalculatorHistory] = useState([]);
   const { colors, primaryColor } = useTheme();
   const { showEmpresaFeatures } = usePlan();
+  const { shortcutsEnabled } = useKeyboardShortcuts();
   /** Web desktop: navegação sempre na lateral (RightSideTabBar). Atalhos F1–F8 do Início ficam só no plano com empresa. */
   const showDesktopRightRail = isWebDesktop;
   const { addProduct } = useFinance();
@@ -528,6 +530,69 @@ export function AppNavigator() {
     </View>
   );
 
+  const runDockControl = useCallback((target, mode) => {
+    const close = mode === 'close';
+    const go = (tab) => {
+      setMenuModalOpen(false);
+      setTimeout(() => navigationRef.current?.navigate(tab), 80);
+    };
+    const cadastro = (section) => {
+      if (close) setCadastroModal(null);
+      else {
+        setMenuModalOpen(false);
+        setCadastroModal({ section });
+      }
+    };
+    if (target === 'calculator') {
+      if (close) {
+        setCalculadoraFloating(false);
+        setCalculadoraModal(false);
+      } else if (isWebDesktop) {
+        setCalculadoraModal(false);
+        setCalculadoraFloating(true);
+      } else {
+        setCalculadoraFloating(false);
+        setCalculadoraModal(true);
+      }
+      return;
+    }
+    if (target === 'home') return close ? null : go('Início');
+    if (target === 'money') return close ? go('Início') : go('Dinheiro');
+    if (target === 'agenda') return close ? go('Início') : go('Agenda');
+    if (target === 'dock') return close ? go('Início') : go('MeusGastos');
+    if (target === 'whatsapp') return close ? go('Início') : go('WhatsApp');
+    if (target === 'products') return cadastro('produtos');
+    if (target === 'services') return cadastro('servicos');
+    if (target === 'clients') return cadastro('clientes');
+    if (target === 'suppliers') return cadastro('fornecedores');
+    if (target === 'bills') return cadastro('boletos');
+    if (target === 'tasks') return cadastro('tarefas');
+    if (target === 'pdv') {
+      if (close) setPdvModal(false);
+      else if (isDesktopOnlyFeatureClient(isWebDesktop)) setPdvModal(true);
+      return;
+    }
+    if (target === 'catalog') { setCatalogoModal(!close); return; }
+    if (target === 'notes') { setAnotacoesModal(close ? false : true); return; }
+    if (target === 'shopping') { setListaComprasModal(!close); return; }
+    if (target === 'receivables') { setAReceberModal(!close); return; }
+    if (target === 'quotes') { setOrcamentosModal(!close); return; }
+    if (target === 'banks') { setBancosModal(!close); return; }
+    if (target === 'profile') { setPerfilModal(!close); return; }
+    if (target === 'plan') { setAssinaturaModal(!close); return; }
+    if (target === 'birthdays') { setAniversariantesModal(!close); return; }
+    if (target === 'company') { setEmpresaModal(!close); return; }
+    if (target === 'staff') { setColaboradoresModal(!close); return; }
+    if (target === 'workorders') { setOrdemServicoModal(!close); return; }
+    if (target === 'goals') { setMetasSonhosModal(!close); return; }
+    if (target === 'themes') { setTemasModal(!close); return; }
+    if (target === 'referral') { setIndiqueModal(!close); return; }
+    if (target === 'receipt') { setReceiptScannerModal(!close); return; }
+    if (target === 'image') { setImageModal(!close); return; }
+    if (target === 'professionals') { setMeusProfissionaisModal(!close); return; }
+    if (target === 'menu') { setMenuModalOpen(!close); }
+  }, [isWebDesktop]);
+
   const menuActions = useMemo(
     () => ({
       openMenu: () => { setMenuModalOpen(true); },
@@ -628,138 +693,21 @@ export function AppNavigator() {
         setCalculadoraFloating(false);
         setCalculadoraModal(true);
       },
-      dockControl: (target, mode) => {
-        const close = mode === 'close';
-        if (Platform.OS === 'web' && typeof window !== 'undefined' && !close) {
-          window.dispatchEvent(new CustomEvent('tc:dock-minimize'));
-        }
-        const go = (tab) => {
-          setMenuModalOpen(false);
-          setTimeout(() => navigationRef.current?.navigate(tab), 120);
-        };
-        if (target === 'calculator') {
-          if (close) {
-            setCalculadoraFloating(false);
-            setCalculadoraModal(false);
-          } else {
-            setCalculadoraFloating(false);
-            setCalculadoraModal(true);
-          }
-          return;
-        }
-        if (target === 'home') return close ? null : go('Início');
-        if (target === 'money') return close ? go('Início') : go('Dinheiro');
-        if (target === 'agenda') return close ? go('Início') : go('Agenda');
-        if (target === 'dock') return close ? go('Início') : go('MeusGastos');
-        if (target === 'whatsapp') return close ? go('Início') : go('WhatsApp');
-        if (target === 'products') {
-          if (close) setCadastroModal(null);
-          else setCadastroModal({ section: 'produtos' });
-          return;
-        }
-        if (target === 'services') {
-          if (close) setCadastroModal(null);
-          else setCadastroModal({ section: 'servicos' });
-          return;
-        }
-        if (target === 'clients') {
-          if (close) setCadastroModal(null);
-          else setCadastroModal({ section: 'clientes' });
-          return;
-        }
-        if (target === 'suppliers') {
-          if (close) setCadastroModal(null);
-          else setCadastroModal({ section: 'fornecedores' });
-          return;
-        }
-        if (target === 'pdv') {
-          setPdvModal(!close);
-          return;
-        }
-        if (target === 'catalog') {
-          setCatalogoModal(!close);
-          return;
-        }
-        if (target === 'notes') {
-          setAnotacoesModal(close ? false : true);
-          return;
-        }
-        if (target === 'shopping') {
-          setListaComprasModal(!close);
-          return;
-        }
-        if (target === 'receivables') {
-          setAReceberModal(!close);
-          return;
-        }
-        if (target === 'quotes') {
-          setOrcamentosModal(!close);
-          return;
-        }
-        if (target === 'banks') {
-          setBancosModal(!close);
-          return;
-        }
-        if (target === 'profile') {
-          setPerfilModal(!close);
-          return;
-        }
-        if (target === 'plan') {
-          setAssinaturaModal(!close);
-          return;
-        }
-        if (target === 'birthdays') {
-          setAniversariantesModal(!close);
-          return;
-        }
-        if (target === 'company') {
-          setEmpresaModal(!close);
-          return;
-        }
-        if (target === 'staff') {
-          setColaboradoresModal(!close);
-          return;
-        }
-        if (target === 'workorders') {
-          setOrdemServicoModal(!close);
-          return;
-        }
-        if (target === 'goals') {
-          setMetasSonhosModal(!close);
-          return;
-        }
-        if (target === 'themes') {
-          setTemasModal(!close);
-          return;
-        }
-        if (target === 'referral') {
-          setIndiqueModal(!close);
-          return;
-        }
-        if (target === 'receipt') {
-          setReceiptScannerModal(!close);
-          return;
-        }
-        if (target === 'image') {
-          setImageModal(!close);
-          return;
-        }
-        if (target === 'professionals') {
-          setMeusProfissionaisModal(!close);
-          return;
-        }
-        if (target === 'bills') {
-          if (close) setCadastroModal(null);
-          else setCadastroModal({ section: 'boletos' });
-          return;
-        }
-        if (target === 'menu') {
-          setMenuModalOpen(!close);
-        }
-      },
+      dockControl: (target, mode) => runDockControl(target, mode),
     }),
-    [isWebDesktop, showEmpresaFeatures, calculadoraFloating, calculadoraModal]
+    [isWebDesktop, showEmpresaFeatures, calculadoraFloating, calculadoraModal, runDockControl]
   );
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onDock = (event) => {
+      const target = event?.detail?.target;
+      const mode = event?.detail?.mode === 'close' ? 'close' : 'open';
+      if (target) runDockControl(target, mode);
+    };
+    window.addEventListener('tc:dock-control', onDock);
+    return () => window.removeEventListener('tc:dock-control', onDock);
+  }, [runDockControl]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -776,20 +724,23 @@ export function AppNavigator() {
     const onKeyDown = (event) => {
       if (event.repeat) return;
       if (isTypingTarget(event.target)) return;
-      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+      if (!shortcutsEnabled) return;
       if (pdvModal) return;
+      if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (!event.altKey) return;
       const key = String(event.key || '');
-      if (isWebDesktop && key.toLowerCase() === 'm') {
+      const digit = (event.code || '').match(/^Digit([1-9])$/)?.[1] || (/^[1-9]$/.test(key) ? key : null);
+      if (isWebDesktop && ((event.code === 'KeyM') || key.toLowerCase() === 'm')) {
         event.preventDefault();
         playTapSound();
         setMenuModalOpen((open) => !open);
         return;
       }
-      if (!/^[1-9]$/.test(key)) return;
+      if (!digit) return;
       const shortcuts = isWebDesktop
         ? buildDesktopRailShortcuts(showEmpresaFeatures)
         : buildGlassTabShortcuts();
-      const hit = shortcuts.find((item) => item.key === key);
+      const hit = shortcuts.find((item) => item.key === digit);
       if (!hit) return;
       event.preventDefault();
       playTapSound();
@@ -807,7 +758,7 @@ export function AppNavigator() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWebDesktop, showEmpresaFeatures, pdvModal, menuActions]);
+  }, [isWebDesktop, showEmpresaFeatures, pdvModal, menuActions, shortcutsEnabled]);
 
   /** Seta + calculadora: mesma linha, centro vertical da tela (viewport), respeitando safe area e tab bar. */
   const calcEdgeCalcRowTop = useMemo(() => {
@@ -1315,7 +1266,7 @@ export function AppNavigator() {
           </View>
         </Modal>
       )}
-      <Modal visible={!!cadastroModal} animationType="slide">
+      <Modal visible={!!cadastroModal} animationType="slide" {...(Platform.OS === 'web' ? { style: { zIndex: 20000 } } : null)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <CadastrosScreen initialSection={cadastroModal?.section} initialEditItemId={cadastroModal?.editItemId} onClose={() => setCadastroModal(null)} isModal />
         </SafeAreaView>
@@ -1447,7 +1398,7 @@ export function AppNavigator() {
           <MotivationalImageScreen onClose={() => { setImageModal(false); setImageModalParams({}); }} isModal initialQuote={imageModalParams.quote} initialQuoteType={imageModalParams.quoteType} />
         </SafeAreaView>
       </Modal>
-      <Modal visible={calculadoraModal} animationType="slide">
+      <Modal visible={calculadoraModal} animationType="slide" {...(Platform.OS === 'web' ? { style: { zIndex: 20000 } } : null)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <CalculatorScreenPro
             onClose={() => setCalculadoraModal(false)}

@@ -26,7 +26,7 @@ const PAGES = [
   { re: /\b(inicio|home|dashboard|tela inicial)\b/, target: 'home', label: 'início' },
   { re: /\b(dinheiro|financas|financeiro)\b/, target: 'money', label: 'dinheiro' },
   { re: /\bagenda\b/, target: 'agenda', label: 'agenda' },
-  { re: /\b(dock|chat|meus gastos)\b/, target: 'dock', label: 'Dock' },
+  { re: /\b(dock|meus gastos)\b/, target: 'dock', label: 'Dock' },
   { re: /\b(whatsapp|crm|mensagens)\b/, target: 'whatsapp', label: 'WhatsApp' },
   { re: /\bprodutos?\b/, target: 'products', label: 'produtos' },
   { re: /\bservicos?\b/, target: 'services', label: 'serviços' },
@@ -53,22 +53,26 @@ const PAGES = [
   { re: /\b(profissional|profissionais)\b/, target: 'professionals', label: 'profissionais' },
   { re: /\b(boleto|faturas?)\b/, target: 'bills', label: 'boletos' },
   { re: /\bmenu\b/, target: 'menu', label: 'menu' },
+  { re: /\btarefas?\b/, target: 'tasks', label: 'tarefas' },
 ];
 
 function detectNav(text) {
   const t = fold(text);
-  // Pergunta de dado nunca abre tela. Só navega com verbo explícito (abre/fecha).
-  const dataAsk = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem)\b/.test(t);
-  const closing = /\b(fecha|fechar|fechando|fecha a|fecha o|fecha essa|fecha este|fecha ai|fecha ela|fecha isso|pode fechar|pode fecha|esconde|esconder|some|tira a|tira o|desliga|sai da|sair da)\b/.test(t);
-  const opening = /\b(abre|abrir|abre a|abre o|abre essa|abre pra|abrir a|abrir o|vai para|vai pra|ir para|ir pra|quero abrir|abre pra mim)\b/.test(t);
-  if (dataAsk && !closing && !opening) return null;
-  if (!closing && !opening) return null;
+  if (!t) return null;
+  const dataAsk = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem|quem comprou|mais vendeu)\b/.test(t);
+  const closing = /\b(fecha|fechar|feche|fechando|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/.test(t);
+  const opening = /\b(abre|abra|abrir|abrindo|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela)\b/.test(t);
+  const short = t.split(/\s+/).filter(Boolean).length <= 6;
+  let page = null;
   for (const p of PAGES) {
-    if (!p.re.test(t)) continue;
-    if (closing) return { target: p.target, label: p.label, action: 'close' };
-    return { target: p.target, label: p.label, action: 'open' };
+    if (p.re.test(t)) {
+      page = p;
+      break;
+    }
   }
-  if (closing) return { target: 'calculator', label: 'calculadora', action: 'close' };
+  if (dataAsk && !closing && !opening) return null;
+  if (closing) return { target: page?.target || 'calculator', label: page?.label || 'calculadora', action: 'close' };
+  if (page && (opening || (short && !dataAsk))) return { target: page.target, label: page.label, action: 'open' };
   return null;
 }
 

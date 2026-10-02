@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,12 +8,14 @@ import { DockIcon } from './DockIcon';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { playTapSound } from '../utils/sounds';
+import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
+import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE, WEB_DESKTOP_RAIL_ROUND_BTN, getWebDesktopRailDockPosition } from './navigation/RightSideTabBar';
 
-const POS_KEY = '@tudocerto_dock_fab_pos';
 const MODE_KEY = '@tudocerto_dock_mode';
 const FAB = 58;
-const SMALL_W = 380;
-const SMALL_H = 480;
+const CARD_W = 340;
+const CARD_H = 420;
+const GAP = 12;
 
 function mount(node) {
   if (Platform.OS !== 'web' || typeof document === 'undefined' || !document.body) return node;
@@ -29,162 +31,103 @@ export function DockCornerChat() {
   const { colors } = useTheme();
   const { planFeatures } = usePlan();
   const insets = useSafeAreaInsets();
+  const isDesktop = useIsDesktopLayout();
   const { width: W, height: H } = useWindowDimensions();
-  const [mode, setMode] = useState('fab');
+  const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
-  const animPos = useRef(new Animated.ValueXY({ x: 16, y: 200 })).current;
-  const dragStart = useRef({ x: 0, y: 0 });
-  const moved = useRef(false);
-
-  const panelSize = useMemo(() => {
-    if (mode === 'large') {
-      return {
-        w: Math.min(760, Math.max(320, W - 48)),
-        h: Math.min(H - 48, Math.max(360, H * 0.86)),
-      };
-    }
-    return { w: Math.min(SMALL_W, Math.max(280, W - 24)), h: Math.min(SMALL_H, H * 0.62) };
-  }, [mode, W, H]);
-
-  const clamp = useCallback((p, sizeW = FAB, sizeH = FAB) => {
-    const minX = 8;
-    const minY = Math.max(8, insets.top + 8);
-    const maxX = Math.max(minX, W - sizeW - 8);
-    const maxY = Math.max(minY, H - sizeH - Math.max(8, insets.bottom + 8));
-    return {
-      x: Math.max(minX, Math.min(Number(p?.x) || 0, maxX)),
-      y: Math.max(minY, Math.min(Number(p?.y) || 0, maxY)),
-    };
-  }, [W, H, insets.top, insets.bottom]);
 
   useEffect(() => {
-    Promise.all([AsyncStorage.getItem(POS_KEY), AsyncStorage.getItem(MODE_KEY)]).then(([raw, m]) => {
-      let pos = { x: 16, y: Math.max(120, H - 140) };
-      try {
-        if (raw) pos = JSON.parse(raw);
-      } catch (_) {}
-      const next = clamp(pos, FAB, FAB);
-      animPos.setValue(next);
-      if (m === 'small' || m === 'large' || m === 'fab') setMode(m);
+    AsyncStorage.getItem(MODE_KEY).then((m) => {
+      setOpen(m === 'small' || m === 'large' || m === 'open');
       setReady(true);
     });
-  }, [H, animPos, clamp]);
-
-  const persistPos = (p) => {
-    AsyncStorage.setItem(POS_KEY, JSON.stringify(p)).catch(() => {});
-  };
-
-  const persistMode = (m) => {
-    setMode(m);
-    AsyncStorage.setItem(MODE_KEY, m).catch(() => {});
-  };
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) + Math.abs(g.dy) > 8,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => {
-          moved.current = false;
-          animPos.stopAnimation((v) => {
-            dragStart.current = { x: v.x, y: v.y };
-          });
-        },
-        onPanResponderMove: (_, g) => {
-          if (Math.abs(g.dx) + Math.abs(g.dy) > 8) moved.current = true;
-          const sizeW = mode === 'fab' ? FAB : panelSize.w;
-          const sizeH = mode === 'fab' ? FAB : panelSize.h;
-          const next = clamp({ x: dragStart.current.x + g.dx, y: dragStart.current.y + g.dy }, sizeW, sizeH);
-          animPos.setValue(next);
-        },
-        onPanResponderRelease: () => {
-          animPos.stopAnimation((v) => {
-            const sizeW = mode === 'fab' ? FAB : panelSize.w;
-            const sizeH = mode === 'fab' ? FAB : panelSize.h;
-            const next = clamp(v, sizeW, sizeH);
-            animPos.setValue(next);
-            persistPos(next);
-          });
-        },
-      }),
-    [animPos, clamp, mode, panelSize.h, panelSize.w]
-  );
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
-    const hide = () => persistMode('fab');
+    const hide = () => persistOpen(false);
     window.addEventListener('tc:dock-minimize', hide);
     return () => window.removeEventListener('tc:dock-minimize', hide);
   }, []);
+
+  const persistOpen = (next) => {
+    setOpen(next);
+    AsyncStorage.setItem(MODE_KEY, next ? 'open' : 'fab').catch(() => {});
+  };
+
   if (Platform.OS !== 'web') return null;
   if (!planFeatures?.canUseMeusGastos) return null;
   if (!ready) return null;
 
-  const openSmall = () => {
-    playTapSound();
-    persistMode('small');
-  };
+  const fabSize = isDesktop ? WEB_DESKTOP_RAIL_ROUND_BTN : FAB;
+  const railPos = isDesktop ? getWebDesktopRailDockPosition(fabSize) : null;
+  const right = isDesktop
+    ? railPos.right
+    : GAP + Math.max(insets.right, 8);
+  const bottom = isDesktop
+    ? railPos.bottom
+    : GAP + Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE);
+  const cardRight = isDesktop ? WEB_DESKTOP_RAIL_LAYOUT_RESERVE : right;
+  const cardW = Math.min(CARD_W, Math.max(260, W - cardRight - GAP));
+  const cardH = Math.min(CARD_H, Math.max(280, H - bottom - GAP - 24));
 
   const node = (
-    <Animated.View
+    <View
+      pointerEvents="box-none"
       style={[
-        styles.host,
-        {
-          width: mode === 'fab' ? FAB : panelSize.w,
-          height: mode === 'fab' ? FAB : panelSize.h,
-          transform: [{ translateX: animPos.x }, { translateY: animPos.y }],
-        },
+        styles.anchor,
+        open
+          ? { right: cardRight, bottom, width: cardW, height: cardH }
+          : { right, bottom, width: fabSize, height: fabSize },
       ]}
     >
-      {mode === 'fab' ? (
-        <View
-          {...pan.panHandlers}
-          accessibilityRole="button"
-          accessibilityLabel="Abrir Dock"
-          onClick={openSmall}
-          onPress={openSmall}
-          style={[styles.fab, Platform.OS === 'web' ? { cursor: 'pointer' } : null]}
-        >
-          <DockIcon size={36} />
-        </View>
-      ) : (
-        <View style={[styles.panel, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-          <View {...pan.panHandlers} style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
-            <DockIcon size={26} />
+      {open ? (
+        <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+          <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+            <DockIcon size={22} />
             <Text style={[styles.title, { color: colors.text }]}>Dock</Text>
             <TouchableOpacity
-              onPress={() => { playTapSound(); persistMode(mode === 'large' ? 'small' : 'large'); }}
-              style={styles.headBtn}
-              accessibilityLabel={mode === 'large' ? 'Tela pequena' : 'Tela grande'}
-            >
-              <Ionicons name={mode === 'large' ? 'contract-outline' : 'expand-outline'} size={18} color={colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { playTapSound(); persistMode('fab'); }}
+              onPress={() => {
+                playTapSound();
+                persistOpen(false);
+              }}
               style={styles.headBtn}
               accessibilityLabel="Minimizar Dock"
             >
-              <Ionicons name="remove-outline" size={20} color={colors.text} />
+              <Ionicons name="close" size={18} color={colors.text} />
             </TouchableOpacity>
           </View>
-          <View style={{ flex: 1, minHeight: 0 }}>
+          <View style={styles.body}>
             <MeusGastosChat corner ocrEnabled />
           </View>
         </View>
+      ) : (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Abrir Dock"
+          onPress={() => {
+            playTapSound();
+            persistOpen(true);
+          }}
+          style={[
+            styles.fab,
+            { width: fabSize, height: fabSize, borderRadius: fabSize / 2 },
+            Platform.OS === 'web' ? { cursor: 'pointer' } : null,
+          ]}
+        >
+          <DockIcon size={isDesktop ? 26 : 36} />
+        </TouchableOpacity>
       )}
-    </Animated.View>
+    </View>
   );
 
   return mount(node);
 }
 
 const styles = StyleSheet.create({
-  host: {
+  anchor: {
     position: 'fixed',
-    left: 0,
-    top: 0,
-    zIndex: 8000,
+    zIndex: 21000,
   },
   fab: {
     width: FAB,
@@ -195,12 +138,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#6cba16',
     boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
   },
-  panel: {
+  card: {
     flex: 1,
     borderWidth: 1,
     borderRadius: 16,
     overflow: 'hidden',
-    boxShadow: '0 12px 40px rgba(0,0,0,0.28)',
+    boxShadow: '0 12px 32px rgba(0,0,0,0.26)',
   },
   header: {
     flexDirection: 'row',
@@ -209,14 +152,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    cursor: 'move',
   },
-  title: { flex: 1, fontSize: 15, fontWeight: '800' },
+  title: { flex: 1, fontSize: 14, fontWeight: '800' },
   headBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  body: { flex: 1, minHeight: 0 },
 });

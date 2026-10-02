@@ -220,7 +220,7 @@ export function ViewModeToggle({
                 ? { height: scaleWebDesktop(36, true) }
                 : (useDesktopInlineCards ? { height: (inlineCardHeight ?? 40) } : { aspectRatio: 4.5 })),
               borderRadius: useDesktopHeaderSplit ? scaleWebDesktop(12, true) : (useDesktopInlineCards ? 14 : (inline ? 8 : (useWebLayout ? 10 : 14))),
-              ...chromeBtnBox(colors, { active }),
+              ...chromeBtnBox(colors, { active, ghost: false }),
               alignItems: 'center',
               justifyContent: 'center',
               paddingVertical: useDesktopHeaderSplit ? 7 : (useDesktopInlineCards ? 10 : (inline ? 5 : (useWebLayout ? 6 : 8))),

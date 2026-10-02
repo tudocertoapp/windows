@@ -36,10 +36,61 @@ import { askAccountAssistant } from '../services/accountAssistant';
 import { useAuth } from '../contexts/AuthContext';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { detectDockNav } from '../utils/dockNav';
+import { detectDockNav, emitDockControl } from '../utils/dockNav';
 
 /** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
 const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_LAYOUT_RESERVE;
+
+const DOCK_CHAT_MAX = 15;
+
+function dockChatStorageKey(userId) {
+  return `@tudocerto_dock_chat_${userId || 'guest'}`;
+}
+
+function isEphemeralDockMessage(m) {
+  if (!m) return true;
+  const id = String(m.id || '');
+  const text = String(m.text || '');
+  if (id.includes('loading')) return true;
+  if (text.startsWith('Um segundo')) return true;
+  if (text === 'Lendo imagem...') return true;
+  return false;
+}
+
+function serializeDockMessages(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter((m) => !isEphemeralDockMessage(m))
+    .slice(-DOCK_CHAT_MAX)
+    .map((m) => ({
+      id: m.id,
+      from: m.from,
+      kind: m.kind || 'text',
+      text: String(m.text || '').slice(0, 4000),
+      createdAt: m.createdAt || nowIso(),
+      intent: m.intent,
+      cards: Array.isArray(m.cards) ? m.cards.slice(0, 4) : undefined,
+      pendingAction: m.pendingAction || undefined,
+      followUp: m.followUp || undefined,
+      actions: Array.isArray(m.actions) ? m.actions : undefined,
+      action: m.action || undefined,
+      imageUri:
+        m.kind === 'image' && m.imageUri && !String(m.imageUri).startsWith('data:')
+          ? m.imageUri
+          : undefined,
+    }));
+}
+
+function defaultIntroMessage(name) {
+  return {
+    id: 'intro-assistant',
+    from: 'assistant',
+    kind: 'text',
+    text: name
+      ? `Olá, ${name}! Meu nome é Dock. O que posso te ajudar hoje?`
+      : 'Olá! Meu nome é Dock. Sou seu assessor no Tudo Certo: olho seus números, abro telas e só mudo algo se você confirmar. Como você quer que eu te chame?',
+    createdAt: nowIso(),
+  };
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -319,15 +370,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
     ? (Platform.OS === 'web' ? WEB_MOBILE_TAB_BAR_RESERVE : 96)
     : 0;
 
-  const [messages, setMessages] = useState(() => [
-    {
-      id: 'intro-assistant',
-      from: 'assistant',
-      kind: 'text',
-      text: 'Olá! Meu nome é Dock. Sou seu assessor no Tudo Certo: olho seus números, abro telas e só mudo algo se você confirmar. Como você quer que eu te chame?',
-      createdAt: nowIso(),
-    },
-  ]);
+  const [messages, setMessages] = useState(() => [defaultIntroMessage('')]);
+  const chatReadyRef = useRef(false);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [voiceEngine, setVoiceEngine] = useState(null);
@@ -349,30 +395,55 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const suppressAssistantMessageRef = useRef(null);
 
   useEffect(() => {
-    const key = `@tudocerto_dock_callme_${user?.id || 'guest'}`;
-    AsyncStorage.getItem(key).then((n) => {
-      const name = String(n || '').trim();
+    let cancelled = false;
+    chatReadyRef.current = false;
+    const uid = user?.id || 'guest';
+    Promise.all([
+      AsyncStorage.getItem(`@tudocerto_dock_callme_${uid}`),
+      AsyncStorage.getItem(dockChatStorageKey(uid)),
+    ]).then(([nameRaw, chatRaw]) => {
+      if (cancelled) return;
+      const name = String(nameRaw || '').trim();
       if (name) setDockName(name);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === 'intro-assistant'
-            ? {
-                ...m,
-                text: name
-                  ? `Olá, ${name}! Meu nome é Dock. O que posso te ajudar hoje?`
-                  : 'Olá! Meu nome é Dock, o que posso ajudar hoje? Como você quer que eu te chame?',
-              }
-            : m
-        )
-      );
+      let loaded = null;
+      try {
+        const parsed = JSON.parse(chatRaw);
+        if (Array.isArray(parsed) && parsed.length) loaded = serializeDockMessages(parsed);
+      } catch (_) {}
+      setMessages(loaded?.length ? loaded : [defaultIntroMessage(name)]);
+      chatReadyRef.current = true;
     });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!chatReadyRef.current) return;
+    const uid = user?.id || 'guest';
+    AsyncStorage.setItem(dockChatStorageKey(uid), JSON.stringify(serializeDockMessages(messages))).catch(() => {});
+  }, [messages, user?.id]);
+
+  useEffect(() => {
+    const uid = user?.id || 'guest';
+    return () => {
+      if (!chatReadyRef.current) return;
+      AsyncStorage.setItem(
+        dockChatStorageKey(uid),
+        JSON.stringify(serializeDockMessages(messagesRef.current))
+      ).catch(() => {});
+    };
   }, [user?.id]);
 
   const applyDockUiAction = (action) => {
     const t = action?.target;
+    if (!t) return;
     const raw = String(action?.type || action?.action || '').toLowerCase();
     const mode = raw === 'close' || raw === 'fechar' || raw === 'fecha' ? 'close' : 'open';
-    if (t) dockControl?.(t, mode);
+    try {
+      dockControl?.(t, mode);
+    } catch (_) {}
+    if (Platform.OS === 'web') emitDockControl(t, mode);
   };
 
   const stripAccents = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -435,8 +506,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const appendMessage = (msg) => {
     setMessages((prev) => {
       const next = [...prev, msg];
+      const solid = next.filter((m) => !isEphemeralDockMessage(m)).slice(-DOCK_CHAT_MAX);
+      const eph = next.filter((m) => isEphemeralDockMessage(m));
       setTimeout(() => listRef.current?.scrollToEnd?.({ animated: true }), 100);
-      return next;
+      return eph.length ? [...solid, ...eph] : solid;
     });
   };
 

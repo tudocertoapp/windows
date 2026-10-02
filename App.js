@@ -19,6 +19,7 @@ import { ShoppingListProvider } from './src/contexts/ShoppingListContext';
 import { GoalsProvider } from './src/contexts/GoalsContext';
 import { ReminderProvider } from './src/contexts/ReminderContext';
 import { ValuesVisibilityProvider } from './src/contexts/ValuesVisibilityContext';
+import { KeyboardShortcutsProvider } from './src/contexts/KeyboardShortcutsContext';
 import { EmpresaProvider } from './src/contexts/EmpresaContext';
 import { ColaboradoresOrdemProvider } from './src/contexts/ColaboradoresOrdemContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -200,7 +201,9 @@ function AppContent() {
                 <ThemeSync>
                   <EmpresaProvider>
                     <ValuesVisibilityProvider>
-                      <AppWithReminders />
+                      <KeyboardShortcutsProvider>
+                        <AppWithReminders />
+                      </KeyboardShortcutsProvider>
                     </ValuesVisibilityProvider>
                   </EmpresaProvider>
                 </ThemeSync>

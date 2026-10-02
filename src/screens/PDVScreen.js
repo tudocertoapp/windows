@@ -16,6 +16,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
+import { KeyboardShortcutsToggle } from '../components/KeyboardShortcutsToggle';
+import { useKeyboardShortcuts } from '../contexts/KeyboardShortcutsContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -182,6 +184,7 @@ const LAYOUT_BREAKPOINT = 960;
 
 export function PDVScreen({ onClose, lockedMode = false }) {
   const { colors } = useTheme();
+  const { shortcutsEnabled } = useKeyboardShortcuts();
   const { lang } = useLanguage();
   const { width: windowWidth } = useWindowDimensions();
   const layoutW = windowWidth > 0 ? windowWidth : Dimensions.get('window').width;
@@ -994,6 +997,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
         }
         return;
       }
+      if (!shortcutsEnabled) return;
       if (!hasModifier && e.key === 'F1') { e.preventDefault(); setActiveTab('produtos'); setTimeout(() => searchRef.current?.focus?.(), 50); return; }
       if (!hasModifier && e.key === 'F2') { e.preventDefault(); if (selectedItem) setSelectedItem(null); return; }
       if (!hasModifier && e.key === 'F3') { e.preventDefault(); requestCancelAction('item'); return; }
@@ -1015,7 +1019,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('tc:escape', onTcEscape);
     };
-  }, [selectedItem, activeTab, cart, pago, total, completedSale, handleConfirmSale, handlePrint, confirmAddItem, requestCancelAction, handlePdvEscape]);
+  }, [selectedItem, activeTab, cart, pago, total, completedSale, handleConfirmSale, handlePrint, confirmAddItem, requestCancelAction, handlePdvEscape, shortcutsEnabled]);
 
   useEffect(() => {
     if (!mustRequireOperatorLogin) return;
@@ -1049,6 +1053,7 @@ export function PDVScreen({ onClose, lockedMode = false }) {
             <Text style={styles.headerValue} numberOfLines={1}>{operatorLogged?.nome || profile?.nome || 'Operador'}</Text>
           </View>
           <View style={[styles.headerRight, narrowLayout && styles.headerRightWrap]}>
+            <KeyboardShortcutsToggle color="#fff" size={22} alwaysShow style={{ padding: 4 }} />
             {completedSale && (
               <TouchableOpacity style={styles.headerBtn} onPress={handlePrint}>
                 <Ionicons name="print-outline" size={20} color="#fff" />
@@ -1578,42 +1583,42 @@ export function PDVScreen({ onClose, lockedMode = false }) {
       {/* Barra inferior - Atalhos */}
       <View style={[styles.footer, { backgroundColor: 'transparent', borderTopWidth: 0 }, narrowLayout && styles.footerWrap]}>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('produtos'); searchRef.current?.focus(); }}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F1</Text>
           </View>
           <Ionicons name="add" size={18} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Adicionar Item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => selectedItem && setSelectedItem(null)}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F2</Text>
           </View>
           <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Editar item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => requestCancelAction('item')}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F3</Text>
           </View>
           <Ionicons name="remove-circle-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cancelar item</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => requestCancelAction('pedido')}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F4</Text>
           </View>
           <Ionicons name="close-circle-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cancelar pedido</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('cliente'); playTapSound(); }}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F5</Text>
           </View>
           <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Cliente</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => { setActiveTab('finalizacao'); playTapSound(); }}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F6</Text>
           </View>
           <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />
@@ -1624,21 +1629,21 @@ export function PDVScreen({ onClose, lockedMode = false }) {
           onPress={handleConfirmSale}
           disabled={cart.length === 0 || pago < total - 0.01}
         >
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F7</Text>
           </View>
           <Ionicons name="checkmark-circle" size={18} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]} numberOfLines={1}>Faturar</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }, !completedSale && styles.footerBtnDisabled]} onPress={handlePrint} disabled={!completedSale}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F8</Text>
           </View>
           <Ionicons name="print-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.footerBtnText, { color: footerBtnText }]}>Imprimir</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, { backgroundColor: footerBtnBg, borderColor: colors.primary }]} onPress={() => setShowPdvConfigModal(true)}>
-          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }]}>
+          <View style={[styles.footerShortcutChip, { borderColor: colors.primary, backgroundColor: colors.bg }, !shortcutsEnabled && { display: 'none' }]}>
             <Text style={[styles.footerShortcutChipText, { color: footerChipText }]}>F9</Text>
           </View>
           <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />

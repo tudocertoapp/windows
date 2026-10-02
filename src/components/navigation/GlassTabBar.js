@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { TabShortcutChip } from './RightSideTabBar';
+import { TabShortcutChip, formatAltShortcut } from './RightSideTabBar';
 import { isDesktopOnlyFeatureClient, useIsDesktopLayout } from '../../utils/platformLayout';
 
 const SPRING_CONFIG = { damping: 18, stiffness: 180 };
@@ -162,7 +162,7 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
             const index = routes.findIndex((r) => r.key === route.key);
             const isFocused = state.index === index;
             const isAddButton = route.name === 'Adicionar';
-            const shortcut = showShortcuts ? String(index + 1) : null;
+            const shortcut = showShortcuts ? formatAltShortcut(String(index + 1)) : null;
 
             if (isAddButton) {
               const onAdd = customHandlers[route.name];

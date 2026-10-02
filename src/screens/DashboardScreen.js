@@ -9,6 +9,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useMenu } from '../contexts/MenuContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { usePlan } from '../contexts/PlanContext';
+import { useKeyboardShortcuts } from '../contexts/KeyboardShortcutsContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotes } from '../contexts/NotesContext';
 import { useShoppingList } from '../contexts/ShoppingListContext';
@@ -297,6 +298,7 @@ export function DashboardScreen() {
     text: colors.textSecondary,
   }), [colors.bg, colors.border, colors.card, colors.primary, colors.textSecondary]);
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, plan, PLANS } = usePlan();
+  const { shortcutsEnabled } = useKeyboardShortcuts();
   const { isGuest, user } = useAuth();
   const { openImageGenerator, openAReceber, openAddModal, openCadastro, openAnotacoes, openOrcamento, openOrcamentos, openAssinatura, openIndique, openManageCards, openCalculadoraFull, openMeusGastos, openListaCompras, openMensagensWhatsApp, openAniversariantes, openEmpresa, openPDV, openCatalogo } = useMenu();
   const [catalogoMenuLabel, setCatalogoMenuLabel] = useState('Meu Catálogo');
@@ -465,6 +467,7 @@ export function DashboardScreen() {
       );
     };
     const onKeyDown = (event) => {
+      if (!shortcutsEnabled) return;
       if (isTypingTarget(event?.target)) return;
       if (event?.ctrlKey || event?.shiftKey || event?.altKey || event?.metaKey) return;
       const keyRaw = String(event?.key || event?.code || '').toUpperCase();
@@ -487,7 +490,7 @@ export function DashboardScreen() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWeb, useWebLayout, showEmpresaFeatures, canToggleView, plan, PLANS, webDesktopQuickButtons, setViewMode]);
+  }, [isWeb, useWebLayout, showEmpresaFeatures, canToggleView, plan, PLANS, webDesktopQuickButtons, setViewMode, shortcutsEnabled]);
 
 
   useEffect(() => {
@@ -3980,6 +3983,7 @@ export function DashboardScreen() {
                   position: 'relative',
                 }}
               >
+                {shortcutsEnabled ? (
                 <View
                   pointerEvents="none"
                   style={{
@@ -3996,6 +4000,7 @@ export function DashboardScreen() {
                 >
                   <Text style={{ fontSize: 9, fontWeight: '800', color: quickRowTheme.chipText }}>{`F${index + 1}`}</Text>
                 </View>
+                ) : null}
                 <AppIcon name={item.icon} size={16} color={quickRowTheme.icon} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: quickRowTheme.text, textAlign: 'center', flexShrink: 1 }} numberOfLines={1}>
                   {item.label}

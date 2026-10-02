@@ -8,6 +8,7 @@ import { usePlan } from '../../contexts/PlanContext';
 import { AppIcon } from '../AppIcon';
 import { playTapSound } from '../../utils/sounds';
 import { isDesktopOnlyFeatureClient, useIsDesktopLayout } from '../../utils/platformLayout';
+import { useKeyboardShortcuts } from '../../contexts/KeyboardShortcutsContext';
 
 /** Botões redondos da rail (tab bar + menu flutuante): 42×42. */
 export const WEB_DESKTOP_RAIL_ROUND_BTN = 42;
@@ -21,7 +22,20 @@ export function getWebDesktopRailMenuPosition() {
 }
 
 /** Atalho do botão de menu da rail (não usa F1–F10, reservados à página inicial). */
-export const DESKTOP_MENU_SHORTCUT = 'M';
+export const DESKTOP_MENU_SHORTCUT = 'Alt+M';
+
+export function formatAltShortcut(key) {
+  if (!key) return null;
+  const k = String(key);
+  if (k.toLowerCase().startsWith('alt+')) return k;
+  return `Alt+${k}`;
+}
+
+export function getWebDesktopRailDockPosition(fabSize = WEB_DESKTOP_RAIL_ROUND_BTN) {
+  const right = WEB_DESKTOP_RAIL_VIEWPORT_MARGIN + (WEB_DESKTOP_RAIL_WIDTH - fabSize) / 2;
+  const bottom = WEB_DESKTOP_RAIL_VERTICAL_INSET;
+  return { right, bottom };
+}
 
 /** Ordem visual da rail desktop: Início, Dinheiro, Agenda, +, Meus gastos, WhatsApp, Calculadora. */
 export function buildDesktopRailShortcuts(showEmpresaFeatures) {
@@ -51,7 +65,8 @@ export function buildGlassTabShortcuts() {
 /** Selo igual aos atalhos F da página inicial e do PDV. Fica fora do círculo para não ser cortado. */
 export function TabShortcutChip({ label, colors, style }) {
   const isDesktopLayout = useIsDesktopLayout();
-  if (!label || !isDesktopOnlyFeatureClient(isDesktopLayout)) return null;
+  const { shortcutsEnabled } = useKeyboardShortcuts();
+  if (!label || !shortcutsEnabled || !isDesktopOnlyFeatureClient(isDesktopLayout)) return null;
   return (
     <View
       pointerEvents="none"
@@ -59,10 +74,10 @@ export function TabShortcutChip({ label, colors, style }) {
         {
           position: 'absolute',
           top: -7,
-          right: 2,
+          right: -6,
           zIndex: 30,
           borderRadius: 7,
-          paddingHorizontal: 6,
+          paddingHorizontal: 4,
           paddingVertical: 1,
           backgroundColor: colors.bg,
           borderWidth: 1,
@@ -72,7 +87,7 @@ export function TabShortcutChip({ label, colors, style }) {
         style,
       ]}
     >
-      <Text style={{ fontSize: 9, fontWeight: '800', color: colors.primary, lineHeight: 12 }}>{label}</Text>
+      <Text style={{ fontSize: 8, fontWeight: '800', color: colors.primary, lineHeight: 11 }}>{label}</Text>
     </View>
   );
 }
@@ -214,7 +229,7 @@ export function RightSideTabBar({
   const shortcutById = Object.fromEntries(
     buildDesktopRailShortcuts(showEmpresaFeatures).map((item) => [
       item.id === 'add' ? 'Adicionar' : item.id,
-      item.key,
+      formatAltShortcut(item.key),
     ])
   );
 

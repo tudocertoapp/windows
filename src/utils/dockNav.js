@@ -13,7 +13,7 @@ const PAGES = [
   { re: /\b(inicio|home|dashboard|tela inicial)\b/, target: 'home', label: 'início' },
   { re: /\b(dinheiro|financas|financeiro)\b/, target: 'money', label: 'dinheiro' },
   { re: /\bagenda\b/, target: 'agenda', label: 'agenda' },
-  { re: /\b(dock|chat|meus gastos)\b/, target: 'dock', label: 'Dock' },
+  { re: /\b(dock|meus gastos)\b/, target: 'dock', label: 'Dock' },
   { re: /\b(whatsapp|crm|mensagens)\b/, target: 'whatsapp', label: 'WhatsApp' },
   { re: /\bprodutos?\b/, target: 'products', label: 'produtos' },
   { re: /\bservicos?\b/, target: 'services', label: 'serviços' },
@@ -23,7 +23,7 @@ const PAGES = [
   { re: /\b(catalogo|minha loja|loja)\b/, target: 'catalog', label: 'catálogo' },
   { re: /\banotaco/, target: 'notes', label: 'anotações' },
   { re: /\b(lista de compras|compras)\b/, target: 'shopping', label: 'lista de compras' },
-  { re: /\b(a receber|receber)\b/, target: 'receivables', label: 'a receber' },
+  { re: /\b(a receber)\b/, target: 'receivables', label: 'a receber' },
   { re: /\borcament/, target: 'quotes', label: 'orçamentos' },
   { re: /\bbancos?\b/, target: 'banks', label: 'bancos' },
   { re: /\b(perfil|minha conta)\b/, target: 'profile', label: 'perfil' },
@@ -31,7 +31,7 @@ const PAGES = [
   { re: /\b(aniversariante)/, target: 'birthdays', label: 'aniversariantes' },
   { re: /\bempresa\b/, target: 'company', label: 'empresa' },
   { re: /\bcolaborador/, target: 'staff', label: 'colaboradores' },
-  { re: /\b(ordem de servico|os\b)/, target: 'workorders', label: 'ordens de serviço' },
+  { re: /\b(ordem de servico|\bos\b)/, target: 'workorders', label: 'ordens de serviço' },
   { re: /\b(metas|sonhos)\b/, target: 'goals', label: 'metas' },
   { re: /\b(temas?|aparencia)\b/, target: 'themes', label: 'temas' },
   { re: /\bindique\b/, target: 'referral', label: 'indique' },
@@ -40,20 +40,46 @@ const PAGES = [
   { re: /\b(profissional|profissionais)\b/, target: 'professionals', label: 'profissionais' },
   { re: /\b(boleto|faturas?)\b/, target: 'bills', label: 'boletos' },
   { re: /\bmenu\b/, target: 'menu', label: 'menu' },
+  { re: /\btarefas?\b/, target: 'tasks', label: 'tarefas' },
 ];
+
+const OPEN_RE = /\b(abre|abra|abrir|abrindo|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela)\b/;
+const CLOSE_RE = /\b(fecha|fechar|feche|fechando|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/;
+const DATA_ASK_RE = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem|quem comprou|mais vendeu)\b/;
+
+function matchPage(t) {
+  for (const p of PAGES) {
+    if (p.re.test(t)) return p;
+  }
+  return null;
+}
 
 export function detectDockNav(text) {
   const t = fold(text);
-  const dataAsk = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem)\b/.test(t);
-  const closing = /\b(fecha|fechar|fechando|esconde|esconder|some|desliga|sai da|sair da)\b/.test(t);
-  const opening = /\b(abre|abrir|vai para|vai pra|ir para|ir pra|quero abrir|mostra a tela|mostra o|mostra a)\b/.test(t);
+  if (!t) return null;
+  const dataAsk = DATA_ASK_RE.test(t);
+  const closing = CLOSE_RE.test(t);
+  const opening = OPEN_RE.test(t);
+  const words = t.split(/\s+/).filter(Boolean);
+  const short = words.length <= 6;
+  const page = matchPage(t);
+
   if (dataAsk && !closing && !opening) return null;
-  if (!closing && !opening) return null;
-  for (const p of PAGES) {
-    if (!p.re.test(t)) continue;
-    if (closing) return { target: p.target, label: p.label, action: 'close' };
-    return { target: p.target, label: p.label, action: 'open' };
+  if (closing) {
+    return {
+      target: page?.target || 'calculator',
+      label: page?.label || 'calculadora',
+      action: 'close',
+    };
   }
-  if (closing) return { target: 'calculator', label: 'calculadora', action: 'close' };
+  if (page && (opening || (short && !dataAsk))) {
+    return { target: page.target, label: page.label, action: 'open' };
+  }
   return null;
+}
+
+export function emitDockControl(target, mode) {
+  if (!target) return;
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('tc:dock-control', { detail: { target, mode: mode || 'open' } }));
 }
