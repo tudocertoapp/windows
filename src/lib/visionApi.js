@@ -18,6 +18,8 @@ export function getVisionProxyOrigin() {
     if (visionUrl && !isLocalDevUrl(visionUrl)) {
       return String(visionUrl).replace(/\/$/, '');
     }
+    // Expo em localhost:8081 — usa a API de produção se o web:api (3000) não for o alvo explícito da página.
+    // Se EXPO_PUBLIC_VISION_API_URL aponta para :3000, ainda tentamos ele primeiro (npm run web:api / web:dev).
     if (visionUrl && isLocalDevUrl(visionUrl)) {
       return String(visionUrl).replace(/\/$/, '');
     }

@@ -2,26 +2,32 @@ function groqKey() {
   return (process.env.GROQ_API_KEY || '').trim();
 }
 
-/** Llama 3.3 saiu do plano grátis da Groq (ago/2026). A chave atual só vê estes chats. */
+/** Chat só pela Groq. Gemini fica só no OCR de comprovante, não no assistente. */
 const GROQ_CHAT_MODELS = [
   (process.env.GROQ_MODEL || '').trim(),
-  'openai/gpt-oss-20b',
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
   'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
   'qwen/qwen3.8-27b',
 ].filter(Boolean);
 
 function groqModel() {
-  return GROQ_CHAT_MODELS[0] || 'openai/gpt-oss-20b';
-}
-
-function geminiKey() {
-  return (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '').trim();
+  return GROQ_CHAT_MODELS[0] || 'llama-3.3-70b-versatile';
 }
 
 function llmStatus() {
-  if (groqKey()) return { configured: true, provider: 'groq', model: groqModel() };
-  if (geminiKey()) return { configured: true, provider: 'gemini', model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' };
-  return { configured: false, provider: null, model: null };
+  if (groqKey()) return { configured: true };
+  return { configured: false };
+}
+
+function publicError(err) {
+  const msg = String(err?.message || err || '');
+  if (/gemini|groq|llama|chatgpt|openai|qwen|gpt-?oss|model|api key|GEMINI|GROQ/i.test(msg)) {
+    return 'Não consegui responder agora. Tente de novo em instantes.';
+  }
+  return stripBrandNames(msg) || 'Não consegui responder agora. Tente de novo.';
 }
 
 function isUnknownModelError(msg) {
@@ -35,21 +41,24 @@ async function chatGroqOnce({ apiKey, model, system, messages }) {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
+    signal: AbortSignal.timeout(20000),
     body: JSON.stringify({
       model,
-      temperature: 0.35,
-      max_tokens: 900,
+      temperature: 0.75,
+      max_tokens: 1400,
       messages: [{ role: 'system', content: system }, ...messages],
     }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = json?.error?.message || `Groq HTTP ${res.status}`;
+    const msg = json?.error?.message || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
     throw err;
   }
-  return String(json?.choices?.[0]?.message?.content || '').trim();
+  const msg = json?.choices?.[0]?.message || {};
+  const raw = String(msg.content || msg.reasoning || '').trim();
+  return raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
 async function chatGroq({ system, messages }) {
@@ -63,56 +72,34 @@ async function chatGroq({ system, messages }) {
       return await chatGroqOnce({ apiKey, model, system, messages });
     } catch (e) {
       lastErr = e;
-      if (isUnknownModelError(e?.message)) continue;
+      const msg = String(e?.message || '');
+      if (isUnknownModelError(msg) || e?.status === 404 || /timed out|TimeoutError|AbortError/i.test(msg)) continue;
       throw e;
     }
   }
-  throw lastErr || new Error('Nenhum modelo Groq disponível nesta chave.');
+  throw lastErr || new Error('Assistente indisponível no momento.');
 }
 
-async function chatGemini({ system, messages }) {
-  const apiKey = geminiKey();
-  const model = (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim();
-  const contents = messages.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents,
-      generationConfig: { temperature: 0.35, maxOutputTokens: 900 },
-    }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    throw err;
-  }
-  const parts = json?.candidates?.[0]?.content?.parts || [];
-  return parts.map((p) => p.text || '').join('').trim();
+function stripBrandNames(text) {
+  return String(text || '')
+    .replace(/\b(google\s*)?gemini(\s*flash)?\b/gi, 'assistente')
+    .replace(/\bgroq\b/gi, 'assistente')
+    .replace(/\bllama[\s-]*\d*(\.\d+)?[\s-]*\d*b?\b/gi, 'assistente')
+    .replace(/\bchatgpt\b/gi, 'assistente')
+    .replace(/\bgpt-?oss[-\s]*\d*b?\b/gi, 'assistente')
+    .replace(/\bopenai\b/gi, 'assistente')
+    .replace(/\bqwen[\w.-]*/gi, 'assistente')
+    .replace(/\ballam[\w.-]*/gi, 'assistente');
 }
 
 async function chatWithAccountLlm({ system, messages }) {
-  if (groqKey()) {
-    try {
-      return { text: await chatGroq({ system, messages }), provider: 'groq' };
-    } catch (e) {
-      if (geminiKey()) {
-        return { text: await chatGemini({ system, messages }), provider: 'gemini' };
-      }
-      throw e;
-    }
+  if (!groqKey()) {
+    const err = new Error('Assistente indisponível no momento.');
+    err.status = 503;
+    throw err;
   }
-  if (geminiKey()) return { text: await chatGemini({ system, messages }), provider: 'gemini' };
-  const err = new Error('Nenhuma chave de IA no servidor (GROQ_API_KEY).');
-  err.status = 503;
-  throw err;
+  const text = stripBrandNames(await chatGroq({ system, messages }));
+  return { text };
 }
 
-module.exports = { llmStatus, chatWithAccountLlm };
+module.exports = { llmStatus, chatWithAccountLlm, stripBrandNames, publicError };

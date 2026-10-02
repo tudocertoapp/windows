@@ -4,6 +4,20 @@ function stripAccents(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Pergunta sobre a conta — não é comando de cadastrar gasto. */
+export function looksLikeAssistantQuestion(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return false;
+  const t = stripAccents(raw).toLowerCase();
+  if (/\?/.test(raw)) return true;
+  if (/\b(quanto|quantos|qual|quais|como esta|como estao|como anda|quando|quem|onde|o que|me diz|me fala)\b/.test(t)) return true;
+  if (/\b(cadastre|cadastrar|registre|registrar|lance|lancar)\b/.test(t)) return false;
+  if (/\b(mes passado|este mes|esse mes|neste mes|hoje|ontem|amanha|fluxo de caixa|a receber)\b/.test(t)) return true;
+  if (/\b(vendeu|vendi|vendas|venda|agenda|organiz|controle|faturei|saldo|cliente|clientes)\b/.test(t)) return true;
+  if (/\b(produto|produtos|calculadora|calc|abre|abrir|fecha|fechar|dock|me chama|como vc|como voce|td bem|blz|detalhe|detalha)\b/.test(t)) return true;
+  return false;
+}
+
 /** Prefer o match mais longo (ex.: "supermercado" antes de "mercado"). */
 function findLongestCategoryMatch(text) {
   const t = stripAccents(text || '').toLowerCase();
@@ -500,6 +514,7 @@ export function buildExpenseVoicePreview(transcript, recordedAt = new Date()) {
 export function parseVoiceIntent(transcript) {
   const t = (transcript || '').trim().toLowerCase();
   if (!t) return null;
+  if (looksLikeAssistantQuestion(transcript)) return null;
 
   const result = { type: null, params: {} };
   const timeRange = extractTimeRange(transcript);

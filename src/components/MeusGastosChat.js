@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { useMenu } from '../contexts/MenuContext';
-import { parseExpenseVoice, parseVoiceIntent, buildExpenseVoicePreview, extractMainExpenseDescription } from '../utils/voiceExpenseParser';
+import { parseExpenseVoice, parseVoiceIntent, buildExpenseVoicePreview, extractMainExpenseDescription, looksLikeAssistantQuestion } from '../utils/voiceExpenseParser';
 import { CATEGORIAS_DESPESA } from '../constants/categories';
 import {
   playTapSound,
@@ -35,6 +35,8 @@ import { getVisionConfigHint } from '../lib/visionStatus';
 import { askAccountAssistant } from '../services/accountAssistant';
 import { useAuth } from '../contexts/AuthContext';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { detectDockNav } from '../utils/dockNav';
 
 /** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
 const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_LAYOUT_RESERVE;
@@ -299,44 +301,33 @@ function brDateToIso(dateStr) {
   return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
-export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEnabled = true }) {
+export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEnabled = true, corner = false }) {
   const { colors } = useTheme();
   const { transactions, addTransaction } = useFinance();
-  const { openAddModal } = useMenu();
+  const { openAddModal, dockControl } = useMenu();
   const { user, isGuest } = useAuth();
+  const [dockName, setDockName] = useState('');
   const insets = useSafeAreaInsets();
   const isDesktopLayout = useIsDesktopLayout();
   const isWebMobile = Platform.OS === 'web' && !isDesktopLayout;
   /** Card Início no web mobile: manter input + botões na mesma linha no rodapé */
   const embeddedMobileStackInputs = false;
-  const webDesktopFixedInput = Platform.OS === 'web' && isDesktopLayout && !embedded;
+  const webDesktopFixedInput = Platform.OS === 'web' && isDesktopLayout && !embedded && !corner;
   const mobileBottomDock = !webDesktopFixedInput && (Platform.OS !== 'web' || isWebMobile);
   // No card embutido (Meus gastos), não reservamos área da tabbar global para não "subir" o input.
   const mobileTabbarReserve = mobileBottomDock && !embedded
     ? (Platform.OS === 'web' ? WEB_MOBILE_TAB_BAR_RESERVE : 96)
     : 0;
-  const EXAMPLE_PHRASES = [
-    'Fui no mercado e gastei 89,90. Gasto pessoal.',
-    'Estava na farmácia e paguei 35,50.',
-    'Almoço no restaurante, R$ 48,00, gasto pessoal.',
-    'Combustível no posto, 120 reais.',
-    'Comprei material de escritório, 156,80. Empresa.',
-    'Gastei 22,90 no delivery, pessoal.',
-    'Pagamento no supermercado, total 234,15.',
-  ];
 
-  const [messages, setMessages] = useState(() => {
-    const ex = EXAMPLE_PHRASES[Math.floor(Math.random() * EXAMPLE_PHRASES.length)];
-    return [
-      {
-        id: 'intro-assistant',
-        from: 'assistant',
-        kind: 'text',
-        text: `Envie texto, áudio ou foto. Ex: "${ex}" Registro o gasto. Também posso responder sobre sua conta: quanto entrou, o que mais vende, estoque e dicas.`,
-        createdAt: nowIso(),
-      },
-    ];
-  });
+  const [messages, setMessages] = useState(() => [
+    {
+      id: 'intro-assistant',
+      from: 'assistant',
+      kind: 'text',
+      text: 'Olá! Meu nome é Dock. Sou seu assessor no Tudo Certo: olho seus números, abro telas e só mudo algo se você confirmar. Como você quer que eu te chame?',
+      createdAt: nowIso(),
+    },
+  ]);
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [voiceEngine, setVoiceEngine] = useState(null);
@@ -356,6 +347,33 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const voiceRecordedAtRef = useRef(null);
   // Para evitar duplicar mensagens quando a despesa já foi adicionada pelo próprio chat (ex.: voz)
   const suppressAssistantMessageRef = useRef(null);
+
+  useEffect(() => {
+    const key = `@tudocerto_dock_callme_${user?.id || 'guest'}`;
+    AsyncStorage.getItem(key).then((n) => {
+      const name = String(n || '').trim();
+      if (name) setDockName(name);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === 'intro-assistant'
+            ? {
+                ...m,
+                text: name
+                  ? `Olá, ${name}! Meu nome é Dock. O que posso te ajudar hoje?`
+                  : 'Olá! Meu nome é Dock, o que posso ajudar hoje? Como você quer que eu te chame?',
+              }
+            : m
+        )
+      );
+    });
+  }, [user?.id]);
+
+  const applyDockUiAction = (action) => {
+    const t = action?.target;
+    const raw = String(action?.type || action?.action || '').toLowerCase();
+    const mode = raw === 'close' || raw === 'fechar' || raw === 'fecha' ? 'close' : 'open';
+    if (t) dockControl?.(t, mode);
+  };
 
   const stripAccents = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const inferReceiptCategory = (text) => {
@@ -438,6 +456,15 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   };
 
   const handleOcrRetryAction = async (msg, actionType) => {
+    if (actionType === 'aiConfirm' || actionType === 'aiCancel') {
+      playTapSound();
+      const pending = msg.pendingAction || null;
+      await replyWithAccountAssistant(actionType === 'aiConfirm' ? 'sim' : 'não', {
+        pendingAction: pending,
+        confirm: actionType === 'aiConfirm',
+      });
+      return;
+    }
     if (actionType !== 'retryOcr') return;
     playTapSound();
     const meta = msg.ocrFailMeta || {};
@@ -624,7 +651,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
     });
   };
 
-  const replyWithAccountAssistant = async (userText) => {
+  const replyWithAccountAssistant = async (userText, extra = {}) => {
     if (isGuest || !user) {
       appendMessage({
         id: `assistant-ai-login-${Date.now()}`,
@@ -640,24 +667,53 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       id: loadingId,
       from: 'assistant',
       kind: 'text',
-      text: 'Consultando os dados da sua conta...',
+      text: 'Um segundo...',
       createdAt: nowIso(),
     });
     const history = messages
       .filter((m) => m.kind === 'text' && m.text && m.id !== 'intro-assistant')
-      .filter((m) => !String(m.text).startsWith('Consultando os dados'))
+      .filter((m) => !String(m.text).startsWith('Um segundo'))
       .slice(-8)
       .map((m) => ({
         role: m.from === 'user' ? 'user' : 'assistant',
-        content: String(m.text || '').slice(0, 800),
+        content: String(m.text || '').slice(0, 400),
+        intent: m.intent || undefined,
+        followUp: m.followUp || undefined,
       }));
-    const result = await askAccountAssistant({ message: userText, history });
+    const lastPending = [...messages].reverse().find((m) => m.pendingAction)?.pendingAction || extra.pendingAction || null;
+    const result = await askAccountAssistant({
+      message: userText,
+      history,
+      pendingAction: lastPending,
+      confirm: extra.confirm === true || (lastPending && /^(sim|s|ok|confirmo|pode)$/i.test(String(userText || '').trim())),
+      preferredName: dockName,
+    });
     setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+    if (result.ok && result.callName) {
+      const call = String(result.callName).trim();
+      if (call) {
+        setDockName(call);
+        AsyncStorage.setItem(`@tudocerto_dock_callme_${user?.id || 'guest'}`, call).catch(() => {});
+      }
+    }
+    if (result.ok && result.uiAction) {
+      applyDockUiAction(result.uiAction);
+    }
     appendMessage({
       id: `assistant-ai-reply-${Date.now()}`,
       from: 'assistant',
       kind: 'text',
       text: result.ok ? result.reply : result.error,
+      intent: result.ok ? result.intent : undefined,
+      cards: result.ok ? result.cards : undefined,
+      pendingAction: result.ok ? result.pendingAction : undefined,
+      followUp: result.ok ? result.followUp : undefined,
+      actions: result.ok && result.pendingAction
+        ? [
+            { label: 'Confirmar', actionType: 'aiConfirm' },
+            { label: 'Cancelar', actionType: 'aiCancel' },
+          ]
+        : undefined,
       createdAt: nowIso(),
     });
   };
@@ -728,6 +784,22 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       return;
     }
     if (kind === 'voice' || kind === 'text') {
+      const nav = detectDockNav(filteredText || normalizedText);
+      if (nav?.target) {
+        applyDockUiAction({ type: nav.action === 'close' ? 'close' : 'open', target: nav.target });
+        appendMessage({
+          id: `assistant-nav-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: nav.action === 'close' ? `Fechando ${nav.label}.` : `Beleza. Abrindo ${nav.label}.`,
+          createdAt: nowIso(),
+        });
+        return;
+      }
+      if (looksLikeAssistantQuestion(filteredText)) {
+        await replyWithAccountAssistant(filteredText);
+        return;
+      }
       const intent = parseVoiceIntent(filteredText);
 
       if (intent?.type === 'agenda') {
@@ -1052,6 +1124,26 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
           {item.text ? (
             <Text style={{ color: isUser ? '#fff' : colors.text, fontSize: 14 }}>{item.text}</Text>
           ) : null}
+          {!isUser && item.cards?.length ? (
+            <View style={{ marginTop: 8, gap: 6 }}>
+              {item.cards.map((c, i) => (
+                <View
+                  key={`${c.title}-${i}`}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
+                    borderRadius: 8,
+                    backgroundColor: colors.primaryRgba(0.08),
+                  }}
+                >
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>{c.title}</Text>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>{c.value}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {!isUser && item.actions?.length ? (
             <View style={{ marginTop: 8, gap: 8 }}>
               {item.actions.map((a, i) => (
@@ -1269,7 +1361,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   );
 
   return (
-    <View style={[s.container, embedded && s.embeddedContainer]}>
+    <View style={[s.container, embedded && s.embeddedContainer, corner && s.cornerContainer]}>
       {Platform.OS === 'web' ? (
         <View style={kavStyle}>{chatMain}</View>
       ) : (
@@ -1339,6 +1431,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
 const s = StyleSheet.create({
   container: { flex: 1, minHeight: 0, minWidth: 0 },
   embeddedContainer: { minHeight: 0, height: '100%', overflow: 'hidden' },
+  cornerContainer: { flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' },
   /** Lista + faixa de entrada em coluna (fixa botões na base no card mobile) */
   chatMainColumn: { flex: 1, minHeight: 0, minWidth: 0, flexDirection: 'column' },
   msgRow: { flexDirection: 'row', marginVertical: 4 },

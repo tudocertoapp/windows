@@ -147,6 +147,7 @@ export function TopBar({
     title === 'Início' ||
     title === 'Dinheiro' ||
     title === 'Meus gastos' ||
+    title === 'Dock' ||
     title === 'WhatsApp e CRM' ||
     title === 'Agenda';
   const homeDesktopDefer = isWebDesktop && deferFinancePrompt && unifiedDeferTitles;
@@ -199,6 +200,26 @@ export function TopBar({
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <AppIcon name="calculator-outline" size={24} color={colors.textSecondary} />
+        </TouchableOpacity>
+      ) : null}
+      {isWebDesktop && onManageCards ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); onManageCards(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Ocultar ou acrescentar cards"
+        >
+          <Ionicons name="layers-outline" size={22} color={colors.textSecondary} />
+        </TouchableOpacity>
+      ) : null}
+      {isWebDesktop && !hideOrganize && onOrganize ? (
+        <TouchableOpacity
+          style={{ padding: 8, backgroundColor: 'transparent' }}
+          onPress={() => { playTapSound(); onOrganize?.(); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel={editMode ? 'Sair do modo organizar' : 'Organizar cards'}
+        >
+          <AppIcon name="grid-outline" size={22} color={editMode ? colors.primary : colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
       {!isWebDesktop && onManageCards ? (

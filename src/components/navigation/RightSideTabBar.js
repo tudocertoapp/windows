@@ -231,7 +231,7 @@ export function RightSideTabBar({
     },
     {
       key: 'MeusGastos',
-      label: 'Meus gastos',
+      label: 'Dock',
       icon: 'chatbubbles-outline',
       onPress: () => onNavigate?.('MeusGastos'),
     },
@@ -285,10 +285,9 @@ export function RightSideTabBar({
           s.bottomWrap,
           {
             width: estimatedWidth,
-            borderColor: colors.border + '88',
-            ...(Platform.OS === 'web'
-              ? { boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.08)' }
-              : {}),
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            ...(Platform.OS === 'web' ? { boxShadow: 'none' } : {}),
           },
         ]}
       >
@@ -373,9 +372,9 @@ export function RightSideTabBar({
           style={[
             s.island,
             {
-              backgroundColor: 'transparent',
-              borderColor: 'transparent',
-              borderWidth: 0,
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderWidth: 1,
               elevation: 0,
               shadowOpacity: 0,
               ...(Platform.OS === 'web' ? { boxShadow: 'none' } : {}),

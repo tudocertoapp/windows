@@ -48,7 +48,7 @@ export function DraggableCard({ id, editMode, children, onLayoutMeasured, onFloa
   }, [isFloating]);
 
   if (!editMode) {
-    return <View ref={viewRef} onLayout={handleLayout} collapsable={false}>{children}</View>;
+    return <View ref={viewRef} onLayout={handleLayout} collapsable={false} style={{ flex: 1, minHeight: 0, minWidth: 0, height: '100%' }}>{children}</View>;
   }
 
   return (
@@ -56,7 +56,7 @@ export function DraggableCard({ id, editMode, children, onLayoutMeasured, onFloa
       ref={viewRef}
       onLayout={handleLayout}
       style={[
-        { transform: [{ scale }] },
+        { flex: 1, minHeight: 0, minWidth: 0, height: '100%', transform: [{ scale }] },
         isFloating && {
           zIndex: 1000,
           elevation: 12,
@@ -72,6 +72,7 @@ export function DraggableCard({ id, editMode, children, onLayoutMeasured, onFloa
         delayLongPress={LONG_PRESS_MS}
         onLongPress={handleLongPress}
         onPress={handlePress}
+        style={{ flex: 1, minHeight: 0, minWidth: 0, height: '100%' }}
       >
         {children}
       </Pressable>

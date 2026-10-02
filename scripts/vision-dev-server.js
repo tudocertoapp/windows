@@ -1,5 +1,5 @@
 /**
- * Servidor local para /api/vision/ocr (OCR + assistente Groq na mesma rota).
+ * Servidor local para OCR + assistente nativo.
  * Uso: npm run web:api
  * No .env: EXPO_PUBLIC_VISION_API_URL=http://localhost:3000
  */
@@ -21,10 +21,10 @@ function readBody(req) {
 const server = http.createServer(async (req, res) => {
   const pathOnly = String(req.url || '').split('?')[0];
   const isOcr = pathOnly === '/api/vision/ocr';
-  const isLegacyAssistant = pathOnly === '/api/assistant/chat';
-  if (!isOcr && !isLegacyAssistant) {
+  const isAiChat = pathOnly === '/api/ai/chat' || pathOnly === '/api/assistant/chat';
+  if (!isOcr && !isAiChat) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('Use GET ou POST /api/vision/ocr (assistente: ?task=assistant)');
+    res.end('Use GET ou POST /api/vision/ocr ou /api/ai/chat');
     return;
   }
 
@@ -37,13 +37,13 @@ const server = http.createServer(async (req, res) => {
       body = {};
     }
   }
-  if (isLegacyAssistant) {
+  if (isAiChat) {
     body = { ...(body && typeof body === 'object' ? body : {}), task: 'assistant' };
   }
   const mockReq = {
     method: req.method,
     headers: req.headers,
-    url: isLegacyAssistant ? '/api/vision/ocr?task=assistant' : req.url,
+    url: isAiChat ? '/api/ai/chat' : req.url,
     body,
   };
   const mockRes = {
@@ -73,17 +73,20 @@ const server = http.createServer(async (req, res) => {
   try {
     await handler(mockReq, mockRes);
   } catch (e) {
-    res.writeHead(500, { 'Content-Type': 'application/json' });
+    const origin = req.headers.origin || '*';
+    res.writeHead(500, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': origin,
+      Vary: 'Origin',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    });
     res.end(JSON.stringify({ error: e?.message || 'Erro interno' }));
   }
 });
 
 server.listen(PORT, () => {
-  const gemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
-  const groq = process.env.GROQ_API_KEY || '';
   console.log(`[vision-dev] http://localhost:${PORT}/api/vision/ocr`);
-  console.log(`[vision-dev] Assistente: http://localhost:${PORT}/api/vision/ocr?task=assistant`);
-  console.log(`[vision-dev] Gemini: ${gemini ? 'OK' : 'AUSENTE'}`);
-  console.log(`[vision-dev] Groq: ${groq ? 'OK' : 'AUSENTE — GROQ_API_KEY no .env'}`);
+  console.log(`[vision-dev] Assistente: http://localhost:${PORT}/api/ai/chat`);
   console.log('[vision-dev] No .env do app: EXPO_PUBLIC_VISION_API_URL=http://localhost:' + PORT);
 });

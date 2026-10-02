@@ -2,7 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, Dimensions, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { AVAILABLE_CARD_TYPES } from '../constants/dashboardCards';
+import { AVAILABLE_CARD_TYPES, CARD_ICON_COLORS } from '../constants/dashboardCards';
+import { INICIO_READY_LAYOUTS } from '../constants/inicioLayouts';
 import { playTapSound } from '../utils/sounds';
 
 const { height: SH } = Dimensions.get('window');
@@ -15,7 +16,24 @@ function getCardById(id, cardTypes) {
   return cardTypes.find((c) => c.id === id);
 }
 
-export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardTypes = AVAILABLE_CARD_TYPES, addableFromDinheiro = [], addableCardTypes = [], onAddCard, onRemoveCard, allAvailableIds = [] }) {
+export function CardPickerModal({
+  visible,
+  onClose,
+  visibleIds,
+  onReorder,
+  cardTypes = AVAILABLE_CARD_TYPES,
+  addableFromDinheiro = [],
+  addableCardTypes = [],
+  onAddCard,
+  onRemoveCard,
+  allAvailableIds = [],
+  compactButtons = false,
+  onToggleCompact,
+  onApplyReadyLayout,
+  onSaveLayout,
+  hasSavedLayout = false,
+  onApplySavedLayout,
+}) {
   const { colors } = useTheme();
   const [order, setOrder] = useState(visibleIds);
 
@@ -88,7 +106,66 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
             bounces={true}
             contentContainerStyle={s.listContent}
           >
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Use as setas para organizar a ordem dos cards</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>Use as setas para trocar de lugar. Ocultar tira o card da tela (dá para restaurar abaixo).</Text>
+            {onToggleCompact ? (
+              <TouchableOpacity
+                onPress={() => { playTapSound(); onToggleCompact?.(); }}
+                style={[s.item, { backgroundColor: colors.bg, borderColor: compactButtons ? colors.primary : colors.border, borderWidth: 1 }]}
+              >
+                <Ionicons name={compactButtons ? 'apps' : 'grid-outline'} size={22} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.itemLabel, { color: colors.text }]}>{compactButtons ? 'Modo botões' : 'Cards abertos'}</Text>
+                  <Text style={[s.itemScreen, { color: colors.textSecondary }]}>
+                    {compactButtons ? 'Toque num botão para abrir o card em tela cheia.' : 'Mostrar os cards abertos na grade. Toque para usar só botões.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+            {onApplyReadyLayout ? (
+              <>
+                <Text style={[s.sectionTitle, { color: colors.text, marginTop: 8 }]}>Layouts prontos</Text>
+                {INICIO_READY_LAYOUTS.map((lay) => (
+                  <TouchableOpacity
+                    key={lay.id}
+                    onPress={() => { playTapSound(); onApplyReadyLayout(lay); }}
+                    style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}
+                  >
+                    <Ionicons name="albums-outline" size={22} color={CARD_ICON_COLORS.agenda} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.itemLabel, { color: colors.text }]}>{lay.name}</Text>
+                      <Text style={[s.itemScreen, { color: colors.textSecondary }]}>{lay.desc}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            ) : null}
+            {onSaveLayout ? (
+              <>
+                <Text style={[s.sectionTitle, { color: colors.text, marginTop: 8 }]}>Seu layout</Text>
+                <TouchableOpacity
+                  onPress={() => { playTapSound(); onSaveLayout(); }}
+                  style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}
+                >
+                  <Ionicons name="save-outline" size={22} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.itemLabel, { color: colors.text }]}>Salvar organização atual</Text>
+                    <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Guarda ordem, tamanhos e modo botões.</Text>
+                  </View>
+                </TouchableOpacity>
+                {hasSavedLayout && onApplySavedLayout ? (
+                  <TouchableOpacity
+                    onPress={() => { playTapSound(); onApplySavedLayout(); }}
+                    style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}
+                  >
+                    <Ionicons name="download-outline" size={22} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.itemLabel, { color: colors.text }]}>Carregar layout salvo</Text>
+                      <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Volta para a última organização que você salvou.</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
             {visibleCards.length === 0 ? (
               <Text style={[s.empty, { color: colors.textSecondary }]}>Nenhum card na página.</Text>
             ) : (
@@ -123,8 +200,9 @@ export function CardPickerModal({ visible, onClose, visibleIds, onReorder, cardT
                       </TouchableOpacity>
                     </View>
                     {onRemoveCard && (
-                      <TouchableOpacity onPress={() => { playTapSound(); onRemoveCard(card.id); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 6 }}>
-                        <Ionicons name="close-circle-outline" size={22} color={colors.textSecondary} />
+                      <TouchableOpacity onPress={() => { playTapSound(); onRemoveCard(card.id); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="eye-off-outline" size={20} color={colors.textSecondary} />
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }}>Ocultar</Text>
                       </TouchableOpacity>
                     )}
                   </View>

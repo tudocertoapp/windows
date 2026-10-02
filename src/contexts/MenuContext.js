@@ -12,6 +12,7 @@ export const MenuContext = createContext({
   openMensagensWhatsApp: () => {},
   openCatalogo: () => {},
   openMeusProfissionais: () => {},
+  dockControl: () => {},
 });
 
 export function useMenu() {

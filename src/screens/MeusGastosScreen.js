@@ -39,7 +39,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
       {!isModal ? (
         <>
           <TopBar
-            title="Meus gastos"
+            title="Dock"
             colors={colors}
             useLogoImage
             hideOrganize
@@ -55,7 +55,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         </>
       ) : (
         <View style={[s.header, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
-          <Text style={[s.headerTitle, { color: colors.text }]}>Meus gastos</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Dock</Text>
           <TouchableOpacity onPress={onClose} style={[s.headerBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
             <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -68,23 +68,18 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
             Recurso disponível apenas nos planos pagos.
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-            Atualize seu plano para liberar o Meus Gastos.
+            Atualize seu plano para liberar o Dock.
           </Text>
         </View>
       ) : (
         <>
           <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
-              Linha do tempo de gastos: envie comprovante, áudio ou texto. A foto é reduzida no aparelho e lida com Gemini Flash no servidor.
+              Conversa com o Dock: comprovante, áudio ou texto. A foto é reduzida no aparelho e lida no servidor.
             </Text>
             <VisionOcrStatusBadge colors={colors} onStatusChange={onOcrStatusChange} />
           </View>
-          <View
-            style={[
-              s.chatWrap,
-              useWebLayout && isWeb ? { height: 0, overflow: 'hidden' } : null,
-            ]}
-          >
+          <View style={s.chatWrap}>
             <MeusGastosChat transparentBg={false} ocrEnabled={ocrReady !== false} />
           </View>
         </>

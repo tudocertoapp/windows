@@ -1,11 +1,13 @@
 /**
- * Assistente da conta: Groq (Llama) no servidor.
- * Chamado pela mesma função do OCR para caber no plano Hobby da Vercel.
+ * Assistente nativo do Tudo Certo (Vercel).
+ * Mesma função do OCR no plano Hobby; também via rewrite /api/ai/chat.
  */
 const { createClient } = require('@supabase/supabase-js');
 const { getSupabaseAdmin, parseBody } = require('./supabaseAdmin');
-const { buildAccountSnapshot } = require('./accountSnapshot');
-const { llmStatus, chatWithAccountLlm } = require('./llmChat');
+const { checkRateLimit } = require('./ai/rateLimit');
+const { runAssistant } = require('./ai');
+
+const MAX_MESSAGE = 2000;
 
 function bearerToken(req) {
   const h = req.headers.authorization || req.headers.Authorization || '';
@@ -42,26 +44,18 @@ function clipHistory(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 1200) }))
+    .map((m) => ({
+      role: m.role,
+      content: String(m.content).slice(0, 400),
+      intent: typeof m.intent === 'string' ? m.intent.slice(0, 40) : undefined,
+      followUp: m.followUp && typeof m.followUp === 'object' ? m.followUp : undefined,
+    }))
     .slice(-8);
-}
-
-function systemPrompt(snapshot, firstName) {
-  const nome = firstName || 'usuário';
-  return [
-    'Você é o assistente do app Tudo Certo (agenda e finanças).',
-    `Fale em português do Brasil, de forma clara e direta, como um ChatGPT prestativo. Trate a pessoa por ${nome} quando fizer sentido.`,
-    'Use SOMENTE o JSON de dados da conta abaixo. Não invente valores, datas, produtos ou vendas que não estejam nele.',
-    'Se a informação não estiver no resumo, diga que não encontrou no cadastro e sugira lançar no app.',
-    'Pode dar dicas práticas de caixa, estoque, o que mais vende e o que está vencendo — sempre com base nos números.',
-    'Não peça senha, CPF ou dados de cartão. Não fale de outras contas.',
-    'Valores já vêm em reais quando houver campo *Fmt.',
-    `DADOS_DA_CONTA:\n${JSON.stringify(snapshot)}`,
-  ].join('\n');
 }
 
 function isAssistantRequest(req, body) {
   const url = String(req.url || '');
+  if (/\/api\/ai\/chat\b/i.test(url)) return true;
   if (/[?&]task=assistant\b/i.test(url)) return true;
   if (body && (body.task === 'assistant' || body.assistant === true)) return true;
   return false;
@@ -74,21 +68,12 @@ async function handleAssistant(req, res) {
   }
 
   if (req.method === 'GET') {
-    const st = llmStatus();
-    res.status(200).json({ ok: true, ...st });
+    res.status(200).json({ ok: true, configured: true });
     return;
   }
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Use POST.' });
-    return;
-  }
-
-  const st = llmStatus();
-  if (!st.configured) {
-    res.status(503).json({
-      error: 'Chave Groq não configurada no servidor (GROQ_API_KEY na Vercel).',
-    });
     return;
   }
 
@@ -99,32 +84,55 @@ async function handleAssistant(req, res) {
     return;
   }
 
+  if (!checkRateLimit(resolved.user.id).ok) {
+    res.status(429).json({ error: 'Muitas perguntas seguidas. Espere um minuto e tente de novo.' });
+    return;
+  }
+
   const body = parseBody(req) || {};
-  const message = String(body.message || body.text || '').trim().slice(0, 2000);
-  if (!message) {
+  const message = String(body.message || body.text || '').trim().slice(0, MAX_MESSAGE);
+  if (!message && !body.confirm) {
     res.status(400).json({ error: 'Escreva uma pergunta.' });
     return;
   }
 
+  const pendingAction =
+    body.pendingAction && typeof body.pendingAction === 'object'
+      ? { tool: String(body.pendingAction.tool || '').slice(0, 40), args: body.pendingAction.args && typeof body.pendingAction.args === 'object' ? body.pendingAction.args : {} }
+      : null;
+  if (pendingAction && !/^(create_expense|create_income|create_client|create_appointment|create_product|create_service)$/.test(pendingAction.tool)) {
+    pendingAction.tool = '';
+  }
+
   try {
-    const snapshot = await buildAccountSnapshot(resolved.db, resolved.user.id);
     const meta = resolved.user.user_metadata || {};
     const firstName = String(meta.nome || meta.full_name || resolved.user.email || '')
       .trim()
       .split(/\s+/)[0];
-    const history = clipHistory(body.history);
-    const { text, provider } = await chatWithAccountLlm({
-      system: systemPrompt(snapshot, firstName),
-      messages: [...history, { role: 'user', content: message }],
+    const out = await runAssistant({
+      db: resolved.db,
+      userId: resolved.user.id,
+      firstName,
+      preferredName: String(body.preferredName || body.callName || '').trim().slice(0, 40),
+      message: message || 'sim',
+      history: clipHistory(body.history),
+      pendingAction: pendingAction?.tool ? pendingAction : null,
+      confirm: body.confirm === true,
     });
-    res.status(200).json({
+    const payload = {
       ok: true,
-      reply: text || 'Não consegui montar a resposta agora. Tente de novo.',
-      provider,
-    });
+      message: out.message || 'Não consegui montar a resposta agora.',
+      reply: out.message || 'Não consegui montar a resposta agora.',
+      intent: out.intent || 'unknown',
+    };
+    if (Array.isArray(out.cards) && out.cards.length) payload.cards = out.cards.slice(0, 4);
+    if (out.pendingAction) payload.pendingAction = out.pendingAction;
+    if (out.followUp) payload.followUp = out.followUp;
+    if (out.uiAction && typeof out.uiAction === 'object') payload.uiAction = out.uiAction;
+    if (out.callName) payload.callName = String(out.callName).slice(0, 40);
+    res.status(200).json(payload);
   } catch (e) {
-    const status = e?.status >= 400 && e.status < 600 ? e.status : 502;
-    res.status(status).json({ error: e?.message || 'Falha ao consultar a IA.' });
+    res.status(502).json({ error: 'Não consegui responder agora. Tente de novo.' });
   }
 }
 

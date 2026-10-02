@@ -2,7 +2,7 @@
  * Lê comprovante com Gemini Flash. A chave fica só no servidor (Vercel / .env).
  * Variável: GEMINI_API_KEY
  *
- * Assistente Groq (task=assistant) usa a mesma função para caber no plano Hobby.
+ * Assistente nativo (task=assistant ou /api/ai/chat) usa a mesma função no plano Hobby.
  */
 const { isAssistantRequest, handleAssistant } = require('../_lib/assistantChat');
 
@@ -135,7 +135,6 @@ module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     return res.status(200).json({
       ok: true,
-      provider: 'gemini-flash',
       configured: Boolean(apiKey),
     });
   }
@@ -147,7 +146,7 @@ module.exports = async function handler(req, res) {
 
   if (!apiKey) {
     return res.status(500).json({
-      error: 'Chave Gemini não configurada no servidor (GEMINI_API_KEY na Vercel).',
+      error: 'Leitura de foto indisponível no servidor no momento.',
     });
   }
 
@@ -176,10 +175,12 @@ module.exports = async function handler(req, res) {
         ({ geminiRes, data } = await callGemini({ apiKey, model, mime, base64, jsonMime: false }));
       }
       if (!geminiRes.ok) {
-        const msg = data?.error?.message || `Gemini HTTP ${geminiRes.status}`;
+        const msg = data?.error?.message || `HTTP ${geminiRes.status}`;
         lastError = msg;
         if (geminiRes.status === 404) continue;
-        return res.status(geminiRes.status >= 400 && geminiRes.status < 600 ? geminiRes.status : 502).json({ error: msg });
+        return res.status(geminiRes.status >= 400 && geminiRes.status < 600 ? geminiRes.status : 502).json({
+          error: 'Não consegui ler essa imagem agora.',
+        });
       }
 
       const textPart = data?.candidates?.[0]?.content?.parts?.map((p) => p?.text).filter(Boolean).join('\n') || '';
@@ -191,13 +192,12 @@ module.exports = async function handler(req, res) {
         store: parsed.store,
         total: parsed.total,
         date: parsed.date,
-        source: 'gemini-flash',
-        model,
+        source: 'server',
       });
     }
 
-    return res.status(502).json({ error: lastError || 'Modelo Gemini indisponível' });
+    return res.status(502).json({ error: 'Leitura de foto indisponível no momento.' });
   } catch (e) {
-    return res.status(500).json({ error: e?.message || 'Erro ao chamar Gemini' });
+    return res.status(500).json({ error: 'Não consegui ler essa imagem agora.' });
   }
 };

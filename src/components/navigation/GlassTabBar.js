@@ -139,10 +139,10 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
 
   return (
     <View style={[styles.container, { paddingBottom, pointerEvents: 'box-none' }]}>
-      <View style={[styles.glass, isDark ? styles.glassDark : styles.glassLight]}>
-        <View style={[styles.glassInner, { borderRadius: 26 }]}>
+      <View style={[styles.glass, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.glassInner, { borderRadius: 26, backgroundColor: colors.card }]}>
           {Platform.OS === 'web' || Platform.OS === 'android' ? (
-            <View style={[StyleSheet.absoluteFill, styles.webFallback, isDark && styles.webFallbackDark]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
           ) : (
             <BlurView
               intensity={20}
@@ -150,8 +150,8 @@ function GlassTabBarComponent({ state, descriptors, navigation, primaryColor, in
               style={StyleSheet.absoluteFill}
             />
           )}
-          <View style={[StyleSheet.absoluteFill, styles.overlay, isDark ? styles.overlayDark : styles.overlayLight]} />
-          <View style={[StyleSheet.absoluteFill, styles.borderWrap, isDark ? styles.borderDark : styles.borderLight]} />
+          <View style={[StyleSheet.absoluteFill, styles.overlay, { backgroundColor: 'transparent' }]} />
+          <View style={[StyleSheet.absoluteFill, styles.borderWrap, { borderColor: colors.border }]} />
         </View>
         <View style={styles.tabsRow}>
           {routes
@@ -258,26 +258,14 @@ const styles = StyleSheet.create({
   glass: {
     width: '100%',
     borderRadius: 26,
-    // Android: manter visível para o botão "+" flutuante não ser recortado.
+    borderWidth: 1,
     overflow: 'visible',
-    backgroundColor: 'rgba(9,9,11,0.96)',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }
+      ? { boxShadow: 'none' }
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.15,
-          shadowRadius: 20,
-          elevation: 12,
+          shadowOpacity: 0,
+          elevation: 0,
         }),
-  },
-  glassLight: {
-    borderWidth: 1,
-    borderColor: '#27272a',
-  },
-  glassDark: {
-    borderWidth: 1,
-    borderColor: '#27272a',
   },
   glassInner: {
     ...StyleSheet.absoluteFillObject,

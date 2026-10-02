@@ -50,6 +50,7 @@ import { ProductFormModal } from '../components/ProductFormModal';
 import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverlay';
+import { DockCornerChat } from '../components/DockCornerChat';
 import { FloatingCalculatorFab } from '../components/FloatingCalculatorFab';
 import { GlassTabBar } from '../components/navigation/GlassTabBar';
 import {
@@ -601,10 +602,16 @@ export function AppNavigator() {
         setMenuModalOpen(false);
         navigationRef.current?.navigate('Início', { openCardPicker: true });
       },
-      openCalculadoraFull: () => {
-        // Toggle: segundo clique no atalho fecha a calculadora.
+      openCalculadoraFull: (opts) => {
+        const forceOpen = opts === true || opts?.forceOpen === true;
+        const forceClose = opts?.forceClose === true;
+        if (forceClose) {
+          setCalculadoraFloating(false);
+          setCalculadoraModal(false);
+          return;
+        }
         if (isWebDesktop) {
-          if (calculadoraFloating || calculadoraModal) {
+          if (!forceOpen && (calculadoraFloating || calculadoraModal)) {
             setCalculadoraFloating(false);
             setCalculadoraModal(false);
             return;
@@ -613,13 +620,142 @@ export function AppNavigator() {
           setCalculadoraFloating(true);
           return;
         }
-        if (calculadoraModal || calculadoraFloating) {
+        if (!forceOpen && (calculadoraModal || calculadoraFloating)) {
           setCalculadoraModal(false);
           setCalculadoraFloating(false);
           return;
         }
         setCalculadoraFloating(false);
         setCalculadoraModal(true);
+      },
+      dockControl: (target, mode) => {
+        const close = mode === 'close';
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && !close) {
+          window.dispatchEvent(new CustomEvent('tc:dock-minimize'));
+        }
+        const go = (tab) => {
+          setMenuModalOpen(false);
+          setTimeout(() => navigationRef.current?.navigate(tab), 120);
+        };
+        if (target === 'calculator') {
+          if (close) {
+            setCalculadoraFloating(false);
+            setCalculadoraModal(false);
+          } else {
+            setCalculadoraFloating(false);
+            setCalculadoraModal(true);
+          }
+          return;
+        }
+        if (target === 'home') return close ? null : go('Início');
+        if (target === 'money') return close ? go('Início') : go('Dinheiro');
+        if (target === 'agenda') return close ? go('Início') : go('Agenda');
+        if (target === 'dock') return close ? go('Início') : go('MeusGastos');
+        if (target === 'whatsapp') return close ? go('Início') : go('WhatsApp');
+        if (target === 'products') {
+          if (close) setCadastroModal(null);
+          else setCadastroModal({ section: 'produtos' });
+          return;
+        }
+        if (target === 'services') {
+          if (close) setCadastroModal(null);
+          else setCadastroModal({ section: 'servicos' });
+          return;
+        }
+        if (target === 'clients') {
+          if (close) setCadastroModal(null);
+          else setCadastroModal({ section: 'clientes' });
+          return;
+        }
+        if (target === 'suppliers') {
+          if (close) setCadastroModal(null);
+          else setCadastroModal({ section: 'fornecedores' });
+          return;
+        }
+        if (target === 'pdv') {
+          setPdvModal(!close);
+          return;
+        }
+        if (target === 'catalog') {
+          setCatalogoModal(!close);
+          return;
+        }
+        if (target === 'notes') {
+          setAnotacoesModal(close ? false : true);
+          return;
+        }
+        if (target === 'shopping') {
+          setListaComprasModal(!close);
+          return;
+        }
+        if (target === 'receivables') {
+          setAReceberModal(!close);
+          return;
+        }
+        if (target === 'quotes') {
+          setOrcamentosModal(!close);
+          return;
+        }
+        if (target === 'banks') {
+          setBancosModal(!close);
+          return;
+        }
+        if (target === 'profile') {
+          setPerfilModal(!close);
+          return;
+        }
+        if (target === 'plan') {
+          setAssinaturaModal(!close);
+          return;
+        }
+        if (target === 'birthdays') {
+          setAniversariantesModal(!close);
+          return;
+        }
+        if (target === 'company') {
+          setEmpresaModal(!close);
+          return;
+        }
+        if (target === 'staff') {
+          setColaboradoresModal(!close);
+          return;
+        }
+        if (target === 'workorders') {
+          setOrdemServicoModal(!close);
+          return;
+        }
+        if (target === 'goals') {
+          setMetasSonhosModal(!close);
+          return;
+        }
+        if (target === 'themes') {
+          setTemasModal(!close);
+          return;
+        }
+        if (target === 'referral') {
+          setIndiqueModal(!close);
+          return;
+        }
+        if (target === 'receipt') {
+          setReceiptScannerModal(!close);
+          return;
+        }
+        if (target === 'image') {
+          setImageModal(!close);
+          return;
+        }
+        if (target === 'professionals') {
+          setMeusProfissionaisModal(!close);
+          return;
+        }
+        if (target === 'bills') {
+          if (close) setCadastroModal(null);
+          else setCadastroModal({ section: 'boletos' });
+          return;
+        }
+        if (target === 'menu') {
+          setMenuModalOpen(!close);
+        }
       },
     }),
     [isWebDesktop, showEmpresaFeatures, calculadoraFloating, calculadoraModal]
@@ -872,7 +1008,7 @@ export function AppNavigator() {
                   name="MeusGastos"
                   component={MeusGastosScreen}
                   options={{
-                    tabBarLabel: 'Meus gastos',
+                    tabBarLabel: 'Dock',
                     tabBarIcon: ({ color }) => <AppIcon name="chatbubbles-outline" size={24} color={color} />,
                   }}
                 />
@@ -1337,6 +1473,7 @@ export function AppNavigator() {
         onResultChange={setCalculatorResult}
         onHistoryChange={setCalculatorHistory}
       />
+      {isWeb ? <DockCornerChat /> : null}
       </GestureHandlerRootView>
     </MenuContext.Provider>
   );

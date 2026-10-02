@@ -20,6 +20,8 @@ import { MeusGastosChat } from '../components/MeusGastosChat';
 import { VisionOcrStatusBadge } from '../components/VisionOcrStatusBadge';
 import { DraggableCard } from '../components/DraggableCard';
 import { CardPickerModal } from '../components/CardPickerModal';
+import { InicioDesktopGrid } from '../components/InicioDesktopGrid';
+import { clampCardsPerRow, DEFAULT_CARDS_PER_ROW, moveCardByArrow } from '../utils/inicioDesktopLayout';
 import { ScrollableCardList } from '../components/ScrollableCardList';
 import { CardExpandedModal } from '../components/CardExpandedModal';
 import { playTapSound } from '../utils/sounds';
@@ -33,7 +35,8 @@ import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS } from '../constants/dashboardCards';
+import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS, AVAILABLE_CARD_TYPES } from '../constants/dashboardCards';
+import { captureInicioLayout } from '../constants/inicioLayouts';
 import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import {
   DESKTOP_RELEASE_PAGE,
@@ -45,6 +48,10 @@ import { chromeBtnBox } from '../utils/chromeButton';
 
 const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
+const DESKTOP_WEIGHTS_KEY = '@tudocerto_inicio_desktop_weights';
+const INICIO_LAYOUT_V2_KEY = '@tudocerto_inicio_layout_v2';
+const SAVED_LAYOUT_KEY = '@tudocerto_inicio_saved_layout';
+const COMPACT_BUTTONS_KEY = '@tudocerto_inicio_compact_buttons';
 
 const CAROUSEL_IMAGES = {
   financas: require('../../assets/carousel/carousel-financas.png'),
@@ -249,7 +256,7 @@ export function DashboardScreen() {
   const WEB_CARD_MARGIN_TOP = useWebLayout ? 0 : 16;
   /** Mesma “coluna” visual do grid tarefas+agenda: borda esquerda/direita alinhada em todos os cards full-width. */
   const WEB_DESKTOP_PAGE_PAD = scaleWebDesktop(10, useWebLayout);
-  const WEB_DESKTOP_ROW_GAP = scaleWebDesktop(8, useWebLayout);
+  const WEB_DESKTOP_ROW_GAP = scaleWebDesktop(16, useWebLayout);
   const WEB_CARD_PADDING = useWebLayout ? scaleWebDesktop(12, useWebLayout) : 20;
   const WEB_HEADER_GAP = useWebLayout ? scaleWebDesktop(5, useWebLayout) : 12;
   const CARD_ACTION_SIZE = useWebLayout ? scaleWebDesktop(26, useWebLayout) : 40;
@@ -337,7 +344,19 @@ export function DashboardScreen() {
   }, [carouselViewportWidth, useWebLayout]);
   const defaultSections = getDefaultForPlatform(DEFAULT_SECTIONS, { web: DEFAULT_SECTIONS_WEB });
   const sectionsStorageKey = getLayoutStorageKey(SECTIONS_ORDER_KEY);
+  const desktopWeightsKey = getLayoutStorageKey(DESKTOP_WEIGHTS_KEY);
+  const inicioLayoutV2Key = getLayoutStorageKey(INICIO_LAYOUT_V2_KEY);
+  const savedLayoutKey = getLayoutStorageKey(SAVED_LAYOUT_KEY);
+  const compactButtonsKey = getLayoutStorageKey(COMPACT_BUTTONS_KEY);
   const [sectionOrder, setSectionOrder] = useState(defaultSections);
+  const [desktopWeights, setDesktopWeights] = useState({});
+  const [desktopHeights, setDesktopHeights] = useState({});
+  const [desktopCols, setDesktopCols] = useState(DEFAULT_CARDS_PER_ROW);
+  const [desktopRowCols, setDesktopRowCols] = useState({});
+  const [desktopRowSpans, setDesktopRowSpans] = useState({});
+  const [desktopSpanSide, setDesktopSpanSide] = useState({});
+  const [compactButtons, setCompactButtons] = useState(false);
+  const [hasSavedLayout, setHasSavedLayout] = useState(false);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [balanceFilter, setBalanceFilter] = useState('mes');
   const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
@@ -472,7 +491,32 @@ export function DashboardScreen() {
 
 
   useEffect(() => {
-    AsyncStorage.getItem(sectionsStorageKey).then((raw) => {
+    Promise.all([
+      AsyncStorage.getItem(sectionsStorageKey),
+      AsyncStorage.getItem(inicioLayoutV2Key),
+      AsyncStorage.getItem(desktopWeightsKey),
+      AsyncStorage.getItem(compactButtonsKey),
+      AsyncStorage.getItem(savedLayoutKey),
+    ]).then(([raw, v2, weightsRaw, compactRaw, savedRaw]) => {
+      try {
+        if (weightsRaw) {
+          const w = JSON.parse(weightsRaw);
+          if (w && typeof w === 'object') {
+            if (w.weights || w.heights || w.cols) {
+              if (w.weights && typeof w.weights === 'object') setDesktopWeights(w.weights);
+              if (w.heights && typeof w.heights === 'object') setDesktopHeights(w.heights);
+              if (w.cols != null) setDesktopCols(clampCardsPerRow(w.cols));
+              if (w.rowCols && typeof w.rowCols === 'object') setDesktopRowCols(w.rowCols);
+              if (w.rowSpans && typeof w.rowSpans === 'object') setDesktopRowSpans(w.rowSpans);
+              if (w.spanSide && typeof w.spanSide === 'object') setDesktopSpanSide(w.spanSide);
+            } else {
+              setDesktopWeights(w);
+            }
+          }
+        }
+      } catch (_) {}
+      setCompactButtons(compactRaw === '1' || compactRaw === 'true');
+      setHasSavedLayout(!!savedRaw);
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -481,31 +525,32 @@ export function DashboardScreen() {
             ? parsed
                 .map((id) => (id === 'contas' ? 'proximasfaturas' : id))
                 .filter((id) => id !== 'contas')
-                .filter((id) => id !== 'agenda' && allowedSections.has(id === 'tarefas' ? 'proximos' : id))
+                .filter((id) => id !== 'tarefas')
+                .filter((id) => allowedSections.has(id === 'tarefas' ? 'proximos' : id))
                 .map((id) => (id === 'tarefas' ? 'proximos' : id))
             : defaultSections;
           filtered = [...new Set(filtered)];
-          const base = filtered.length > 0 ? filtered : defaultSections;
-          // Web desktop: garante Frase do dia no lugar do Carrossel
-          // (mesmo para quem já tem ordem salva).
-          if (useWebLayout) {
-            const a = base.indexOf('quote');
-            const b = base.indexOf('carousel');
-            if (a >= 0 && b >= 0 && a !== b) {
-              const next = [...base];
-              [next[a], next[b]] = [next[b], next[a]];
-              // mantém base coerente para o merge de missing
-              base.splice(0, base.length, ...next);
+          const base = filtered.length > 0 ? filtered : [...defaultSections];
+          if (!v2) {
+            if (!base.includes('agenda') && defaultSections.includes('agenda')) {
+              const i = base.includes('proximos') ? base.indexOf('proximos') + 1 : 0;
+              base.splice(i, 0, 'agenda');
             }
+            if (base.includes('agenda') && !base.includes('agendamentos')) {
+              base.splice(base.indexOf('agenda') + 1, 0, 'agendamentos');
+            }
+            AsyncStorage.setItem(inicioLayoutV2Key, '1');
           }
-          const missing = defaultSections.filter((id) => !base.includes(id));
-          setSectionOrder([...base, ...missing]);
-        } catch (_) {}
+          setSectionOrder(base);
+        } catch (_) {
+          setSectionOrder(defaultSections);
+        }
       } else {
         setSectionOrder(defaultSections);
+        AsyncStorage.setItem(inicioLayoutV2Key, '1');
       }
     });
-  }, [sectionsStorageKey, defaultSections, useWebLayout]);
+  }, [sectionsStorageKey, defaultSections, inicioLayoutV2Key, desktopWeightsKey, compactButtonsKey, savedLayoutKey, useWebLayout]);
   useEffect(() => {
     if (route.params?.openCardPicker) {
       setShowCardPicker(true);
@@ -539,9 +584,64 @@ export function DashboardScreen() {
     return () => window.removeEventListener('tc:escape', onEsc);
   }, [agendaCardShowMonthPicker, parabensModalClient, expandedCard, showCardPicker]);
   useEffect(() => {
-    const toSave = sectionOrder.filter((id) => id !== 'agenda' && id !== 'tarefas');
+    const toSave = sectionOrder.filter((id) => id !== 'tarefas');
     AsyncStorage.setItem(sectionsStorageKey, JSON.stringify(toSave.length > 0 ? toSave : defaultSections));
   }, [sectionOrder, sectionsStorageKey, defaultSections]);
+
+  useEffect(() => {
+    if (!useWebLayout) return;
+    AsyncStorage.setItem(desktopWeightsKey, JSON.stringify({
+      weights: desktopWeights || {},
+      heights: desktopHeights || {},
+      cols: clampCardsPerRow(desktopCols),
+      rowCols: desktopRowCols || {},
+      rowSpans: desktopRowSpans || {},
+      spanSide: desktopSpanSide || {},
+    }));
+  }, [desktopWeights, desktopHeights, desktopCols, desktopRowCols, desktopRowSpans, desktopSpanSide, desktopWeightsKey, useWebLayout]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(compactButtonsKey, compactButtons ? '1' : '0').catch(() => {});
+  }, [compactButtons, compactButtonsKey]);
+
+  const applyInicioLayout = useCallback((layout) => {
+    if (!layout || typeof layout !== 'object') return;
+    if (Array.isArray(layout.order) && layout.order.length) {
+      const allowed = new Set(ALL_INICIO_IDS);
+      const next = [...new Set(layout.order.filter((id) => allowed.has(id)))];
+      if (next.length) setSectionOrder(next);
+    }
+    setDesktopWeights(layout.weights && typeof layout.weights === 'object' ? layout.weights : {});
+    setDesktopHeights(layout.heights && typeof layout.heights === 'object' ? layout.heights : {});
+    if (layout.cols != null) setDesktopCols(clampCardsPerRow(layout.cols));
+    setDesktopRowCols(layout.rowCols && typeof layout.rowCols === 'object' ? layout.rowCols : {});
+    setDesktopRowSpans(layout.rowSpans && typeof layout.rowSpans === 'object' ? layout.rowSpans : {});
+    setDesktopSpanSide(layout.spanSide && typeof layout.spanSide === 'object' ? layout.spanSide : {});
+    setCompactButtons(!!layout.compactButtons);
+  }, []);
+
+  const saveCurrentInicioLayout = useCallback(async () => {
+    const snap = captureInicioLayout({
+      order: sectionOrder,
+      weights: desktopWeights,
+      heights: desktopHeights,
+      cols: desktopCols,
+      rowCols: desktopRowCols,
+      rowSpans: desktopRowSpans,
+      spanSide: desktopSpanSide,
+      compactButtons,
+    });
+    await AsyncStorage.setItem(savedLayoutKey, JSON.stringify(snap));
+    setHasSavedLayout(true);
+  }, [sectionOrder, desktopWeights, desktopHeights, desktopCols, desktopRowCols, desktopRowSpans, desktopSpanSide, compactButtons, savedLayoutKey]);
+
+  const loadSavedInicioLayout = useCallback(async () => {
+    const raw = await AsyncStorage.getItem(savedLayoutKey);
+    if (!raw) return;
+    try {
+      applyInicioLayout(JSON.parse(raw));
+    } catch (_) {}
+  }, [savedLayoutKey, applyInicioLayout]);
 
   const filteredTx = useMemo(() => {
     if (!canToggleView) return transactions;
@@ -867,29 +967,8 @@ export function DashboardScreen() {
     [carouselCount, useCarouselClones, SNAP_INTERVAL],
   );
 
-  const webSectionOrder = useMemo(() => {
-    if (!useWebLayout) return sectionOrder;
-    const first = ['quote', 'carousel'];
-    const rest = sectionOrder.filter((id) => !first.includes(id));
-    return [...first.filter((id) => sectionOrder.includes(id)), ...rest];
-  }, [useWebLayout, sectionOrder]);
   const [webProductivityTab, setWebProductivityTab] = useState('anotacoes');
-  /** Minhas compras (cartão Produtividade web): alternar pendentes / concluídas */
   const [showConcluidasProdCompras, setShowConcluidasProdCompras] = useState(false);
-  const webSectionTail = useMemo(() => {
-    if (!useWebLayout) return [];
-    const tail = webSectionOrder.slice(2);
-    const hasAnotacoes = tail.includes('anotacoes');
-    const hasCompras = tail.includes('listacompras');
-    const hasProximasFaturas = tail.includes('proximasfaturas');
-    /** Desktop: compras + anotações + próximas faturas em uma linha — não fundir em produtividade. */
-    if (hasAnotacoes && hasCompras && hasProximasFaturas) return tail;
-    if (!hasAnotacoes || !hasCompras) return tail;
-    const firstIdx = Math.min(tail.indexOf('anotacoes'), tail.indexOf('listacompras'));
-    const filtered = tail.filter((id) => id !== 'anotacoes' && id !== 'listacompras');
-    filtered.splice(firstIdx, 0, 'produtividade');
-    return filtered;
-  }, [useWebLayout, webSectionOrder]);
 
   useEffect(() => {
     const count = carouselItems.length;
@@ -1167,28 +1246,6 @@ export function DashboardScreen() {
   /** Altura mínima da linha agenda (combo esquerda + agenda) = mesma fórmula do GRID_H no layout. */
   const WEB_AGENDA_ROW_MIN_H =
     useWebLayout && TRIO_CARD_HEIGHT != null ? TRIO_CARD_HEIGHT * 2 + WEB_DESKTOP_ROW_GAP : undefined;
-
-  /**
-   * Larguras úteis W (área entre paddings da página), G = gap entre colunas.
-   * Linha agenda: agenda (W−G)/2 | gap | agendamentos (W−4G)/4 | próximos (W−2G)/4 (combo à direita).
-   * Linha compras|anotações|faturas: larguras iguais aos blocos da linha de cima (compras/anotações/faturas).
-   */
-  const webDesktopHomeGridFlex = useMemo(() => {
-    if (!useWebLayout) {
-      return { agendamentos: 1, proximos: 1, compras: 1, anotacoes: 1, proximasfaturas: 2 };
-    }
-    const G = WEB_DESKTOP_ROW_GAP;
-    const W = Math.max(200, (winWidth || SW) - 2 * WEB_DESKTOP_PAGE_PAD);
-    const fAg = Math.max(1, W - 4 * G);
-    const fPr = Math.max(1, W - 2 * G);
-    return {
-      agendamentos: fAg,
-      proximos: fPr,
-      compras: fAg,
-      anotacoes: fPr,
-      proximasfaturas: Math.max(1, 2 * (W - G)),
-    };
-  }, [useWebLayout, winWidth, WEB_DESKTOP_ROW_GAP, WEB_DESKTOP_PAGE_PAD]);
 
   const sectionMap = {
     proximos: (
@@ -2000,8 +2057,10 @@ export function DashboardScreen() {
           useWebLayout && {
             marginTop: 0,
             paddingVertical: 0,
-            height: undefined,
+            height: '100%',
             minHeight: 0,
+            flex: 1,
+            overflow: 'hidden',
           },
         ]}
       >
@@ -2011,12 +2070,15 @@ export function DashboardScreen() {
             if (!item) return null;
             const carouselSlideW = useWebLayout ? '100%' : CARD_WIDTH;
             const slideH = useWebLayout ? scaleWebDesktop(208, true) : 165;
-            /** Desktop: mantém a altura visual anterior do topo, mesmo com layout 50/50. */
-            const carouselCardMinH = useWebLayout ? webDesktopCarouselTrioMinH : (isWebMobile ? 165 : 0);
-            /** Altura fixa no desktop: todos os slides com o mesmo tamanho (evita um card “crescer” com o conteúdo). */
-            const carouselCardFixedH = useCarouselHeroLayout
-              ? (useWebLayout ? carouselCardMinH : 165)
-              : null;
+            /** Desktop: o card preenche a célula da grade (mesma altura dos vizinhos). */
+            const carouselCardFixedH = useWebLayout
+              ? null
+              : (useCarouselHeroLayout ? 165 : null);
+            const carouselFillStyle = useWebLayout
+              ? { width: '100%', flex: 1, height: '100%', minHeight: 0 }
+              : carouselCardFixedH
+                ? { width: '100%', height: carouselCardFixedH, minHeight: carouselCardFixedH, maxHeight: carouselCardFixedH }
+                : null;
             const carouselCardRadius = scaleWebDesktop(20, useWebLayout);
             const carouselImageStyle = useWebLayout
               ? Platform.OS === 'web'
@@ -2049,17 +2111,28 @@ export function DashboardScreen() {
                 style={{
                   position: 'relative',
                   width: '100%',
-                  ...(useCarouselHeroLayout
-                    ? {
-                        alignSelf: 'stretch',
-                        flexDirection: 'column',
-                      }
-                    : { alignItems: 'center' }),
+                  ...(useWebLayout
+                    ? { flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }
+                    : useCarouselHeroLayout
+                      ? {
+                          alignSelf: 'stretch',
+                          flexDirection: 'column',
+                        }
+                      : { alignItems: 'center' }),
                 }}
               >
                 <View
                   style={
-                    useCarouselHeroLayout
+                    useWebLayout
+                      ? {
+                          ...carouselFillStyle,
+                          borderRadius: carouselCardRadius,
+                          overflow: 'hidden',
+                          borderWidth: 1,
+                          borderColor: (item.color || colors.primary) + '80',
+                          ...cardShadowStyle,
+                        }
+                      : useCarouselHeroLayout
                       ? {
                           width: '100%',
                           height: carouselCardFixedH,
@@ -2077,7 +2150,9 @@ export function DashboardScreen() {
                   <CarouselCardWrapper
                     {...carouselCardWrapperProps}
                     style={
-                      useCarouselHeroLayout
+                      useWebLayout
+                        ? carouselFillStyle
+                        : useCarouselHeroLayout
                         ? { width: '100%', height: carouselCardFixedH, minHeight: carouselCardFixedH, maxHeight: carouselCardFixedH }
                         : { alignSelf: 'center' }
                     }
@@ -2086,7 +2161,16 @@ export function DashboardScreen() {
                       source={item.image}
                       style={[
                         !useCarouselHeroLayout ? ds.carouselItem : null,
-                        useCarouselHeroLayout
+                        useWebLayout
+                          ? {
+                              width: '100%',
+                              flex: 1,
+                              height: '100%',
+                              minHeight: 0,
+                              padding: 0,
+                              overflow: 'hidden',
+                            }
+                          : useCarouselHeroLayout
                           ? {
                               width: '100%',
                               height: carouselCardFixedH,
@@ -2126,7 +2210,11 @@ export function DashboardScreen() {
                         height: '100%',
                         borderRadius: scaleWebDesktop(20, useWebLayout),
                         padding: useCarouselHeroLayout ? scaleWebDesktop(20, useWebLayout) : 20,
-                        paddingBottom: useCarouselHeroLayout ? scaleWebDesktop(16, useWebLayout) : 20,
+                        paddingBottom: useWebLayout
+                          ? scaleWebDesktop(28, true)
+                          : useCarouselHeroLayout
+                            ? scaleWebDesktop(16, useWebLayout)
+                            : 20,
                         justifyContent: useCarouselHeroLayout ? 'center' : 'flex-end',
                         alignItems: useCarouselHeroLayout ? 'center' : 'stretch',
                         overflow: useCarouselHeroLayout ? 'hidden' : 'visible',
@@ -2219,8 +2307,26 @@ export function DashboardScreen() {
                     ) : null}
                   </ImageBackground>
                 </CarouselCardWrapper>
+                {useWebLayout && carouselItems.length > 1 ? (
+                  <View
+                    pointerEvents="box-none"
+                    style={{
+                      position: 'absolute',
+                      left: 8,
+                      right: 8,
+                      bottom: 8,
+                      zIndex: 6,
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: WEB_DESKTOP_ROW_GAP,
+                    }}
+                  >
+                    {renderWebCarouselDots()}
+                  </View>
+                ) : null}
                 </View>
-                {useWebLayout ? (
+                {!useWebLayout ? (
                   <View pointerEvents="box-none" style={webCarouselFooterStyle}>
                     {carouselItems.length > 1 ? renderWebCarouselDots() : null}
                   </View>
@@ -2236,7 +2342,7 @@ export function DashboardScreen() {
                             top: 0,
                             left: 0,
                             right: 0,
-                            height: carouselCardFixedH,
+                            bottom: 0,
                             width: '100%',
                           }
                         : {
@@ -2444,11 +2550,11 @@ export function DashboardScreen() {
     ),
     quote: (
       useWebLayout ? (
-        <View key="quote" style={{ width: '100%', alignSelf: 'stretch', flexDirection: 'column' }}>
+        <View key="quote" style={{ width: '100%', alignSelf: 'stretch', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }}>
           <TouchableOpacity
             onPress={() => openImageGenerator?.({ quote, quoteType })}
             activeOpacity={0.8}
-            style={{ height: webDesktopCarouselTrioMinH, width: '100%' }}
+            style={{ flex: 1, minHeight: 0, height: '100%', width: '100%' }}
           >
             <GlassCard
               colors={colors}
@@ -2458,6 +2564,8 @@ export function DashboardScreen() {
                 {
                   padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true),
                   height: '100%',
+                  flex: 1,
+                  minHeight: 0,
                   width: '100%',
                   borderRadius: scaleWebDesktop(20, true),
                   overflow: 'hidden',
@@ -2466,6 +2574,8 @@ export function DashboardScreen() {
               contentStyle={{
                 padding: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(7, true) : scaleWebDesktop(10, true),
                 height: '100%',
+                flex: 1,
+                minHeight: 0,
                 flexDirection: 'column',
                 overflow: 'hidden',
               }}
@@ -2476,7 +2586,7 @@ export function DashboardScreen() {
                   minHeight: 0,
                   flexDirection: 'column',
                   justifyContent: 'flex-start',
-                  overflow: 'visible',
+                  overflow: 'hidden',
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: WEB_HEADER_GAP, marginBottom: desktopHomeCarouselQuoteAniv ? scaleWebDesktop(4, true) : scaleWebDesktop(6, true), paddingTop: scaleWebDesktop(2, true) }}>
@@ -2492,7 +2602,7 @@ export function DashboardScreen() {
                 <View style={{ flex: 1, minHeight: 0, justifyContent: 'center' }}>
                   <Text
                     style={[ds.quoteText, { color: colors.text, fontSize: 13, fontWeight: '400', textAlign: 'center', width: '100%', lineHeight: 20 }]}
-                    numberOfLines={2}
+                    numberOfLines={4}
                   >
                     "{quoteBody}"
                   </Text>
@@ -2512,55 +2622,53 @@ export function DashboardScreen() {
                     </Text>
                   ) : null}
                 </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap', paddingTop: 6, paddingBottom: 2 }}>
+                  <TouchableOpacity
+                    onPress={(e) => { e?.stopPropagation?.(); playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
+                    activeOpacity={0.85}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: scaleWebDesktop(5, true),
+                      paddingVertical: scaleWebDesktop(4, true),
+                      paddingHorizontal: scaleWebDesktop(8, true),
+                      borderRadius: 999,
+                      ...chromeBtnBox(colors),
+                    }}
+                  >
+                    <Ionicons
+                      name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'}
+                      size={scaleWebDesktop(14, true)}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={{ fontSize: scaleWebDesktop(11, true), fontWeight: '700', color: colors.textSecondary }}>
+                      {quoteType === 'motivacional' ? 'Versículo' : 'Frase'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={(e) => { e?.stopPropagation?.(); playTapSound(); handleShareQuote(); }}
+                    activeOpacity={0.85}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: scaleWebDesktop(5, true),
+                      paddingVertical: scaleWebDesktop(4, true),
+                      paddingHorizontal: scaleWebDesktop(8, true),
+                      borderRadius: 999,
+                      ...chromeBtnBox(colors),
+                    }}
+                  >
+                    <Ionicons name="share-social-outline" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
+                    <Text style={{ fontSize: scaleWebDesktop(11, true), fontWeight: '700', color: colors.textSecondary }}>
+                      Compartilhar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </GlassCard>
           </TouchableOpacity>
-          <View style={webCarouselFooterStyle}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: WEB_DESKTOP_ROW_GAP, flexWrap: 'wrap' }}>
-              <TouchableOpacity
-                onPress={() => { playTapSound(); setQuoteType(quoteType === 'motivacional' ? 'verso' : 'motivacional'); }}
-                activeOpacity={0.85}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: scaleWebDesktop(5, true),
-                  paddingVertical: scaleWebDesktop(4, true),
-                  paddingHorizontal: scaleWebDesktop(10, true),
-                  borderRadius: 999,
-                  ...chromeBtnBox(colors),
-                }}
-              >
-                <Ionicons
-                  name={quoteType === 'motivacional' ? 'book-outline' : 'chatbubble-outline'}
-                  size={scaleWebDesktop(14, true)}
-                  color={colors.textSecondary}
-                />
-                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>
-                  {quoteType === 'motivacional' ? 'Versículo do dia' : 'Frase do dia'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => { playTapSound(); handleShareQuote(); }}
-                activeOpacity={0.85}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: scaleWebDesktop(5, true),
-                  paddingVertical: scaleWebDesktop(4, true),
-                  paddingHorizontal: scaleWebDesktop(10, true),
-                  borderRadius: 999,
-                  ...chromeBtnBox(colors),
-                }}
-              >
-                <Ionicons name="share-social-outline" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
-                <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>
-                  {quoteType === 'motivacional' ? 'Compartilhar frase' : 'Compartilhar versículo'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
       ) : (
       <TouchableOpacity
@@ -2697,8 +2805,8 @@ export function DashboardScreen() {
           style={{
             marginHorizontal: WEB_CARD_MARGIN_H,
             marginTop: desktopHomeCarouselQuoteAniv ? 0 : WEB_CARD_MARGIN_TOP,
-            ...(desktopHomeCarouselQuoteAniv
-              ? { width: '100%', alignSelf: 'stretch', flexDirection: 'column' }
+            ...(useWebLayout
+              ? { width: '100%', alignSelf: 'stretch', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }
               : null),
           }}
         >
@@ -2707,26 +2815,28 @@ export function DashboardScreen() {
             solid
             style={[
               ds.card,
-              desktopHomeCarouselQuoteAniv
+              desktopHomeCarouselQuoteAniv || useWebLayout
                 ? {
                     padding: scaleWebDesktop(7, true),
-                    height: webDesktopCarouselTrioMinH,
-                    minHeight: webDesktopCarouselTrioMinH,
-                    maxHeight: webDesktopCarouselTrioMinH,
+                    height: '100%',
+                    flex: 1,
+                    minHeight: 0,
                     width: '100%',
                     borderRadius: scaleWebDesktop(20, true),
                     overflow: 'hidden',
                   }
                 : {
                     padding: WEB_CARD_PADDING,
-                    minHeight: useWebLayout ? scaleWebDesktop(96, true) : TRIO_CARD_HEIGHT,
+                    minHeight: TRIO_CARD_HEIGHT,
                   },
             ]}
             contentStyle={
-              desktopHomeCarouselQuoteAniv
+              desktopHomeCarouselQuoteAniv || useWebLayout
                 ? {
                     padding: scaleWebDesktop(7, true),
                     height: '100%',
+                    flex: 1,
+                    minHeight: 0,
                     overflow: 'hidden',
                     flexDirection: 'column',
                   }
@@ -2834,6 +2944,42 @@ export function DashboardScreen() {
                       }}
                     />
                   )}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap', paddingTop: 6, paddingBottom: 2 }}>
+                  <TouchableOpacity
+                    onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }}
+                    activeOpacity={0.85}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: scaleWebDesktop(5, true),
+                      paddingVertical: scaleWebDesktop(4, true),
+                      paddingHorizontal: scaleWebDesktop(8, true),
+                      borderRadius: 999,
+                      ...chromeBtnBox(colors),
+                    }}
+                  >
+                    <Ionicons name="add" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
+                    <Text style={{ fontSize: scaleWebDesktop(11, true), fontWeight: '700', color: colors.textSecondary }}>Cliente</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }}
+                    activeOpacity={0.85}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: scaleWebDesktop(5, true),
+                      paddingVertical: scaleWebDesktop(4, true),
+                      paddingHorizontal: scaleWebDesktop(8, true),
+                      borderRadius: 999,
+                      ...chromeBtnBox(colors),
+                    }}
+                  >
+                    <AppIcon name="expand-outline" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
+                    <Text style={{ fontSize: scaleWebDesktop(11, true), fontWeight: '700', color: colors.textSecondary }}>Ver todos</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             ) : (
@@ -2943,60 +3089,32 @@ export function DashboardScreen() {
               </>
             )}
           </GlassCard>
-          {desktopHomeCarouselQuoteAniv ? (
-            <View style={webCarouselFooterStyle}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: WEB_DESKTOP_ROW_GAP, width: '100%' }}>
-                <TouchableOpacity
-                  onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('clientes'); }}
-                  activeOpacity={0.85}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: scaleWebDesktop(5, true),
-                    paddingVertical: scaleWebDesktop(4, true),
-                    paddingHorizontal: scaleWebDesktop(10, true),
-                    borderRadius: 999,
-                    ...chromeBtnBox(colors),
-                  }}
-                >
-                  <Ionicons name="add" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
-                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>Cliente</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openAniversariantes?.(); }}
-                  activeOpacity={0.85}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: scaleWebDesktop(5, true),
-                    paddingVertical: scaleWebDesktop(4, true),
-                    paddingHorizontal: scaleWebDesktop(10, true),
-                    borderRadius: 999,
-                    ...chromeBtnBox(colors),
-                  }}
-                >
-                  <AppIcon name="expand-outline" size={scaleWebDesktop(14, true)} color={colors.textSecondary} />
-                  <Text style={{ fontSize: scaleWebDesktop(12, true), fontWeight: '700', color: colors.textSecondary }}>Ver todos</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : null}
         </View>
       );
     })(),
     meusgastos: (
-      <View key="meusgastos" style={{ marginHorizontal: WEB_CARD_MARGIN_H, marginTop: WEB_CARD_MARGIN_TOP }}>
-        <GlassCard colors={colors} solid style={[ds.card, { overflow: 'hidden' }]} contentStyle={{ padding: 0 }}>
-          <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 }}>
+      <View
+        key="meusgastos"
+        style={{
+          marginHorizontal: WEB_CARD_MARGIN_H,
+          marginTop: WEB_CARD_MARGIN_TOP,
+          ...(useWebLayout ? { flex: 1, minHeight: 0, minWidth: 0, height: '100%', width: '100%', overflow: 'hidden' } : null),
+        }}
+      >
+        <GlassCard
+          colors={colors}
+          solid
+          style={[ds.card, { overflow: 'hidden' }, useWebLayout ? { flex: 1, minHeight: 0, height: '100%' } : null]}
+          contentStyle={{ padding: 0, flex: 1, minHeight: 0, overflow: 'hidden' }}
+        >
+          <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, flexShrink: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
               <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
                 <AppIcon name="chatbubbles-outline" size={26} color={cardIconColor} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Meus gastos</Text>
-                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>Conversa por texto, voz e foto da notinha</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Dock</Text>
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: CARD_SUBTITLE_MARGIN_TOP }}>Seu assessor Dock: texto, voz e foto da notinha</Text>
                 <VisionOcrStatusBadge colors={colors} compact />
               </View>
               <View style={cardHeaderActionsStyle}>
@@ -3010,7 +3128,7 @@ export function DashboardScreen() {
               </View>
             </View>
           </View>
-          <View style={{ height: 330, marginTop: 6 }}>
+          <View style={useWebLayout ? { flex: 1, minHeight: 0, overflow: 'hidden' } : { height: 330, marginTop: 6 }}>
             <MeusGastosChat embedded />
           </View>
         </GlassCard>
@@ -3671,217 +3789,118 @@ export function DashboardScreen() {
               gap: WEB_DESKTOP_ROW_GAP,
             }}
           >
-            {(() => {
-              const carouselContent = sectionMap.carousel;
-              const quoteContent = sectionMap.quote;
-              const aniversariantesContent = desktopHomeCarouselQuoteAniv ? sectionMap.aniversariantes : null;
-              const hasAgenda = webSectionTail.includes('agenda') && webSectionTail.includes('proximos');
-
-              let quoteCarouselRow = null;
-              if (carouselContent && quoteContent) {
-                if (desktopHomeCarouselQuoteAniv && aniversariantesContent) {
-                  quoteCarouselRow = (
-                    <View
+            {compactButtons ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {sectionOrder.map((id) => {
+                  const meta = AVAILABLE_CARD_TYPES.find((c) => c.id === id) || { label: id, icon: 'apps-outline' };
+                  const color = CARD_ICON_COLORS[id] || colors.primary;
+                  return (
+                    <TouchableOpacity
+                      key={id}
+                      onPress={() => { playTapSound(); setExpandedCard(id); }}
+                      activeOpacity={0.88}
                       style={{
-                        flexDirection: 'row',
-                        width: '100%',
-                        gap: WEB_DESKTOP_ROW_GAP,
-                        alignItems: 'flex-start',
-                        height: webDesktopQuoteCarouselRowH ?? undefined,
+                        width: 128,
+                        minHeight: 104,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        padding: 10,
                       }}
                     >
-                      <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined }}>
-                        {quoteContent}
+                      <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: `${color}22`, alignItems: 'center', justifyContent: 'center' }}>
+                        <AppIcon name={meta.icon} size={24} color={color} />
                       </View>
-                      <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined, flexDirection: 'column' }}>
-                        {carouselContent}
-                      </View>
-                      <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined, alignItems: 'stretch' }}>
-                        {aniversariantesContent}
-                      </View>
-                    </View>
+                      <Text numberOfLines={2} style={{ fontSize: 12, fontWeight: '700', color: colors.text, textAlign: 'center' }}>{meta.label}</Text>
+                    </TouchableOpacity>
                   );
-                } else {
-                quoteCarouselRow = (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      width: '100%',
-                      gap: WEB_DESKTOP_ROW_GAP,
-                      alignItems: 'flex-start',
-                      height: webDesktopQuoteCarouselRowH ?? undefined,
-                    }}
-                  >
-                    <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined }}>
-                      {quoteContent}
-                    </View>
-                    <View style={{ flex: 1, flexBasis: 0, minWidth: 0, height: webDesktopQuoteCarouselRowH ?? undefined, flexDirection: 'column' }}>
-                      {carouselContent}
-                    </View>
-                  </View>
+                })}
+              </View>
+            ) : (
+            <InicioDesktopGrid
+              order={sectionOrder}
+              gap={WEB_DESKTOP_ROW_GAP}
+              heroMinHeight={webDesktopQuoteCarouselRowH}
+              agendaMinHeight={WEB_AGENDA_ROW_MIN_H}
+              defaultRowHeight={TRIO_CARD_HEIGHT || 220}
+              weights={desktopWeights}
+              heights={desktopHeights}
+              onWeightsChange={setDesktopWeights}
+              onHeightsChange={setDesktopHeights}
+              editMode={editMode}
+              colors={colors}
+              cardsPerRow={desktopCols}
+              onCardsPerRowChange={setDesktopCols}
+              rowCols={desktopRowCols}
+              rowSpans={desktopRowSpans}
+              spanSide={desktopSpanSide}
+              onRowColsChange={setDesktopRowCols}
+              onRowSpansChange={(id, n) => setDesktopRowSpans((prev) => ({ ...(prev || {}), [id]: n }))}
+              onSpanSideChange={(id, side) => setDesktopSpanSide((prev) => ({ ...(prev || {}), [id]: side }))}
+              renderCard={(id) => {
+                if (id === 'proximos') return sectionMap.leftAgendaCombo || sectionMap.proximos;
+                return sectionMap[id] || null;
+              }}
+              onHide={(id) => setSectionOrder((prev) => prev.filter((x) => x !== id))}
+              onMove={(id, dir) => {
+                setSectionOrder((prev) =>
+                  moveCardByArrow(prev, dir, id, desktopCols, {
+                    rowCols: desktopRowCols,
+                    rowSpans: desktopRowSpans,
+                    spanSide: desktopSpanSide,
+                  })
                 );
-                }
-              } else if (carouselContent) {
-                quoteCarouselRow = <View style={{ width: '100%' }}>{carouselContent}</View>;
-              } else if (quoteContent) {
-                quoteCarouselRow = <View style={{ width: '100%' }}>{quoteContent}</View>;
-              }
-
-              let agendaBlock = null;
-              if (hasAgenda) {
-                agendaBlock = (
-                  <View style={{ width: '100%', gap: WEB_DESKTOP_ROW_GAP, marginTop: 0 }}>
-                    {(() => {
-                      const GAP = WEB_DESKTOP_ROW_GAP;
-                      const GRID_H = WEB_AGENDA_ROW_MIN_H ?? (TRIO_CARD_HEIGHT || 250) * 2 + GAP;
-                      return (
-                        <View style={{ flexDirection: 'row', alignItems: 'stretch', width: '100%', gap: GAP, minHeight: GRID_H, height: GRID_H }}>
-                          <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 }}>
-                            <View style={{ minHeight: GRID_H, height: GRID_H }}>
-                              {sectionMap.agenda}
-                            </View>
-                          </View>
-                          <View style={{ flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0, flexDirection: 'column', gap: GAP }}>
-                            <View style={{ flex: 1, minHeight: 0 }}>
-                              {sectionMap.agendamentos}
-                            </View>
-                            <View style={{ flex: 1, minHeight: 0, ...(Platform.OS === 'web' ? { overflow: 'visible' } : { overflow: 'hidden' }) }}>
-                              {sectionMap.leftAgendaCombo}
-                            </View>
-                          </View>
-                        </View>
-                      );
-                    })()}
-                    {webSectionTail.includes('aniversariantes') && !desktopHomeCarouselQuoteAniv ? (
-                      <View style={{ width: '100%' }}>
-                        {sectionMap.aniversariantes}
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              }
-
-              if (!quoteCarouselRow && !agendaBlock) return null;
-
+              }}
+              dragProps={{
+                onLayoutMeasured: handleLayoutMeasured,
+                onFloatStart: setFloatingId,
+                onCardPress: handleCardPress,
+                floatingId,
+              }}
+            />
+            )}
+            {editMode ? (
+              <TouchableOpacity
+                style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                onPress={() => setShowCardPicker(true)}
+              >
+                <AppIcon name="add-circle-outline" size={26} color={colors.textSecondary} />
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textSecondary }}>Acrescentar ou restaurar cards</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : compactButtons ? (
+          <View style={{ marginHorizontal: 16, marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            {sectionOrder.map((id) => {
+              const meta = AVAILABLE_CARD_TYPES.find((c) => c.id === id) || { label: id, icon: 'apps-outline' };
+              const color = CARD_ICON_COLORS[id] || colors.primary;
               return (
-                <View
+                <TouchableOpacity
+                  key={id}
+                  onPress={() => { playTapSound(); setExpandedCard(id); }}
                   style={{
-                    width: '100%',
-                    ...(quoteCarouselRow && agendaBlock ? { gap: WEB_DESKTOP_ROW_GAP } : null),
+                    width: '30%',
+                    minWidth: 96,
+                    minHeight: 92,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 8,
+                    gap: 6,
                   }}
                 >
-                  {quoteCarouselRow}
-                  {agendaBlock}
-                </View>
+                  <AppIcon name={meta.icon} size={22} color={color} />
+                  <Text numberOfLines={2} style={{ fontSize: 11, fontWeight: '700', color: colors.text, textAlign: 'center' }}>{meta.label}</Text>
+                </TouchableOpacity>
               );
-            })()}
-            {(() => {
-              const CARD_GAP = WEB_DESKTOP_ROW_GAP;
-              const colHalf = { flex: 1, flexBasis: 0, minWidth: 0, minHeight: 0 };
-              const baseFilter = (sid) => !['proximos', 'agendamentos', 'agenda', 'aniversariantes', 'meusgastos'].includes(sid);
-              const showDesktopComprasAnotacoesFaturas =
-                webSectionTail.includes('listacompras') &&
-                webSectionTail.includes('anotacoes') &&
-                webSectionTail.includes('proximasfaturas');
-              const comprasContent = sectionMap.listacompras;
-              const anotacoesContent = sectionMap.anotacoes;
-              const proximasFaturasContent = sectionMap.proximasfaturas;
-              const tailForGrid = webSectionTail
-                .filter(baseFilter)
-                .filter((sid) => (showDesktopComprasAnotacoesFaturas ? !['listacompras', 'anotacoes', 'proximasfaturas'].includes(sid) : true));
-
-              const isFullWidthCard = (sid) => {
-                if (sid === 'meusgastos' || sid === 'produtividade' || sid === 'proximasfaturas') return true;
-                return false;
-              };
-
-              /** Mesma lógica 50/50 das linhas carrossel e agenda: sem calc() nem flexWrap (evita desvio de subpixel). */
-              const tailRows = [];
-              for (let i = 0; i < tailForGrid.length; i += 1) {
-                const sid = tailForGrid[i];
-                if (isFullWidthCard(sid)) {
-                  tailRows.push({ kind: 'full', sid });
-                  continue;
-                }
-                const next = tailForGrid[i + 1];
-                if (next != null && !isFullWidthCard(next)) {
-                  tailRows.push({ kind: 'pair', left: sid, right: next });
-                  i += 1;
-                } else {
-                  tailRows.push({ kind: 'pair', left: sid, right: null });
-                }
-              }
-
-              return (
-                <View style={{ width: '100%', gap: CARD_GAP }}>
-                  {showDesktopComprasAnotacoesFaturas && comprasContent && anotacoesContent && proximasFaturasContent ? (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        width: '100%',
-                        gap: CARD_GAP,
-                        alignItems: 'stretch',
-                        ...(WEB_AGENDA_ROW_MIN_H != null ? { minHeight: WEB_AGENDA_ROW_MIN_H } : null),
-                      }}
-                    >
-                      <View
-                        style={{
-                          flex: 1,
-                          flexBasis: 0,
-                          minWidth: 0,
-                          minHeight: 0,
-                        }}
-                      >
-                        {comprasContent}
-                      </View>
-                      <View
-                        style={{
-                          flex: 1,
-                          flexBasis: 0,
-                          minWidth: 0,
-                          minHeight: 0,
-                        }}
-                      >
-                        {anotacoesContent}
-                      </View>
-                      <View
-                        style={{
-                          flex: 1,
-                          flexBasis: 0,
-                          minWidth: 0,
-                          minHeight: 0,
-                        }}
-                      >
-                        {proximasFaturasContent}
-                      </View>
-                    </View>
-                  ) : null}
-                  {tailRows.map((row, rowIdx) => {
-                    if (row.kind === 'full') {
-                      const content = sectionMap[row.sid];
-                      if (!content) return null;
-                      return (
-                        <View key={row.sid} style={{ width: '100%', minWidth: 0 }}>
-                          {content}
-                        </View>
-                      );
-                    }
-                    const leftC = sectionMap[row.left];
-                    if (!leftC) return null;
-                    const rightC = row.right ? sectionMap[row.right] : null;
-                    return (
-                      <View
-                        key={`row-${rowIdx}-${row.left}-${row.right || 'x'}`}
-                        style={{ flexDirection: 'row', width: '100%', gap: CARD_GAP, alignItems: 'stretch', minWidth: 0 }}
-                      >
-                        <View style={colHalf}>{leftC}</View>
-                        <View style={colHalf}>{rightC}</View>
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })()}
+            })}
           </View>
         ) : (
           sectionOrder.map((sid) => {
@@ -3902,7 +3921,7 @@ export function DashboardScreen() {
             );
           })
         )}
-        {editMode && (
+        {editMode && !useWebLayout && (
           <View style={{ marginHorizontal: useWebLayout ? WEB_DESKTOP_PAGE_PAD : 16, marginTop: useWebLayout ? WEB_DESKTOP_ROW_GAP : 16 }}>
             <TouchableOpacity
               style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
@@ -3996,6 +4015,12 @@ export function DashboardScreen() {
         addableCardTypes={DINHEIRO_CARD_TYPES}
         onAddCard={(id) => { playTapSound(); setSectionOrder((prev) => [...prev, id]); }}
         onRemoveCard={(id) => { playTapSound(); setSectionOrder((prev) => prev.filter((x) => x !== id)); }}
+        compactButtons={compactButtons}
+        onToggleCompact={() => setCompactButtons((v) => !v)}
+        onApplyReadyLayout={(lay) => applyInicioLayout(lay?.layout)}
+        onSaveLayout={saveCurrentInicioLayout}
+        hasSavedLayout={hasSavedLayout}
+        onApplySavedLayout={loadSavedInicioLayout}
       />
       {/* Web desktop: menu na coluna da tab bar (DesktopRailMenuButton). */}
       <Modal visible={!!parabensModalClient} transparent animationType="fade">
@@ -4048,6 +4073,7 @@ export function DashboardScreen() {
       <CardExpandedModal
         visible={!!expandedCard}
         onClose={() => { playTapSound(); setExpandedCard(null); }}
+        accentColor={CARD_ICON_COLORS[expandedCard] || colors.primary}
         headerRight={
           (expandedCard === 'proximos' || expandedCard === 'agendamentos' || expandedCard === 'proximasfaturas') ? (
             <TouchableOpacity
@@ -4075,9 +4101,16 @@ export function DashboardScreen() {
           expandedCard === 'agendamentos' ? (showConcluidasAgendamentos ? ((showEmpresaFeatures && viewMode === 'empresa') ? 'Atendimentos concluídos' : 'Eventos concluídos') : ((showEmpresaFeatures && viewMode === 'empresa') ? 'Próximos atendimentos' : 'Próximos eventos')) :
           expandedCard === 'proximasfaturas' ? (showContasPagasProxFaturas ? 'Contas pagas' : 'Próximas faturas') :
           expandedCard === 'anotacoes' ? 'Minhas anotações' :
-          expandedCard === 'listacompras' ? (showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras') : ''
+          expandedCard === 'listacompras' ? (showConcluidasListaCompras ? 'Compras concluídas' : 'Lista de compras') :
+          (AVAILABLE_CARD_TYPES.find((c) => c.id === expandedCard)?.label || 'Card')
         }
       >
+        {compactButtons && expandedCard && (sectionMap[expandedCard] || sectionMap.leftAgendaCombo) ? (
+          <View style={{ minHeight: 420 }}>
+            {expandedCard === 'proximos' ? (sectionMap.leftAgendaCombo || sectionMap.proximos) : sectionMap[expandedCard]}
+          </View>
+        ) : (
+        <>
         {expandedCard === 'proximos' && (showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas).map((t) => (
           <GlassCard key={t.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40' }}>
@@ -4237,6 +4270,8 @@ export function DashboardScreen() {
               );
             })}
           </>
+        )}
+        </>
         )}
       </CardExpandedModal>
     </SafeAreaView>

@@ -3,6 +3,7 @@ export const CARD_ICON_COLORS = {
   proximos: '#10b981',       // esmeralda
   agendamentos: '#0ea5e9',   // azul céu
   agenda: '#2563eb',         // azul (agenda completa no Início - web)
+  carousel: '#8b5cf6',
   meusgastos: '#7c3aed',     // violeta
   aniversariantes: '#ec4899', // rosa
   anotacoes: '#eab308',      // âmbar
@@ -24,7 +25,7 @@ export const AVAILABLE_CARD_TYPES = [
   { id: 'agenda', label: 'Agenda (completa)', icon: 'calendar-outline', screen: 'Início (Web)' },
   { id: 'carousel', label: 'Carrossel', icon: 'images-outline', screen: 'Início' },
   { id: 'quote', label: 'Frase do dia', icon: 'chatbubble-outline', screen: 'Início' },
-  { id: 'meusgastos', label: 'Meus gastos', icon: 'chatbubbles-outline', screen: 'Início' },
+  { id: 'meusgastos', label: 'Dock', icon: 'chatbubbles-outline', screen: 'Início' },
   { id: 'balance', label: 'Saldo disponível', icon: 'wallet-outline', screen: 'Dinheiro' },
   { id: 'proximasfaturas', label: 'Próximas faturas', icon: 'receipt-outline', screen: 'Início' },
   { id: 'contas', label: 'Minhas Faturas', icon: 'document-text-outline', screen: 'Dinheiro' },
@@ -40,13 +41,19 @@ export const AVAILABLE_CARD_TYPES = [
 export const DEFAULT_SECTIONS = ['proximos', 'agendamentos', 'carousel', 'quote', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
 
 /** Cards padrão para web – altere aqui para layout diferente da web sem afetar o mobile */
-export const DEFAULT_SECTIONS_WEB = ['proximos', 'agenda', 'quote', 'carousel', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
+export const DEFAULT_SECTIONS_WEB = ['proximos', 'agenda', 'agendamentos', 'quote', 'carousel', 'meusgastos', 'aniversariantes', 'anotacoes', 'listacompras', 'proximasfaturas'];
 
 /** Cards da página Dinheiro que podem ser adicionados ao Início via Organize (transações só na Dinheiro) */
 export const DINHEIRO_ADDABLE_CARDS = [];
 
 /** IDs permitidos no Início (inclui addáveis do Dinheiro para usuários que os adicionaram) */
-export const ALL_INICIO_IDS = [...new Set([...DEFAULT_SECTIONS, ...DEFAULT_SECTIONS_WEB, ...DINHEIRO_ADDABLE_CARDS])];
+export const ALL_INICIO_IDS = [...new Set([
+  ...DEFAULT_SECTIONS,
+  ...DEFAULT_SECTIONS_WEB,
+  'agendamentos',
+  ...DINHEIRO_ADDABLE_CARDS,
+  ...AVAILABLE_CARD_TYPES.map((c) => c.id),
+])];
 
 /** Cards da página Dinheiro - ordem editável */
 export const DINHEIRO_CARD_TYPES = [
