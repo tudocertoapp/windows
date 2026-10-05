@@ -11,6 +11,7 @@ import { playTapSound } from '../utils/sounds';
 import { useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import { getWebDesktopGridButtonMetrics, VIEW_MODE_TOGGLE_TOP_GAP } from './ViewModeToggle';
 import { KeyboardShortcutsToggle } from './KeyboardShortcutsToggle';
+import { DockHeaderCue } from './DockHeaderCue';
 import { WEB_DESKTOP_RAIL_WIDTH, WEB_DESKTOP_RAIL_VIEWPORT_MARGIN } from './navigation/RightSideTabBar';
 
 /** Padding direito da coluna da rail no AppNavigator — centraliza o botão na faixa da tabbar. */
@@ -42,6 +43,7 @@ export const topBarStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    overflow: 'visible',
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   logoCircle: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
@@ -92,8 +94,8 @@ export function TopBar({
         overflow: 'visible',
       }
     : null;
-  // Web desktop: menu lateral sumiu — o botão de menu no cabeçalho abre o modal (igual mobile).
-  const showSlideMenu = !hideMenu && !isWebDesktop;
+  const showSlideMenu = !hideMenu;
+  const [clockNow, setClockNow] = useState(() => new Date());
   // Foto de perfil no cabeçalho também no web desktop (Início).
   const showHomeAvatar = isHome;
   const appStateRef = useRef(AppState.currentState);
@@ -106,6 +108,12 @@ export function TopBar({
     headerPromptCache = { prompt: p, dateKey: today };
     return p;
   });
+
+  useEffect(() => {
+    if (!isWebDesktop) return undefined;
+    const t = setInterval(() => setClockNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [isWebDesktop]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState) => {
@@ -186,16 +194,7 @@ export function TopBar({
           <AppIcon name="chatbubbles-outline" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
-      {isWebDesktop && !hideMenu && !isHome ? (
-        <TouchableOpacity
-          style={{ padding: 8, backgroundColor: 'transparent' }}
-          onPress={() => { playTapSound(); openMenu?.(); }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Abrir menu"
-        >
-          <Ionicons name="menu" size={24} color={colors.textSecondary} />
-        </TouchableOpacity>
-      ) : onCalculadora && !isWebDesktop ? (
+      {onCalculadora && !isWebDesktop ? (
         <TouchableOpacity
           style={{ padding: 8, backgroundColor: 'transparent' }}
           onPress={() => { playTapSound(); onCalculadora(); }}
@@ -240,57 +239,57 @@ export function TopBar({
     </>
   );
 
+  const clockLabel = clockNow.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
   const Bar = homeDesktopDefer ? (
-    <View style={[topBarStyles.bar, { backgroundColor: colors.bg, paddingHorizontal: scaleWebDesktop(16, true), paddingVertical: scaleWebDesktop(10, true) }]}>
-      {menuButton ? <View style={{ marginRight: 4 }}>{menuButton}</View> : null}
-      <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        {showHomeAvatar && (
-          <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 52, height: 52, borderRadius: 26, overflow: 'hidden', backgroundColor: '#000' }}>
-            <Image
-              source={hasCustomProfilePhoto ? { uri: profile.fotoLocal || profile.foto } : logoImage}
-              style={{ width: 52, height: 52, borderRadius: 26 }}
-              resizeMode={hasCustomProfilePhoto ? 'cover' : 'contain'}
-            />
-          </TouchableOpacity>
-        )}
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 4, justifyContent: 'center' }}>
-          <Text style={{ color: colors.textSecondary, fontSize: scaleWebDesktop(12, true), fontWeight: '600' }} numberOfLines={1}>
-            {getGreeting()}, {profile?.nome || 'você'}!
-          </Text>
-          {headerDate ? (
-            <Text
-              style={{ color: colors.text, fontSize: scaleWebDesktop(10, true), fontWeight: '700', letterSpacing: 0.4, marginTop: 4, lineHeight: 14 }}
-              numberOfLines={2}
-            >
-              {headerDate}
-            </Text>
-          ) : null}
+    <View style={[topBarStyles.bar, { backgroundColor: colors.bg, paddingHorizontal: scaleWebDesktop(16, true), paddingVertical: scaleWebDesktop(8, true), overflow: 'visible', alignItems: 'center', minHeight: 108 }]}>
+      <View style={{ flex: 1.25, minWidth: 280, flexDirection: 'row', alignItems: 'center', gap: 8, overflow: 'visible' }}>
+        {menuButton ? <View>{menuButton}</View> : null}
+        <View style={{ flex: 1, minWidth: 0 }} pointerEvents="box-none">
+          <DockHeaderCue colors={colors} compact />
         </View>
       </View>
       <View
         style={{
-          flex: 1.35,
-          minWidth: 0,
-          paddingHorizontal: scaleWebDesktop(10, true),
+          flex: 1,
+          minWidth: 180,
+          paddingHorizontal: scaleWebDesktop(8, true),
           justifyContent: 'center',
           alignItems: 'center',
         }}
-        pointerEvents="none"
       >
-        <Text
-          style={{
-            color: colors.text,
-            fontSize: scaleWebDesktop(15, true),
-            fontWeight: '600',
-            lineHeight: scaleWebDesktop(21, true),
-            textAlign: 'center',
-          }}
-          numberOfLines={2}
+        <TouchableOpacity
+          onPress={() => { playTapSound(); openPerfil?.(); }}
+          style={{ alignItems: 'center' }}
+          accessibilityLabel="Tudo Certo"
         >
-          {homePrompt}
-        </Text>
+          <Image source={logoImage} style={{ width: 42, height: 42 }} resizeMode="contain" />
+          <Text style={{ color: colors.textSecondary, fontSize: scaleWebDesktop(12, true), fontWeight: '700', marginTop: 2 }} numberOfLines={1}>
+            {getGreeting()}, {profile?.nome || 'você'}!
+          </Text>
+          <Text style={{ color: colors.text, fontSize: scaleWebDesktop(20, true), fontWeight: '800', letterSpacing: 0.4, lineHeight: 24 }}>
+            {clockLabel}
+          </Text>
+          {headerDate ? (
+            <Text
+              style={{ color: colors.textSecondary, fontSize: scaleWebDesktop(10, true), fontWeight: '700', letterSpacing: 0.4, marginTop: 2 }}
+              numberOfLines={1}
+            >
+              {headerDate}
+            </Text>
+          ) : null}
+        </TouchableOpacity>
       </View>
       <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+        {showHomeAvatar ? (
+          <TouchableOpacity onPress={() => { playTapSound(); openPerfil?.(); }} style={{ width: 40, height: 40, borderRadius: 20, overflow: 'hidden', backgroundColor: '#000' }}>
+            <Image
+              source={hasCustomProfilePhoto ? { uri: profile.fotoLocal || profile.foto } : logoImage}
+              style={{ width: 40, height: 40, borderRadius: 20 }}
+              resizeMode={hasCustomProfilePhoto ? 'cover' : 'contain'}
+            />
+          </TouchableOpacity>
+        ) : null}
         {homeTrailingActions}
         {!showInlineToggleBottomRow && inlineToggle ? (
           <View style={inlineToggleWrapStyle}>
@@ -331,18 +330,11 @@ export function TopBar({
                     {headerDate}
                   </Text>
                   {isWebDesktop && unifiedDeferTitles ? (
-                    <Text
-                      style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(15, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: isWebDesktop ? scaleWebDesktop(21, true) : 18, marginTop: 4 }}
-                      numberOfLines={2}
-                    >
-                      {homePrompt}
-                    </Text>
+                    <DockHeaderCue colors={colors} compact />
                   ) : null}
                 </>
               ) : !deferFinancePrompt ? (
-                <Text style={{ color: colors.text, fontSize: isWebDesktop ? scaleWebDesktop(13, true) : 14, fontWeight: '600', flexShrink: 1, lineHeight: 18 }} numberOfLines={2}>
-                  {homePrompt}
-                </Text>
+                <DockHeaderCue colors={colors} compact />
               ) : null}
             </View>
           </View>
@@ -452,12 +444,7 @@ export function TopBar({
           ) : null}
           {showPromptOutsideHeader ? (
             <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-              <Text
-                style={{ color: colors.text, fontSize: 14, fontWeight: '600', lineHeight: 18 }}
-                numberOfLines={2}
-              >
-                {homePrompt}
-              </Text>
+              <DockHeaderCue colors={colors} compact />
             </View>
           ) : null}
         </View>
@@ -489,12 +476,7 @@ export function TopBar({
       </View>
       {showPromptOutsideHeader ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 8, backgroundColor: colors.bg }}>
-          <Text
-            style={{ color: colors.text, fontSize: 14, fontWeight: '600', lineHeight: 18 }}
-            numberOfLines={2}
-          >
-            {homePrompt}
-          </Text>
+          <DockHeaderCue colors={colors} compact />
         </View>
       ) : null}
     </>

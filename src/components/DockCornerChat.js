@@ -1,20 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MeusGastosChat } from './MeusGastosChat';
-import { DockIcon } from './DockIcon';
+import { DockMascot } from './DockMascot';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
+import { useDockMascot } from '../contexts/DockMascotContext';
 import { playTapSound } from '../utils/sounds';
+import { DOCK_TONES } from '../utils/dockMascot';
 import { useIsDesktopLayout, WEB_MOBILE_TAB_BAR_RESERVE } from '../utils/platformLayout';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE, WEB_DESKTOP_RAIL_ROUND_BTN, getWebDesktopRailDockPosition } from './navigation/RightSideTabBar';
 
 const MODE_KEY = '@tudocerto_dock_mode';
 const FAB = 58;
-const CARD_W = 340;
-const CARD_H = 420;
+const CARD_W = 360;
+const CARD_H = 460;
 const GAP = 12;
 
 function mount(node) {
@@ -30,11 +32,19 @@ function mount(node) {
 export function DockCornerChat() {
   const { colors } = useTheme();
   const { planFeatures } = usePlan();
+  const { cue, tone, setTone } = useDockMascot();
   const insets = useSafeAreaInsets();
   const isDesktop = useIsDesktopLayout();
   const { width: W, height: H } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const [cfg, setCfg] = useState(false);
+
+  const persistOpen = useCallback((next) => {
+    setOpen(next);
+    if (!next) setCfg(false);
+    AsyncStorage.setItem(MODE_KEY, next ? 'open' : 'fab').catch(() => {});
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(MODE_KEY).then((m) => {
@@ -46,14 +56,14 @@ export function DockCornerChat() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
     const hide = () => persistOpen(false);
+    const show = () => persistOpen(true);
     window.addEventListener('tc:dock-minimize', hide);
-    return () => window.removeEventListener('tc:dock-minimize', hide);
-  }, []);
-
-  const persistOpen = (next) => {
-    setOpen(next);
-    AsyncStorage.setItem(MODE_KEY, next ? 'open' : 'fab').catch(() => {});
-  };
+    window.addEventListener('tc:dock-open', show);
+    return () => {
+      window.removeEventListener('tc:dock-minimize', hide);
+      window.removeEventListener('tc:dock-open', show);
+    };
+  }, [persistOpen]);
 
   if (Platform.OS !== 'web') return null;
   if (!planFeatures?.canUseMeusGastos) return null;
@@ -67,57 +77,112 @@ export function DockCornerChat() {
   const bottom = isDesktop
     ? railPos.bottom
     : GAP + Math.max(insets.bottom, WEB_MOBILE_TAB_BAR_RESERVE);
-  const cardRight = isDesktop ? WEB_DESKTOP_RAIL_LAYOUT_RESERVE : right;
+  const cardRight = isDesktop
+    ? Math.max(WEB_DESKTOP_RAIL_LAYOUT_RESERVE, right + fabSize + GAP)
+    : right;
+  const cardBottom = isDesktop ? bottom : bottom + fabSize + GAP;
   const cardW = Math.min(CARD_W, Math.max(260, W - cardRight - GAP));
-  const cardH = Math.min(CARD_H, Math.max(280, H - bottom - GAP - 24));
+  const cardH = Math.min(CARD_H, Math.max(300, H - cardBottom - GAP - 24));
+  const face = cue?.expression || 'feliz';
 
   const node = (
-    <View
-      pointerEvents="box-none"
-      style={[
-        styles.anchor,
-        open
-          ? { right: cardRight, bottom, width: cardW, height: cardH }
-          : { right, bottom, width: fabSize, height: fabSize },
-      ]}
-    >
+    <View pointerEvents="box-none" style={styles.layer}>
       {open ? (
-        <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              right: cardRight,
+              bottom: cardBottom,
+              width: cardW,
+              height: cardH,
+              backgroundColor: colors.bg,
+              borderColor: colors.border,
+            },
+          ]}
+        >
           <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
-            <DockIcon size={22} />
-            <Text style={[styles.title, { color: colors.text }]}>Dock</Text>
+            <DockMascot expression={face} size={64} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.title, { color: colors.text }]}>Dock</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1}>
+                Seu parceiro nas finanças
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                playTapSound();
+                setCfg((v) => !v);
+              }}
+              style={styles.headBtn}
+              accessibilityLabel="Configurar Dock"
+            >
+              <Ionicons name="settings-outline" size={18} color={colors.text} />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
                 playTapSound();
                 persistOpen(false);
               }}
               style={styles.headBtn}
-              accessibilityLabel="Minimizar Dock"
+              accessibilityLabel="Fechar Dock"
             >
               <Ionicons name="close" size={18} color={colors.text} />
             </TouchableOpacity>
           </View>
           <View style={styles.body}>
-            <MeusGastosChat corner ocrEnabled />
+            {cfg ? (
+              <View style={{ padding: 14, gap: 10 }}>
+                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>Linguagem do Dock</Text>
+                {DOCK_TONES.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => {
+                      playTapSound();
+                      setTone(t.id);
+                    }}
+                    style={[
+                      styles.toneBtn,
+                      {
+                        borderColor: tone === t.id ? colors.primary : colors.border,
+                        backgroundColor: tone === t.id ? `${colors.primary}22` : colors.card,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <MeusGastosChat corner ocrEnabled />
+            )}
           </View>
         </View>
-      ) : (
+      ) : null}
+
+      {!isDesktop ? (
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Abrir Dock"
+          accessibilityLabel={open ? 'Fechar Dock' : 'Abrir Dock'}
           onPress={() => {
             playTapSound();
-            persistOpen(true);
+            persistOpen(!open);
           }}
           style={[
             styles.fab,
-            { width: fabSize, height: fabSize, borderRadius: fabSize / 2 },
+            {
+              right,
+              bottom,
+              width: fabSize,
+              height: fabSize,
+              borderRadius: fabSize / 2,
+            },
             Platform.OS === 'web' ? { cursor: 'pointer' } : null,
           ]}
         >
-          <DockIcon size={isDesktop ? 26 : 36} />
+          <DockMascot expression={face} size={Math.round(fabSize * 1.35)} />
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 
@@ -125,35 +190,45 @@ export function DockCornerChat() {
 }
 
 const styles = StyleSheet.create({
-  anchor: {
+  layer: {
     position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 21000,
+    pointerEvents: 'box-none',
   },
   fab: {
-    width: FAB,
-    height: FAB,
-    borderRadius: FAB / 2,
+    position: 'absolute',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#6cba16',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+    justifyContent: 'flex-start',
+    paddingTop: 2,
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+    zIndex: 2,
   },
   card: {
-    flex: 1,
+    position: 'absolute',
     borderWidth: 1,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: 'visible',
     boxShadow: '0 12px 32px rgba(0,0,0,0.26)',
+    zIndex: 1,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingTop: 6,
+    paddingBottom: 8,
     borderBottomWidth: 1,
+    overflow: 'visible',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
-  title: { flex: 1, fontSize: 14, fontWeight: '800' },
+  title: { fontSize: 14, fontWeight: '800' },
   headBtn: {
     width: 30,
     height: 30,
@@ -161,5 +236,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0, overflow: 'hidden', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
+  toneBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
 });

@@ -2,6 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  isWebSpeechAvailable,
+  registerWebSpeech,
+  takeWebSpeech,
+  unlockWebMic,
+  stopWebSpeech,
+} from '../utils/webSpeech';
 
 let NativeVoice: any = null;
 try {
@@ -226,54 +233,50 @@ export default function VoiceRecorder({
     }
   };
 
-  const startWebRecognition = (): boolean => {
+  const startWebRecognition = async (): Promise<boolean> => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-    const SR = (window as unknown as { SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any }).SpeechRecognition
-      || (window as unknown as { webkitSpeechRecognition?: new () => any }).webkitSpeechRecognition;
-    if (!SR) return false;
+    if (!isWebSpeechAvailable()) return false;
     try {
-      const rec = new SR();
-      rec.lang = locale;
-      rec.interimResults = true;
-      rec.continuous = true;
-      rec.maxAlternatives = 1;
-      lastTranscriptRef.current = '';
-      rec.onresult = (ev: any) => {
-        let text = '';
-        for (let i = 0; i < ev.results.length; i += 1) {
-          text += ev.results[i][0]?.transcript || '';
-        }
-        const t = text.trim();
-        if (t) syncTranscriptUi(t);
-      };
-      rec.onerror = (ev: any) => {
-        const code = ev?.error || '';
-        // Chrome/Edge disparam `aborted` ao chamar .stop() — não é falha do utilizador.
-        if (code === 'aborted') return;
-        if (code === 'no-speech') return;
-        if (code === 'not-allowed') {
-          emitError('Permissão de microfone negada. Permita o microfone no ícone da barra de endereço.');
+      await unlockWebMic();
+    } catch (_) {
+      emitError('Permissão de microfone negada. Permita o microfone no ícone da barra de endereço.');
+      return false;
+    }
+    try {
+      registerWebSpeech('dictation', {
+        onResult: (ev: any) => {
+          let text = '';
+          for (let i = 0; i < ev.results.length; i += 1) {
+            text += ev.results[i][0]?.transcript || '';
+          }
+          const t = String(text || '').trim();
+          if (t) syncTranscriptUi(t);
+        },
+        onError: (ev: any) => {
+          const code = ev?.error || '';
+          if (code === 'aborted' || code === 'no-speech') return;
+          if (code === 'not-allowed') {
+            emitError('Permissão de microfone negada. Permita o microfone no ícone da barra de endereço.');
+            setIsListening(false);
+            onListeningChange?.(false);
+            return;
+          }
+          emitError('Erro ao reconhecer sua voz.');
+        },
+        onEnd: () => {
+          if (!manualStopRef.current && shouldKeepListeningRef.current) return;
           setIsListening(false);
           onListeningChange?.(false);
-          webRecognitionRef.current = null;
-          return;
-        }
-        emitError('Erro ao reconhecer sua voz.');
-        setIsListening(false);
-        onListeningChange?.(false);
-        webRecognitionRef.current = null;
-      };
-      rec.onend = () => {
-        webRecognitionRef.current = null;
-        setIsListening(false);
-        onListeningChange?.(false);
-        emitFinalTranscriptOnce();
-      };
-      webRecognitionRef.current = rec;
+          emitFinalTranscriptOnce();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('tc:dock-wake-resume'));
+          }
+        },
+      });
+      takeWebSpeech('dictation');
       engineRef.current = 'expo';
       setEngine('expo');
       setError(null);
-      rec.start();
       setIsListening(true);
       onListeningChange?.(true);
       return true;
@@ -290,13 +293,15 @@ export default function VoiceRecorder({
     clearTranscript();
 
     if (Platform.OS === 'web') {
-      const ok = startWebRecognition();
+      const ok = await startWebRecognition();
       if (!ok) {
         engineRef.current = null;
         setEngine(null);
         setIsListening(false);
         onListeningChange?.(false);
-        emitError('Reconhecimento de voz não disponível neste navegador (experimente Chrome ou Edge).');
+        if (!isWebSpeechAvailable()) {
+          emitError('Reconhecimento de voz não disponível neste navegador (experimente Chrome ou Edge).');
+        }
       }
       return;
     }
@@ -390,11 +395,11 @@ export default function VoiceRecorder({
     shouldKeepListeningRef.current = false;
     const currentEngine = engineRef.current;
     try {
-      if (Platform.OS === 'web' && webRecognitionRef.current) {
-        try {
-          webRecognitionRef.current.stop();
-        } catch (_) {}
-        webRecognitionRef.current = null;
+      if (Platform.OS === 'web') {
+        stopWebSpeech('dictation');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tc:dock-wake-resume'));
+        }
       } else if (currentEngine === 'native' && NativeVoice) {
         await NativeVoice.stop();
         await waitForFinalSpeechResult(500);

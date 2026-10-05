@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -36,7 +36,11 @@ import { askAccountAssistant } from '../services/accountAssistant';
 import { useAuth } from '../contexts/AuthContext';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { detectDockNav, emitDockControl } from '../utils/dockNav';
+import { detectDockNav, emitDockControl, scrollDockPage } from '../utils/dockNav';
+import { isLearnPhrase, loadDockMemory, memoryForPrompt, rememberDockFact } from '../utils/dockMemory';
+import { CardScrollbar, CARD_SCROLLBAR_W } from './CardScrollbar';
+import { useDockMascot } from '../contexts/DockMascotContext';
+import { introByTone } from '../utils/dockMascot';
 
 /** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
 const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_LAYOUT_RESERVE;
@@ -352,11 +356,13 @@ function brDateToIso(dateStr) {
   return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
-export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEnabled = true, corner = false }) {
-  const { colors } = useTheme();
-  const { transactions, addTransaction } = useFinance();
+export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEnabled = true, corner = false, colors: colorsProp }) {
+  const theme = useTheme();
+  const colors = colorsProp || theme.colors;
+  const { transactions, addTransaction, reloadAll } = useFinance();
   const { openAddModal, dockControl } = useMenu();
   const { user, isGuest } = useAuth();
+  const { tone, firstName } = useDockMascot();
   const [dockName, setDockName] = useState('');
   const insets = useSafeAreaInsets();
   const isDesktopLayout = useIsDesktopLayout();
@@ -387,6 +393,10 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const handleUserContentRef = useRef(null);
   const voiceActionsRef = useRef({ startListening: async () => {}, stopListening: async () => {} });
   const listRef = useRef(null);
+  const [chatViewportH, setChatViewportH] = useState(0);
+  const [chatContentH, setChatContentH] = useState(0);
+  const [chatScrollY, setChatScrollY] = useState(0);
+  const pinChatToEndRef = useRef(true);
   const inputRef = useRef(null);
   const lastTxIdRef = useRef(null);
   const receiptAddCandidateRef = useRef(null);
@@ -419,6 +429,13 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   }, [user?.id]);
 
   useEffect(() => {
+    const text = introByTone(tone, dockName || firstName);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === 'intro-assistant' ? { ...m, text } : m))
+    );
+  }, [tone, dockName, firstName]);
+
+  useEffect(() => {
     if (!chatReadyRef.current) return;
     const uid = user?.id || 'guest';
     AsyncStorage.setItem(dockChatStorageKey(uid), JSON.stringify(serializeDockMessages(messages))).catch(() => {});
@@ -436,9 +453,13 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   }, [user?.id]);
 
   const applyDockUiAction = (action) => {
+    const raw = String(action?.type || action?.action || '').toLowerCase();
+    if (raw === 'scroll' || action?.target === 'page') {
+      scrollDockPage(action?.dir || 'down');
+      return;
+    }
     const t = action?.target;
     if (!t) return;
-    const raw = String(action?.type || action?.action || '').toLowerCase();
     const mode = raw === 'close' || raw === 'fechar' || raw === 'fecha' ? 'close' : 'open';
     try {
       dockControl?.(t, mode);
@@ -512,6 +533,36 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       return eph.length ? [...solid, ...eph] : solid;
     });
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onVoiceTurn = (ev) => {
+      const d = ev?.detail || {};
+      const userText = String(d.user || '').trim();
+      const assistantText = String(d.assistant || '').trim();
+      if (userText) {
+        appendMessage({
+          id: `voice-user-${Date.now()}`,
+          from: 'user',
+          kind: 'text',
+          text: userText,
+          createdAt: nowIso(),
+        });
+      }
+      if (assistantText) {
+        appendMessage({
+          id: `voice-assistant-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: assistantText,
+          intent: d.intent,
+          createdAt: nowIso(),
+        });
+      }
+    };
+    window.addEventListener('tc:dock-voice-turn', onVoiceTurn);
+    return () => window.removeEventListener('tc:dock-voice-turn', onVoiceTurn);
+  }, []);
 
   const openSuggestedForm = (action) => {
     if (!action?.type) return;
@@ -754,12 +805,23 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
         followUp: m.followUp || undefined,
       }));
     const lastPending = [...messages].reverse().find((m) => m.pendingAction)?.pendingAction || extra.pendingAction || null;
+    let memory = [];
+    try {
+      if (isLearnPhrase(userText)) {
+        const store = await rememberDockFact(user?.id, userText, 'correction');
+        memory = memoryForPrompt(store);
+      } else {
+        memory = memoryForPrompt(await loadDockMemory(user?.id));
+      }
+    } catch (_) {}
     const result = await askAccountAssistant({
       message: userText,
       history,
       pendingAction: lastPending,
       confirm: extra.confirm === true || (lastPending && /^(sim|s|ok|confirmo|pode)$/i.test(String(userText || '').trim())),
       preferredName: dockName,
+      voiceTone: tone,
+      memory,
     });
     setMessages((prev) => prev.filter((m) => m.id !== loadingId));
     if (result.ok && result.callName) {
@@ -771,6 +833,9 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
     }
     if (result.ok && result.uiAction) {
       applyDockUiAction(result.uiAction);
+    }
+    if (result.ok && /^create_/.test(String(result.intent || '')) && !result.pendingAction) {
+      reloadAll?.();
     }
     appendMessage({
       id: `assistant-ai-reply-${Date.now()}`,
@@ -859,12 +924,20 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
     if (kind === 'voice' || kind === 'text') {
       const nav = detectDockNav(filteredText || normalizedText);
       if (nav?.target) {
-        applyDockUiAction({ type: nav.action === 'close' ? 'close' : 'open', target: nav.target });
+        applyDockUiAction({
+          type: nav.action === 'close' ? 'close' : (nav.action === 'scroll' ? 'scroll' : 'open'),
+          target: nav.target,
+          dir: nav.dir,
+        });
         appendMessage({
           id: `assistant-nav-${Date.now()}`,
           from: 'assistant',
           kind: 'text',
-          text: nav.action === 'close' ? `Fechando ${nav.label}.` : `Beleza. Abrindo ${nav.label}.`,
+          text: nav.action === 'close'
+            ? 'Fechei.'
+            : nav.action === 'scroll'
+              ? (nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.')
+              : 'Pronto. Já está na tela.',
           createdAt: nowIso(),
         });
         return;
@@ -1174,7 +1247,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const renderMsg = ({ item }) => {
     const isUser = item.from === 'user';
     return (
-      <View style={[s.msgRow, { justifyContent: isUser ? 'flex-end' : 'flex-start' }]}>
+      <View style={[s.msgRow, { justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-start' }]}>
         <View
           style={[
             s.msgBubble,
@@ -1259,23 +1332,65 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   const kavStyle = {
     flex: 1,
     minHeight: 0,
-    ...(webDesktopFixedInput ? { overflow: 'hidden' } : {}),
   };
   const inputPadBottom =
     (Platform.OS === 'ios' ? 14 : Platform.OS === 'web' ? Math.max(insets.bottom, 10) : 8) + mobileBottomLift;
 
+  const chatMaxScroll = Math.max(0, chatContentH - chatViewportH);
+  const chatShowStrip = chatMaxScroll > 2;
+  const chatThumbHeight = chatShowStrip
+    ? Math.max(20, (chatViewportH / chatContentH) * chatViewportH)
+    : chatViewportH;
+  const chatThumbMaxTop = chatViewportH - chatThumbHeight;
+  const chatThumbTop = chatShowStrip
+    ? Math.max(0, Math.min((chatScrollY / chatMaxScroll) * chatThumbMaxTop, chatThumbMaxTop))
+    : 0;
+  const onChatScroll = useCallback((ev) => {
+    const y = Number(ev?.nativeEvent?.contentOffset?.y || 0);
+    setChatScrollY(y);
+    const max = Math.max(0, chatContentH - chatViewportH);
+    pinChatToEndRef.current = max < 48 || y >= max - 96;
+  }, [chatContentH, chatViewportH]);
+  const onChatContentSize = useCallback((_, h) => {
+    if (typeof h === 'number' && h > 0) setChatContentH(h);
+    if (!pinChatToEndRef.current) return;
+    requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: false }));
+  }, []);
+  const chatListStyle = {
+    flex: 1,
+    minHeight: 0,
+    ...(chatShowStrip ? { paddingRight: CARD_SCROLLBAR_W + 4 } : null),
+    ...(Platform.OS === 'web'
+      ? {
+          overflow: 'auto',
+          height: '100%',
+          touchAction: 'pan-y',
+        }
+      : null),
+  };
+  const chatWebScrollProps = Platform.OS === 'web' ? { className: 'tc-card-scroll', dataSet: { dockScroll: 'chat' } } : null;
+
   const chatMain = (
     <View style={s.chatMainColumn}>
-        {embedded ? (
+        <View
+          style={s.chatListWrap}
+          onLayout={(e) => {
+            const h = e?.nativeEvent?.layout?.height;
+            if (typeof h === 'number' && h > 0) setChatViewportH(h);
+          }}
+        >
+        {Platform.OS === 'web' || embedded || corner ? (
           <ScrollView
             ref={listRef}
-            style={{ flex: 1, minHeight: 0 }}
+            style={chatListStyle}
             contentContainerStyle={{ padding: 12, paddingBottom: listBottomPad }}
-            showsVerticalScrollIndicator
-            persistentScrollbar
+            showsVerticalScrollIndicator={false}
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
+            onScroll={onChatScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={onChatContentSize}
+            {...chatWebScrollProps}
           >
             {orderedMessages.map((item) => (
               <View key={item.id}>{renderMsg({ item })}</View>
@@ -1288,12 +1403,24 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
             keyExtractor={(m) => m.id}
             renderItem={renderMsg}
             contentContainerStyle={{ padding: 12, paddingBottom: listBottomPad }}
-            showsVerticalScrollIndicator
+            showsVerticalScrollIndicator={false}
             nestedScrollEnabled
-            style={{ flex: 1, minHeight: 0 }}
-            onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
+            style={chatListStyle}
+            onScroll={onChatScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={onChatContentSize}
+            {...chatWebScrollProps}
           />
         )}
+          <CardScrollbar
+            visible={chatShowStrip}
+            height={chatViewportH}
+            thumbTop={chatThumbTop}
+            thumbHeight={chatThumbHeight}
+            colors={colors}
+            accentColor={colors.primary}
+          />
+        </View>
 
         <View
           style={[
@@ -1434,7 +1561,7 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   );
 
   return (
-    <View style={[s.container, embedded && s.embeddedContainer, corner && s.cornerContainer]}>
+    <View style={[s.container, embedded && s.embeddedContainer, corner && s.cornerContainer, { backgroundColor: transparentBg ? 'transparent' : colors.bg }]}>
       {Platform.OS === 'web' ? (
         <View style={kavStyle}>{chatMain}</View>
       ) : (
@@ -1505,9 +1632,10 @@ const s = StyleSheet.create({
   container: { flex: 1, minHeight: 0, minWidth: 0 },
   embeddedContainer: { minHeight: 0, height: '100%', overflow: 'hidden' },
   cornerContainer: { flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' },
+  chatListWrap: { flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' },
   /** Lista + faixa de entrada em coluna (fixa botões na base no card mobile) */
   chatMainColumn: { flex: 1, minHeight: 0, minWidth: 0, flexDirection: 'column' },
-  msgRow: { flexDirection: 'row', marginVertical: 4 },
+  msgRow: { flexDirection: 'row', marginVertical: 6, overflow: 'visible' },
   msgBubble: {
     maxWidth: '82%',
     borderRadius: 14,

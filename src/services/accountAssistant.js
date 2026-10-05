@@ -27,7 +27,7 @@ function assistantEndpoints() {
   return list;
 }
 
-export async function askAccountAssistant({ message, history = [], pendingAction = null, confirm = false, preferredName = '' }) {
+export async function askAccountAssistant({ message, history = [], pendingAction = null, confirm = false, preferredName = '', voiceTone = 'neutra', memory = [] }) {
   const endpoints = assistantEndpoints();
   if (!endpoints.length) {
     return { ok: false, error: 'Servidor do assistente não configurado. Rode npm run web:dev ou faça deploy na Vercel.' };
@@ -42,7 +42,7 @@ export async function askAccountAssistant({ message, history = [], pendingAction
     try {
       const { data } = await axios.post(
         endpoint,
-        { message, history, pendingAction, confirm: !!confirm, preferredName, task: 'assistant' },
+        { message, history, pendingAction, confirm: !!confirm, preferredName, voiceTone, task: 'assistant', memory: Array.isArray(memory) ? memory.slice(-48) : [] },
         {
           timeout: 28000,
           headers: {

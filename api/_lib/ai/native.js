@@ -11,22 +11,6 @@ function firstNameSafe(name) {
   return n;
 }
 
-function hourSP() {
-  try {
-    return Number(
-      new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }).format(new Date())
-    );
-  } catch (_) {
-    return new Date().getHours();
-  }
-}
-
-function greet(name) {
-  const h = hourSP();
-  const w = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-  return name ? `${w}, ${name}` : w;
-}
-
 function cardsFromSummary(s) {
   if (!s) return [];
   return [
@@ -160,7 +144,7 @@ function pendingSummary(tool, args) {
   return 'Posso fazer essa alteração. Confirmar?';
 }
 
-async function answerNative({ db, userId, firstName, preferredName, message, history, pendingAction, confirm }) {
+async function answerNative({ db, userId, firstName, preferredName, message, history, pendingAction, confirm, autoConfirm }) {
   const name = firstNameSafe(preferredName) || firstNameSafe(firstName);
   const original = String(message || '').trim();
   const fixed = correctQuery(original);
@@ -174,7 +158,10 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     if (pendingAction.tool === 'create_expense') return { message: `Pronto. Despesa de ${result.amountFmt} lançada.`, intent: 'create_expense' };
     if (pendingAction.tool === 'create_income') return { message: `Pronto. Entrada de ${result.amountFmt} lançada.`, intent: 'create_income' };
     if (pendingAction.tool === 'create_client') return { message: `Cliente ${result.name} cadastrado.`, intent: 'create_client' };
-    if (pendingAction.tool === 'create_appointment') return { message: `Agendado: ${result.title} em ${result.date} às ${result.time}.`, intent: 'create_appointment' };
+    if (pendingAction.tool === 'create_appointment') {
+      const extra = result.createdClient ? ' Cadastrei o cliente também.' : '';
+      return { message: `Agendado: ${result.title} em ${result.date} às ${result.time}.${extra}`, intent: 'create_appointment' };
+    }
     if (pendingAction.tool === 'create_product') return { message: `Produto ${result.name} cadastrado.`, intent: 'create_product' };
     if (pendingAction.tool === 'create_service') return { message: `Serviço ${result.name} cadastrado.`, intent: 'create_service' };
   }
@@ -193,8 +180,8 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
       const callName = firstNameSafe(pickedEarly.titulo);
       return {
         message: callName
-          ? `Combinado, ${callName}. Pode me chamar de Dock. O que posso te ajudar hoje?`
-          : 'Me fala um nome curto, tipo Lucas?',
+          ? 'Certo. Como posso ajudar?'
+          : 'Diga um nome curto, por exemplo Lucas.',
         intent: 'set_name',
         callName,
       };
@@ -221,6 +208,9 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     if (!args || ((mutation.tool === 'create_expense' || mutation.tool === 'create_income') && args.amount == null)) {
       return { message: 'Para lançar, me diga o valor. Ex.: registre uma despesa de 50 reais em combustível.', intent: 'need_params' };
     }
+    if (confirm) {
+      return answerNative({ db, userId, firstName, preferredName, message: 'sim', history, pendingAction: { tool: mutation.tool, args }, confirm: true });
+    }
     return {
       message: pendingSummary(mutation.tool, args),
       intent: mutation.tool,
@@ -234,20 +224,35 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     intent = 'clients';
   }
 
+  if (intent === 'time' || intent === 'date') {
+    const tz = 'America/Sao_Paulo';
+    const d = new Date();
+    const date = d.toLocaleDateString('pt-BR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const time = d.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+    if (intent === 'time') return { message: `Agora são ${time}.`, intent: 'time' };
+    return { message: `Hoje é ${date}.`, intent: 'date' };
+  }
+
+  if (intent === 'open_calculator') {
+    return {
+      message: 'Pronto. Já está na tela.',
+      intent: 'open_screen',
+      uiAction: { type: 'open', target: 'calculator' },
+    };
+  }
+
   const named = extractCallName(original);
   if (intent === 'set_name' || named) {
     const callName = firstNameSafe(named);
     if (callName) {
       return {
-        message: `Show, ${callName}. Guardei aqui. Pode me chamar de Dock. Em que te ajudo?`,
+        message: 'Certo. Como posso ajudar?',
         intent: 'set_name',
         callName,
       };
     }
     return {
-      message: name
-        ? `Hoje te chamo de ${name}. Se quiser outro nome, é só falar: me chama de Lucas.`
-        : 'Como você quer que eu te chame? Pode ser só o primeiro nome.',
+      message: 'Como você quer que eu te chame? Pode ser só o primeiro nome.',
       intent: 'set_name',
       followUp: { type: 'dock_name', options: [{ titulo: 'lucas' }, { titulo: 'ana' }] },
     };
@@ -255,22 +260,25 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
 
   if (intent === 'how_are_you' || isHowAreYou(text)) {
     return {
-      message: name
-        ? `Tô bem, ${name}, valeu por perguntar. E você? Enquanto isso posso olhar vendas, produtos, agenda ou abrir a calculadora.`
-        : 'Tô bem, e você? Se quiser, olho seus números ou abro uma tela do app.',
+      message: 'Estou bem. E você? Posso olhar vendas, produtos, agenda ou abrir a calculadora.',
       intent: 'how_are_you',
     };
   }
 
   const nav = detectNav(text);
   if (nav?.target) {
+    if (nav.action === 'scroll') {
+      return {
+        message: nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.',
+        intent: 'scroll',
+        uiAction: { type: 'scroll', target: 'page', dir: nav.dir || 'down' },
+      };
+    }
     const closing = nav.action === 'close';
     return {
       message: closing
-        ? `Fechando ${nav.label}.`
-        : name
-          ? `Beleza, ${name}. Abrindo ${nav.label}.`
-          : `Beleza. Abrindo ${nav.label}.`,
+        ? 'Fechei.'
+        : 'Pronto. Já está na tela.',
       intent: closing ? 'close_screen' : 'open_screen',
       uiAction: { type: closing ? 'close' : 'open', target: nav.target },
     };
@@ -278,27 +286,22 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
 
   if (intent === 'greeting') {
     return {
-      message: name
-        ? `${greet(name)}! Eu sou o Dock. O que posso te ajudar hoje?`
-        : 'Olá! Meu nome é Dock. Como você quer que eu te chame?',
+      message: 'Olá. Eu sou o Dock. Em que posso ajudar?',
       intent,
-      followUp: name ? undefined : { type: 'dock_name', options: [{ titulo: 'lucas' }, { titulo: 'ana' }] },
     };
   }
   if (intent === 'thanks') {
-    return { message: name ? `Disponha, ${name}. Qualquer coisa é só chamar.` : 'Disponha. Qualquer coisa é só chamar.', intent };
+    return { message: 'Disponha. Qualquer coisa é só chamar.', intent };
   }
   if (intent === 'who') {
     return {
-      message: name
-        ? `Sou o Dock, ${name}. Seu assessor aqui no Tudo Certo: leio seus dados, abro telas e só mudo algo se você confirmar.`
-        : 'Sou o Dock, seu assessor no Tudo Certo. Leio os dados da sua conta, abro o que você pedir e não gravo nada sem permissão.',
+      message: 'Sou o Dock, assessor do Tudo Certo. Cadastro, agenda, lançamentos e as telas do aplicativo.',
       intent,
     };
   }
   if (intent === 'help') {
     return {
-      message: 'Pode pedir de boa: quantos produtos tenho, o que mais vendeu, abre a calculadora, como estão as vendas. Lançamento eu monto e você confirma.',
+      message: 'Pode pedir: agendar cliente, cadastrar, lançar entrada ou saída, abrir agenda, ou perguntar a hora.',
       intent,
     };
   }
@@ -441,9 +444,7 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
   }
 
   return {
-    message: name
-      ? `${name}, não peguei direito. Posso olhar agenda, gastos, vendas, produtos ou abrir a calculadora. Como te ajudo?`
-      : 'Não peguei direito. É sobre agenda, gastos, vendas, produtos — ou quer que eu abra alguma tela?',
+    message: 'Não entendi. Posso olhar agenda, gastos, vendas, produtos ou abrir uma tela. Como posso ajudar?',
     intent: 'clarify',
   };
 }

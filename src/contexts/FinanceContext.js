@@ -1331,6 +1331,7 @@ export function FinanceProvider({ children }) {
         deleteAReceber,
         updateAReceber,
         loading,
+        reloadAll: loadAll,
       }}
     >
       {children}

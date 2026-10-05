@@ -43,6 +43,7 @@ import { CatalogoScreen } from '../screens/CatalogoScreen';
 import { MeusProfissionaisScreen } from '../screens/MeusProfissionaisScreen';
 import { CircularMenuComponent } from '../components/CircularMenu';
 import { playTapSound } from '../utils/sounds';
+import { scrollDockPage } from '../utils/dockNav';
 import { AddModal } from '../components/AddModal';
 import { AgendaFormModal } from '../components/AgendaFormModal';
 import { AssistantModal } from '../components/AssistantModal';
@@ -51,6 +52,8 @@ import { CalculatorScreen } from '../screens/CalculatorScreen';
 import { CalculatorScreenPro } from '../screens/CalculatorScreenPro';
 import { FloatingCalculatorOverlay } from '../components/FloatingCalculatorOverlay';
 import { DockCornerChat } from '../components/DockCornerChat';
+import { DockVoiceWake } from '../components/DockVoiceWake';
+import { DockVoiceStage } from '../components/DockVoiceStage';
 import { FloatingCalculatorFab } from '../components/FloatingCalculatorFab';
 import { GlassTabBar } from '../components/navigation/GlassTabBar';
 import {
@@ -59,7 +62,6 @@ import {
   WEB_DESKTOP_RAIL_LAYOUT_RESERVE,
   WEB_DESKTOP_RAIL_VIEWPORT_MARGIN,
   WEB_DESKTOP_RAIL_VERTICAL_INSET,
-  DesktopRailMenuButton,
   buildDesktopRailShortcuts,
   buildGlassTabShortcuts,
 } from '../components/navigation/RightSideTabBar';
@@ -530,7 +532,11 @@ export function AppNavigator() {
     </View>
   );
 
-  const runDockControl = useCallback((target, mode) => {
+  const runDockControl = useCallback((target, mode, extra = {}) => {
+    if (mode === 'scroll' || target === 'page') {
+      scrollDockPage(extra.dir || extra.mode || 'down');
+      return;
+    }
     const close = mode === 'close';
     const go = (tab) => {
       setMenuModalOpen(false);
@@ -693,7 +699,7 @@ export function AppNavigator() {
         setCalculadoraFloating(false);
         setCalculadoraModal(true);
       },
-      dockControl: (target, mode) => runDockControl(target, mode),
+      dockControl: (target, mode, extra) => runDockControl(target, mode, extra || {}),
     }),
     [isWebDesktop, showEmpresaFeatures, calculadoraFloating, calculadoraModal, runDockControl]
   );
@@ -701,9 +707,10 @@ export function AppNavigator() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
     const onDock = (event) => {
-      const target = event?.detail?.target;
-      const mode = event?.detail?.mode === 'close' ? 'close' : 'open';
-      if (target) runDockControl(target, mode);
+      const detail = event?.detail || {};
+      const target = detail.target;
+      const mode = detail.mode === 'close' ? 'close' : (detail.mode === 'scroll' ? 'scroll' : 'open');
+      if (target) runDockControl(target, mode, detail);
     };
     window.addEventListener('tc:dock-control', onDock);
     return () => window.removeEventListener('tc:dock-control', onDock);
@@ -977,13 +984,7 @@ export function AppNavigator() {
               </View>
             </NavigationContainer>
 
-            {isWebDesktop ? (
-              <DesktopRailMenuButton
-                onPress={() => setMenuModalOpen((open) => !open)}
-                active={menuModalOpen}
-                colors={colors}
-              />
-            ) : null}
+            {/* Web desktop: menu fica no cabeçalho, à esquerda. */}
 
             {/* Web mobile + nativo: seta e calculadora na mesma linha horizontal, centro vertical da tela */}
             {(isNativeMobile || isWebMobile) && !calculadoraModal && (
@@ -1398,7 +1399,7 @@ export function AppNavigator() {
           <MotivationalImageScreen onClose={() => { setImageModal(false); setImageModalParams({}); }} isModal initialQuote={imageModalParams.quote} initialQuoteType={imageModalParams.quoteType} />
         </SafeAreaView>
       </Modal>
-      <Modal visible={calculadoraModal} animationType="slide" {...(Platform.OS === 'web' ? { style: { zIndex: 20000 } } : null)}>
+      <Modal visible={calculadoraModal} animationType="slide" {...(Platform.OS === 'web' ? { style: { zIndex: 50000 } } : null)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <CalculatorScreenPro
             onClose={() => setCalculadoraModal(false)}
@@ -1424,7 +1425,13 @@ export function AppNavigator() {
         onResultChange={setCalculatorResult}
         onHistoryChange={setCalculatorHistory}
       />
-      {isWeb ? <DockCornerChat /> : null}
+            {isWeb ? (
+              <>
+                <DockVoiceWake />
+                <DockVoiceStage />
+                <DockCornerChat />
+              </>
+            ) : null}
       </GestureHandlerRootView>
     </MenuContext.Provider>
   );

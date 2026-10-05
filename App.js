@@ -20,6 +20,7 @@ import { GoalsProvider } from './src/contexts/GoalsContext';
 import { ReminderProvider } from './src/contexts/ReminderContext';
 import { ValuesVisibilityProvider } from './src/contexts/ValuesVisibilityContext';
 import { KeyboardShortcutsProvider } from './src/contexts/KeyboardShortcutsContext';
+import { DockMascotProvider } from './src/contexts/DockMascotContext';
 import { EmpresaProvider } from './src/contexts/EmpresaContext';
 import { ColaboradoresOrdemProvider } from './src/contexts/ColaboradoresOrdemContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -202,7 +203,9 @@ function AppContent() {
                   <EmpresaProvider>
                     <ValuesVisibilityProvider>
                       <KeyboardShortcutsProvider>
-                        <AppWithReminders />
+                        <DockMascotProvider>
+                          <AppWithReminders />
+                        </DockMascotProvider>
                       </KeyboardShortcutsProvider>
                     </ValuesVisibilityProvider>
                   </EmpresaProvider>
@@ -234,7 +237,7 @@ export default function App() {
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const STYLE_ID = 'tc-web-scrollbars-style';
+    const STYLE_ID = 'tc-web-scrollbars-style-v2';
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
     style.id = STYLE_ID;
@@ -243,6 +246,10 @@ export default function App() {
       .tc-agenda-timeline-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
       .tc-agenda-timeline-scroll::-webkit-scrollbar-thumb { background: transparent; }
       .tc-agenda-timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+      .tc-card-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+      .tc-card-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
+      .tc-card-scroll::-webkit-scrollbar-thumb { background: transparent; }
+      .tc-card-scroll::-webkit-scrollbar-track { background: transparent; }
       .tc-page-scroll::-webkit-scrollbar { width: 0px; height: 0px; }
       .tc-page-scroll::-webkit-scrollbar-thumb { background: transparent; }
       .tc-page-scroll::-webkit-scrollbar-track { background: transparent; }

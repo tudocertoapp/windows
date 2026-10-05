@@ -514,6 +514,9 @@ function sanitizeCreateArgs(tool, args) {
       date,
       time: clip(a.time || '09:00', 8),
       amount: money(a.amount) || 0,
+      clientName: clip(a.clientName || '', 80),
+      service: clip(a.service || '', 80),
+      description: clip(a.description || a.service || '', 160),
     };
   }
   if (tool === 'create_product' || tool === 'create_service') {
@@ -575,9 +578,38 @@ async function create_client(db, userId, args) {
 async function create_appointment(db, userId, args) {
   const a = sanitizeCreateArgs('create_appointment', args);
   if (!a) return { ok: false, error: 'Informe data e nome.' };
-  const { error } = await db.from('agenda_events').insert({
+  let clientId = null;
+  let createdClient = false;
+  const clientName = a.clientName || (a.title && a.title !== 'Atendimento' ? a.title : '');
+  if (clientName) {
+    const { data: found } = await db
+      .from('clients')
+      .select('id,name')
+      .eq('user_id', userId)
+      .ilike('name', `%${clientName}%`)
+      .limit(5);
+    const exact = (found || []).find((c) => String(c.name || '').trim().toLowerCase() === clientName.toLowerCase()) || (found || [])[0];
+    if (exact?.id) {
+      clientId = exact.id;
+    } else {
+      const created = await create_client(db, userId, { name: clientName });
+      if (created?.ok) {
+        createdClient = true;
+        const { data: again } = await db
+          .from('clients')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('name', `%${clientName}%`)
+          .limit(1);
+        clientId = again?.[0]?.id || null;
+      }
+    }
+  }
+  const title = clientName || a.title;
+  const description = a.service || a.description || '';
+  const row = {
     user_id: userId,
-    title: a.title,
+    title,
     date: a.date,
     time: a.time,
     amount: a.amount,
@@ -585,9 +617,12 @@ async function create_appointment(db, userId, args) {
     type: 'meeting',
     status: 'pendente',
     pre_order_items: [],
-  });
+    description,
+  };
+  if (clientId) row.client_id = clientId;
+  const { error } = await db.from('agenda_events').insert(row);
   if (error) return { ok: false, error: 'Não consegui agendar.' };
-  return { ok: true, ...a };
+  return { ok: true, ...a, title, createdClient, clientName };
 }
 
 async function create_product(db, userId, args) {

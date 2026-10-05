@@ -12,6 +12,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePlan } from '../contexts/PlanContext';
 import { useMenu } from '../contexts/MenuContext';
 import { MeusGastosChat } from '../components/MeusGastosChat';
+import { DockMascot } from '../components/DockMascot';
+import { useDockMascot } from '../contexts/DockMascotContext';
 import { VisionOcrStatusBadge } from '../components/VisionOcrStatusBadge';
 import { TopBar } from '../components/TopBar';
 import { ViewModeToggle } from '../components/ViewModeToggle';
@@ -19,6 +21,7 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 
 export function MeusGastosScreen({ onClose, isModal = false }) {
   const { colors } = useTheme();
+  const { cue } = useDockMascot();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, planFeatures } = usePlan();
   const { openCalculadoraFull, openMensagensWhatsApp } = useMenu();
   const isWeb = Platform.OS === 'web';
@@ -55,7 +58,10 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         </>
       ) : (
         <View style={[s.header, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
-          <Text style={[s.headerTitle, { color: colors.text }]}>Dock</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, overflow: 'visible' }}>
+            <DockMascot expression={cue?.expression || 'feliz'} size={52} />
+            <Text style={[s.headerTitle, { color: colors.text }]}>Dock</Text>
+          </View>
           <TouchableOpacity onPress={onClose} style={[s.headerBtn, { backgroundColor: colors.primaryRgba(0.2) }]}>
             <Ionicons name="chevron-back" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -73,7 +79,13 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         </View>
       ) : (
         <>
-          <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border, overflow: 'hidden' }]}>
+            {!isModal ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8, overflow: 'visible' }}>
+                <DockMascot expression={cue?.expression || 'feliz'} size={64} />
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Dock</Text>
+              </View>
+            ) : null}
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
               Conversa com o Dock: comprovante, áudio ou texto. A foto é reduzida no aparelho e lida no servidor.
             </Text>

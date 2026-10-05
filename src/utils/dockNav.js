@@ -10,7 +10,7 @@ function fold(s) {
 
 const PAGES = [
   { re: /\b(calculadora|calculador|calc)\b/, target: 'calculator', label: 'calculadora' },
-  { re: /\b(inicio|home|dashboard|tela inicial)\b/, target: 'home', label: 'início' },
+  { re: /\b(inicio|home|dashboard|tela inicial|pagina inicial|pagina home)\b/, target: 'home', label: 'início' },
   { re: /\b(dinheiro|financas|financeiro)\b/, target: 'money', label: 'dinheiro' },
   { re: /\bagenda\b/, target: 'agenda', label: 'agenda' },
   { re: /\b(dock|meus gastos)\b/, target: 'dock', label: 'Dock' },
@@ -43,9 +43,10 @@ const PAGES = [
   { re: /\btarefas?\b/, target: 'tasks', label: 'tarefas' },
 ];
 
-const OPEN_RE = /\b(abre|abra|abrir|abrindo|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela)\b/;
-const CLOSE_RE = /\b(fecha|fechar|feche|fechando|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/;
+const OPEN_RE = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|entrar|va para|va pra|vá para|vá pra|va na|vá na|vai na|ir na)\b/;
+const CLOSE_RE = /\b(fecha|fechar|feche|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/;
 const DATA_ASK_RE = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem|quem comprou|mais vendeu)\b/;
+const SCROLL_RE = /\b(rola|role|rolar|desce|descer|sobe|subir|scroll|topo da pagina|inicio da pagina|começo da pagina|comeco da pagina)\b/;
 
 function matchPage(t) {
   for (const p of PAGES) {
@@ -65,6 +66,15 @@ export function detectDockNav(text) {
   const page = matchPage(t);
 
   if (dataAsk && !closing && !opening) return null;
+  if (SCROLL_RE.test(t) && !dataAsk) {
+    const up = /\b(sobe|subir|topo|cima|inicio da pagina|começo|comeco)\b/.test(t);
+    return {
+      target: 'page',
+      label: up ? 'topo da página' : 'página',
+      action: 'scroll',
+      dir: up ? 'up' : 'down',
+    };
+  }
   if (closing) {
     return {
       target: page?.target || 'calculator',
@@ -78,8 +88,29 @@ export function detectDockNav(text) {
   return null;
 }
 
-export function emitDockControl(target, mode) {
+export function emitDockControl(target, mode, extra = {}) {
   if (!target) return;
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('tc:dock-control', { detail: { target, mode: mode || 'open' } }));
+  window.dispatchEvent(new CustomEvent('tc:dock-control', {
+    detail: { target, mode: mode || 'open', ...extra },
+  }));
+}
+
+export function scrollDockPage(dir) {
+  if (typeof document === 'undefined') return;
+  const want = String(dir || 'down');
+  const nodes = Array.from(document.querySelectorAll('[data-dock-scroll]'));
+  const el = nodes.find((n) => n.scrollHeight > n.clientHeight + 4) || nodes[0] || document.scrollingElement;
+  if (!el) return;
+  const step = Math.round((el.clientHeight || window.innerHeight || 600) * 0.72);
+  if (want === 'up' || want === 'top') {
+    el.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  if (want === 'bottom') {
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    return;
+  }
+  if (typeof el.scrollBy === 'function') el.scrollBy({ top: step, behavior: 'smooth' });
+  else el.scrollTop = (el.scrollTop || 0) + step;
 }

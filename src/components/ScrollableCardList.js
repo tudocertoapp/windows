@@ -1,11 +1,11 @@
 import React, { useRef, useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { AppIcon } from './AppIcon';
+import { CardScrollbar, CARD_SCROLLBAR_W } from './CardScrollbar';
 
 const ITEM_HEIGHT_EST = 52;
 const MAX_VISIBLE = 5;
 const VISIBLE_HEIGHT = ITEM_HEIGHT_EST * MAX_VISIBLE;
-const SCROLL_STRIP_WIDTH = 10;
 
 /**
  * Área de lista com máx 5 itens visíveis.
@@ -50,6 +50,8 @@ export function ScrollableCardList({
   const thumbHeight = maxScroll > 0 ? Math.max(20, (visibleHeight / contentHeight) * visibleHeight) : visibleHeight;
   const thumbMaxTop = visibleHeight - thumbHeight;
   const [thumbPos, setThumbPos] = useState(0);
+  const stripOnLeft = showStrip && scrollStripSide === 'left';
+  const stripOnRight = showStrip && scrollStripSide !== 'left';
 
   const handleScroll = useCallback(
     (ev) => {
@@ -61,20 +63,20 @@ export function ScrollableCardList({
   );
 
   const scrollViewStyle = useMemo(() => {
+    const pad = showStrip ? CARD_SCROLLBAR_W + 4 : 0;
+    const sidePad = stripOnLeft ? { paddingLeft: pad } : stripOnRight ? { paddingRight: pad } : null;
     if (fixedVisibleHeight === 'fill') {
-      const base = { flex: 1, minHeight: 0 };
-      // Web desktop: não dependa de altura medida (pode ficar 0 no grid);
-      // deixe o flex controlar e habilite overflow para scroll.
+      const base = { flex: 1, minHeight: 0, ...sidePad };
       if (Platform.OS === 'web') {
-        return { ...base, overflow: 'auto' };
+        return { ...base, overflow: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' };
       }
       return base;
     }
     if (showStrip || fixedVisibleHeight === true) {
-      return { height: VISIBLE_HEIGHT, flex: 1 };
+      return { height: VISIBLE_HEIGHT, flex: 1, ...sidePad };
     }
-    return { flex: 1 };
-  }, [fixedVisibleHeight, fillHeight, showStrip]);
+    return { flex: 1, ...sidePad };
+  }, [fixedVisibleHeight, showStrip, stripOnLeft, stripOnRight]);
 
   if (displayItems.length === 0) {
     const textNode = (
@@ -95,20 +97,25 @@ export function ScrollableCardList({
     return textNode;
   }
 
+  const strip = (
+    <CardScrollbar
+      visible={showStrip}
+      height={visibleHeight}
+      thumbTop={thumbPos}
+      thumbHeight={thumbHeight}
+      colors={colors}
+      accentColor={accentColor}
+    />
+  );
+
   return (
     <View style={fixedVisibleHeight === 'fill' ? { flex: 1, minHeight: 0 } : null}>
-      {/*
-        fixedVisibleHeight:
-        - false: altura natural
-        - true: trava em VISIBLE_HEIGHT (comportamento antigo)
-        - 'fill': ocupa a altura disponível do pai (usado no grid do web desktop)
-      */}
       <View
         style={[
           s.container,
           fixedVisibleHeight === 'fill' && Platform.OS === 'web' ? s.containerWebFill : null,
           {
-            flexDirection: 'row',
+            position: 'relative',
             ...(fixedVisibleHeight === 'fill'
               ? { flex: 1, minHeight: 0 }
               : (fixedVisibleHeight === true || showStrip)
@@ -124,41 +131,18 @@ export function ScrollableCardList({
           }
         }}
       >
-        {showStrip && scrollStripSide === 'left' && (
-          <View
-            style={[
-              s.scrollStrip,
-              {
-                width: SCROLL_STRIP_WIDTH,
-                height: visibleHeight,
-                backgroundColor: colors.border + '25',
-                marginRight: 8,
-              },
-              { pointerEvents: 'none' },
-            ]}
-          >
-            <View
-              style={[
-                s.scrollThumb,
-                {
-                  top: thumbPos,
-                  height: thumbHeight,
-                  backgroundColor: (accentColor || colors.primary) + '80',
-                },
-              ]}
-            />
-          </View>
-        )}
+        {stripOnLeft ? strip : null}
         <ScrollView
           ref={scrollRef}
           scrollEnabled={fixedVisibleHeight === 'fill' || showStrip}
           style={scrollViewStyle}
-          showsVerticalScrollIndicator={Platform.OS !== 'web'}
+          showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           nestedScrollEnabled
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: 8, flexGrow: 0 }}
+          {...(Platform.OS === 'web' ? { className: 'tc-card-scroll' } : null)}
         >
           {displayItems.map((item, idx) => (
             <View key={item?.id ?? idx} style={{ marginBottom: itemMarginBottom }}>
@@ -166,31 +150,7 @@ export function ScrollableCardList({
             </View>
           ))}
         </ScrollView>
-        {showStrip && scrollStripSide !== 'left' && (
-          <View
-            style={[
-              s.scrollStrip,
-              {
-                width: SCROLL_STRIP_WIDTH,
-                height: visibleHeight,
-                backgroundColor: colors.border + '25',
-                marginLeft: 8,
-              },
-              { pointerEvents: 'none' },
-            ]}
-          >
-            <View
-              style={[
-                s.scrollThumb,
-                {
-                  top: thumbPos,
-                  height: thumbHeight,
-                  backgroundColor: (accentColor || colors.primary) + '80',
-                },
-              ]}
-            />
-          </View>
-        )}
+        {stripOnRight ? strip : null}
       </View>
       {onVerMais && (hasMorePreview || (displayItems.length > MAX_VISIBLE && fixedVisibleHeight !== 'fill')) && (
         <TouchableOpacity
@@ -211,13 +171,10 @@ export function ScrollableCardList({
 
 const s = StyleSheet.create({
   container: { overflow: 'hidden' },
-  /** Web: overflow hidden no pai quebra wheel/touch scroll em listas flex aninhadas. */
   containerWebFill: { overflow: 'visible' },
   emptyWrap: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 },
   emptyText: { fontSize: 14, paddingLeft: 4 },
   emptyTextCentered: { textAlign: 'center', paddingLeft: 0 },
-  scrollStrip: { borderRadius: 5, justifyContent: 'flex-start', alignItems: 'center' },
-  scrollThumb: { position: 'absolute', width: 6, borderRadius: 3, left: 2 },
   verMaisBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginTop: 12 },
   verMaisText: { fontSize: 13, fontWeight: '600' },
 });

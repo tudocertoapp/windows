@@ -67,17 +67,41 @@ function isCancel(text) {
 
 function detectMutation(text, original) {
   const amount = parseMoney(original);
-  if (hasAny(text, ['despesa', 'gastei', 'paguei', 'gasto']) && hasAny(text, ['cadastre', 'cadastrar', 'registre', 'registrar', 'lance', 'lancar', 'lanca'])) {
+  if (hasAny(text, ['despesa', 'gastei', 'paguei', 'gasto', 'saida', 'saída']) && hasAny(text, ['cadastre', 'cadastrar', 'registre', 'registrar', 'lance', 'lancar', 'lanca'])) {
     const cat = (original.match(/(?:de|em)\s+([a-zA-ZÀ-ÿ\s]{3,40})$/i) || [])[1];
     return {
       tool: 'create_expense',
       args: { amount, description: (cat || 'despesa').trim(), category: (cat || 'outros').trim() },
     };
   }
-  if (hasAny(text, ['venda', 'entrada', 'receita']) && hasAny(text, ['cadastre', 'registre', 'registrar', 'lance'])) {
+  if (hasAny(text, ['venda', 'entrada', 'receita', 'recebi']) && hasAny(text, ['cadastre', 'cadastrar', 'registre', 'registrar', 'lance', 'lancar'])) {
     return { tool: 'create_income', args: { amount, description: 'Entrada', category: 'receita' } };
   }
   const clientM = original.match(/(?:cliente|chama(?:do|da)?)\s+([A-Za-zÀ-ÿ][\wÀ-ÿ\s]{1,40})/i);
+  if (
+    hasAny(text, ['cliente']) &&
+    hasAny(text, ['cadastre', 'cadastrar', 'crie', 'criar', 'registre', 'registrar', 'agende', 'agendar', 'marca', 'agenda']) &&
+    (hasAny(text, ['agenda', 'agende', 'agendar', 'marca', 'marcar', 'horario', 'hora']) || /\b\d{1,2}:\d{2}\b/.test(original))
+  ) {
+    const named = original.match(/nome(?:\s+do\s+cliente)?(?:\s+e|\s+é|:)?\s+([A-Za-zÀ-ÿ][\wÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ]+){0,4})/i);
+    const afterClient = original.match(/(?:cliente)\s+(.+?)(?:\s+(?:na\s+minha\s+agenda|hoje|amanh[aã]|as|às|para\s+fazer)|$)/i);
+    const whoRaw = ((named && named[1]) || (afterClient && afterClient[1]) || '').trim();
+    const whoParts = whoRaw.split(/\s+/).filter((w) => !/^(um|uma|o|a|na|no|da|do|de|minha|meu|sua|seu)$/i.test(w));
+    const clientName = whoParts.join(' ').trim();
+    const svc = (original.match(/para(?:\s+fazer)?(?:\s+uma|\s+um)?\s+([A-Za-zÀ-ÿ][\wÀ-ÿ\s]{2,40}?)(?:\.|$)/i) || [])[1];
+    const date = parseBrDate(original) || todayYmd();
+    const timeRaw = String(original).match(/\b(?:as|às|eas|es)\s*(\d{1,2})(?::(\d{2}))?\b/i) || String(original).match(/\b(\d{1,2}):(\d{2})\b/);
+    let time = '09:00';
+    if (timeRaw) {
+      const h = Math.min(23, Number(timeRaw[1]));
+      const min = timeRaw[2] || '00';
+      time = `${String(h).padStart(2, '0')}:${min}`;
+    }
+    return {
+      tool: 'create_appointment',
+      args: { title: clientName || svc || 'Atendimento', date, time, clientName, service: (svc || '').trim() },
+    };
+  }
   if (hasAny(text, ['cliente']) && hasAny(text, ['cadastre', 'cadastrar', 'crie', 'criar', 'registre', 'registrar']) && clientM) {
     return { tool: 'create_client', args: { name: clientM[1].trim() } };
   }
@@ -89,12 +113,30 @@ function detectMutation(text, original) {
     const name = (original.match(/servi[cç]o(?:\s+chamado)?\s+([A-Za-zÀ-ÿ0-9][\wÀ-ÿ\s]{1,40}?)(?:\s+(?:de|por|r\$)|$)/i) || [])[1];
     return { tool: 'create_service', args: { name: (name || '').trim(), price: amount || 0 } };
   }
-  if (hasAny(text, ['agende', 'agendar', 'marca', 'marcar']) && (hasAny(text, ['amanha', 'hoje']) || parseBrDate(original))) {
-    const who = (original.match(/(?:agende|marcar|marca)\s+([A-Za-zÀ-ÿ][\wÀ-ÿ\s]{1,40}?)(?:\s+para|\s+amanh|\s+hoje|\s+as|\s+às)/i) || [])[1];
-    return {
-      tool: 'create_appointment',
-      args: { title: (who || 'Atendimento').trim(), date: parseBrDate(original) || shiftDays(1), time: parseTime(original) },
-    };
+  if (hasAny(text, ['agende', 'agendar', 'marca', 'marcar', 'agenda'])) {
+    const named = original.match(/nome(?:\s+do\s+cliente)?(?:\s+e|\s+é|:)?\s+([A-Za-zÀ-ÿ][\wÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ]+){0,4})/i);
+    const who =
+      (named && named[1]) ||
+      (original.match(/(?:cliente)\s+([A-Za-zÀ-ÿ][\wÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ]+){0,3}?)(?:\s+(?:para|as|às|hoje|amanh)|$)/i) || [])[1] ||
+      (original.match(/(?:agende|marcar|marca)\s+([A-Za-zÀ-ÿ][\wÀ-ÿ\s]{1,40}?)(?:\s+para|\s+amanh|\s+hoje|\s+as|\s+às)/i) || [])[1];
+    const svc = (original.match(/para(?:\s+fazer)?(?:\s+uma|\s+um)?\s+([A-Za-zÀ-ÿ][\wÀ-ÿ\s]{2,40}?)(?:\.|$)/i) || [])[1];
+    const date = parseBrDate(original) || todayYmd();
+    const timeRaw = String(original).match(/\b(?:as|às|eas|es)\s*(\d{1,2})(?::(\d{2}))?\b/i) || String(original).match(/\b(\d{1,2}):(\d{2})\b/);
+    let time = '09:00';
+    if (timeRaw) {
+      const h = Math.min(23, Number(timeRaw[1]));
+      const min = timeRaw[2] || '00';
+      time = `${String(h).padStart(2, '0')}:${min}`;
+    } else if (hasAny(text, ['amanha', 'hoje']) || parseBrDate(original)) {
+      time = parseTime(original);
+    }
+    const title = (who || svc || 'Atendimento').trim();
+    if (who || svc || hasAny(text, ['agende', 'agendar', 'marca', 'marcar'])) {
+      return {
+        tool: 'create_appointment',
+        args: { title, date, time, clientName: (who || '').trim(), service: (svc || '').trim() },
+      };
+    }
   }
   return null;
 }
@@ -104,6 +146,8 @@ function scoreIntent(text, history) {
   const bump = (k, n) => {
     scores[k] = (scores[k] || 0) + n;
   };
+  if (/\b(que horas|hora agora|horario agora|que horas sao)\b/.test(text)) bump('time', 20);
+  if (/\b(que dia|data (de )?hoje|qual a data|qual o dia)\b/.test(text)) bump('date', 20);
   if (hasAny(text, ['oi', 'ola', 'oie', 'eae', 'eai', 'hey', 'opa', 'bom dia', 'boa tarde', 'boa noite'])) bump('greeting', 4);
   if (hasAny(text, ['obrigado', 'obrigada', 'valeu', 'vlw', 'obg'])) bump('thanks', 8);
   if (hasAny(text, ['quem e voce', 'seu nome', 'quem e dock', 'o que e dock', 'voce e quem'])) bump('who', 10);

@@ -25,6 +25,7 @@ import { InicioDesktopGrid } from '../components/InicioDesktopGrid';
 import { clampCardsPerRow, DEFAULT_CARDS_PER_ROW, moveCardByArrow } from '../utils/inicioDesktopLayout';
 import { ScrollableCardList } from '../components/ScrollableCardList';
 import { CardExpandedModal } from '../components/CardExpandedModal';
+import { CardScrollbar, CARD_SCROLLBAR_W } from '../components/CardScrollbar';
 import { playTapSound } from '../utils/sounds';
 import { confirmDestructive, onDeletePress } from '../utils/confirm';
 import { openWhatsApp } from '../utils/whatsapp';
@@ -35,6 +36,7 @@ import { getBoletoDueDateObject, sortBoletosForDisplay, dedupeBoletos } from '..
 import { getQuoteOfDay } from '../utils/quotes';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../components/AppIcon';
+import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS, AVAILABLE_CARD_TYPES } from '../constants/dashboardCards';
 import { captureInicioLayout } from '../constants/inicioLayouts';
@@ -79,7 +81,7 @@ const FRASES_PARABENS = [
 const { width: SW } = Dimensions.get('window');
 const CARD_SUBTITLE_MARGIN_TOP = 2;
 /** Alinhado à AgendaScreen: faixa da barra + afastamento dos botões +/- na timeline */
-const AGENDA_TIMELINE_SCROLLBAR_W = 10;
+const AGENDA_TIMELINE_SCROLLBAR_W = CARD_SCROLLBAR_W;
 const AGENDA_TIMELINE_ZOOM_GAP = 8;
 const AGENDA_TIMELINE_ZOOM_RIGHT = AGENDA_TIMELINE_SCROLLBAR_W + AGENDA_TIMELINE_ZOOM_GAP;
 
@@ -258,6 +260,10 @@ export function DashboardScreen() {
   /** Mesma “coluna” visual do grid tarefas+agenda: borda esquerda/direita alinhada em todos os cards full-width. */
   const WEB_DESKTOP_PAGE_PAD = scaleWebDesktop(10, useWebLayout);
   const WEB_DESKTOP_ROW_GAP = scaleWebDesktop(16, useWebLayout);
+  const QUICK_ROW_BTN_H = scaleWebDesktop(36, true);
+  const QUICK_ROW_FADE_TOP = 64;
+  const QUICK_ROW_PAD_BOTTOM = 12;
+  const QUICK_ROW_SOLID_AT = (QUICK_ROW_FADE_TOP + QUICK_ROW_BTN_H / 2) / (QUICK_ROW_FADE_TOP + QUICK_ROW_BTN_H + QUICK_ROW_PAD_BOTTOM);
   const WEB_CARD_PADDING = useWebLayout ? scaleWebDesktop(12, useWebLayout) : 20;
   const WEB_HEADER_GAP = useWebLayout ? scaleWebDesktop(5, useWebLayout) : 12;
   const CARD_ACTION_SIZE = useWebLayout ? scaleWebDesktop(26, useWebLayout) : 40;
@@ -297,6 +303,17 @@ export function DashboardScreen() {
     icon: colors.textSecondary,
     text: colors.textSecondary,
   }), [colors.bg, colors.border, colors.card, colors.primary, colors.textSecondary]);
+  const quickRowScrim = useMemo(() => {
+    const hex = String(colors.bg || '#000000').replace('#', '');
+    const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+    const r = parseInt(full.slice(0, 2), 16) || 0;
+    const g = parseInt(full.slice(2, 4), 16) || 0;
+    const b = parseInt(full.slice(4, 6), 16) || 0;
+    return {
+      transparent: `rgba(${r},${g},${b},0)`,
+      fill: `rgba(${r},${g},${b},1)`,
+    };
+  }, [colors.bg]);
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, plan, PLANS } = usePlan();
   const { shortcutsEnabled } = useKeyboardShortcuts();
   const { isGuest, user } = useAuth();
@@ -1820,11 +1837,13 @@ export function DashboardScreen() {
                     style={{
                       height: timelineViewportHeight,
                       paddingRight: showTimelineStrip ? Math.max(14, AGENDA_TIMELINE_ZOOM_RIGHT + 4) : 0,
+                      ...(Platform.OS === 'web' ? { scrollbarWidth: 'none', msOverflowStyle: 'none' } : null),
                     }}
                     contentContainerStyle={{ paddingRight: 6 }}
                     showsVerticalScrollIndicator={false}
                     onScroll={(ev) => setAgendaCardTimelineScrollY(ev?.nativeEvent?.contentOffset?.y || 0)}
                     scrollEventThrottle={16}
+                    {...(Platform.OS === 'web' ? { className: 'tc-card-scroll' } : null)}
                   >
                     <View style={{ flexDirection: 'row' }}>
                       <View style={{ width: 46, paddingTop: 2 }}>
@@ -1998,30 +2017,14 @@ export function DashboardScreen() {
                     </View>
                   </ScrollView>
                   {showTimelineStrip && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        right: 0,
-                        width: AGENDA_TIMELINE_SCROLLBAR_W,
-                        height: timelineViewportHeight,
-                        borderRadius: 5,
-                        backgroundColor: colors.border + '25',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <View
-                        style={{
-                          position: 'absolute',
-                          left: 2,
-                          width: 6,
-                          borderRadius: 3,
-                          top: timelineThumbTop,
-                          height: timelineThumbHeight,
-                          backgroundColor: (colors.primary || accent) + '80',
-                        }}
-                      />
-                    </View>
+                    <CardScrollbar
+                      visible
+                      height={timelineViewportHeight}
+                      thumbTop={timelineThumbTop}
+                      thumbHeight={timelineThumbHeight}
+                      colors={colors}
+                      accentColor={colors.primary || accent}
+                    />
                   )}
                   {/* zoom dentro da timeline (mesmo insete da página Agenda desktop) */}
                   <View style={{ position: 'absolute', top: 10, right: timelineZoomRight, flexDirection: 'row', gap: 8 }} pointerEvents="box-none">
@@ -3779,10 +3782,12 @@ export function DashboardScreen() {
         </View>
       )}
       <ScrollView
+        nativeID="dock-scroll-main"
         showsVerticalScrollIndicator={false}
         scrollEnabled
         nestedScrollEnabled={isWebMobile}
         style={getViewModeToggleScrollStyle(canToggleView, useWebLayout)}
+        {...(Platform.OS === 'web' ? { dataSet: { dockScroll: 'main' } } : null)}
       >
         {useWebLayout ? (
           <View
@@ -3936,27 +3941,57 @@ export function DashboardScreen() {
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
         )}
-        <View style={{ height: useWebLayout && showEmpresaFeatures ? 170 : (isWebMobile ? 140 : 100) }} />
+        <View style={{ height: useWebLayout && showEmpresaFeatures ? 196 : (isWebMobile ? 140 : 100) }} />
       </ScrollView>
       {useWebLayout && showEmpresaFeatures && webDesktopQuickButtons.length > 0 ? (
         <View
-          pointerEvents="auto"
+          pointerEvents="box-none"
           style={{
             ...(Platform.OS === 'web'
-              ? { position: 'fixed', left: '6%', right: '6%', bottom: 8, transform: [{ translateX: -15 }] }
-              : { position: 'absolute', left: WEB_DESKTOP_PAGE_PAD, right: WEB_DESKTOP_PAGE_PAD, bottom: 10 }),
+              ? { position: 'fixed', left: 0, right: 0, bottom: 0 }
+              : { position: 'absolute', left: 0, right: 0, bottom: 0 }),
             zIndex: 9999,
+            overflow: 'hidden',
           }}
         >
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {Platform.OS === 'web' ? (
+              <View
+                style={{
+                  ...StyleSheet.absoluteFillObject,
+                  backdropFilter: 'blur(18px)',
+                  WebkitBackdropFilter: 'blur(18px)',
+                  maskImage: `linear-gradient(to bottom, transparent 0%, black ${Math.round(QUICK_ROW_SOLID_AT * 100)}%)`,
+                  WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, black ${Math.round(QUICK_ROW_SOLID_AT * 100)}%)`,
+                }}
+              />
+            ) : (
+              <BlurView
+                intensity={42}
+                tint={colors.isDarkBg ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
+            <LinearGradient
+              pointerEvents="none"
+              colors={[quickRowScrim.transparent, quickRowScrim.fill, quickRowScrim.fill]}
+              locations={[0, QUICK_ROW_SOLID_AT, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
           <View
+            pointerEvents="auto"
             style={{
               width: '100%',
               flexDirection: 'row',
               alignItems: 'stretch',
               gap: WEB_DESKTOP_ROW_GAP,
-              backgroundColor: 'transparent',
-              paddingHorizontal: 0,
-              paddingVertical: 0,
+              paddingTop: QUICK_ROW_FADE_TOP,
+              paddingBottom: QUICK_ROW_PAD_BOTTOM,
+              paddingHorizontal: Platform.OS === 'web' ? '6%' : WEB_DESKTOP_PAGE_PAD,
+              ...(Platform.OS === 'web' ? { transform: [{ translateX: -15 }] } : null),
             }}
           >
             {webDesktopQuickButtons.map((item, index) => (
@@ -3969,7 +4004,7 @@ export function DashboardScreen() {
                   flex: 1,
                   flexBasis: 0,
                   minWidth: 0,
-                  height: scaleWebDesktop(36, true),
+                  height: QUICK_ROW_BTN_H,
                   paddingVertical: 7,
                   paddingHorizontal: 8,
                   borderRadius: 14,

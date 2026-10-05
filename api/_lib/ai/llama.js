@@ -1,5 +1,5 @@
 const { chatWithAccountLlm, llmStatus } = require('../llmChat');
-const { SYSTEM_PROMPT } = require('./prompt');
+const { SYSTEM_PROMPT, tonePrompt } = require('./prompt');
 const { detectNav, extractCallName, fold } = require('./dockTalk');
 const { detectMutation, isConfirm, isCancel } = require('./intent');
 const { runTool, fmtEvent, sanitizeCreateArgs, brl } = require('./tools');
@@ -84,6 +84,37 @@ async function accountSnapshot(db, userId, message) {
   }
 }
 
+function nowSaoPaulo() {
+  const tz = 'America/Sao_Paulo';
+  const d = new Date();
+  return {
+    date: d.toLocaleDateString('pt-BR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+    time: d.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+function clockReply(text) {
+  const t = String(text || '');
+  const { date, time } = nowSaoPaulo();
+  if (/\b(que horas|hora agora|horario agora|que horas sao|que horas são)\b/.test(t)) {
+    return `Agora são ${time}.`;
+  }
+  if (/\b(que dia|data (de )?hoje|qual (e|é) a data|qual o dia)\b/.test(t)) {
+    return `Hoje é ${date}.`;
+  }
+  if (/\b(data e hora|hora e data)\b/.test(t)) {
+    return `Hoje é ${date}. São ${time}.`;
+  }
+  return null;
+}
+
+function cleanSpeak(s) {
+  return String(s || '')
+    .replace(/[#*_`>~]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function applyMutation(db, userId, pendingAction) {
   const args = sanitizeCreateArgs(pendingAction.tool, pendingAction.args);
   if (!args) return { message: 'Faltou algum dado para confirmar. Pode repetir o pedido?', intent: 'confirm_invalid' };
@@ -92,14 +123,16 @@ async function applyMutation(db, userId, pendingAction) {
   if (pendingAction.tool === 'create_expense') return { message: `Pronto. Despesa de ${result.amountFmt} lançada.`, intent: 'create_expense' };
   if (pendingAction.tool === 'create_income') return { message: `Pronto. Entrada de ${result.amountFmt} lançada.`, intent: 'create_income' };
   if (pendingAction.tool === 'create_client') return { message: `Cliente ${result.name} cadastrado.`, intent: 'create_client' };
-  if (pendingAction.tool === 'create_appointment') return { message: `Agendado: ${result.title} em ${result.date} às ${result.time}.`, intent: 'create_appointment' };
+  if (pendingAction.tool === 'create_appointment') {
+    const extra = result.createdClient ? ' Cadastrei o cliente também.' : '';
+    return { message: `Agendado: ${result.title} em ${result.date} às ${result.time}.${extra}`, intent: 'create_appointment' };
+  }
   if (pendingAction.tool === 'create_product') return { message: `Produto ${result.name} cadastrado.`, intent: 'create_product' };
   if (pendingAction.tool === 'create_service') return { message: `Serviço ${result.name} cadastrado.`, intent: 'create_service' };
   return { message: 'Pronto, registrei.', intent: pendingAction.tool };
 }
 
-async function answerLlama({ db, userId, firstName, preferredName, message, history, pendingAction, confirm }) {
-  const name = String(preferredName || firstName || '').trim().split(/\s+/)[0];
+async function answerLlama({ db, userId, firstName, preferredName, message, history, pendingAction, confirm, voiceTone, autoConfirm, memory }) {
   const original = String(message || '').trim();
   const text = fold(original);
 
@@ -113,10 +146,13 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
     return applyMutation(db, userId, pendingAction);
   }
 
+  const clock = clockReply(text);
+  if (clock) return { message: clock, intent: 'time' };
+
   const callName = extractCallName(message);
   if (callName) {
     return {
-      message: `Combinado, ${callName}. Pode me chamar de Dock. O que posso te ajudar hoje?`,
+      message: `Combinado. Pode me chamar de Dock. Em que posso ajudar?`,
       intent: 'set_name',
       callName,
     };
@@ -126,7 +162,10 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
   if (mutation?.tool) {
     const args = sanitizeCreateArgs(mutation.tool, mutation.args);
     if (!args) {
-      return { message: 'Pra cadastrar, me diga o nome (e o valor, se tiver). Ex.: registre o produto shampoo a 20 reais.', intent: 'need_params' };
+      return { message: 'Para cadastrar, diga o nome e o valor, se tiver. Exemplo: registre o produto shampoo a 20 reais.', intent: 'need_params' };
+    }
+    if (confirm) {
+      return applyMutation(db, userId, { tool: mutation.tool, args });
     }
     return {
       message: pendingSummary(mutation.tool, args),
@@ -137,9 +176,16 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
 
   const nav = detectNav(message);
   if (nav?.target) {
+    if (nav.action === 'scroll') {
+      return {
+        message: nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.',
+        intent: 'scroll',
+        uiAction: { type: 'scroll', target: 'page', dir: nav.dir || 'down' },
+      };
+    }
     const closing = nav.action === 'close';
     return {
-      message: closing ? `Fechando ${nav.label}.` : `Beleza. Abrindo ${nav.label}.`,
+      message: closing ? 'Fechei.' : 'Pronto. Já está na tela.',
       intent: closing ? 'close_screen' : 'open_screen',
       uiAction: { type: closing ? 'close' : 'open', target: nav.target },
     };
@@ -150,22 +196,27 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
   const snap = await accountSnapshot(db, userId, message);
   const system = [
     SYSTEM_PROMPT,
-    name ? `O usuário pediu para ser chamado de ${name}.` : 'Se ainda não souber o nome, pergunte como quer ser chamado.',
-    'Você é o Dock. Não diga nomes de modelos.',
+    tonePrompt(voiceTone),
+    `Agora no Brasil: ${nowSaoPaulo().date}, ${nowSaoPaulo().time}. Use isso se perguntarem hora ou data.`,
+    'Não chame o usuário pelo nome. Palavras completas, sem gíria.',
+    'Você é o Dock. Não diga nomes de modelos nem leia símbolos.',
     'Use o JSON: clientes.nomes, vendas.porProduto, vendas.porServico, vendas.porCliente, vendas.recentes, agenda.quemAgendou, agenda.quemCancelou.',
-    'Se pedirem detalhe (quem comprou, o que, quanto, operador, quem agendou/cancelou), responda com esses campos. Não invente.',
-    'Não invente que abriu tela: o app abre sozinho. Cadastro só depois de confirmar.',
+    'Se pedirem detalhe, responda com esses campos. Não invente.',
+    'Não invente que abriu tela: o app abre sozinho.',
     snap ? `Dados reais da conta (não invente fora disso): ${JSON.stringify(snap)}` : 'Se faltar dado, diga que não encontrou.',
-    'Lembre a última pergunta do histórico e interprete respostas curtas no contexto.',
-    'Respostas curtas, humanas, em português.',
+    Array.isArray(memory) && memory.length
+      ? `O usuário ensinou isto. Use sempre que fizer sentido: ${JSON.stringify(memory.slice(-48))}`
+      : '',
+    'Use o histórico. Interprete respostas curtas no contexto. Não repita o pedido do usuário.',
+    'Respostas curtas e humanas, em português. Sem markdown.',
   ].join(' ');
   const messages = (Array.isArray(history) ? history : [])
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
-    .slice(-8)
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 500) }));
-  messages.push({ role: 'user', content: original.slice(0, 2000) });
+    .slice(-16)
+    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) }));
+  messages.push({ role: 'user', content: original.slice(0, 800) });
   const out = await chatWithAccountLlm({ system, messages });
-  return { message: String(out?.text || '').trim() || 'Não consegui montar a resposta agora.', intent: 'llama' };
+  return { message: cleanSpeak(out?.text) || 'Não consegui montar a resposta agora.', intent: 'llama' };
 }
 
 module.exports = { answerLlama };

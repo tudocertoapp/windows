@@ -40,6 +40,14 @@ async function resolveUser(token) {
   return { user: data.user, db };
 }
 
+function clipMemory(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => String(item || '').trim().slice(0, 220))
+    .filter(Boolean)
+    .slice(-48);
+}
+
 function clipHistory(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -114,10 +122,13 @@ async function handleAssistant(req, res) {
       userId: resolved.user.id,
       firstName,
       preferredName: String(body.preferredName || body.callName || '').trim().slice(0, 40),
+      voiceTone: String(body.voiceTone || body.tone || 'neutra').slice(0, 20),
       message: message || 'sim',
       history: clipHistory(body.history),
       pendingAction: pendingAction?.tool ? pendingAction : null,
       confirm: body.confirm === true,
+      autoConfirm: false,
+      memory: clipMemory(body.memory),
     });
     const payload = {
       ok: true,

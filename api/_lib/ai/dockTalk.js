@@ -23,7 +23,7 @@ function extractCallName(text) {
 
 const PAGES = [
   { re: /\b(calculadora|calculador|calc)\b/, target: 'calculator', label: 'calculadora' },
-  { re: /\b(inicio|home|dashboard|tela inicial)\b/, target: 'home', label: 'início' },
+  { re: /\b(inicio|home|dashboard|tela inicial|pagina inicial)\b/, target: 'home', label: 'início' },
   { re: /\b(dinheiro|financas|financeiro)\b/, target: 'money', label: 'dinheiro' },
   { re: /\bagenda\b/, target: 'agenda', label: 'agenda' },
   { re: /\b(dock|meus gastos)\b/, target: 'dock', label: 'Dock' },
@@ -59,9 +59,9 @@ const PAGES = [
 function detectNav(text) {
   const t = fold(text);
   if (!t) return null;
-  const dataAsk = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem|quem comprou|mais vendeu)\b/.test(t);
+  const dataAsk = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastr|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agend|horario|hoje tem|o que tem|quem comprou|mais vendeu|registre|lance)\b/.test(t);
   const closing = /\b(fecha|fechar|feche|fechando|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/.test(t);
-  const opening = /\b(abre|abra|abrir|abrindo|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela)\b/.test(t);
+  const opening = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|va para|va pra|va na|vai na)\b/.test(t);
   const short = t.split(/\s+/).filter(Boolean).length <= 6;
   let page = null;
   for (const p of PAGES) {
@@ -71,6 +71,10 @@ function detectNav(text) {
     }
   }
   if (dataAsk && !closing && !opening) return null;
+  if (/\b(rola|role|rolar|desce|descer|sobe|subir|topo da pagina|inicio da pagina)\b/.test(t) && !dataAsk) {
+    const up = /\b(sobe|subir|topo|cima|inicio da pagina|comeco)\b/.test(t);
+    return { target: 'page', label: 'página', action: 'scroll', dir: up ? 'up' : 'down' };
+  }
   if (closing) return { target: page?.target || 'calculator', label: page?.label || 'calculadora', action: 'close' };
   if (page && (opening || (short && !dataAsk))) return { target: page.target, label: page.label, action: 'open' };
   return null;
