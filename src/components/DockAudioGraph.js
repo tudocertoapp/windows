@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { DOCK_BLUE } from '../constants/brandColors';
+import { getDockAnalyser } from '../utils/dockAudioPulse';
 
 const BARS = 40;
 
@@ -27,7 +28,7 @@ export function DockAudioGraph({ speaking = false, listening = false, analyzerRe
       ctx.clearRect(0, 0, w, h);
 
       t += speaking ? 0.24 : listening ? 0.13 : 0.05;
-      const analyser = analyzerRef?.current;
+      const analyser = analyzerRef?.current || getDockAnalyser();
       let bins = null;
       if (analyser && typeof analyser.getByteFrequencyData === 'function') {
         bins = new Uint8Array(analyser.frequencyBinCount || 64);

@@ -50,8 +50,35 @@ function nowTimeStr() {
 
 function timeToMinutes(t) {
   if (!t || typeof t !== 'string') return 0;
-  const [h, m] = t.split(':').map((x) => parseInt(x, 10));
+  const [h, m] = t.split(/[:h]/i).map((x) => parseInt(x, 10));
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
+
+const MIN_DURATION_MIN = 10;
+const DURATION_OPTS = [10, 20, 30, 40, 50, 60];
+const MAX_MINUTES = 23 * 60 + 59;
+
+function minutesToTime(total) {
+  const n = Math.max(0, Math.min(MAX_MINUTES, Number(total) || 0));
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function addMinutesToTime(t, add) {
+  return minutesToTime(timeToMinutes(t) + add);
+}
+
+function clampEndTime(start, end) {
+  const s = timeToMinutes(start);
+  const minEnd = Math.min(s + MIN_DURATION_MIN, MAX_MINUTES);
+  const e = timeToMinutes(end);
+  if (!end || e < minEnd) return minutesToTime(minEnd);
+  return minutesToTime(e);
+}
+
+function durationMinutes(start, end) {
+  return timeToMinutes(end) - timeToMinutes(start);
 }
 
 export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, initialData, onOpenNewClient, onOpenNewService }) {
@@ -69,8 +96,10 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
   const [date, setDate] = useState(initialDate || todayStr());
   const [amount, setAmount] = useState('0,00');
   const [timeStart, setTimeStart] = useState(nowTimeStr());
-  const [timeEnd, setTimeEnd] = useState('10:00');
+  const [timeEnd, setTimeEnd] = useState(() => addMinutesToTime(nowTimeStr(), MIN_DURATION_MIN));
+  const [durationMin, setDurationMin] = useState(MIN_DURATION_MIN);
   const [showClientPicker, setShowClientPicker] = useState(false);
+  const [spokenClientName, setSpokenClientName] = useState('');
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [preOrderItems, setPreOrderItems] = useState([]);
@@ -84,7 +113,10 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
     if (visible && !editingEvent && !(initialData?.time || initialData?.timeStart)) {
       AsyncStorage.getItem(DEFAULT_TIME_START_KEY).then((saved) => {
         if (saved && typeof saved === 'string' && saved.trim() && /^\d{1,2}:\d{2}$/.test(saved.trim())) {
-          setTimeStart(saved.trim());
+          const start = saved.trim();
+          setTimeStart(start);
+          setTimeEnd(addMinutesToTime(start, MIN_DURATION_MIN));
+          setDurationMin(MIN_DURATION_MIN);
         }
       });
     }
@@ -96,6 +128,30 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
     Alert.alert('Salvo', `Hora de início padrão definida: ${timeStart}`);
   };
 
+  const applyStartTime = (nextStart) => {
+    const start = String(nextStart || '').trim();
+    const prevDur = durationMinutes(timeStart, timeEnd);
+    const keep = prevDur >= MIN_DURATION_MIN ? prevDur : (durationMin >= MIN_DURATION_MIN ? durationMin : MIN_DURATION_MIN);
+    const end = addMinutesToTime(start, keep);
+    setTimeStart(start);
+    setTimeEnd(end);
+    const dur = durationMinutes(start, end);
+    setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur);
+  };
+
+  const applyEndTime = (nextEnd) => {
+    const end = clampEndTime(timeStart, nextEnd);
+    setTimeEnd(end);
+    const dur = durationMinutes(timeStart, end);
+    setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur);
+  };
+
+  const applyDuration = (mins) => {
+    const n = Math.max(MIN_DURATION_MIN, Number(mins) || MIN_DURATION_MIN);
+    setDurationMin(n);
+    setTimeEnd(addMinutesToTime(timeStart, n));
+  };
+
   useEffect(() => {
     if (visible) {
       if (editingEvent) {
@@ -105,12 +161,32 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
         setTipo(editingEvent.tipo || 'pessoal');
         setTipoAtendimento(['venda', 'orcamento', 'manutencao'].includes(editingEvent.type) ? editingEvent.type : 'venda');
         setDescription(editingEvent.description || editingEvent.title || '');
-        setClientId(editingEvent.clientId || null);
+        {
+          const spoken = String(editingEvent.clientName || '').trim();
+          setSpokenClientName(spoken);
+          let nextClientId = editingEvent.clientId || null;
+          if (spoken) {
+            const want = spoken.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            const selected = (clients || []).find((c) => c.id === nextClientId);
+            const selectedFold = String(selected?.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            if (!selected || selectedFold !== want) {
+              const exact = (clients || []).filter((c) => String(c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() === want);
+              nextClientId = exact[0]?.id || null;
+            }
+          }
+          setClientId(nextClientId);
+        }
         setServiceId(editingEvent.serviceId || null);
         setDate(editingEvent.date || todayStr());
         setAmount(editingEvent.amount != null ? String(editingEvent.amount).replace('.', ',') : '0,00');
-        setTimeStart(editingEvent.time || nowTimeStr());
-        setTimeEnd(editingEvent.timeEnd || '10:00');
+        {
+          const start = editingEvent.time || nowTimeStr();
+          const end = clampEndTime(start, editingEvent.timeEnd);
+          setTimeStart(start);
+          setTimeEnd(end);
+          const dur = durationMinutes(start, end);
+          setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur >= MIN_DURATION_MIN ? dur : MIN_DURATION_MIN);
+        }
         if (isVendaEmpresa && existingItems.length === 0 && fallbackService) {
           setPreOrderItems([
             {
@@ -132,18 +208,40 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
           : 'pessoal';
         setTipo(nextTipo);
         setTipoAtendimento(['venda', 'orcamento', 'manutencao'].includes(data.type) ? data.type : 'venda');
-        setDescription(data.description || data.title || '');
-        setClientId(data.clientId || null);
+        const spoken = String(data.clientName || '').trim();
+        setSpokenClientName(spoken);
+        let nextClientId = data.clientId || null;
+        if (!nextClientId && spoken) {
+          const want = String(spoken).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          const exact = (clients || []).filter((c) => String(c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() === want);
+          if (exact.length >= 1) nextClientId = exact[0].id;
+          else {
+            const starts = (clients || []).filter((c) => {
+              const n = String(c.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+              return n === want || n.startsWith(`${want} `);
+            });
+            if (starts.length === 1) nextClientId = starts[0].id;
+          }
+        }
+        setDescription(data.description || data.title || (nextTipo === 'pessoal' ? spoken : '') || '');
+        setClientId(nextClientId);
         setServiceId(data.serviceId || null);
         setDate(data.date || initialDate || todayStr());
         setAmount(data.amount != null && String(data.amount).trim() !== '' ? String(data.amount) : '0,00');
-        setTimeStart(data.time || data.timeStart || nowTimeStr());
-        setTimeEnd(data.timeEnd || '10:00');
+        {
+          const spokenTime = data.time || data.timeStart;
+          const start = spokenTime || nowTimeStr();
+          const end = data.timeEnd && spokenTime ? clampEndTime(start, data.timeEnd) : addMinutesToTime(start, MIN_DURATION_MIN);
+          setTimeStart(start);
+          setTimeEnd(end);
+          const dur = durationMinutes(start, end);
+          setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur >= MIN_DURATION_MIN ? dur : MIN_DURATION_MIN);
+        }
         setPreOrderItems(Array.isArray(data.preOrderItems) ? data.preOrderItems : []);
       }
       setItemPickerQuery('');
     }
-  }, [visible, editingEvent, initialDate, initialData, showEmpresaFeatures, services]);
+  }, [visible, editingEvent, initialDate, initialData, showEmpresaFeatures, services, clients]);
 
   const selectedClient = clients?.find((c) => c.id === clientId);
   const selectedService = services?.find((s) => s.id === serviceId);
@@ -180,24 +278,23 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
     }
     if (!date?.trim()) return Alert.alert('Erro', 'Informe a data.');
     if (tipo === 'pessoal' && !description?.trim()) return Alert.alert('Erro', 'Preencha a descrição do evento.');
-    if (timeToMinutes(timeEnd) < timeToMinutes(timeStart)) {
-      return Alert.alert('Erro', 'A hora de término não pode ser menor que a hora de início.');
-    }
+    const safeEnd = clampEndTime(timeStart, timeEnd);
     playTapSound();
     const hasPreOrder = tipo === 'empresa' && tipoAtendimento === 'venda' && preOrderItems.length > 0;
+    const clientLabel = selectedClient?.name || spokenClientName || '';
     const title = tipo === 'pessoal'
       ? (description?.trim() || 'Evento')
-      : (selectedClient?.name || selectedService?.name || 'Atendimento');
+      : (clientLabel || selectedService?.name || 'Atendimento');
     const desc = hasPreOrder
       ? preOrderItems.map((i) => `${i.name} x${i.qty || 1}`).join(', ')
-      : (selectedClient && selectedService ? `${selectedClient.name} - ${selectedService.name}` : (selectedClient?.name || selectedService?.name || ''));
+      : (clientLabel && selectedService ? `${clientLabel} - ${selectedService.name}` : (clientLabel || selectedService?.name || ''));
     const amt = hasPreOrder ? preOrderTotal : parseAmount();
     const payload = {
       title,
       description: tipo === 'pessoal' ? (description?.trim() || '') : desc,
       date,
       time: timeStart,
-      timeEnd,
+      timeEnd: safeEnd,
       amount: tipo === 'pessoal' ? 0 : amt,
       tipo: showEmpresaFeatures ? tipo : 'pessoal',
       clientId: tipo === 'empresa' ? clientId : null,
@@ -223,7 +320,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
       type: tipoAtendimento,
       date,
       time: timeStart,
-      timeEnd,
+      timeEnd: clampEndTime(timeStart, timeEnd),
       clientId: tipo === 'empresa' ? clientId : null,
       serviceId: tipo === 'empresa' && !hasPreOrder ? serviceId : null,
       preOrderItems: tipo === 'empresa' && tipoAtendimento === 'venda' ? preOrderItems : [],
@@ -265,6 +362,52 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
 
   const inputS = [s.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }];
   const labelS = [s.label, { color: colors.textSecondary }];
+  const matchedDuration = DURATION_OPTS.includes(durationMinutes(timeStart, timeEnd))
+    ? durationMinutes(timeStart, timeEnd)
+    : null;
+
+  const timeRangeFields = (
+    <>
+      <View style={s.twoCol}>
+        <View style={s.half}>
+          <Text style={labelS}>INÍCIO</Text>
+          <TimePickerInput value={timeStart} onChange={applyStartTime} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
+        </View>
+        <View style={s.half}>
+          <Text style={labelS}>TÉRMINO</Text>
+          <TimePickerInput value={timeEnd} onChange={applyEndTime} colors={colors} placeholder="09:10" style={{ backgroundColor: colors.bg }} />
+        </View>
+      </View>
+      <Text style={[labelS, { marginBottom: 8 }]}>DURAÇÃO (MÍNIMO 10 MIN)</Text>
+      <View style={s.durationRow}>
+        {DURATION_OPTS.map((mins) => {
+          const on = matchedDuration === mins;
+          return (
+            <TouchableOpacity
+              key={mins}
+              onPress={() => { playTapSound(); applyDuration(mins); }}
+              style={[
+                s.durationChip,
+                {
+                  borderColor: on ? colors.primary : colors.border,
+                  backgroundColor: on ? (colors.primaryRgba?.(0.18) || `${colors.primary}22`) : colors.bg,
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: on ? colors.primary : colors.text }}>{mins} min</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>
+        Término sempre pelo menos 10 minutos depois do início. Escolha a duração ou a hora no campo término.
+      </Text>
+      <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
+        <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
+        <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
+      </TouchableOpacity>
+    </>
+  );
 
   if (!visible) return null;
 
@@ -337,20 +480,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                     <Text style={labelS}>DATA</Text>
                   </View>
                   <DatePickerInput value={date} onChange={setDate} colors={colors} style={[s.input, { backgroundColor: colors.bg }]} />
-                  <View style={s.twoCol}>
-                    <View style={s.half}>
-                      <Text style={labelS}>INÍCIO</Text>
-                      <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
-                    </View>
-                    <View style={s.half}>
-                      <Text style={labelS}>TÉRMINO</Text>
-                      <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
-                    <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
-                  </TouchableOpacity>
+                  {timeRangeFields}
                 </>
               ) : (
                 <>
@@ -389,8 +519,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                             <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
                           </View>
                         )}
-                        <Text style={[s.selectText, { flex: 1, color: selectedClient ? colors.text : colors.textSecondary }]} numberOfLines={1}>
-                          {selectedClient?.name || 'Selecionar Cliente...'}
+                        <Text style={[s.selectText, { flex: 1, color: selectedClient || spokenClientName ? colors.text : colors.textSecondary }]} numberOfLines={1}>
+                          {selectedClient?.name || spokenClientName || 'Selecionar Cliente...'}
                         </Text>
                         <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
                       </TouchableOpacity>
@@ -476,20 +606,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
                           )}
                         </View>
                       </View>
-                      <View style={s.twoCol}>
-                        <View style={s.half}>
-                          <Text style={labelS}>INÍCIO</Text>
-                          <TimePickerInput value={timeStart} onChange={setTimeStart} colors={colors} placeholder="09:00" style={{ backgroundColor: colors.bg }} />
-                        </View>
-                        <View style={s.half}>
-                          <Text style={labelS}>TÉRMINO</Text>
-                          <TimePickerInput value={timeEnd} onChange={setTimeEnd} colors={colors} placeholder="10:00" style={{ backgroundColor: colors.bg }} />
-                        </View>
-                      </View>
-                      <TouchableOpacity onPress={handleSetDefaultTimeStart} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginTop: -4 }}>
-                        <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Definir {timeStart || '09:00'} como hora de início padrão</Text>
-                      </TouchableOpacity>
+                      {timeRangeFields}
                     </>
                   )}
                 </>
@@ -699,6 +816,8 @@ const s = StyleSheet.create({
   select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: RADIUS, paddingHorizontal: 14, minHeight: INPUT_HEIGHT, marginBottom: GAP },
   selectText: { fontSize: 15, flex: 1 },
   twoCol: { flexDirection: 'row', gap: GAP, marginBottom: GAP },
+  durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  durationChip: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, minWidth: 64, alignItems: 'center' },
   half: { flex: 1 },
   actionsRow: { flexDirection: 'row', gap: 10, marginTop: 2, marginBottom: 8 },
   actionBtn: { flex: 1, borderRadius: RADIUS, paddingVertical: 12, alignItems: 'center' },

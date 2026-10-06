@@ -5,16 +5,12 @@ function groqKey() {
 /** Chat só pela Groq. Gemini fica só no OCR de comprovante, não no assistente. */
 const GROQ_CHAT_MODELS = [
   (process.env.GROQ_MODEL || '').trim(),
-  'llama-3.3-70b-versatile',
   'llama-3.1-8b-instant',
-  'meta-llama/llama-4-scout-17b-16e-instruct',
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-  'qwen/qwen3.8-27b',
+  'llama-3.3-70b-versatile',
 ].filter(Boolean);
 
 function groqModel() {
-  return GROQ_CHAT_MODELS[0] || 'llama-3.3-70b-versatile';
+  return GROQ_CHAT_MODELS[0] || 'llama-3.1-8b-instant';
 }
 
 function llmStatus() {
@@ -41,11 +37,11 @@ async function chatGroqOnce({ apiKey, model, system, messages }) {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(8000),
     body: JSON.stringify({
       model,
       temperature: 0.75,
-      max_tokens: 1400,
+      max_tokens: 220,
       messages: [{ role: 'system', content: system }, ...messages],
     }),
   });

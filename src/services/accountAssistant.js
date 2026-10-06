@@ -10,19 +10,11 @@ function isLocalApi(url) {
 function assistantEndpoints() {
   const list = [];
   const primary = getAssistantChatEndpoint();
-  if (primary) {
-    list.push(primary);
-    const ocr = primary.replace(/\/api\/ai\/chat\/?$/i, '/api/vision/ocr');
-    if (ocr && ocr !== primary && !list.includes(ocr)) list.push(ocr);
-  }
-  // Em localhost não cair na Vercel: /api/ai/chat ainda não existe no deploy e o browser mostra "Network Error".
-  if (primary && isLocalApi(primary)) return list;
+  if (primary) list.push(primary);
   const site = String(getApiOrigin() || '').replace(/\/$/, '');
   if (site && !isLocalApi(site)) {
     const prodChat = `${site}/api/ai/chat`;
-    const prodOcr = `${site}/api/vision/ocr`;
     if (!list.includes(prodChat)) list.push(prodChat);
-    if (!list.includes(prodOcr)) list.push(prodOcr);
   }
   return list;
 }
@@ -38,13 +30,14 @@ export async function askAccountAssistant({ message, history = [], pendingAction
     return { ok: false, error: 'Faça login para eu ler os dados da sua conta.' };
   }
   let lastError = 'Não consegui responder agora.';
-  for (const endpoint of endpoints) {
+  for (let i = 0; i < endpoints.length; i += 1) {
+    const endpoint = endpoints[i];
     try {
       const { data } = await axios.post(
         endpoint,
         { message, history, pendingAction, confirm: !!confirm, preferredName, voiceTone, task: 'assistant', memory: Array.isArray(memory) ? memory.slice(-48) : [] },
         {
-          timeout: 28000,
+          timeout: isLocalApi(endpoint) ? 18000 : 18000,
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -68,6 +61,13 @@ export async function askAccountAssistant({ message, history = [], pendingAction
       };
     } catch (e) {
       lastError = e?.response?.data?.error || e?.message || lastError;
+      const status = e?.response?.status;
+      const code = e?.code;
+      const localDead = !e?.response && (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || /Network Error/i.test(String(e?.message || '')));
+      if (isLocalApi(endpoint) && !localDead) {
+        break;
+      }
+      if (status === 401 || status === 403) break;
     }
   }
   return { ok: false, error: String(lastError) };

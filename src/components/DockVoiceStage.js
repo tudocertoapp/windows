@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DockMascot } from './DockMascot';
 import { DockAudioGraph } from './DockAudioGraph';
+import { DockVoiceSphere } from './DockVoiceSphere';
 import { useDockMascot } from '../contexts/DockMascotContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { playTapSound } from '../utils/sounds';
@@ -27,7 +27,7 @@ export function closeDockStage() {
 
 export function DockVoiceStage() {
   const { colors } = useTheme();
-  const { voiceStatus, setVoiceStatus } = useDockMascot();
+  const { voiceStatus, setVoiceStatus, spectrumId } = useDockMascot();
   const analyzerRef = useRef(null);
 
   const open = !!voiceStatus?.stage;
@@ -75,7 +75,11 @@ export function DockVoiceStage() {
           </TouchableOpacity>
         </View>
 
-        <DockMascot size={220} />
+        <View style={styles.sphereHold}>
+          <View style={styles.sphereAbs} pointerEvents="none">
+            <DockVoiceSphere speaking={speaking} listening={listening || !!voiceStatus?.busy} size={440} spectrumId={spectrumId} />
+          </View>
+        </View>
         <Text style={[styles.name, { color: colors.text }]}>Dock</Text>
         <Text style={[styles.status, { color: speaking ? DOCK_BLUE : colors.textSecondary }]}>{status}</Text>
 
@@ -140,6 +144,20 @@ const styles = StyleSheet.create({
   kicker: { fontSize: 12, fontWeight: '800', letterSpacing: 1.6 },
   close: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 28, fontWeight: '800', marginTop: 4 },
+  sphereHold: {
+    width: 440,
+    height: 440,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    overflow: 'visible',
+  },
+  sphereAbs: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
   status: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
   you: {
     marginTop: 16,

@@ -1,4 +1,5 @@
 import { forVoice } from './dockSpeechText';
+import { bumpDockVoiceEnergy } from './dockAudioPulse';
 
 /** Voz do Dock: masculina, séria, pt-BR. */
 
@@ -85,10 +86,12 @@ export function speakDock(text, { speakingRef, onStart, onEnd, onBoundary } = {}
   if (speakingRef) speakingRef.current = true;
   u.onstart = () => {
     if (speakingRef) speakingRef.current = true;
+    bumpDockVoiceEnergy(0.85);
     onStart?.(said);
   };
   u.onboundary = (ev) => {
     if (ev?.name && ev.name !== 'word') return;
+    bumpDockVoiceEnergy(0.95);
     const i = Number(ev.charIndex || 0);
     const chunk = said.slice(0, Math.min(said.length, i + Math.max(1, Number(ev.charLength || 8))));
     onBoundary?.(chunk, said);
@@ -108,8 +111,7 @@ export function speakDock(text, { speakingRef, onStart, onEnd, onBoundary } = {}
       done();
     }
   };
-  if (!voicesReady) setTimeout(kick, 80);
-  else kick();
+  kick();
 
   return () => {
     try {

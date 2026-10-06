@@ -13,7 +13,7 @@ const PAGES = [
   { re: /\b(inicio|home|dashboard|tela inicial|pagina inicial|pagina home)\b/, target: 'home', label: 'início' },
   { re: /\b(dinheiro|financas|financeiro)\b/, target: 'money', label: 'dinheiro' },
   { re: /\bagenda\b/, target: 'agenda', label: 'agenda' },
-  { re: /\b(dock|meus gastos)\b/, target: 'dock', label: 'Dock' },
+  { re: /\b(meus gastos|pagina do dock|tela do dock)\b/, target: 'dock', label: 'Dock' },
   { re: /\b(whatsapp|crm|mensagens)\b/, target: 'whatsapp', label: 'WhatsApp' },
   { re: /\bprodutos?\b/, target: 'products', label: 'produtos' },
   { re: /\bservicos?\b/, target: 'services', label: 'serviços' },
@@ -46,6 +46,8 @@ const PAGES = [
 const OPEN_RE = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|entrar|va para|va pra|vá para|vá pra|va na|vá na|vai na|ir na)\b/;
 const CLOSE_RE = /\b(fecha|fechar|feche|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/;
 const DATA_ASK_RE = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem|quem comprou|mais vendeu)\b/;
+const WRITE_RE = /\b(agende|agendar|agendamento|cadastre|cadastrar|cadastra|cadastro|registre|registrar|crie|criar|lance|lancar|marca(?:r)?|novo cliente|novo produto|novo servico|edite|editar|altere|alterar|muda|mudar|mude|renomeia|renomear|corrige|atualiza|atualizar|sessao|cancela|cancelar|exclui|excluir|apaga|apagar)\b/;
+const AGENDA_WRITE_RE = /\bagenda(?:r)?\s+(?:o|a|um|uma|pro|pra|para|o cliente|a cliente|horario)\b/;
 const SCROLL_RE = /\b(rola|role|rolar|desce|descer|sobe|subir|scroll|topo da pagina|inicio da pagina|começo da pagina|comeco da pagina)\b/;
 
 function matchPage(t) {
@@ -61,6 +63,9 @@ export function detectDockNav(text) {
   const dataAsk = DATA_ASK_RE.test(t);
   const closing = CLOSE_RE.test(t);
   const opening = OPEN_RE.test(t);
+  const writing = WRITE_RE.test(t) || AGENDA_WRITE_RE.test(t);
+  if (writing && !opening) return null;
+  if (writing && /\b(agende|agendar|cadastre|cadastrar|cadastra|marca|marcar)\b/.test(t)) return null;
   const words = t.split(/\s+/).filter(Boolean);
   const short = words.length <= 6;
   const page = matchPage(t);

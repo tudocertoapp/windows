@@ -343,17 +343,19 @@ export function FinanceProvider({ children }) {
   }, [user?.id]);
 
   const refreshAgendaEvents = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) return [];
     try {
       const { data } = await supabase.from('agenda_events').select('*').eq('user_id', user.id).order('date');
       if (data) {
         const events = (data || []).map(toAgenda);
         setAgendaEvents(events);
         AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(events)).catch(() => {});
+        return events;
       }
     } catch (e) {
       console.warn('Erro ao atualizar agenda:', e);
     }
+    return [];
   }, [user?.id]);
 
   useEffect(() => {
@@ -506,7 +508,7 @@ export function FinanceProvider({ children }) {
         preOrderItems: e.preOrderItems || [],
       };
       setAgendaEvents((prev) => [...prev, ev]);
-      return;
+      return ev;
     }
     const payload = {
       user_id: user.id,
@@ -524,7 +526,10 @@ export function FinanceProvider({ children }) {
       pre_order_items: Array.isArray(e.preOrderItems) ? e.preOrderItems : [],
     };
     const { data, error } = await supabase.from('agenda_events').insert(payload).select('*').single();
-    if (error) return showDbError(error, 'cadastrar evento');
+    if (error) {
+      showDbError(error, 'cadastrar evento');
+      return null;
+    }
     if (data) {
       const ev = toAgenda(data);
       setAgendaEvents((prev) => {
@@ -532,7 +537,9 @@ export function FinanceProvider({ children }) {
         if (user?.id) AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(next)).catch(() => {});
         return next;
       });
+      return ev;
     }
+    return null;
   };
   const updateAgendaEvent = async (id, data) => {
     if (!user) return setAgendaEvents((prev) => prev.map((x) => (x.id === id ? { ...x, ...data } : x)));
@@ -556,22 +563,82 @@ export function FinanceProvider({ children }) {
       return next;
     });
   };
-  const deleteAgendaEvent = async (id) => {
-    const rowId = String(id || '');
-    if (!rowId) return false;
+  const deleteAgendaEventsByIds = async (ids = []) => {
+    const want = [...new Set((ids || []).map((id) => String(id || '')).filter(Boolean))];
+    if (!want.length) return 0;
     if (user) {
-      const res = await deleteSupabaseRow('agenda_events', rowId, user.id);
-      if (!res.ok) {
-        showDbError(res.error, 'excluir evento');
-        return false;
+      for (const id of want) {
+        await supabase.from('agenda_events').delete().eq('id', id).eq('user_id', user.id);
       }
+      const synced = await refreshAgendaEvents();
+      const left = new Set((synced || []).map((e) => String(e.id)));
+      return want.filter((id) => !left.has(id)).length;
     }
+    setAgendaEvents((prev) => prev.filter((e) => !want.includes(String(e.id))));
+    return want.length;
+  };
+
+  const deleteAgendaEvent = async (id) => {
+    const n = await deleteAgendaEventsByIds([id]);
+    return n > 0;
+  };
+
+  const deleteAgendaEventsOnDate = async (dateHint, extraIds = []) => {
+    const keyOf = (v) => {
+      const s = String(v || '').trim();
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+      const br = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+      if (br) {
+        const y = br[3].length === 2 ? `20${br[3]}` : br[3];
+        return `${String(br[1]).padStart(2, '0')}/${String(br[2]).padStart(2, '0')}/${y}`;
+      }
+      return s;
+    };
+    const want = keyOf(dateHint);
+    if (!want) return 0;
+    const isoOf = (br) => {
+      const m = String(br || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+    };
+    const iso = isoOf(want);
+    const localHits = (agendaEvents || []).filter((e) => keyOf(e.date) === want);
+    let ids = [...new Set([
+      ...localHits.map((e) => String(e.id)),
+      ...((extraIds || []).map((id) => String(id))),
+    ])].filter(Boolean);
+    if (user) {
+      const { data, error: selErr } = await supabase.from('agenda_events').select('id,date').eq('user_id', user.id);
+      if (!selErr && Array.isArray(data)) {
+        const fromDb = data.filter((r) => keyOf(r.date) === want).map((r) => String(r.id));
+        ids = [...new Set([...ids, ...fromDb])];
+      }
+      const uuidIds = ids.filter((id) => isUuid(id));
+      for (const id of uuidIds) {
+        await supabase.from('agenda_events').delete().eq('id', id).eq('user_id', user.id);
+      }
+      const dateVals = [want, iso, iso ? `${iso}T00:00:00` : '', iso ? `${iso}T00:00:00.000Z` : ''].filter(Boolean);
+      for (const d of dateVals) {
+        await supabase.from('agenda_events').delete().eq('user_id', user.id).eq('date', d);
+      }
+      const { data: left } = await supabase.from('agenda_events').select('id,date').eq('user_id', user.id);
+      const leftover = (left || []).filter((r) => keyOf(r.date) === want);
+      for (const r of leftover) {
+        if (!isUuid(r.id)) continue;
+        await supabase.from('agenda_events').delete().eq('id', r.id).eq('user_id', user.id);
+      }
+      const synced = await refreshAgendaEvents();
+      const remaining = (synced || []).filter((e) => keyOf(e.date) === want);
+      const removed = Math.max(0, ids.length - remaining.length);
+      if (!remaining.length) return removed || ids.length || localHits.length;
+      return removed;
+    }
+    const drop = new Set(ids);
     setAgendaEvents((prev) => {
-      const next = prev.filter((e) => String(e.id) !== rowId);
-      if (user?.id) AsyncStorage.setItem(`${AGENDA_CACHE_KEY}_${user.id}`, JSON.stringify(next)).catch(() => {});
+      const next = prev.filter((e) => !drop.has(String(e.id)) && keyOf(e.date) !== want);
       return next;
     });
-    return true;
+    return ids.length || localHits.length;
   };
 
   const addCheckListItem = async (item) => {
@@ -1303,6 +1370,8 @@ export function FinanceProvider({ children }) {
         addAgendaEvent,
         updateAgendaEvent,
         deleteAgendaEvent,
+        deleteAgendaEventsByIds,
+        deleteAgendaEventsOnDate,
         refreshAgendaEvents,
         addCheckListItem,
         updateCheckListItem,

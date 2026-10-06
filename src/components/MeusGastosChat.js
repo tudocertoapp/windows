@@ -37,15 +37,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { detectDockNav, emitDockControl, scrollDockPage } from '../utils/dockNav';
-import { isLearnPhrase, loadDockMemory, memoryForPrompt, rememberDockFact } from '../utils/dockMemory';
+import { claimsDockSaved, detectDockWrite, executeDockWrite, isDockWritePhrase, pendingWriteSummary } from '../utils/dockWrite';
+import { confirmsPendingWrite, isLearnPhrase, loadDockMemory, memoryForPrompt, rememberDockFact } from '../utils/dockMemory';
 import { CardScrollbar, CARD_SCROLLBAR_W } from './CardScrollbar';
 import { useDockMascot } from '../contexts/DockMascotContext';
 import { introByTone } from '../utils/dockMascot';
+import { getDockDailyRead } from '../utils/quotes';
 
 /** Mesmo gutter do AppNavigator (padding da rail + margens): input não fica sob a rail. */
 const WEB_DESKTOP_RIGHT_GUTTER = 14 + WEB_DESKTOP_RAIL_LAYOUT_RESERVE;
 
-const DOCK_CHAT_MAX = 15;
+const DOCK_CHAT_MAX = 40;
+const DOCK_PENDING_KEY = '@tudocerto_dock_pending';
+const DOCK_ACTIONS_KEY = '@tudocerto_dock_actions';
 
 function dockChatStorageKey(userId) {
   return `@tudocerto_dock_chat_${userId || 'guest'}`;
@@ -359,7 +363,7 @@ function brDateToIso(dateStr) {
 export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEnabled = true, corner = false, colors: colorsProp }) {
   const theme = useTheme();
   const colors = colorsProp || theme.colors;
-  const { transactions, addTransaction, reloadAll } = useFinance();
+  const { transactions, addTransaction, reloadAll, addAgendaEvent, addClient, addProduct, addService, clients, products, services, suppliers, agendaEvents, checkListItems, updateClient, updateProduct, updateService, updateSupplier, updateAgendaEvent, updateCheckListItem, deleteAgendaEvent, deleteAgendaEventsByIds, deleteAgendaEventsOnDate, refreshAgendaEvents } = useFinance();
   const { openAddModal, dockControl } = useMenu();
   const { user, isGuest } = useAuth();
   const { tone, firstName } = useDockMascot();
@@ -459,12 +463,18 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       return;
     }
     const t = action?.target;
+    const initialData = action?.initialData || action?.form || action?.params?.initialData;
+    const date = action?.date || action?.params?.date || initialData?.date;
+    if ((t === 'agenda' || action?.type === 'agenda') && (action?.openForm || initialData || action?.editingEvent)) {
+      openAddModal?.('agenda', { date, initialData, editingEvent: action.editingEvent });
+      return;
+    }
     if (!t) return;
     const mode = raw === 'close' || raw === 'fechar' || raw === 'fecha' ? 'close' : 'open';
     try {
-      dockControl?.(t, mode);
+      dockControl?.(t, mode, { openForm: !!action?.openForm, initialData, date, form: initialData, editingEvent: action?.editingEvent });
     } catch (_) {}
-    if (Platform.OS === 'web') emitDockControl(t, mode);
+    if (Platform.OS === 'web') emitDockControl(t, mode, { openForm: !!action?.openForm, initialData, date, form: initialData, editingEvent: action?.editingEvent });
   };
 
   const stripAccents = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -776,6 +786,17 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
   };
 
   const replyWithAccountAssistant = async (userText, extra = {}) => {
+    const daily = getDockDailyRead(userText);
+    if (daily) {
+      appendMessage({
+        id: `assistant-quote-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: daily,
+        createdAt: nowIso(),
+      });
+      return;
+    }
     if (isGuest || !user) {
       appendMessage({
         id: `assistant-ai-login-${Date.now()}`,
@@ -794,17 +815,74 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       text: 'Um segundo...',
       createdAt: nowIso(),
     });
+    let storedPending = null;
+    try {
+      const raw = await AsyncStorage.getItem(DOCK_PENDING_KEY);
+      storedPending = raw ? JSON.parse(raw) : null;
+      if (!storedPending?.tool) storedPending = null;
+    } catch (_) {
+      storedPending = null;
+    }
+    const lastPending = extra.pendingAction
+      || [...messages].reverse().find((m) => m.pendingAction)?.pendingAction
+      || storedPending
+      || null;
+    const financeApi = {
+      addAgendaEvent,
+      addClient,
+      addProduct,
+      addService,
+      updateClient,
+      updateProduct,
+      updateService,
+      updateSupplier,
+      updateAgendaEvent,
+      updateCheckListItem,
+      deleteAgendaEvent,
+      deleteAgendaEventsByIds,
+      deleteAgendaEventsOnDate,
+      refreshAgendaEvents,
+      clients,
+      products,
+      services,
+      suppliers,
+      agendaEvents,
+      checkListItems,
+    };
+    if (lastPending && (extra.confirm === true || confirmsPendingWrite(userText, lastPending.tool))) {
+      const done = await executeDockWrite(lastPending, financeApi);
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(null)).catch(() => {});
+      if (done.ok) {
+        AsyncStorage.getItem(DOCK_ACTIONS_KEY).then((raw) => {
+          let list = [];
+          try { list = JSON.parse(raw) || []; } catch (_) { list = []; }
+          AsyncStorage.setItem(DOCK_ACTIONS_KEY, JSON.stringify([...list, { t: done.message, at: new Date().toISOString() }].slice(-40))).catch(() => {});
+        }).catch(() => {});
+        if (done.uiAction) applyDockUiAction(done.uiAction);
+      }
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: done.ok ? done.message : (done.error || 'Não consegui gravar.'),
+        intent: done.ok ? done.intent : undefined,
+        createdAt: nowIso(),
+      });
+      return;
+    }
     const history = messages
       .filter((m) => m.kind === 'text' && m.text && m.id !== 'intro-assistant')
       .filter((m) => !String(m.text).startsWith('Um segundo'))
-      .slice(-8)
+      .slice(-20)
       .map((m) => ({
         role: m.from === 'user' ? 'user' : 'assistant',
-        content: String(m.text || '').slice(0, 400),
+        content: (m.from === 'assistant' && /^create_/.test(String(m.intent || '')) && !m.pendingAction)
+          ? `FEITO. ${String(m.text || '').slice(0, 380)}`
+          : String(m.text || '').slice(0, 400),
         intent: m.intent || undefined,
         followUp: m.followUp || undefined,
       }));
-    const lastPending = [...messages].reverse().find((m) => m.pendingAction)?.pendingAction || extra.pendingAction || null;
     let memory = [];
     try {
       if (isLearnPhrase(userText)) {
@@ -813,12 +891,17 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       } else {
         memory = memoryForPrompt(await loadDockMemory(user?.id));
       }
+      const doneRaw = await AsyncStorage.getItem(DOCK_ACTIONS_KEY);
+      const done = doneRaw ? JSON.parse(doneRaw) : [];
+      if (Array.isArray(done) && done.length) {
+        memory = [...memory, ...done.slice(-16).map((x) => `FEITO: ${x.t || x}`)].slice(-48);
+      }
     } catch (_) {}
     const result = await askAccountAssistant({
       message: userText,
       history,
       pendingAction: lastPending,
-      confirm: extra.confirm === true || (lastPending && /^(sim|s|ok|confirmo|pode)$/i.test(String(userText || '').trim())),
+      confirm: false,
       preferredName: dockName,
       voiceTone: tone,
       memory,
@@ -831,20 +914,91 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
         AsyncStorage.setItem(`@tudocerto_dock_callme_${user?.id || 'guest'}`, call).catch(() => {});
       }
     }
+    const localWrite = detectDockWrite(userText, { clients, agendaEvents });
+    const pending = localWrite?.tool
+      ? localWrite
+      : (result.ok && result.pendingAction?.tool ? result.pendingAction : null);
+    if (pending?.tool === 'need_params') {
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(null)).catch(() => {});
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: pending.message || pending.args?.message || pendingWriteSummary(pending.tool, pending.args),
+        intent: 'need_params',
+        createdAt: nowIso(),
+      });
+      return;
+    }
+    if (pending?.tool === 'create_appointment' || pending?.tool === 'update_appointment') {
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(null)).catch(() => {});
+      const done = await executeDockWrite(pending, financeApi);
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: done.ok ? done.message : (done.error || done.message),
+        intent: pending.tool,
+        createdAt: nowIso(),
+      });
+      if (done.ok && done.uiAction) applyDockUiAction(done.uiAction);
+      return;
+    }
+    if (pending?.tool) {
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(pending)).catch(() => {});
+      const ask = pendingWriteSummary(pending.tool, pending.args);
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: ask,
+        intent: pending.tool,
+        pendingAction: pending,
+        actions: [
+          { label: 'Confirmar', actionType: 'aiConfirm' },
+          { label: 'Cancelar', actionType: 'aiCancel' },
+        ],
+        createdAt: nowIso(),
+      });
+      return;
+    }
     if (result.ok && result.uiAction) {
       applyDockUiAction(result.uiAction);
     }
-    if (result.ok && /^create_/.test(String(result.intent || '')) && !result.pendingAction) {
-      reloadAll?.();
+    AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(null)).catch(() => {});
+    const replyText = result.ok ? result.reply : result.error;
+    if (replyText && claimsDockSaved(replyText)) {
+      const fallback = localWrite?.tool ? localWrite : detectDockWrite(userText, { clients, agendaEvents });
+      if (fallback?.tool === 'create_appointment' || fallback?.tool === 'create_client') {
+        const done = await executeDockWrite(fallback, financeApi);
+        appendMessage({
+          id: `assistant-ai-reply-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: done.ok ? done.message : (done.error || 'Ainda não gravei isso. Repita o nome, o dia e a hora.'),
+          intent: fallback.tool,
+          createdAt: nowIso(),
+        });
+        if (done.ok && done.uiAction) applyDockUiAction(done.uiAction);
+        return;
+      }
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: 'Ainda não gravei isso. Diga o nome, o dia e a hora para eu agendar de verdade.',
+        createdAt: nowIso(),
+      });
+      return;
     }
     appendMessage({
       id: `assistant-ai-reply-${Date.now()}`,
       from: 'assistant',
       kind: 'text',
-      text: result.ok ? result.reply : result.error,
+      text: replyText,
       intent: result.ok ? result.intent : undefined,
       cards: result.ok ? result.cards : undefined,
-      pendingAction: result.ok ? result.pendingAction : undefined,
+      pendingAction: undefined,
       followUp: result.ok ? result.followUp : undefined,
       actions: result.ok && result.pendingAction
         ? [
@@ -922,7 +1076,12 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       return;
     }
     if (kind === 'voice' || kind === 'text') {
-      const nav = detectDockNav(filteredText || normalizedText);
+      const spoken = filteredText || normalizedText;
+      if (detectDockWrite(spoken) || isDockWritePhrase(spoken)) {
+        await replyWithAccountAssistant(spoken);
+        return;
+      }
+      const nav = detectDockNav(spoken);
       if (nav?.target) {
         applyDockUiAction({
           type: nav.action === 'close' ? 'close' : (nav.action === 'scroll' ? 'scroll' : 'open'),

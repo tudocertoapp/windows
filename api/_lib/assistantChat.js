@@ -58,7 +58,7 @@ function clipHistory(raw) {
       intent: typeof m.intent === 'string' ? m.intent.slice(0, 40) : undefined,
       followUp: m.followUp && typeof m.followUp === 'object' ? m.followUp : undefined,
     }))
-    .slice(-8);
+    .slice(-20);
 }
 
 function isAssistantRequest(req, body) {

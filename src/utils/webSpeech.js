@@ -42,7 +42,7 @@ function ensureRec() {
   rec.lang = 'pt-BR';
   rec.continuous = true;
   rec.interimResults = true;
-  rec.maxAlternatives = 3;
+  rec.maxAlternatives = 1;
   rec.onresult = (ev) => {
     running = true;
     handlers.onResult?.(ev);
@@ -145,6 +145,6 @@ export function takeWebSpeech(name) {
   return true;
 }
 
-export function currentWebSpeechOwner() {
-  return owner;
+export function getHeldStream() {
+  return heldStream;
 }

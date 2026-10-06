@@ -9,7 +9,7 @@ export function dockPoseSource() {
 
 export function DockMascot({ size = 72, style, ...rest }) {
   const h = Number(size) || 72;
-  const w = Math.round(h * 0.73);
+  const w = Math.round(h * (617 / 839));
   return (
     <View
       pointerEvents="none"

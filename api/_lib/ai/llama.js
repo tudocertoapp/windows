@@ -38,6 +38,10 @@ function compactAgenda(agenda) {
   };
 }
 
+function needsAccountData(text) {
+  return /\b(saldo|vend|gastei|gasto|despesa|receita|cliente|agenda|produto|servico|lucro|entrada|saida|boleto|receber|fatur|compromisso|orcament|caixa|quanto|quantos|hoje tem|este mes|esse mes|aniv|meta)\b/.test(String(text || ''));
+}
+
 async function accountSnapshot(db, userId, message) {
   try {
     const period = parsePeriodFromText(fold(message)) || currentMonth();
@@ -45,7 +49,7 @@ async function accountSnapshot(db, userId, message) {
       runTool('get_financial_summary', db, userId, period),
       runTool('get_sales_by_month', db, userId, {}),
       runTool('get_sales', db, userId, period),
-      runTool('get_clients', db, userId, { limit: 40 }),
+      runTool('get_clients', db, userId, { limit: 20 }),
       runTool('get_products', db, userId, {}),
       runTool('get_services', db, userId, {}),
       runTool('get_appointments', db, userId, { mode: 'all' }),
@@ -111,6 +115,9 @@ function clockReply(text) {
 function cleanSpeak(s) {
   return String(s || '')
     .replace(/[#*_`>~]+/g, ' ')
+    .replace(/\p{Extended_Pictographic}/gu, ' ')
+    .replace(/[\uFE0F\u200D]/g, '')
+    .replace(/\b(emoji|foguete|foguetes|palmas|coracaozinho|coracao|joinha|carinha|sorriso|piscadela|marcador de selecao|marca de selecao|selecao branca|selecao|check mark|white check|verificado)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -122,14 +129,69 @@ async function applyMutation(db, userId, pendingAction) {
   if (!result?.ok) return { message: result?.error || 'Não consegui concluir. Tente pelo cadastro do app.', intent: pendingAction.tool };
   if (pendingAction.tool === 'create_expense') return { message: `Pronto. Despesa de ${result.amountFmt} lançada.`, intent: 'create_expense' };
   if (pendingAction.tool === 'create_income') return { message: `Pronto. Entrada de ${result.amountFmt} lançada.`, intent: 'create_income' };
-  if (pendingAction.tool === 'create_client') return { message: `Cliente ${result.name} cadastrado.`, intent: 'create_client' };
+  if (pendingAction.tool === 'create_client') {
+    return {
+      message: `Cliente ${result.name} cadastrado.`,
+      intent: 'create_client',
+      uiAction: { type: 'open', target: 'clients' },
+    };
+  }
   if (pendingAction.tool === 'create_appointment') {
     const extra = result.createdClient ? ' Cadastrei o cliente também.' : '';
-    return { message: `Agendado: ${result.title} em ${result.date} às ${result.time}.${extra}`, intent: 'create_appointment' };
+    return {
+      message: `Agendado: ${result.title} em ${result.date} às ${result.time}.${extra}`,
+      intent: 'create_appointment',
+      uiAction: { type: 'open', target: 'agenda' },
+    };
   }
   if (pendingAction.tool === 'create_product') return { message: `Produto ${result.name} cadastrado.`, intent: 'create_product' };
   if (pendingAction.tool === 'create_service') return { message: `Serviço ${result.name} cadastrado.`, intent: 'create_service' };
   return { message: 'Pronto, registrei.', intent: pendingAction.tool };
+}
+
+function wantsWrite(text) {
+  return /\b(cadastre|cadastrar|cadastra|agende|agendar|agendamento|registre|registrar|crie|criar|marca|marcar|lance|lancar|lanca|novo cliente|nova despesa|nova entrada)\b/.test(String(text || ''));
+}
+
+function parseJsonBlob(raw) {
+  const s = String(raw || '').trim();
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(s.slice(start, end + 1));
+  } catch (_) {
+    return null;
+  }
+}
+
+const WRITE_TOOLS = /^(create_expense|create_income|create_client|create_appointment|create_product|create_service)$/;
+
+async function extractWrite(message, history) {
+  if (!llmStatus().configured) return null;
+  const out = await chatWithAccountLlm({
+    system: [
+      'Extraia pedido de cadastro ou agendamento do Tudo Certo.',
+      'Responda SÓ JSON, sem texto.',
+      '{"tool":"create_client"|"create_appointment"|"create_product"|"create_service"|"create_expense"|"create_income","args":{}}',
+      'args: name, title, clientName, date (YYYY-MM-DD), time (HH:MM), amount, service, category, description, price.',
+      'Se faltar dado essencial: {"need":"pergunta curta em português"}',
+      'Não invente que já salvou. Data de hoje se o usuário não disser o dia.',
+    ].join(' '),
+    messages: [
+      ...(Array.isArray(history) ? history.slice(-4) : []),
+      { role: 'user', content: String(message || '').slice(0, 400) },
+    ],
+  });
+  const json = parseJsonBlob(out?.text);
+  if (!json || typeof json !== 'object') return null;
+  if (json.need) return { need: String(json.need).slice(0, 180) };
+  if (!WRITE_TOOLS.test(String(json.tool || ''))) return null;
+  return { tool: json.tool, args: json.args && typeof json.args === 'object' ? json.args : {} };
+}
+
+function fakeSavedSpeech(msg) {
+  return /\b(cadastrei|agendei|agendou|agendado|marquei|registrei|lancei|salvei|gravei|ja esta na agenda|ja cadastrei|cancelei|cancelou|exclui|excluiu|apaguei)\b/.test(fold(msg));
 }
 
 async function answerLlama({ db, userId, firstName, preferredName, message, history, pendingAction, confirm, voiceTone, autoConfirm, memory }) {
@@ -144,6 +206,35 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
   }
   if (pendingAction?.tool && isConfirm(text)) {
     return applyMutation(db, userId, pendingAction);
+  }
+  if (pendingAction?.tool) {
+    const extra = detectMutation(text, original);
+    if (extra?.tool) {
+      let merged = extra.args || {};
+      if (pendingAction.tool === 'create_client' && extra.tool === 'create_appointment') {
+        merged = {
+          ...extra.args,
+          clientName: extra.args.clientName || pendingAction.args?.name,
+          title: extra.args.title || pendingAction.args?.name,
+        };
+      } else if (extra.tool === pendingAction.tool) {
+        merged = { ...pendingAction.args, ...extra.args };
+      }
+      const args = sanitizeCreateArgs(extra.tool, merged);
+      if (args) {
+        return {
+          message: pendingSummary(extra.tool, args),
+          intent: extra.tool,
+          pendingAction: { tool: extra.tool, args },
+        };
+      }
+    }
+    const keep = sanitizeCreateArgs(pendingAction.tool, pendingAction.args) || pendingAction.args;
+    return {
+      message: pendingSummary(pendingAction.tool, keep),
+      intent: pendingAction.tool,
+      pendingAction: { tool: pendingAction.tool, args: keep },
+    };
   }
 
   const clock = clockReply(text);
@@ -162,7 +253,7 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
   if (mutation?.tool) {
     const args = sanitizeCreateArgs(mutation.tool, mutation.args);
     if (!args) {
-      return { message: 'Para cadastrar, diga o nome e o valor, se tiver. Exemplo: registre o produto shampoo a 20 reais.', intent: 'need_params' };
+      return { message: 'Para cadastrar, diga o nome e, se for agenda, o dia e a hora.', intent: 'need_params' };
     }
     if (confirm) {
       return applyMutation(db, userId, { tool: mutation.tool, args });
@@ -172,6 +263,23 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
       intent: mutation.tool,
       pendingAction: { tool: mutation.tool, args },
     };
+  }
+
+  if (wantsWrite(text)) {
+    const extracted = await extractWrite(original, history);
+    if (extracted?.need) return { message: extracted.need, intent: 'need_params' };
+    if (extracted?.tool) {
+      const args = sanitizeCreateArgs(extracted.tool, extracted.args);
+      if (!args) {
+        return { message: 'Faltou um dado para salvar. Diga o nome e, na agenda, o dia e a hora.', intent: 'need_params' };
+      }
+      if (confirm) return applyMutation(db, userId, { tool: extracted.tool, args });
+      return {
+        message: pendingSummary(extracted.tool, args),
+        intent: extracted.tool,
+        pendingAction: { tool: extracted.tool, args },
+      };
+    }
   }
 
   const nav = detectNav(message);
@@ -193,30 +301,38 @@ async function answerLlama({ db, userId, firstName, preferredName, message, hist
   if (!llmStatus().configured) {
     return { message: 'O assistente remoto não está configurado no servidor.', intent: 'error' };
   }
-  const snap = await accountSnapshot(db, userId, message);
+  const snap = needsAccountData(text) ? await accountSnapshot(db, userId, message) : null;
   const system = [
     SYSTEM_PROMPT,
     tonePrompt(voiceTone),
     `Agora no Brasil: ${nowSaoPaulo().date}, ${nowSaoPaulo().time}. Use isso se perguntarem hora ou data.`,
-    'Não chame o usuário pelo nome. Palavras completas, sem gíria.',
-    'Você é o Dock. Não diga nomes de modelos nem leia símbolos.',
+    'Se usar o nome, só no começo da primeira frase desta resposta, uma vez. Nunca no fim. Não repita o nome em toda frase.',
+    'Sem emoji e sem falar foguete, palmas, seleção branca, check ou nome de símbolo.',
+    'Ao salvar, só confirme o que foi salvo. Não narre clique, seleção, campo branco nem tela.',
+    'Responda já, em uma ou duas frases. Sem rodeio.',
     'Use o JSON: clientes.nomes, vendas.porProduto, vendas.porServico, vendas.porCliente, vendas.recentes, agenda.quemAgendou, agenda.quemCancelou.',
     'Se pedirem detalhe, responda com esses campos. Não invente.',
     'Não invente que abriu tela: o app abre sozinho.',
-    snap ? `Dados reais da conta (não invente fora disso): ${JSON.stringify(snap)}` : 'Se faltar dado, diga que não encontrou.',
+    'Nunca diga que agendou, salvou ou cadastrou se a ferramenta não rodou. Peça nome, dia e hora.',
+    snap ? `Dados reais da conta (não invente fora disso): ${JSON.stringify(snap)}` : 'Se faltar dado da conta e precisou, diga que não encontrou. Para conversa comum, não invente números.',
     Array.isArray(memory) && memory.length
-      ? `O usuário ensinou isto. Use sempre que fizer sentido: ${JSON.stringify(memory.slice(-48))}`
+      ? `O usuário ensinou isto. Use sempre que fizer sentido: ${JSON.stringify(memory.slice(-24))}`
       : '',
+    'Histórico: o que já foi feito de verdade vem marcado como FEITO. Não diga que fez se não estiver FEITO.',
     'Use o histórico. Interprete respostas curtas no contexto. Não repita o pedido do usuário.',
     'Respostas curtas e humanas, em português. Sem markdown.',
   ].join(' ');
   const messages = (Array.isArray(history) ? history : [])
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
     .slice(-16)
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) }));
-  messages.push({ role: 'user', content: original.slice(0, 800) });
+    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 280) }));
+  messages.push({ role: 'user', content: original.slice(0, 400) });
   const out = await chatWithAccountLlm({ system, messages });
-  return { message: cleanSpeak(out?.text) || 'Não consegui montar a resposta agora.', intent: 'llama' };
+  let msg = cleanSpeak(out?.text) || 'Não consegui montar a resposta agora.';
+  if (fakeSavedSpeech(msg)) {
+    msg = 'Ainda não gravei isso. Diga o que cadastrar ou agendar, com nome, e eu peço confirmação antes de salvar.';
+  }
+  return { message: msg, intent: 'llama' };
 }
 
 module.exports = { answerLlama };

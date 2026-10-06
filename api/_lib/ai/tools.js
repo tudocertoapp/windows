@@ -337,6 +337,20 @@ function toIsoDate(v) {
   return '';
 }
 
+function toBrDate(v) {
+  const iso = toIsoDate(v);
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function addHour(time) {
+  const m = String(time || '09:00').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '10:00';
+  const h = Math.min(23, Number(m[1]) + 1);
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}
+
 function fmtEvent(e) {
   if (!e) return '';
   const d = e.dataIso || e.data || '';
@@ -488,6 +502,38 @@ function sanitizeAmount(n) {
   return v;
 }
 
+async function insertRow(db, table, row, depth = 0) {
+  const { data, error } = await db.from(table).insert(row).select('*').maybeSingle();
+  if (!error) return { ok: true, data };
+  const msg = String(error.message || error.code || '');
+  if (depth >= 6) return { ok: false, error: msg };
+  const next = { ...row };
+  let changed = false;
+  const drop = (col) => {
+    if (Object.prototype.hasOwnProperty.call(next, col)) {
+      delete next[col];
+      changed = true;
+    }
+  };
+  if (/pre_order/i.test(msg)) drop('pre_order_items');
+  if (/time_end/i.test(msg)) drop('time_end');
+  const cols = [...String(msg).matchAll(/['"`]([a-z_][a-z0-9_]*)['"`]/gi)].map((m) => m[1]);
+  cols.forEach((c) => {
+    if (c !== 'user_id' && c !== 'name' && c !== 'title' && c !== 'date') drop(c);
+  });
+  if (!changed) return { ok: false, error: msg };
+  return insertRow(db, table, next, depth + 1);
+}
+
+function writeFailMessage(msg) {
+  const s = String(msg || '');
+  if (/row-level security|rls|permission|not authorized|jwt/i.test(s)) {
+    return 'Sem permissão para gravar. Entre de novo na conta e confirme o pedido.';
+  }
+  if (/null value|not-null|required/i.test(s)) return 'Faltou um campo obrigatório para salvar.';
+  return 'Não consegui gravar no banco. Tente de novo.';
+}
+
 function sanitizeCreateArgs(tool, args) {
   const a = args && typeof args === 'object' ? args : {};
   if (tool === 'create_expense' || tool === 'create_income') {
@@ -501,20 +547,24 @@ function sanitizeCreateArgs(tool, args) {
     };
   }
   if (tool === 'create_client') {
-    const name = clip(a.name, 80);
+    const name = clip(a.name || a.title || a.clientName, 80);
     if (name.length < 2) return null;
     return { name, tipo: clip(a.tipo || 'empresa', 20) };
   }
   if (tool === 'create_appointment') {
-    const title = clip(a.title || a.name || 'Atendimento', 80);
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(a.date || '')) ? a.date : null;
-    if (!date) return null;
+    const title = clip(a.title || a.name || a.clientName || a.service, 80);
+    if (title.length < 2) return null;
+    const iso = toIsoDate(a.date) || todayYmd();
+    if (!iso) return null;
+    const time = clip(a.time || '09:00', 8) || '09:00';
     return {
       title,
-      date,
-      time: clip(a.time || '09:00', 8),
+      date: toBrDate(iso),
+      dateIso: iso,
+      time,
+      timeEnd: clip(a.timeEnd || addHour(time), 8),
       amount: money(a.amount) || 0,
-      clientName: clip(a.clientName || '', 80),
+      clientName: clip(a.clientName || a.name || title, 80),
       service: clip(a.service || '', 80),
       description: clip(a.description || a.service || '', 160),
     };
@@ -564,15 +614,19 @@ async function create_income(db, userId, args) {
 async function create_client(db, userId, args) {
   const a = sanitizeCreateArgs('create_client', args);
   if (!a) return { ok: false, error: 'Informe o nome do cliente.' };
-  const { error } = await db.from('clients').insert({
-    user_id: userId,
-    name: a.name,
-    tipo: a.tipo || 'empresa',
-    nivel: 'orcamento',
-    tags: [],
-  });
-  if (error) return { ok: false, error: 'Não consegui cadastrar o cliente.' };
-  return { ok: true, name: a.name };
+  const tries = [
+    { user_id: userId, name: a.name, nivel: 'orcamento', tipo: a.tipo || 'empresa', tags: [] },
+    { user_id: userId, name: a.name, nivel: 'orcamento', tipo: a.tipo || 'empresa' },
+    { user_id: userId, name: a.name, nivel: 'orcamento' },
+    { user_id: userId, name: a.name },
+  ];
+  let lastErr = '';
+  for (const row of tries) {
+    const r = await insertRow(db, 'clients', row);
+    if (r.ok) return { ok: true, name: a.name, id: r.data?.id || null };
+    lastErr = r.error || '';
+  }
+  return { ok: false, error: writeFailMessage(lastErr) };
 }
 
 async function create_appointment(db, userId, args) {
@@ -595,13 +649,7 @@ async function create_appointment(db, userId, args) {
       const created = await create_client(db, userId, { name: clientName });
       if (created?.ok) {
         createdClient = true;
-        const { data: again } = await db
-          .from('clients')
-          .select('id')
-          .eq('user_id', userId)
-          .ilike('name', `%${clientName}%`)
-          .limit(1);
-        clientId = again?.[0]?.id || null;
+        clientId = created.id || null;
       }
     }
   }
@@ -612,6 +660,7 @@ async function create_appointment(db, userId, args) {
     title,
     date: a.date,
     time: a.time,
+    time_end: a.timeEnd || addHour(a.time),
     amount: a.amount,
     tipo: 'pessoal',
     type: 'meeting',
@@ -620,8 +669,31 @@ async function create_appointment(db, userId, args) {
     description,
   };
   if (clientId) row.client_id = clientId;
-  const { error } = await db.from('agenda_events').insert(row);
-  if (error) return { ok: false, error: 'Não consegui agendar.' };
+  let { error } = await db.from('agenda_events').insert(row);
+  if (error && /pre_order_items|time_end|column/i.test(String(error.message || ''))) {
+    const retry = { ...row };
+    delete retry.pre_order_items;
+    if (/time_end/i.test(String(error.message || ''))) delete retry.time_end;
+    ({ error } = await db.from('agenda_events').insert(retry));
+  }
+  if (error) {
+    const r = await insertRow(db, 'agenda_events', {
+      user_id: userId,
+      title,
+      date: a.date,
+      time: a.time,
+      type: 'meeting',
+      status: 'pendente',
+      description,
+      ...(clientId ? { client_id: clientId } : {}),
+    });
+    if (!r.ok) {
+      const r2 = await insertRow(db, 'agenda_events', { user_id: userId, title, date: a.dateIso || a.date, time: a.time });
+      if (!r2.ok) return { ok: false, error: writeFailMessage(r2.error || error.message) };
+      return { ok: true, ...a, title, createdClient, clientName, id: r2.data?.id || null };
+    }
+    return { ok: true, ...a, title, createdClient, clientName, id: r.data?.id || null };
+  }
   return { ok: true, ...a, title, createdClient, clientName };
 }
 

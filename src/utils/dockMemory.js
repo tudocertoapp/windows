@@ -33,11 +33,44 @@ export function isLearnPhrase(text) {
 }
 
 export function isDataConfirm(text) {
-  return /^(sim|s|ok|pode|confirmo|confirmar|isso|pode registrar|pode lancar|yes)\b/i.test(String(text || '').trim());
+  const t = fold(text);
+  if (!t) return false;
+  if (isDataCancel(t)) return false;
+  if (/\b(parar|encerrar|desligar|desliga|tchau)\b/.test(t)) return false;
+  if (t.length > 90) return false;
+  return (
+    /^(sim+|s|ok+|okay|uhum|aham|isso|claro|fechou|combinado|autorizo|afirmativo|yes|yeah|cadastra|cadastre|agenda|agende|registra|registre)$/.test(t)
+    || /\b(sim|ok|okay|pode sim|pode fazer|pode agendar|pode cadastrar|pode editar|pode alterar|pode mudar|pode atualizar|pode registrar|pode lancar|pode salvar|pode confirmar|pode ir|pode continuar|pode prosseguir|confirmo|confirmar|isso mesmo|claro que sim|com certeza|manda ver|vai em frente|tudo bem|ta bom|esta bem|autorizo|autorizado|pode|pode excluir|pode apagar|pode cancelar)\b/.test(t)
+  );
+}
+
+export function confirmsPendingWrite(text, tool) {
+  if (isDataConfirm(text)) return true;
+  const t = fold(text);
+  if (!t) return false;
+  if (tool === 'delete_appointments') {
+    if (/\b(nao quero|nao confirma|melhor nao|deixa quieto|esquece)\b/.test(t) && !/\bsim\b/.test(t)) return false;
+    return t.split(/\s+/).length <= 8
+      && /\b(cancela|cancelar|exclui|excluir|apaga|apagar|remove|remover|confirma|confirmar|manda|pode cancelar|pode excluir|pode apagar)\b/.test(t);
+  }
+  return false;
+}
+
+export function abortsPendingWrite(text, tool) {
+  const t = fold(text);
+  if (tool === 'delete_appointments') {
+    if (/\b(cancela|cancelar|exclui|excluir|apaga|apagar)\b/.test(t) && !/\b(nao|deixa quieto|esquece)\b/.test(t)) return false;
+  }
+  return isDataCancel(t);
 }
 
 export function isDataCancel(text) {
-  return /^(nao|não|cancela|cancelar|deixa|melhor nao)\b/i.test(String(text || '').trim());
+  const t = fold(text);
+  if (!t) return false;
+  if (/\b(agendamento|agendamentos|compromisso|evento|sessao|cliente|hoje|amanha)\b/.test(t) && t.split(/\s+/).length > 2) return false;
+  return /^(nao|nao pode|cancela|cancelar|deixa|deixa quieto|melhor nao|esquece|nao quero)$/.test(t)
+    || /\b(nao confirma|nao autorizo|melhor nao)\b/.test(t)
+    || /^(cancela|cancelar)$/.test(t);
 }
 
 export async function loadDockMemory(userId) {

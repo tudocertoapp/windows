@@ -45,7 +45,9 @@ export function forVoice(raw) {
   let t = String(raw || '');
   t = t.replace(/```[\s\S]*?```/g, ' ');
   t = t.replace(/[#*_`>~\[\]{}|\\]/g, ' ');
-  t = t.replace(/\b(hashtag|cerquilha|jogo da velha|asterisco|underline|arroba)\b/gi, ' ');
+  t = t.replace(/\p{Extended_Pictographic}/gu, ' ');
+  t = t.replace(/[\uFE0F\u200D]/g, '');
+  t = t.replace(/\b(hashtag|cerquilha|jogo da velha|asterisco|underline|arroba|emoji|foguete|foguetes|palmas|coração|coracao|joinha|carinha|sorriso|marcador de seleção|marca de seleção|seleção branca|selecao branca|check mark|verificado)\b/gi, ' ');
   t = t.replace(/https?:\/\/\S+/gi, ' ');
   t = t.replace(/\bvc\b/gi, 'você');
   t = t.replace(/\bblz\b/gi, '');
@@ -56,6 +58,20 @@ export function forVoice(raw) {
   t = t.replace(/\btá\b/gi, 'está');
   t = t.replace(/\s+/g, ' ').trim();
   return collapseRepeats(t);
+}
+
+export function relocateName(text, name, alreadyUsed) {
+  const n = String(name || '').trim();
+  if (!n || n.length < 2) return String(text || '').trim();
+  const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\b${escaped}\\b`, 'gi');
+  const had = re.test(text);
+  let t = String(text || '').replace(re, ' ').replace(/\s+/g, ' ').replace(/\s+([,.!?])/g, '$1').trim();
+  if (!had) return t;
+  if (alreadyUsed) return t;
+  if (!t) return n;
+  const rest = t.charAt(0).toLowerCase() + t.slice(1);
+  return `${n}, ${rest}`;
 }
 
 export function nowInSaoPaulo() {

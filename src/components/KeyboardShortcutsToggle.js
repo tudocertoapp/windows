@@ -34,7 +34,7 @@ export function KeyboardShortcutsToggle({
       style={[{ padding: 8, backgroundColor: 'transparent' }, Platform.OS === 'web' ? { cursor: 'pointer' } : null, style]}
     >
       <Ionicons
-        name={shortcutsEnabled ? 'keyboard-outline' : 'keyboard'}
+        name={shortcutsEnabled ? 'keypad' : 'keypad-outline'}
         size={size}
         color={tint}
       />

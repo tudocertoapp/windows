@@ -157,10 +157,16 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     if (!result?.ok) return { message: result?.error || 'Não consegui concluir. Tente pelo cadastro do app.', intent: pendingAction.tool };
     if (pendingAction.tool === 'create_expense') return { message: `Pronto. Despesa de ${result.amountFmt} lançada.`, intent: 'create_expense' };
     if (pendingAction.tool === 'create_income') return { message: `Pronto. Entrada de ${result.amountFmt} lançada.`, intent: 'create_income' };
-    if (pendingAction.tool === 'create_client') return { message: `Cliente ${result.name} cadastrado.`, intent: 'create_client' };
+    if (pendingAction.tool === 'create_client') {
+      return { message: `Cliente ${result.name} cadastrado.`, intent: 'create_client', uiAction: { type: 'open', target: 'clients' } };
+    }
     if (pendingAction.tool === 'create_appointment') {
       const extra = result.createdClient ? ' Cadastrei o cliente também.' : '';
-      return { message: `Agendado: ${result.title} em ${result.date} às ${result.time}.${extra}`, intent: 'create_appointment' };
+      return {
+        message: `Agendado: ${result.title} em ${result.date} às ${result.time}.${extra}`,
+        intent: 'create_appointment',
+        uiAction: { type: 'open', target: 'agenda' },
+      };
     }
     if (pendingAction.tool === 'create_product') return { message: `Produto ${result.name} cadastrado.`, intent: 'create_product' };
     if (pendingAction.tool === 'create_service') return { message: `Serviço ${result.name} cadastrado.`, intent: 'create_service' };

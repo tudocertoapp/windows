@@ -13,6 +13,8 @@ import { usePlan } from '../contexts/PlanContext';
 import { useMenu } from '../contexts/MenuContext';
 import { MeusGastosChat } from '../components/MeusGastosChat';
 import { DockMascot } from '../components/DockMascot';
+import { DockPageHero } from '../components/DockPageHero';
+import { DockSpectrumPicker } from '../components/DockSpectrumPicker';
 import { useDockMascot } from '../contexts/DockMascotContext';
 import { VisionOcrStatusBadge } from '../components/VisionOcrStatusBadge';
 import { TopBar } from '../components/TopBar';
@@ -21,7 +23,7 @@ import { useIsDesktopLayout } from '../utils/platformLayout';
 
 export function MeusGastosScreen({ onClose, isModal = false }) {
   const { colors } = useTheme();
-  const { cue } = useDockMascot();
+  const { cue, voiceStatus, spectrumId, setSpectrumId } = useDockMascot();
   const { viewMode, setViewMode, canToggleView, showEmpresaFeatures, planFeatures } = usePlan();
   const { openCalculadoraFull, openMensagensWhatsApp } = useMenu();
   const isWeb = Platform.OS === 'web';
@@ -79,7 +81,7 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
         </View>
       ) : (
         <>
-          <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border, overflow: 'hidden' }]}>
+          <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {!isModal ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8, overflow: 'visible' }}>
                 <DockMascot expression={cue?.expression || 'feliz'} size={64} />
@@ -89,6 +91,16 @@ export function MeusGastosScreen({ onClose, isModal = false }) {
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
               Conversa com o Dock: comprovante, áudio ou texto. A foto é reduzida no aparelho e lida no servidor.
             </Text>
+            <DockSpectrumPicker value={spectrumId} onChange={setSpectrumId} colors={colors} />
+            <View style={s.spectrumWell}>
+              <DockPageHero
+                spectrumSize={320}
+                characterSize={252}
+                spectrumId={spectrumId}
+                speaking={!!voiceStatus?.speaking}
+                listening={!!voiceStatus?.listening && (voiceStatus?.mode === 'command' || voiceStatus?.armed)}
+              />
+            </View>
             <VisionOcrStatusBadge colors={colors} onStatusChange={onOcrStatusChange} />
           </View>
           <View style={s.chatWrap}>
@@ -112,5 +124,12 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   headerBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  infoCard: { margin: 12, marginBottom: 4, padding: 12, borderRadius: 12, borderWidth: 1 },
+  infoCard: { margin: 12, marginBottom: 4, padding: 12, borderRadius: 12, borderWidth: 1, overflow: 'visible' },
+  spectrumWell: {
+    overflow: 'visible',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 320,
+    marginVertical: 8,
+  },
 });

@@ -89,3 +89,23 @@ export function getFinancePromptByTime() {
   const idx = Math.floor(Math.random() * list.length);
   return list[idx];
 }
+
+export function getDockDailyRead(msg) {
+  const t = String(msg || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!t) return null;
+  const verse = /\b(versiculo|versiculos|palavra (do|de) deus|biblia)\b/.test(t);
+  const phrase = /\b(frase motivacional|motivacional)\b/.test(t)
+    || (/\bfrase\b/.test(t) && /\b(dia|hoje|leia|ler|le|fala|fale|diz|diga|qual|mostra)\b/.test(t));
+  if (!verse && !phrase) return null;
+  const v = getQuoteOfDay('verso');
+  const f = getQuoteOfDay('motivacional');
+  if (verse && phrase) return `Versículo do dia: ${v} Frase do dia: ${f}`;
+  if (verse) return `Versículo do dia: ${v}`;
+  return `Frase do dia: ${f}`;
+}

@@ -564,7 +564,21 @@ export function AppNavigator() {
     }
     if (target === 'home') return close ? null : go('Início');
     if (target === 'money') return close ? go('Início') : go('Dinheiro');
-    if (target === 'agenda') return close ? go('Início') : go('Agenda');
+    if (target === 'agenda') {
+      if (close) return go('Início');
+      const initialData = extra.initialData || extra.form || extra.params?.initialData;
+      const editingEvent = extra.editingEvent || extra.params?.editingEvent;
+      const date = extra.date || extra.params?.date || initialData?.date || editingEvent?.date;
+      if (editingEvent || extra.openForm || extra.form || initialData) {
+        setMenuModalOpen(false);
+        setAddModalState({
+          type: 'agenda',
+          params: { date, initialData, editingEvent },
+        });
+        return;
+      }
+      return go('Agenda');
+    }
     if (target === 'dock') return close ? go('Início') : go('MeusGastos');
     if (target === 'whatsapp') return close ? go('Início') : go('WhatsApp');
     if (target === 'products') return cadastro('produtos');
