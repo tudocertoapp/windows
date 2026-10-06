@@ -114,7 +114,7 @@
   },
   "private": true,
   "name": "tudo-certo",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "build": {
     "artifactName": "Tudo-Certo-Setup-${version}.${ext}",
     "appId": "com.tudocerto.desktop",
