@@ -36,9 +36,24 @@ export function mergeHeard(prev, next) {
   const b = collapseRepeats(next);
   if (!a) return b;
   if (!b) return a;
-  if (b.toLowerCase() === a.toLowerCase()) return a;
-  if (b.toLowerCase().includes(a.toLowerCase()) && collapseRepeats(b) !== b) return collapseRepeats(b);
-  return collapseRepeats(b);
+  const al = a.toLowerCase();
+  const bl = b.toLowerCase();
+  if (bl === al) return a;
+  if (bl.includes(al)) return collapseRepeats(b);
+  if (al.includes(bl)) return a;
+  const aWords = al.split(' ').filter(Boolean);
+  const bWords = bl.split(' ').filter(Boolean);
+  let overlap = 0;
+  const max = Math.min(aWords.length, bWords.length);
+  for (let n = max; n >= 1; n -= 1) {
+    if (aWords.slice(-n).join(' ') === bWords.slice(0, n).join(' ')) {
+      overlap = n;
+      break;
+    }
+  }
+  const rawA = a.split(' ').filter(Boolean);
+  const rawB = b.split(' ').filter(Boolean);
+  return collapseRepeats([...rawA, ...rawB.slice(overlap)].join(' '));
 }
 
 export function forVoice(raw) {

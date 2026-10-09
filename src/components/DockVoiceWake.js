@@ -5,7 +5,7 @@ import { askAccountAssistant } from '../services/accountAssistant';
 import { useDockMascot } from '../contexts/DockMascotContext';
 import { useFinance } from '../contexts/FinanceContext';
 import { detectDockNav, emitDockControl } from '../utils/dockNav';
-import { claimsDockSaved, detectDockWrite, executeDockWrite, isDockWritePhrase, pendingWriteSummary } from '../utils/dockWrite';
+import { claimsDockSaved, detectDockWrite, executeDockWrite, isDockWritePhrase, pendingWriteSummary, mergeAppointmentFromSpeech, appointmentNeedsParams } from '../utils/dockWrite';
 import {
   abortsPendingWrite,
   confirmsPendingWrite,
@@ -32,10 +32,8 @@ import {
 } from '../utils/webSpeech';
 import { isMicQuiet } from '../utils/dockAudioPulse';
 
-const SILENCE_MS = 700;
-const FINAL_SILENCE_MS = 280;
-const MAX_HOLD_MS = 2200;
-const MIN_CONFIDENCE = 0.42;
+const SILENCE_MS = 1000;
+const MIN_CONFIDENCE = 0.38;
 const FILLER = /^(a|e|o|u|ah|eh|uh|hm+|hum+|ahn|aham|ne|ta|tipo|entao|pois|sim|nao|ok|ei|ui|ih|oh|ha|he|hi|mm+|uhum|ia|ehh|hmm+)$/;
 const HISTORY_KEY = '@tudocerto_dock_voice_history';
 const PENDING_KEY = '@tudocerto_dock_pending';
@@ -51,13 +49,20 @@ function fold(s) {
     .trim();
 }
 
-const DOCK_NAME = 'dock|dok|doque|doke|dogue|doc|dog|duck|doug|doki|docque';
+const DOCK_NAME = 'dock|dok|doque|dooque|daque|doke|dogue|doc|dog|duck|doug|doki|docque|duque|duc|duk|ducke|douque|doq|dokk|dook|dacque|toque|tok';
 const WAKE_OPEN = 'abre|abra|abrir|chama|chame|acorda|acordar|liga|ligar|ativa|ativar';
+
+function looksLikeDockName(word) {
+  const w = fold(word);
+  if (!w || w.length < 3 || w.length > 8) return false;
+  if (new RegExp(`^(${DOCK_NAME})$`).test(w)) return true;
+  return /^d[oau]{1,3}(ck|que|q|k|gue|ke)$/.test(w);
+}
 
 function hasWake(text) {
   const t = fold(text);
   if (!t) return false;
-  if (new RegExp(`\\b(${DOCK_NAME})\\b`).test(t)) return true;
+  if (t.split(' ').some((w) => looksLikeDockName(w))) return true;
   if (new RegExp(`\\b(${WAKE_OPEN})\\s+(o\\s+)?(toque|tok|toc)\\b`).test(t)) return true;
   return false;
 }
@@ -65,7 +70,7 @@ function hasWake(text) {
 function isNoiseTranscript(text, confidence, allowConfirm) {
   const t = fold(text);
   if (!t) return true;
-  if (allowConfirm && (isDataConfirm(t) || isDataCancel(t))) return false;
+  if (allowConfirm && (isDataConfirm(t) || isDataCancel(t) || confirmsPendingWrite(t))) return false;
   if (hasWake(t)) return false;
   if (confidence > 0 && confidence < MIN_CONFIDENCE) return true;
   const words = t.split(' ').filter(Boolean);
@@ -81,11 +86,16 @@ function isNoiseTranscript(text, confidence, allowConfirm) {
 }
 
 function stripWake(text) {
-  return String(text || '')
-    .replace(/^(e+\s*a[ií]+|ae+|eae|eai|oi+|ol[aá]+|fala|hey|ei+|bora come[cç]ar|opa)[\s,]*/i, '')
-    .replace(new RegExp(`^(${WAKE_OPEN})\\s+(o\\s+)?(?=${DOCK_NAME}|toque|tok|toc)\\b`, 'i'), '')
-    .replace(new RegExp(`^(${DOCK_NAME}|toque|tok|toc)[\\s,]*`, 'i'), '')
-    .trim();
+  const raw = String(text || '').trim();
+  const words = raw.split(/\s+/);
+  let i = 0;
+  if (words[0] && /^(e+\s*a[ií]+|ae+|eae|eai|oi+|ol[aá]+|fala|hey|ei+|opa)$/i.test(fold(words[0]))) i += 1;
+  if (words[i] && new RegExp(`^(${WAKE_OPEN})$`, 'i').test(fold(words[i]))) {
+    i += 1;
+    if (words[i] && fold(words[i]) === 'o') i += 1;
+  }
+  if (words[i] && looksLikeDockName(words[i])) i += 1;
+  return words.slice(i).join(' ').trim();
 }
 
 function overlapRatio(a, b) {
@@ -303,7 +313,8 @@ export function DockVoiceWake() {
     const now = Date.now();
     const dup = lastNavRef.current.key === key && now - lastNavRef.current.at < 5000;
     lastNavRef.current = { key, at: now };
-    if (nav.action !== 'close') {
+    const goingHome = nav.target === 'home' || (nav.action === 'close' && nav.target === 'dock');
+    if (nav.action !== 'close' || goingHome) {
       setStatus({
         stage: false,
         speaking: false,
@@ -311,7 +322,7 @@ export function DockVoiceWake() {
         confirmPrompt: '',
         lastHeard: '',
         interim: '',
-        mode: 'command',
+        mode: goingHome ? 'wake' : 'command',
         listening: true,
         armed: true,
       });
@@ -319,11 +330,13 @@ export function DockVoiceWake() {
     const mode = nav.action === 'close' ? 'close' : (nav.action === 'scroll' ? 'scroll' : 'open');
     pushDockUi(nav.target, mode, { dir: nav.dir });
     if (dup) return;
-    const line = nav.action === 'close'
-      ? 'Fechei.'
-      : nav.action === 'scroll'
-        ? (nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.')
-        : 'Pronto. Já está na tela.';
+    const line = goingHome
+      ? 'Voltei para o início.'
+      : nav.action === 'close'
+        ? 'Fechei.'
+        : nav.action === 'scroll'
+          ? (nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.')
+          : 'Pronto. Já está na tela.';
     persistHistory('assistant', line);
     talk(line);
   }, [persistHistory, setStatus, talk]);
@@ -347,6 +360,12 @@ export function DockVoiceWake() {
     const now = Date.now();
     if (cmdKey === lastCmdRef.current.key && now - lastCmdRef.current.at < 2200) return;
     lastCmdRef.current = { key: cmdKey, at: now };
+    const leaveNav = detectDockNav(message) || detectDockNav(raw);
+    if (leaveNav && (leaveNav.target === 'home' || (leaveNav.target === 'dock' && leaveNav.action === 'close'))) {
+      persistHistory('user', message);
+      applyNav(leaveNav);
+      return;
+    }
     if (SLEEP_RE.test(fold(message)) || SLEEP_RE.test(fold(raw))) {
       sleepDock();
       return;
@@ -407,6 +426,50 @@ export function DockVoiceWake() {
       }
       return;
     }
+    const lists = { clients: financeRef.current?.clients, agendaEvents: financeRef.current?.agendaEvents };
+    const detected = detectDockWrite(message, lists);
+    let localWrite = detected;
+    if (pendingActionRef.current?.tool === 'create_appointment' && (!detected || detected.tool === 'create_appointment')) {
+      localWrite = {
+        tool: 'create_appointment',
+        args: mergeAppointmentFromSpeech(pendingActionRef.current.args, message, lists),
+      };
+    } else if (pendingActionRef.current?.tool === 'delete_appointments' && detected?.tool === 'delete_appointments') {
+      localWrite = detected;
+    }
+    if (localWrite?.tool === 'create_appointment') {
+      const missing = appointmentNeedsParams(localWrite.args);
+      persistPending(localWrite);
+      persistHistory('user', message);
+      if (missing) {
+        persistHistory('assistant', missing, { intent: 'need_params' });
+        talk(missing);
+        setStatus({ confirmPrompt: '', busy: false, listening: true });
+        return;
+      }
+      const ask = pendingWriteSummary(localWrite.tool, localWrite.args);
+      persistHistory('assistant', ask, { intent: localWrite.tool });
+      talk(ask);
+      setStatus({ confirmPrompt: ask, busy: false, listening: true });
+      return;
+    }
+    if (localWrite?.tool === 'delete_appointments') {
+      persistPending(localWrite);
+      persistHistory('user', message);
+      const ask = pendingWriteSummary(localWrite.tool, localWrite.args);
+      persistHistory('assistant', ask, { intent: localWrite.tool });
+      talk(ask);
+      setStatus({ confirmPrompt: ask, busy: false, listening: true });
+      return;
+    }
+    if (localWrite?.tool === 'need_params') {
+      persistHistory('user', message);
+      const ask = localWrite.message || 'Faltou um dado. Pode repetir?';
+      persistHistory('assistant', ask, { intent: 'need_params' });
+      talk(ask);
+      setStatus({ confirmPrompt: '', busy: false, listening: true });
+      return;
+    }
     busyRef.current = true;
     setStatus({
       mode: 'command',
@@ -452,21 +515,12 @@ export function DockVoiceWake() {
         setStatus({ confirmPrompt: '' });
         return;
       }
-      if (pending?.tool === 'create_appointment' || pending?.tool === 'update_appointment') {
-        persistPending(null);
-        const done = await executeDockWrite(pending, financeRef.current);
-        persistHistory('assistant', done.message, { intent: pending.tool });
-        talk(done.ok ? done.message : (done.error || done.message));
-        if (done.ok) persistAction(done.message);
-        if (done.ok && done.uiAction?.target) {
-          pushDockUi(done.uiAction.target, 'open', {
-            openForm: true,
-            initialData: done.uiAction.initialData,
-            date: done.uiAction.date,
-            form: done.uiAction.initialData,
-            editingEvent: done.uiAction.editingEvent,
-          });
-        }
+      if (pending?.tool === 'create_appointment' || pending?.tool === 'update_appointment' || pending?.tool === 'delete_appointments') {
+        persistPending(pending);
+        const ask = pendingWriteSummary(pending.tool, pending.args);
+        persistHistory('assistant', ask, { intent: pending.tool });
+        talk(ask);
+        setStatus({ confirmPrompt: ask });
         return;
       }
       if (pending?.tool) {
@@ -480,21 +534,12 @@ export function DockVoiceWake() {
       const reply = result.ok ? result.reply : result.error;
       if (reply && claimsDockSaved(reply)) {
         const fallback = localWrite?.tool ? localWrite : detectDockWrite(message, { clients: financeRef.current?.clients, agendaEvents: financeRef.current?.agendaEvents });
-        if (fallback?.tool === 'create_appointment' || fallback?.tool === 'create_client') {
-          persistPending(null);
-          const done = await executeDockWrite(fallback, financeRef.current);
-          persistHistory('assistant', done.message, { intent: fallback.tool });
-          talk(done.ok ? done.message : (done.error || 'Ainda não gravei isso. Repita o nome, o dia e a hora.'));
-          if (done.ok) persistAction(done.message);
-          if (done.ok && done.uiAction?.target) {
-            pushDockUi(done.uiAction.target, 'open', {
-              openForm: true,
-              initialData: done.uiAction.initialData,
-              date: done.uiAction.date,
-              form: done.uiAction.initialData,
-              editingEvent: done.uiAction.editingEvent,
-            });
-          }
+        if (fallback?.tool === 'create_appointment' || fallback?.tool === 'create_client' || fallback?.tool === 'delete_appointments') {
+          persistPending(fallback);
+          const ask = pendingWriteSummary(fallback.tool, fallback.args);
+          persistHistory('assistant', ask, { intent: fallback.tool });
+          talk(ask);
+          setStatus({ confirmPrompt: ask });
           return;
         }
         persistHistory('assistant', 'Ainda não gravei isso. Diga o nome, o dia e a hora para eu agendar de verdade.');
@@ -516,7 +561,12 @@ export function DockVoiceWake() {
         const action = String(ui.type || ui.action || '').toLowerCase() === 'close'
           ? 'close'
           : (String(ui.type || '').toLowerCase() === 'scroll' ? 'scroll' : 'open');
-        pushDockUi(ui.target, action, { dir: ui.dir });
+        const asked = detectDockNav(message) || detectDockNav(raw);
+        if (action === 'open' && (!asked || asked.action !== 'open')) {
+          /* só navega se a frase pediu para abrir a tela */
+        } else {
+          pushDockUi(ui.target, action, { dir: ui.dir });
+        }
       }
     } finally {
       busyRef.current = false;
@@ -628,24 +678,14 @@ export function DockVoiceWake() {
       });
     }
 
-    const wait = isFinal ? FINAL_SILENCE_MS : SILENCE_MS;
-    if (same && silenceTimerRef.current && !isFinal) return;
     window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = window.setTimeout(() => {
-      if (!isMicQuiet() && !isFinal) {
-        silenceTimerRef.current = window.setTimeout(() => {
-          const pending = bufferRef.current;
-          bufferRef.current = '';
-          silenceTimerRef.current = 0;
-          finishRef.current(pending);
-        }, 220);
-        return;
-      }
+      silenceTimerRef.current = 0;
+      if (!isMicQuiet()) return;
       const pending = bufferRef.current;
       bufferRef.current = '';
-      silenceTimerRef.current = 0;
       finishRef.current(pending);
-    }, wait);
+    }, SILENCE_MS);
   }, [setStatus, isSelfEcho]);
 
   const noteSpeechRef = useRef(noteSpeech);
@@ -669,11 +709,15 @@ export function DockVoiceWake() {
         let confidence = 0;
         let anyFinal = false;
         for (let i = ev.resultIndex; i < ev.results.length; i += 1) {
-          const alt = ev.results[i][0];
+          const row = ev.results[i];
+          let alt = row?.[0];
+          for (let a = 1; a < (row?.length || 0); a += 1) {
+            if (Number(row[a]?.confidence || 0) > Number(alt?.confidence || 0)) alt = row[a];
+          }
           piece += ` ${alt?.transcript || ''}`;
           const c = Number(alt?.confidence || 0);
           if (c > confidence) confidence = c;
-          if (ev.results[i].isFinal) anyFinal = true;
+          if (row.isFinal) anyFinal = true;
         }
         const heard = String(piece || '').trim();
         if (!heard) return;
@@ -682,7 +726,7 @@ export function DockVoiceWake() {
           return;
         }
         if (isNoiseTranscript(heard, confidence, !!pendingActionRef.current)) return;
-        if (!anyFinal && confidence > 0 && confidence < 0.45) return;
+        if (!anyFinal && confidence > 0 && confidence < 0.32) return;
         noteSpeechRef.current(heard, anyFinal);
       },
       onError: (e) => {
@@ -710,16 +754,14 @@ export function DockVoiceWake() {
         lastVoiceAtRef.current = now;
         return;
       }
-      const silentFor = now - lastVoiceAtRef.current;
-      const heldFor = now - (lastNewSpeechAtRef.current || now);
-      if (silentFor < SILENCE_MS && heldFor < MAX_HOLD_MS) return;
+      if (now - lastVoiceAtRef.current < SILENCE_MS) return;
       window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = 0;
       bufferRef.current = '';
       finishRef.current(pending);
     };
     window.clearInterval(vadTimerRef.current);
-    vadTimerRef.current = window.setInterval(flushIfSilent, 90);
+    vadTimerRef.current = window.setInterval(flushIfSilent, 50);
 
     const arm = async (openStage) => {
       if (armedRef.current && !openStage) return true;

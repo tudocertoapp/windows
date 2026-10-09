@@ -276,7 +276,7 @@ async function get_clients(db, userId, args) {
   const clients = await rows(db, 'clients', 'id,name', userId, { order: { col: 'name', asc: true }, limit });
   return {
     total: total || clients.length,
-    nomes: clients.slice(0, 12).map((c) => clip(c.name, 60)),
+    nomes: clients.slice(0, Math.min(40, limit)).map((c) => clip(c.name, 60)),
   };
 }
 

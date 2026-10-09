@@ -19,6 +19,7 @@ import { PerfilScreen } from '../screens/PerfilScreen';
 import { AssinaturaScreen } from '../screens/AssinaturaScreen';
 import { SubscriptionPastDueBanner } from '../components/SubscriptionPastDueBanner';
 import { IndiqueScreen } from '../screens/IndiqueScreen';
+import { QrcodeDinamicoScreen } from '../screens/QrcodeDinamicoScreen';
 import { AReceberScreen } from '../screens/AReceberScreen';
 import { MotivationalImageScreen } from '../screens/MotivationalImageScreen';
 import { MenuScreen } from '../screens/MenuScreen';
@@ -150,6 +151,7 @@ export function AppNavigator() {
   const [perfilModal, setPerfilModal] = useState(false);
   const [assinaturaModal, setAssinaturaModal] = useState(false);
   const [indiqueModal, setIndiqueModal] = useState(false);
+  const [qrcodeModal, setQrcodeModal] = useState(false);
   const [aReceberModal, setAReceberModal] = useState(false);
   const [assistantModal, setAssistantModal] = useState(false);
   const [assistantAutoStartKey, setAssistantAutoStartKey] = useState(0);
@@ -221,6 +223,7 @@ export function AppNavigator() {
       assistantModal ||
       aReceberModal ||
       indiqueModal ||
+      qrcodeModal ||
       assinaturaModal ||
       perfilModal
     ) {
@@ -319,6 +322,7 @@ export function AppNavigator() {
     setAssistantModal(false);
     setAReceberModal(false);
     setIndiqueModal(false);
+    setQrcodeModal(false);
     setAssinaturaModal(false);
     setPerfilModal(false);
     setCadastroModal(null);
@@ -366,6 +370,7 @@ export function AppNavigator() {
     if (assistantModal) return { m: 'assistant' };
     if (aReceberModal) return { m: 'a_receber' };
     if (indiqueModal) return { m: 'indique' };
+    if (qrcodeModal) return { m: 'qrcode' };
     if (assinaturaModal) return { m: 'assinatura' };
     if (perfilModal) return { m: 'perfil' };
     if (cadastroModal) {
@@ -406,6 +411,7 @@ export function AppNavigator() {
     assistantModal,
     aReceberModal,
     indiqueModal,
+    qrcodeModal,
     assinaturaModal,
     perfilModal,
     cadastroModal,
@@ -490,6 +496,9 @@ export function AppNavigator() {
         case 'indique':
           setIndiqueModal(true);
           break;
+        case 'qrcode':
+          setQrcodeModal(true);
+          break;
         case 'assinatura':
           setAssinaturaModal(true);
           break;
@@ -562,7 +571,14 @@ export function AppNavigator() {
       }
       return;
     }
-    if (target === 'home') return close ? null : go('Início');
+    if (target === 'home' || extra.fromStage) {
+      resetAllWebOverlayModals();
+      go('Início');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tc:dock-stage-close'));
+      }
+      return;
+    }
     if (target === 'money') return close ? go('Início') : go('Dinheiro');
     if (target === 'agenda') {
       if (close) return go('Início');
@@ -579,7 +595,16 @@ export function AppNavigator() {
       }
       return go('Agenda');
     }
-    if (target === 'dock') return close ? go('Início') : go('MeusGastos');
+    if (target === 'dock') {
+      if (close) {
+        resetAllWebOverlayModals();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tc:dock-stage-close'));
+        }
+        return go('Início');
+      }
+      return go('MeusGastos');
+    }
     if (target === 'whatsapp') return close ? go('Início') : go('WhatsApp');
     if (target === 'products') return cadastro('produtos');
     if (target === 'services') return cadastro('servicos');
@@ -607,11 +632,12 @@ export function AppNavigator() {
     if (target === 'goals') { setMetasSonhosModal(!close); return; }
     if (target === 'themes') { setTemasModal(!close); return; }
     if (target === 'referral') { setIndiqueModal(!close); return; }
+    if (target === 'qrcode') { setQrcodeModal(!close); return; }
     if (target === 'receipt') { setReceiptScannerModal(!close); return; }
     if (target === 'image') { setImageModal(!close); return; }
     if (target === 'professionals') { setMeusProfissionaisModal(!close); return; }
     if (target === 'menu') { setMenuModalOpen(!close); }
-  }, [isWebDesktop]);
+  }, [isWebDesktop, resetAllWebOverlayModals]);
 
   const menuActions = useMemo(
     () => ({
@@ -630,6 +656,7 @@ export function AppNavigator() {
       openPrivacidade: () => { setMenuModalOpen(false); setPrivacidadeModal(true); },
       openAssinatura: () => { setMenuModalOpen(false); setAssinaturaModal(true); },
       openIndique: () => { setMenuModalOpen(false); setIndiqueModal(true); },
+      openQrcode: () => { setMenuModalOpen(false); setQrcodeModal(true); },
       openAReceber: () => { setMenuModalOpen(false); setAReceberModal(true); },
       openClientes: () => {
         setMenuModalOpen(false);
@@ -744,6 +771,7 @@ export function AppNavigator() {
     };
     const onKeyDown = (event) => {
       if (event.repeat) return;
+      if (typeof document !== 'undefined' && document.body?.classList?.contains('tc-dock-stage-lock')) return;
       if (isTypingTarget(event.target)) return;
       if (!shortcutsEnabled) return;
       if (pdvModal) return;
@@ -822,6 +850,7 @@ export function AppNavigator() {
     if (assistantModal) { setAssistantModal(false); return true; }
     if (aReceberModal) { setAReceberModal(false); return true; }
     if (indiqueModal) { setIndiqueModal(false); return true; }
+    if (qrcodeModal) { setQrcodeModal(false); return true; }
     if (assinaturaModal) { setAssinaturaModal(false); return true; }
     if (perfilModal) { setPerfilModal(false); return true; }
     if (cadastroModal) { setCadastroModal(null); return true; }
@@ -834,7 +863,7 @@ export function AppNavigator() {
     showCalcMenu, calculadoraModal, calculadoraFloating, pdvModal, pdvStandaloneWeb, orcamentosModal, ordemServicoModal,
     empresaModal, colaboradoresModal, aniversariantesModal, metasSonhosModal, listaComprasModal, receiptScannerModal,
     anotacoesModal, orcamentoModal, bancosModal, termosModal, privacidadeModal, temasModal, imageModal, assistantModal,
-    aReceberModal, indiqueModal, assinaturaModal, perfilModal, cadastroModal, productFormVisible,
+    aReceberModal, indiqueModal, qrcodeModal, assinaturaModal, perfilModal, cadastroModal, productFormVisible,
     addModalState, menuModalOpen, menuOpen,
   ]);
 
@@ -842,6 +871,7 @@ export function AppNavigator() {
     if (!isWeb || typeof window === 'undefined') return undefined;
     const onEsc = (e) => {
       if (e?.key !== 'Escape') return;
+      if (typeof document !== 'undefined' && document.body?.classList?.contains('tc-dock-stage-lock')) return;
       const target = e?.target;
       const isTyping =
         target?.tagName === 'INPUT' ||
@@ -1203,6 +1233,7 @@ export function AppNavigator() {
                 onOpenPrivacidade={menuActions.openPrivacidade}
                 onOpenAssinatura={menuActions.openAssinatura}
                 onOpenIndique={menuActions.openIndique}
+                onOpenQrcode={menuActions.openQrcode}
                 onOpenAReceber={menuActions.openAReceber}
                 onOpenClientes={menuActions.openClientes}
                 onOpenBancos={menuActions.openBancos}
@@ -1252,6 +1283,7 @@ export function AppNavigator() {
                 onOpenPrivacidade={menuActions.openPrivacidade}
                 onOpenAssinatura={menuActions.openAssinatura}
                 onOpenIndique={menuActions.openIndique}
+                onOpenQrcode={menuActions.openQrcode}
                 onOpenAReceber={menuActions.openAReceber}
                 onOpenClientes={menuActions.openClientes}
                 onOpenBancos={menuActions.openBancos}
@@ -1299,6 +1331,11 @@ export function AppNavigator() {
       <Modal visible={indiqueModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <IndiqueScreen onClose={() => setIndiqueModal(false)} isModal />
+        </SafeAreaView>
+      </Modal>
+      <Modal visible={qrcodeModal} animationType="slide">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <QrcodeDinamicoScreen onClose={() => setQrcodeModal(false)} isModal />
         </SafeAreaView>
       </Modal>
       <Modal visible={aReceberModal} animationType="slide">

@@ -35,6 +35,7 @@ const PAGES = [
   { re: /\b(metas|sonhos)\b/, target: 'goals', label: 'metas' },
   { re: /\b(temas?|aparencia)\b/, target: 'themes', label: 'temas' },
   { re: /\bindique\b/, target: 'referral', label: 'indique' },
+  { re: /\b(qr ?code|qrcode dinamico|codigo qr)\b/, target: 'qrcode', label: 'QR Code dinâmico' },
   { re: /\b(scanner|comprovante|notinha)\b/, target: 'receipt', label: 'leitura de comprovante' },
   { re: /\b(imagem motivacional|gerador de imagem)\b/, target: 'image', label: 'imagem' },
   { re: /\b(profissional|profissionais)\b/, target: 'professionals', label: 'profissionais' },
@@ -43,12 +44,15 @@ const PAGES = [
   { re: /\btarefas?\b/, target: 'tasks', label: 'tarefas' },
 ];
 
-const OPEN_RE = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|entrar|va para|va pra|vá para|vá pra|va na|vá na|vai na|ir na)\b/;
+const OPEN_RE = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|quero ver|quero ir|me leva|leva pra|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|entrar|va para|va pra|va na|vai na|ir na)\b/;
 const CLOSE_RE = /\b(fecha|fechar|feche|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/;
+const EXIT_DOCK_RE = /\b((sair|sai|fecha|fechar|feche|encerrar|desliga)(?:\s+(?:o|do|da|a))?\s+(dock|palco)|sair dock|sai dock|fecha dock|sair do palco)\b/;
+const EXIT_HOME_RE = /\b(sair da pagina|sai da pagina|sair da tela|sai da tela|sair dessa pagina|sair desta pagina|fecha a pagina|fechar a pagina|fecha essa pagina|volta(?:r)?\s+(?:pro|pra|para o|para a|ao|a)\s+(inicio|home)|voltar para(?: o)? inicio|volta pro inicio|volta pra inicio)\b/;
 const DATA_ASK_RE = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastrad|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agendad|horario|hoje tem|o que tem|quem comprou|mais vendeu)\b/;
 const WRITE_RE = /\b(agende|agendar|agendamento|cadastre|cadastrar|cadastra|cadastro|registre|registrar|crie|criar|lance|lancar|marca(?:r)?|novo cliente|novo produto|novo servico|edite|editar|altere|alterar|muda|mudar|mude|renomeia|renomear|corrige|atualiza|atualizar|sessao|cancela|cancelar|exclui|excluir|apaga|apagar)\b/;
 const AGENDA_WRITE_RE = /\bagenda(?:r)?\s+(?:o|a|um|uma|pro|pra|para|o cliente|a cliente|horario)\b/;
 const SCROLL_RE = /\b(rola|role|rolar|desce|descer|sobe|subir|scroll|topo da pagina|inicio da pagina|começo da pagina|comeco da pagina)\b/;
+const SCREEN_PHRASE = /\b(pagina|tela)\s+(de|do|da|dos|das)\s+/;
 
 function matchPage(t) {
   for (const p of PAGES) {
@@ -64,12 +68,17 @@ export function detectDockNav(text) {
   const closing = CLOSE_RE.test(t);
   const opening = OPEN_RE.test(t);
   const writing = WRITE_RE.test(t) || AGENDA_WRITE_RE.test(t);
-  if (writing && !opening) return null;
-  if (writing && /\b(agende|agendar|cadastre|cadastrar|cadastra|marca|marcar)\b/.test(t)) return null;
-  const words = t.split(/\s+/).filter(Boolean);
-  const short = words.length <= 6;
+  if (writing) return null;
+  if (/\b(agende|agendar|agendamento|marca(?:r)?|cadastre|cadastrar|cadastra|sessao|cancela|cancelar|exclui|excluir|apaga)\b/.test(t)) {
+    return null;
+  }
+  if (EXIT_DOCK_RE.test(t)) {
+    return { target: 'dock', label: 'Dock', action: 'close' };
+  }
+  if (EXIT_HOME_RE.test(t)) {
+    return { target: 'home', label: 'início', action: 'open' };
+  }
   const page = matchPage(t);
-
   if (dataAsk && !closing && !opening) return null;
   if (SCROLL_RE.test(t) && !dataAsk) {
     const up = /\b(sobe|subir|topo|cima|inicio da pagina|começo|comeco)\b/.test(t);
@@ -81,13 +90,16 @@ export function detectDockNav(text) {
     };
   }
   if (closing) {
+    if (!page || page.target === 'home') {
+      return { target: 'home', label: 'início', action: 'open' };
+    }
     return {
-      target: page?.target || 'calculator',
-      label: page?.label || 'calculadora',
+      target: page.target,
+      label: page.label,
       action: 'close',
     };
   }
-  if (page && (opening || (short && !dataAsk))) {
+  if (page && (opening || SCREEN_PHRASE.test(t))) {
     return { target: page.target, label: page.label, action: 'open' };
   }
   return null;
@@ -99,6 +111,12 @@ export function emitDockControl(target, mode, extra = {}) {
   window.dispatchEvent(new CustomEvent('tc:dock-control', {
     detail: { target, mode: mode || 'open', ...extra },
   }));
+}
+
+export function exitDockStageToHome() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('tc:dock-stage-close'));
+  emitDockControl('home', 'open', { fromStage: true });
 }
 
 export function scrollDockPage(dir) {

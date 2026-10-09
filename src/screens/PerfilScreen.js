@@ -7,6 +7,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlan } from '../contexts/PlanContext';
 import { TopBar } from '../components/TopBar';
+import { InicioLayoutSettings } from '../components/InicioLayoutSettings';
 import { buildEnderecoCompleto, pickEmpresaEnderecoFromProfile } from '../utils/empresaProfile';
 
 const logoImage = require('../../assets/logo.png');
@@ -269,6 +270,10 @@ export function PerfilScreen({ onClose, isModal }) {
               </Field>
             </>
           ) : null}
+
+          <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card }}>
+            <InicioLayoutSettings />
+          </View>
 
           <TouchableOpacity style={[ps.btn, { backgroundColor: colors.primary }]} onPress={handleSalvar}>
             <Text style={ps.btnText}>Salvar</Text>

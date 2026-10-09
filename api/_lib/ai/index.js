@@ -1,22 +1,24 @@
 const { answerNative } = require('./native');
 const { answerLlama } = require('./llama');
 const { SYSTEM_PROMPT } = require('./prompt');
+const { tryCalculate } = require('./dockMath');
 
-function groqKey() {
-  return (process.env.GROQ_API_KEY || '').trim();
+function llmKeyReady() {
+  return Boolean((process.env.DEEPSEEK_API_KEY || '').trim() || (process.env.GROQ_API_KEY || '').trim());
 }
 
-/** llama (Groq) por padrão; native só se AI_PROVIDER=native. */
+/** native = regras + dados reais, sem API de chat. llama/groq/deepseek só se pedido. */
 function aiProvider() {
-  const name = String(process.env.AI_PROVIDER || 'llama').toLowerCase();
-  if (name === 'native') return 'native';
-  if (name === 'llama' || name === 'groq' || name === 'llm') {
-    return groqKey() ? 'llama' : 'native';
+  const name = String(process.env.AI_PROVIDER || 'native').toLowerCase();
+  if (name === 'llama' || name === 'groq' || name === 'deepseek' || name === 'llm') {
+    return llmKeyReady() ? 'llama' : 'native';
   }
-  return groqKey() ? 'llama' : 'native';
+  return 'native';
 }
 
 async function runAssistant(opts) {
+  const calc = tryCalculate(opts?.message);
+  if (calc) return calc;
   if (aiProvider() === 'llama') return answerLlama(opts);
   return answerNative(opts);
 }

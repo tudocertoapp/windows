@@ -280,6 +280,42 @@ function createWindow() {
   win.setMenu(null);
   win.setMenuBarVisibility(false);
 
+  const ZOOM_MIN = 0.67;
+  const ZOOM_MAX = 0.90;
+  const ZOOM_DEFAULT = 0.90;
+  const clampZoom = (n) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, n));
+  const applyZoom = (n) => {
+    try { win.webContents.setZoomFactor(clampZoom(n)); } catch (_) {}
+  };
+  applyZoom(ZOOM_DEFAULT);
+  try {
+    const minLevel = Math.log(ZOOM_MIN) / Math.log(1.2);
+    const maxLevel = Math.log(ZOOM_MAX) / Math.log(1.2);
+    win.webContents.setVisualZoomLevelLimits(minLevel, maxLevel);
+  } catch (_) {}
+  win.webContents.on('zoom-changed', (_event, direction) => {
+    const z = win.webContents.getZoomFactor();
+    applyZoom(direction === 'in' ? z + 0.05 : z - 0.05);
+  });
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !(input.control || input.meta)) return;
+    const key = String(input.key || '');
+    if (key === '0') {
+      event.preventDefault();
+      applyZoom(ZOOM_DEFAULT);
+      return;
+    }
+    if (key === '+' || key === '=' || key === 'Add') {
+      event.preventDefault();
+      applyZoom(win.webContents.getZoomFactor() + 0.05);
+      return;
+    }
+    if (key === '-' || key === '_' || key === 'Subtract') {
+      event.preventDefault();
+      applyZoom(win.webContents.getZoomFactor() - 0.05);
+    }
+  });
+
   win.once('ready-to-show', () => {
     win.show();
     if (process.platform === 'win32') {

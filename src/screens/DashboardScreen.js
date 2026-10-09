@@ -39,7 +39,14 @@ import { AppIcon } from '../components/AppIcon';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SECTIONS, DEFAULT_SECTIONS_WEB, DINHEIRO_ADDABLE_CARDS, DINHEIRO_CARD_TYPES, ALL_INICIO_IDS, CARD_ICON_COLORS, AVAILABLE_CARD_TYPES } from '../constants/dashboardCards';
-import { captureInicioLayout } from '../constants/inicioLayouts';
+import {
+  captureInicioLayout,
+  cloneInicioLayout,
+  SAVED_LAYOUT_KEY,
+  FAVORITE_LAYOUT_KEY,
+  subscribeInicioLayout,
+  commitInicioLayoutToAccount,
+} from '../constants/inicioLayouts';
 import { getLayoutStorageKey, getDefaultForPlatform, useIsDesktopLayout, scaleWebDesktop } from '../utils/platformLayout';
 import {
   DESKTOP_RELEASE_PAGE,
@@ -53,7 +60,6 @@ const logoImage = require('../../assets/logo.png');
 const SECTIONS_ORDER_KEY = '@tudocerto_dashboard_order';
 const DESKTOP_WEIGHTS_KEY = '@tudocerto_inicio_desktop_weights';
 const INICIO_LAYOUT_V2_KEY = '@tudocerto_inicio_layout_v2';
-const SAVED_LAYOUT_KEY = '@tudocerto_inicio_saved_layout';
 const COMPACT_BUTTONS_KEY = '@tudocerto_inicio_compact_buttons';
 
 const CAROUSEL_IMAGES = {
@@ -84,6 +90,49 @@ const CARD_SUBTITLE_MARGIN_TOP = 2;
 const AGENDA_TIMELINE_SCROLLBAR_W = CARD_SCROLLBAR_W;
 const AGENDA_TIMELINE_ZOOM_GAP = 8;
 const AGENDA_TIMELINE_ZOOM_RIGHT = AGENDA_TIMELINE_SCROLLBAR_W + AGENDA_TIMELINE_ZOOM_GAP;
+
+function normAgendaText(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isNoiseAgendaText(s) {
+  const t = String(s || '').trim();
+  if (!t) return true;
+  return /^(s+|n+|x+|\.+|-+|nowrap|ellipsis)$/i.test(t);
+}
+
+function getAgendaEventCardInfo(e, { client, service } = {}) {
+  const title = (e?.tipo === 'empresa' && client?.name)
+    ? String(client.name).trim()
+    : (String(e?.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento');
+  const t0 = String(e?.time || e?.timeStart || '').trim();
+  let t1 = String(e?.timeEnd || '').trim();
+  if (t0 && !t1) {
+    const [h, m] = t0.split(':').map((x) => parseInt(x, 10));
+    const total = ((Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0) + 30) % (24 * 60);
+    t1 = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }
+  const when = t0 ? `${t0}${t1 ? `-${t1}` : ''}` : '';
+  let serviceName = String(service?.name || '').trim();
+  const items = Array.isArray(e?.preOrderItems) ? e.preOrderItems : [];
+  if (!serviceName && items.length) {
+    serviceName = items.map((i) => i?.name).filter(Boolean).join(', ');
+  }
+  if (isNoiseAgendaText(serviceName) || normAgendaText(serviceName) === normAgendaText(title)) {
+    serviceName = items.length
+      ? items.map((i) => i?.name).filter((n) => n && normAgendaText(n) !== normAgendaText(title)).join(', ')
+      : '';
+  }
+  const itemsTotal = items.reduce((s, i) => s + ((Number(i?.price) || 0) - (Number(i?.discount) || 0)) * (Number(i?.qty) || 1), 0);
+  const value = Number(e?.amount) > 0 ? Number(e.amount) : itemsTotal;
+  const detail = value > 0 ? formatCurrency(value) : '';
+  return { title, when, phone: '', serviceName, desc: '', detail };
+}
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -321,7 +370,7 @@ export function DashboardScreen() {
   const [catalogoMenuLabel, setCatalogoMenuLabel] = useState('Meu Catálogo');
   const { notes, deleteNote } = useNotes();
   const { items: shoppingItems, updateItem: updateShoppingItem, deleteItem: deleteShoppingItem } = useShoppingList();
-  const { profile } = useProfile();
+  const { profile, updateProfile } = useProfile();
   const [editMode, setEditMode] = useState(false);
   const [quoteType, setQuoteType] = useState('verso');
   const carouselRef = useRef(null);
@@ -366,6 +415,7 @@ export function DashboardScreen() {
   const desktopWeightsKey = getLayoutStorageKey(DESKTOP_WEIGHTS_KEY);
   const inicioLayoutV2Key = getLayoutStorageKey(INICIO_LAYOUT_V2_KEY);
   const savedLayoutKey = getLayoutStorageKey(SAVED_LAYOUT_KEY);
+  const favoriteLayoutKey = getLayoutStorageKey(FAVORITE_LAYOUT_KEY);
   const compactButtonsKey = getLayoutStorageKey(COMPACT_BUTTONS_KEY);
   const [sectionOrder, setSectionOrder] = useState(defaultSections);
   const [desktopWeights, setDesktopWeights] = useState({});
@@ -376,6 +426,10 @@ export function DashboardScreen() {
   const [desktopSpanSide, setDesktopSpanSide] = useState({});
   const [compactButtons, setCompactButtons] = useState(false);
   const [hasSavedLayout, setHasSavedLayout] = useState(false);
+  const [hasFavoriteLayout, setHasFavoriteLayout] = useState(false);
+  const layoutHydratedRef = useRef(false);
+  const editBaselineRef = useRef(null);
+  const appliedCloudLayoutRef = useRef(false);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [balanceFilter, setBalanceFilter] = useState('mes');
   const [balanceFilterDate, setBalanceFilterDate] = useState(() => new Date());
@@ -400,6 +454,7 @@ export function DashboardScreen() {
   const [agendaCardDate, setAgendaCardDate] = useState(() => new Date());
   // Web desktop: zoom padrão menor para ver mais horas no card
   const [agendaCardZoom, setAgendaCardZoom] = useState(0.85);
+  const [agendaCardActionsId, setAgendaCardActionsId] = useState(null);
   const [agendaCardTimelineScrollY, setAgendaCardTimelineScrollY] = useState(0);
   const [agendaCardShowMonthPicker, setAgendaCardShowMonthPicker] = useState(false);
   const [agendaCardPickerYear, setAgendaCardPickerYear] = useState(() => new Date().getFullYear());
@@ -517,7 +572,8 @@ export function DashboardScreen() {
       AsyncStorage.getItem(desktopWeightsKey),
       AsyncStorage.getItem(compactButtonsKey),
       AsyncStorage.getItem(savedLayoutKey),
-    ]).then(([raw, v2, weightsRaw, compactRaw, savedRaw]) => {
+      AsyncStorage.getItem(favoriteLayoutKey),
+    ]).then(([raw, v2, weightsRaw, compactRaw, savedRaw, favoriteRaw]) => {
       try {
         if (weightsRaw) {
           const w = JSON.parse(weightsRaw);
@@ -537,6 +593,7 @@ export function DashboardScreen() {
       } catch (_) {}
       setCompactButtons(compactRaw === '1' || compactRaw === 'true');
       setHasSavedLayout(!!savedRaw);
+      setHasFavoriteLayout(!!favoriteRaw);
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -569,8 +626,9 @@ export function DashboardScreen() {
         setSectionOrder(defaultSections);
         AsyncStorage.setItem(inicioLayoutV2Key, '1');
       }
+      layoutHydratedRef.current = true;
     });
-  }, [sectionsStorageKey, defaultSections, inicioLayoutV2Key, desktopWeightsKey, compactButtonsKey, savedLayoutKey, useWebLayout]);
+  }, [sectionsStorageKey, defaultSections, inicioLayoutV2Key, desktopWeightsKey, compactButtonsKey, savedLayoutKey, favoriteLayoutKey, useWebLayout]);
   useEffect(() => {
     if (route.params?.openCardPicker) {
       setShowCardPicker(true);
@@ -604,12 +662,13 @@ export function DashboardScreen() {
     return () => window.removeEventListener('tc:escape', onEsc);
   }, [agendaCardShowMonthPicker, parabensModalClient, expandedCard, showCardPicker]);
   useEffect(() => {
+    if (!layoutHydratedRef.current || editMode) return;
     const toSave = sectionOrder.filter((id) => id !== 'tarefas');
     AsyncStorage.setItem(sectionsStorageKey, JSON.stringify(toSave.length > 0 ? toSave : defaultSections));
-  }, [sectionOrder, sectionsStorageKey, defaultSections]);
+  }, [sectionOrder, sectionsStorageKey, defaultSections, editMode]);
 
   useEffect(() => {
-    if (!useWebLayout) return;
+    if (!layoutHydratedRef.current || editMode || !useWebLayout) return;
     AsyncStorage.setItem(desktopWeightsKey, JSON.stringify({
       weights: desktopWeights || {},
       heights: desktopHeights || {},
@@ -618,11 +677,12 @@ export function DashboardScreen() {
       rowSpans: desktopRowSpans || {},
       spanSide: desktopSpanSide || {},
     }));
-  }, [desktopWeights, desktopHeights, desktopCols, desktopRowCols, desktopRowSpans, desktopSpanSide, desktopWeightsKey, useWebLayout]);
+  }, [desktopWeights, desktopHeights, desktopCols, desktopRowCols, desktopRowSpans, desktopSpanSide, desktopWeightsKey, useWebLayout, editMode]);
 
   useEffect(() => {
+    if (!layoutHydratedRef.current || editMode) return;
     AsyncStorage.setItem(compactButtonsKey, compactButtons ? '1' : '0').catch(() => {});
-  }, [compactButtons, compactButtonsKey]);
+  }, [compactButtons, compactButtonsKey, editMode]);
 
   const applyInicioLayout = useCallback((layout) => {
     if (!layout || typeof layout !== 'object') return;
@@ -640,20 +700,32 @@ export function DashboardScreen() {
     setCompactButtons(!!layout.compactButtons);
   }, []);
 
+  const captureCurrentInicioLayout = useCallback(() => captureInicioLayout({
+    order: sectionOrder,
+    weights: desktopWeights,
+    heights: desktopHeights,
+    cols: desktopCols,
+    rowCols: desktopRowCols,
+    rowSpans: desktopRowSpans,
+    spanSide: desktopSpanSide,
+    compactButtons,
+  }), [sectionOrder, desktopWeights, desktopHeights, desktopCols, desktopRowCols, desktopRowSpans, desktopSpanSide, compactButtons]);
+
   const saveCurrentInicioLayout = useCallback(async () => {
-    const snap = captureInicioLayout({
-      order: sectionOrder,
-      weights: desktopWeights,
-      heights: desktopHeights,
-      cols: desktopCols,
-      rowCols: desktopRowCols,
-      rowSpans: desktopRowSpans,
-      spanSide: desktopSpanSide,
-      compactButtons,
-    });
-    await AsyncStorage.setItem(savedLayoutKey, JSON.stringify(snap));
+    const snap = captureCurrentInicioLayout();
+    await commitInicioLayoutToAccount(snap, { updateProfile });
+    editBaselineRef.current = cloneInicioLayout(snap);
+    appliedCloudLayoutRef.current = true;
     setHasSavedLayout(true);
-  }, [sectionOrder, desktopWeights, desktopHeights, desktopCols, desktopRowCols, desktopRowSpans, desktopSpanSide, compactButtons, savedLayoutKey]);
+    Alert.alert('Layout salvo', 'A organização do Início foi gravada neste aparelho e na sua conta.');
+  }, [captureCurrentInicioLayout, updateProfile]);
+
+  const saveFavoriteInicioLayout = useCallback(async () => {
+    const snap = captureCurrentInicioLayout();
+    await commitInicioLayoutToAccount(snap, { updateProfile, asFavorite: true });
+    setHasFavoriteLayout(true);
+    Alert.alert('Favorito', 'Este layout foi guardado como favorito.');
+  }, [captureCurrentInicioLayout, updateProfile]);
 
   const loadSavedInicioLayout = useCallback(async () => {
     const raw = await AsyncStorage.getItem(savedLayoutKey);
@@ -662,6 +734,54 @@ export function DashboardScreen() {
       applyInicioLayout(JSON.parse(raw));
     } catch (_) {}
   }, [savedLayoutKey, applyInicioLayout]);
+
+  const loadFavoriteInicioLayout = useCallback(async () => {
+    let layout = profile?.inicio_layout_favorite;
+    try {
+      const raw = await AsyncStorage.getItem(favoriteLayoutKey);
+      if (raw) layout = JSON.parse(raw);
+    } catch (_) {}
+    if (layout) applyInicioLayout(layout);
+  }, [favoriteLayoutKey, applyInicioLayout, profile?.inicio_layout_favorite]);
+
+  const toggleEditMode = useCallback(() => {
+    playTapSound();
+    if (editMode) {
+      const base = editBaselineRef.current;
+      if (base) applyInicioLayout(base);
+      setEditMode(false);
+      return;
+    }
+    editBaselineRef.current = captureCurrentInicioLayout();
+    setEditMode(true);
+  }, [editMode, applyInicioLayout, captureCurrentInicioLayout]);
+
+  useEffect(() => {
+    return subscribeInicioLayout((layout, meta) => {
+      if (!layout || editMode) return;
+      applyInicioLayout(layout);
+      if (meta?.committed) {
+        appliedCloudLayoutRef.current = true;
+        editBaselineRef.current = cloneInicioLayout(layout);
+        setHasSavedLayout(true);
+      }
+      if (meta?.favorite) setHasFavoriteLayout(true);
+    });
+  }, [applyInicioLayout, editMode]);
+
+  useEffect(() => {
+    if (appliedCloudLayoutRef.current || editMode) return;
+    const lay = profile?.inicio_layout;
+    if (!lay || typeof lay !== 'object') return;
+    appliedCloudLayoutRef.current = true;
+    applyInicioLayout(lay);
+    editBaselineRef.current = cloneInicioLayout(lay);
+    setHasSavedLayout(true);
+  }, [profile?.inicio_layout, applyInicioLayout, editMode]);
+
+  useEffect(() => {
+    if (profile?.inicio_layout_favorite) setHasFavoriteLayout(true);
+  }, [profile?.inicio_layout_favorite]);
 
   const filteredTx = useMemo(() => {
     if (!canToggleView) return transactions;
@@ -791,11 +911,24 @@ export function DashboardScreen() {
       return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
     };
     const clamp = (n, a, b) => Math.max(a, Math.min(n, b));
-    return (agendaCardEvents || []).map((e) => {
+    const items = (agendaCardEvents || []).map((e) => {
       const startM = clamp(toMinutes(e?.timeStart || e?.time), 0, 24 * 60);
-      const endRaw = e?.timeEnd ? toMinutes(e.timeEnd) : (startM + 60);
-      const endM = clamp(Math.max(endRaw, startM + 15), 0, 24 * 60); // mínimo 15 min
+      const endRaw = e?.timeEnd ? toMinutes(e.timeEnd) : (startM + 30);
+      const endM = clamp(Math.max(endRaw, startM + 30), 0, 24 * 60);
       return { e, startM, endM, durM: endM - startM };
+    }).sort((a, b) => a.startM - b.startM || a.endM - b.endM);
+    const laneEnds = [];
+    const withLanes = items.map((item) => {
+      let lane = 0;
+      while (lane < laneEnds.length && laneEnds[lane] > item.startM) lane += 1;
+      if (lane === laneEnds.length) laneEnds.push(item.endM);
+      else laneEnds[lane] = item.endM;
+      return { ...item, lane };
+    });
+    return withLanes.map((item) => {
+      const overlapping = withLanes.filter((o) => o.startM < item.endM && o.endM > item.startM);
+      const lanesUsed = Math.max(1, ...overlapping.map((o) => o.lane + 1));
+      return { ...item, lanesUsed };
     });
   }, [agendaCardEvents]);
 
@@ -1129,6 +1262,16 @@ export function DashboardScreen() {
     gap: useWebLayout ? 6 : 8,
     alignSelf: 'flex-start',
   };
+  const listItemActionsStyle = { flexDirection: 'row', alignItems: 'center', flexShrink: 0 };
+  const listItemTextClamp = { width: '100%', flexShrink: 1 };
+  const renderAgendaEventInfo = (info, { titleSize = 15, metaSize = 11, titleWeight = '600' } = {}) => (
+    <View style={{ flex: 1, minWidth: 0, flexShrink: 1 }}>
+      <Text style={[{ fontSize: titleSize, fontWeight: titleWeight, color: colors.text }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{info.title}</Text>
+      {info.when ? <Text style={[{ fontSize: metaSize, color: colors.textSecondary, marginTop: 2 }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{info.when}</Text> : null}
+      {info.serviceName ? <Text style={[{ fontSize: metaSize, color: colors.primary, marginTop: 2 }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{info.serviceName}</Text> : null}
+      {info.detail ? <Text style={[{ fontSize: metaSize, color: colors.textSecondary, marginTop: 2 }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{info.detail}</Text> : null}
+    </View>
+  );
 
   const taskCardBase = (icon, _iconColor, title, subtitle, items, renderItem, emptyText, extraHeaderContent, onVerMais, headerRightActions, extraFooterContent) => (
     <TouchableOpacity
@@ -1352,15 +1495,16 @@ export function DashboardScreen() {
               fixedVisibleHeight={useWebLayout ? 'fill' : false}
               centerEmpty={useWebLayout}
               renderItem={(t) => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 4 }}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title || t.name || t.description || 'Tarefa sem título'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6, paddingLeft: 22, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 4, minWidth: 0 }}>
+                <View style={{ flex: 1, minWidth: 0, flexShrink: 1 }}>
+                  <Text style={[{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{t.title || t.name || t.description || 'Tarefa sem título'}</Text>
                   {(t.date || t.timeStart) && (
-                    <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                    <Text style={[{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">
                       {[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}
                     </Text>
                   )}
                 </View>
+                <View style={listItemActionsStyle}>
                 <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="pencil" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -1379,6 +1523,7 @@ export function DashboardScreen() {
                 }} style={{ padding: 8 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="trash-outline" size={22} color="#ef4444" />
                 </TouchableOpacity>
+                </View>
               </View>
               )}
             />
@@ -1397,26 +1542,11 @@ export function DashboardScreen() {
           : `${proximasTarefas.agendas.length} ${(showEmpresaFeatures && viewMode === 'empresa') ? 'atendimento' : 'evento'}${proximasTarefas.agendas.length !== 1 ? 's' : ''} nos próximos dias`),
       showConcluidasAgendamentos ? proximasTarefas.agendasConcluidas : proximasTarefas.agendas,
       (e) => {
-        const cli = agendaClientFor(e);
-        const displayTitle = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
-        const detailParts = [];
-        if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
-        if (e.type === 'venda') detailParts.push('Venda');
-        else if (e.type === 'orcamento') detailParts.push('Orçamento');
-        else if (e.type === 'manutencao') detailParts.push('Garantia');
-        const detailStr = detailParts.length ? detailParts.join(' · ') : null;
-        const desc = (e.description || '').trim();
-        const svc = agendaServiceFor(e);
+        const info = getAgendaEventCardInfo(e, { client: agendaClientFor(e), service: agendaServiceFor(e) });
         return (
-        <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4 }}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
-            {cli?.phone ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{cli.phone}</Text> : null}
-            {svc?.name ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{svc.name}</Text> : null}
-            {desc ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>{desc}</Text> : null}
-            {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
-          </View>
-          <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
+        <View key={e.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6, paddingLeft: 26, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', marginLeft: 4, marginBottom: 4, minWidth: 0 }}>
+          {renderAgendaEventInfo(info)}
+          <View style={listItemActionsStyle}>
           <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="pencil" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -1442,6 +1572,7 @@ export function DashboardScreen() {
           }} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="trash-outline" size={18} color="#ef4444" />
           </TouchableOpacity>
+          </View>
         </View>
         );
       },
@@ -1527,15 +1658,16 @@ export function DashboardScreen() {
                   emptyText={showConcluidasProximos ? 'Nenhuma tarefa concluída' : 'Nenhuma tarefa pendente'}
                   fixedVisibleHeight="fill"
                   renderItem={(t) => (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 2 }}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={{ fontSize: 14, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }} numberOfLines={1}>{t.title || t.name || t.description || 'Tarefa sem título'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingVertical: 6, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', marginLeft: 2, minWidth: 0 }}>
+                      <View style={{ flex: 1, minWidth: 0, flexShrink: 1 }}>
+                        <Text style={[{ fontSize: 14, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{t.title || t.name || t.description || 'Tarefa sem título'}</Text>
                         {(t.date || t.timeStart) && (
-                          <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                          <Text style={[{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">
                             {[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}
                           </Text>
                         )}
                       </View>
+                      <View style={listItemActionsStyle}>
                       <TouchableOpacity
                         onPress={(e) => { e?.stopPropagation?.(); playTapSound(); openCadastro?.('tarefas', { editItemId: t.id }); }}
                         style={{ padding: 6 }}
@@ -1570,6 +1702,7 @@ export function DashboardScreen() {
                       >
                         <Ionicons name="trash-outline" size={18} color="#ef4444" />
                       </TouchableOpacity>
+                      </View>
                     </View>
                   )}
                 />
@@ -1891,123 +2024,121 @@ export function DashboardScreen() {
                             </View>
                           ) : null}
 
-                          {agendaCardTimeline.map(({ e, startM, durM }) => {
-                            const cli = agendaClientFor(e);
-                            const svc = agendaServiceFor(e);
-                            const title = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
+                          {agendaCardTimeline.map(({ e, startM, durM, lane, lanesUsed }) => {
+                            const info = getAgendaEventCardInfo(e, { client: agendaClientFor(e), service: agendaServiceFor(e) });
                             const top = (startM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
                             const rawH = (durM / MINUTES_PER_HOUR) * HOUR_HEIGHT_CARD;
-                            const height = Math.max(rawH, 24);
-                            const compactActions = height < 52;
-                            const blockHeight = compactActions ? Math.max(height, 32) : height;
-                            const isEmp = showEmpresaFeatures && (e.tipo === 'empresa');
-                            const t0 = e.time || e.timeStart;
-                            const timeStr = `${t0 || '--:--'}${e.timeEnd ? ` - ${e.timeEnd}` : ''}`;
-                            const descricao = (e.description || '').trim();
-                            const detailParts = [];
-                            if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
-                            if (e.type === 'venda') detailParts.push('Venda');
-                            else if (e.type === 'orcamento') detailParts.push('Orçamento');
-                            else if (e.type === 'manutencao') detailParts.push('Garantia');
-                            const metaLine = [timeStr, ...detailParts, e.status === 'concluido' ? 'Concluído' : null].filter(Boolean).join(' · ');
-                            const actionIconSize = compactActions ? 15 : 17;
-                            const actionRailStyle = {
-                              flexDirection: compactActions ? 'row' : 'column',
+                            const extraLines = [info.when, info.phone, info.serviceName, info.desc, info.detail].filter(Boolean).length;
+                            const contentMin = 22 + extraLines * 16;
+                            const height = Math.max(rawH, contentMin, 56);
+                            const cols = Math.max(1, lanesUsed || 1);
+                            const colPct = 100 / cols;
+                            const blockHeight = height;
+                            const isActionsOpen = agendaCardActionsId === e.id;
+                            const actionBtnStyle = {
+                              width: 26,
+                              height: 26,
+                              borderRadius: 13,
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: compactActions ? 0 : 2,
                               backgroundColor: colors.bg + 'EE',
-                              borderRadius: 10,
                               borderWidth: 1,
                               borderColor: colors.border + '90',
-                              paddingVertical: compactActions ? 3 : 5,
-                              paddingHorizontal: compactActions ? 5 : 3,
                             };
                             return (
                               <View
                                 key={e.id}
                                 style={{
                                   position: 'absolute',
-                                  left: 0,
-                                  right: 0,
+                                  left: `${(lane || 0) * colPct}%`,
+                                  width: `${colPct}%`,
                                   top,
                                   height: blockHeight,
-                                  flexDirection: 'row',
-                                  alignItems: 'stretch',
+                                  paddingRight: cols > 1 ? 4 : 0,
+                                  zIndex: isActionsOpen ? 80 : 10 + (lane || 0),
                                 }}
                               >
                                 <TouchableOpacity
                                   activeOpacity={0.9}
-                                  onPress={() => { playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }}
+                                  onPress={() => { playTapSound(); setAgendaCardActionsId(null); openAddModal?.('agenda', { editingEvent: e }); }}
                                   style={{
                                     flex: 1,
                                     minWidth: 0,
                                     height: blockHeight,
                                     paddingVertical: 6,
                                     paddingLeft: 10,
-                                    paddingRight: 6,
+                                    paddingRight: 32,
                                     borderRadius: 14,
                                     backgroundColor: accent + '1F',
                                     borderWidth: 1,
                                     borderColor: accent + '66',
                                     borderLeftWidth: 4,
                                     borderLeftColor: accent,
-                                    overflow: 'hidden',
+                                    overflow: 'visible',
                                   }}
                                 >
-                                  <View style={{ flex: 1, minHeight: 0, justifyContent: 'flex-start' }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }} numberOfLines={compactActions ? 1 : 2}>
-                                      {title}
-                                    </Text>
-                                    {!compactActions && cli?.phone ? (
-                                      <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                        {cli.phone}
-                                      </Text>
-                                    ) : null}
-                                    {!compactActions && svc?.name ? (
-                                      <Text style={{ fontSize: 10, color: colors.primary, marginTop: 2 }} numberOfLines={1}>
-                                        {svc.name}
-                                      </Text>
-                                    ) : null}
-                                    {!compactActions && !!descricao && (
-                                      <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
-                                        {descricao}
-                                      </Text>
-                                    )}
-                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }} numberOfLines={compactActions ? 1 : 2}>
-                                      {metaLine}
-                                    </Text>
-                                  </View>
+                                  {renderAgendaEventInfo(info, { titleSize: 12, metaSize: 10, titleWeight: '800' })}
                                 </TouchableOpacity>
-                                <View style={{ width: compactActions ? 76 : 30, marginLeft: 4, justifyContent: 'center', alignItems: 'center' }}>
-                                  <View style={actionRailStyle}>
-                                    <TouchableOpacity onPress={(ev) => { ev?.stopPropagation?.(); playTapSound(); openAddModal?.('agenda', { editingEvent: e }); }} style={{ padding: 3 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                      <Ionicons name="pencil" size={actionIconSize} color={colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={(ev) => {
-                                        ev?.stopPropagation?.();
-                                        playTapSound();
-                                        promptConcluirAgenda(e, {
-                                          showEmpresaFeatures,
-                                          isConcluido: e.status === 'concluido',
-                                          openAddModal,
-                                          updateAgendaEvent,
-                                        });
-                                      }}
-                                      style={{ padding: 3 }}
-                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    >
-                                      <Ionicons name="checkmark-done" size={actionIconSize} color="#10b981" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={(ev) => {
+                                <View
+                                  style={{ position: 'absolute', top: 4, right: cols > 1 ? 6 : 4, alignItems: 'center', zIndex: 90 }}
+                                  pointerEvents="box-none"
+                                >
+                                  <TouchableOpacity
+                                    onPress={(ev) => {
                                       ev?.stopPropagation?.();
                                       playTapSound();
-                                      onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)();
-                                    }} style={{ padding: 3 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                      <Ionicons name="trash-outline" size={actionIconSize} color="#ef4444" />
-                                    </TouchableOpacity>
-                                  </View>
+                                      setAgendaCardActionsId((prev) => (prev === e.id ? null : e.id));
+                                    }}
+                                    style={actionBtnStyle}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <Ionicons name="pencil" size={14} color={colors.textSecondary} />
+                                  </TouchableOpacity>
+                                  {isActionsOpen ? (
+                                    <View style={{ marginTop: 4, alignItems: 'center', gap: 4 }}>
+                                      <TouchableOpacity
+                                        onPress={(ev) => {
+                                          ev?.stopPropagation?.();
+                                          playTapSound();
+                                          setAgendaCardActionsId(null);
+                                          openAddModal?.('agenda', { editingEvent: e });
+                                        }}
+                                        style={actionBtnStyle}
+                                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                      >
+                                        <Ionicons name="create-outline" size={14} color={colors.textSecondary} />
+                                      </TouchableOpacity>
+                                      <TouchableOpacity
+                                        onPress={(ev) => {
+                                          ev?.stopPropagation?.();
+                                          playTapSound();
+                                          setAgendaCardActionsId(null);
+                                          promptConcluirAgenda(e, {
+                                            showEmpresaFeatures,
+                                            isConcluido: e.status === 'concluido',
+                                            openAddModal,
+                                            updateAgendaEvent,
+                                          });
+                                        }}
+                                        style={actionBtnStyle}
+                                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                      >
+                                        <Ionicons name="checkmark-done" size={14} color="#10b981" />
+                                      </TouchableOpacity>
+                                      <TouchableOpacity
+                                        onPress={(ev) => {
+                                          ev?.stopPropagation?.();
+                                          playTapSound();
+                                          setAgendaCardActionsId(null);
+                                          onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)();
+                                        }}
+                                        style={actionBtnStyle}
+                                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                      >
+                                        <Ionicons name="trash-outline" size={14} color="#ef4444" />
+                                      </TouchableOpacity>
+                                    </View>
+                                  ) : null}
                                 </View>
                               </View>
                             );
@@ -3752,6 +3883,44 @@ export function DashboardScreen() {
     })(),
   };
 
+  const editChrome = !editMode ? null : (
+    <View style={{ gap: 10 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+        <TouchableOpacity
+          onPress={() => { playTapSound(); saveCurrentInicioLayout(); }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primaryRgba?.(0.12) ?? `${colors.primary}22` }}
+        >
+          <AppIcon name="save-outline" size={18} color={colors.primary} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>Salvar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { playTapSound(); saveFavoriteInicioLayout(); }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        >
+          <AppIcon name="star-outline" size={18} color={colors.text} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>Favorito</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => { playTapSound(); setShowCardPicker(true); }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        >
+          <AppIcon name="albums-outline" size={18} color={colors.text} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>Layouts prontos</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center' }}>
+        Se sair da edição sem salvar, o Início volta ao último layout gravado.
+      </Text>
+      <TouchableOpacity
+        style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+        onPress={() => setShowCardPicker(true)}
+      >
+        <AppIcon name="add-circle-outline" size={26} color={colors.textSecondary} />
+        <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textSecondary }}>Acrescentar ou restaurar cards</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['left', 'right', 'bottom']}>
       <TopBar
@@ -3759,10 +3928,7 @@ export function DashboardScreen() {
         colors={colors}
         useLogoImage
         editMode={editMode}
-        onOrganize={() => {
-          playTapSound();
-          setEditMode((v) => !v);
-        }}
+        onOrganize={toggleEditMode}
         headerDate={now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
         deferFinancePrompt
         inlineToggle={
@@ -3871,15 +4037,7 @@ export function DashboardScreen() {
               }}
             />
             )}
-            {editMode ? (
-              <TouchableOpacity
-                style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                onPress={() => setShowCardPicker(true)}
-              >
-                <AppIcon name="add-circle-outline" size={26} color={colors.textSecondary} />
-                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textSecondary }}>Acrescentar ou restaurar cards</Text>
-              </TouchableOpacity>
-            ) : null}
+            {editChrome}
           </View>
         ) : compactButtons ? (
           <View style={{ marginHorizontal: 16, marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -3930,14 +4088,8 @@ export function DashboardScreen() {
           })
         )}
         {editMode && !useWebLayout && (
-          <View style={{ marginHorizontal: useWebLayout ? WEB_DESKTOP_PAGE_PAD : 16, marginTop: useWebLayout ? WEB_DESKTOP_ROW_GAP : 16 }}>
-            <TouchableOpacity
-              style={{ padding: 16, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-              onPress={() => setShowCardPicker(true)}
-            >
-              <AppIcon name="add-circle-outline" size={26} color={colors.textSecondary} />
-              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textSecondary }}>Adicionar card</Text>
-            </TouchableOpacity>
+          <View style={{ marginHorizontal: 16, marginTop: 16 }}>
+            {editChrome}
             <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 12 }}>Segure 3s para flutuar, role a tela e toque em outro card para trocar</Text>
           </View>
         )}
@@ -4057,10 +4209,21 @@ export function DashboardScreen() {
         onRemoveCard={(id) => { playTapSound(); setSectionOrder((prev) => prev.filter((x) => x !== id)); }}
         compactButtons={compactButtons}
         onToggleCompact={() => setCompactButtons((v) => !v)}
-        onApplyReadyLayout={(lay) => applyInicioLayout(lay?.layout)}
+        onApplyReadyLayout={(lay) => {
+          applyInicioLayout(lay?.layout);
+          if (!editMode && lay?.layout) {
+            commitInicioLayoutToAccount(lay.layout, { updateProfile }).then(() => {
+              editBaselineRef.current = cloneInicioLayout(lay.layout);
+              setHasSavedLayout(true);
+            }).catch(() => {});
+          }
+        }}
         onSaveLayout={saveCurrentInicioLayout}
         hasSavedLayout={hasSavedLayout}
         onApplySavedLayout={loadSavedInicioLayout}
+        onSaveFavorite={saveFavoriteInicioLayout}
+        hasFavorite={hasFavoriteLayout}
+        onApplyFavorite={loadFavoriteInicioLayout}
       />
       {/* Web desktop: menu na coluna da tab bar (DesktopRailMenuButton). */}
       <Modal visible={!!parabensModalClient} transparent animationType="fade">
@@ -4153,11 +4316,12 @@ export function DashboardScreen() {
         <>
         {expandedCard === 'proximos' && (showConcluidasProximos ? proximasTarefas.concluidas : proximasTarefas.tarefas).map((t) => (
           <GlassCard key={t.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40' }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }}>{t.title}</Text>
-                {(t.date || t.timeStart) && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>{[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}</Text>}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.proximos + '40', minWidth: 0 }}>
+              <View style={{ flex: 1, minWidth: 0, flexShrink: 1 }}>
+                <Text style={[{ fontSize: 15, color: colors.text, textDecorationLine: showConcluidasProximos ? 'line-through' : 'none' }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{t.title}</Text>
+                {(t.date || t.timeStart) && <Text style={[{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }, listItemTextClamp]} numberOfLines={1} ellipsizeMode="tail">{[t.date, t.timeStart && t.timeEnd ? `${t.timeStart}-${t.timeEnd}` : null].filter(Boolean).join(' · ')}</Text>}
               </View>
+              <View style={listItemActionsStyle}>
               <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openCadastro?.('tarefas', { editItemId: t.id }); }}><Ionicons name="pencil" size={20} color={colors.textSecondary} /></TouchableOpacity>
               {showConcluidasProximos ? (
                 <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: false }); }}><Ionicons name="arrow-undo" size={20} color={colors.textSecondary} /></TouchableOpacity>
@@ -4165,34 +4329,21 @@ export function DashboardScreen() {
                 <TouchableOpacity onPress={() => { playTapSound(); updateCheckListItem(t.id, { checked: true }); }}><Ionicons name="checkmark-done" size={20} color={colors.textSecondary} /></TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Excluir esta tarefa?', deleteCheckListItem, t.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+              </View>
             </View>
           </GlassCard>
         ))}
         {expandedCard === 'agendamentos' && (showConcluidasAgendamentos ? proximasTarefas.agendasConcluidas : proximasTarefas.agendas).map((e) => {
-          const cli = agendaClientFor(e);
-          const svc = agendaServiceFor(e);
-          const displayTitle = (e.tipo === 'empresa' && cli?.name) ? cli.name : (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento';
-          const detailParts = [];
-          if (e.amount > 0) detailParts.push(formatCurrency(e.amount));
-          if (e.type === 'venda') detailParts.push('Venda');
-          else if (e.type === 'orcamento') detailParts.push('Orçamento');
-          else if (e.type === 'manutencao') detailParts.push('Garantia');
-          const detailStr = detailParts.length ? detailParts.join(' · ') : null;
-          const desc = (e.description || '').trim();
+          const info = getAgendaEventCardInfo(e, { client: agendaClientFor(e), service: agendaServiceFor(e) });
           return (
             <GlassCard key={e.id} colors={colors} solid style={{ marginBottom: 8, borderWidth: 1, borderColor: colors.border }} contentStyle={{ padding: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40' }}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>{displayTitle}</Text>
-                  {cli?.phone ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{cli.phone}</Text> : null}
-                  {svc?.name ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{svc.name}</Text> : null}
-                  {desc ? <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={3}>{desc}</Text> : null}
-                  {detailStr && <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>{detailStr}</Text>}
-                </View>
-                <Text style={{ fontSize: 12, color: colors.textSecondary }}>{e.date}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 3, borderLeftColor: CARD_ICON_COLORS.agendamentos + '40', minWidth: 0 }}>
+                {renderAgendaEventInfo(info)}
+                <View style={listItemActionsStyle}>
                 <TouchableOpacity onPress={() => { playTapSound(); setExpandedCard(null); openAddModal?.('agenda', { editingEvent: e }); }}><Ionicons name="pencil" size={20} color={colors.textSecondary} /></TouchableOpacity>
                 <TouchableOpacity onPress={() => { playTapSound(); promptConcluirAgenda(e, { showEmpresaFeatures, isConcluido: e.status === 'concluido', openAddModal, updateAgendaEvent }); }}><Ionicons name="checkmark-done" size={20} color={colors.textSecondary} /></TouchableOpacity>
                 <TouchableOpacity onPress={() => { playTapSound(); onDeletePress('Excluir', 'Quer realmente excluir este evento?', deleteAgendaEvent, e.id)(); }}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+                </View>
               </View>
             </GlassCard>
           );

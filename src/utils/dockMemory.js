@@ -48,10 +48,14 @@ export function confirmsPendingWrite(text, tool) {
   if (isDataConfirm(text)) return true;
   const t = fold(text);
   if (!t) return false;
+  if (/\b(nao quero|nao confirma|melhor nao|deixa quieto|esquece)\b/.test(t) && !/\bsim\b/.test(t)) return false;
+  if (t.split(/\s+/).length > 10) return false;
+  if (/\b(autorizo|autorizado|confirma|confirmar|confirmo|pode sim|pode fazer|pode agendar|pode cadastrar|pode excluir|pode apagar|pode cancelar|manda ver|vai em frente)\b/.test(t)) return true;
   if (tool === 'delete_appointments') {
-    if (/\b(nao quero|nao confirma|melhor nao|deixa quieto|esquece)\b/.test(t) && !/\bsim\b/.test(t)) return false;
-    return t.split(/\s+/).length <= 8
-      && /\b(cancela|cancelar|exclui|excluir|apaga|apagar|remove|remover|confirma|confirmar|manda|pode cancelar|pode excluir|pode apagar)\b/.test(t);
+    return /\b(cancela|cancelar|exclui|excluir|apaga|apagar|remove|remover|manda)\b/.test(t);
+  }
+  if (tool === 'create_appointment') {
+    return /\b(agenda|agende|agendar|marca|marcar)\b/.test(t) && t.split(/\s+/).length <= 4;
   }
   return false;
 }

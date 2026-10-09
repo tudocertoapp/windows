@@ -37,7 +37,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WEB_DESKTOP_RAIL_LAYOUT_RESERVE } from './navigation/RightSideTabBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { detectDockNav, emitDockControl, scrollDockPage } from '../utils/dockNav';
-import { claimsDockSaved, detectDockWrite, executeDockWrite, isDockWritePhrase, pendingWriteSummary } from '../utils/dockWrite';
+import { claimsDockSaved, detectDockWrite, executeDockWrite, isDockWritePhrase, pendingWriteSummary, mergeAppointmentFromSpeech, appointmentNeedsParams } from '../utils/dockWrite';
 import { confirmsPendingWrite, isLearnPhrase, loadDockMemory, memoryForPrompt, rememberDockFact } from '../utils/dockMemory';
 import { CardScrollbar, CARD_SCROLLBAR_W } from './CardScrollbar';
 import { useDockMascot } from '../contexts/DockMascotContext';
@@ -871,6 +871,65 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       });
       return;
     }
+    const detected = detectDockWrite(userText, { clients, agendaEvents });
+    let localDraft = detected;
+    if (lastPending?.tool === 'create_appointment' && (!detected || detected.tool === 'create_appointment')) {
+      localDraft = {
+        tool: 'create_appointment',
+        args: mergeAppointmentFromSpeech(lastPending.args, userText, { clients, agendaEvents }),
+      };
+    }
+    if (localDraft?.tool === 'create_appointment') {
+      const missing = appointmentNeedsParams(localDraft.args);
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(localDraft)).catch(() => {});
+      if (missing) {
+        appendMessage({
+          id: `assistant-ai-reply-${Date.now()}`,
+          from: 'assistant',
+          kind: 'text',
+          text: missing,
+          intent: 'need_params',
+          pendingAction: localDraft,
+          createdAt: nowIso(),
+        });
+        return;
+      }
+      const ask = pendingWriteSummary(localDraft.tool, localDraft.args);
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: ask,
+        intent: localDraft.tool,
+        pendingAction: localDraft,
+        actions: [
+          { label: 'Confirmar', actionType: 'aiConfirm' },
+          { label: 'Cancelar', actionType: 'aiCancel' },
+        ],
+        createdAt: nowIso(),
+      });
+      return;
+    }
+    if (localDraft?.tool === 'delete_appointments') {
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(localDraft)).catch(() => {});
+      const ask = pendingWriteSummary(localDraft.tool, localDraft.args);
+      appendMessage({
+        id: `assistant-ai-reply-${Date.now()}`,
+        from: 'assistant',
+        kind: 'text',
+        text: ask,
+        intent: localDraft.tool,
+        pendingAction: localDraft,
+        actions: [
+          { label: 'Confirmar', actionType: 'aiConfirm' },
+          { label: 'Cancelar', actionType: 'aiCancel' },
+        ],
+        createdAt: nowIso(),
+      });
+      return;
+    }
     const history = messages
       .filter((m) => m.kind === 'text' && m.text && m.id !== 'intro-assistant')
       .filter((m) => !String(m.text).startsWith('Um segundo'))
@@ -930,18 +989,22 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       });
       return;
     }
-    if (pending?.tool === 'create_appointment' || pending?.tool === 'update_appointment') {
-      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(null)).catch(() => {});
-      const done = await executeDockWrite(pending, financeApi);
+    if (pending?.tool === 'create_appointment' || pending?.tool === 'update_appointment' || pending?.tool === 'delete_appointments') {
+      AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(pending)).catch(() => {});
+      const ask = pendingWriteSummary(pending.tool, pending.args);
       appendMessage({
         id: `assistant-ai-reply-${Date.now()}`,
         from: 'assistant',
         kind: 'text',
-        text: done.ok ? done.message : (done.error || done.message),
+        text: ask,
         intent: pending.tool,
+        pendingAction: pending,
+        actions: [
+          { label: 'Confirmar', actionType: 'aiConfirm' },
+          { label: 'Cancelar', actionType: 'aiCancel' },
+        ],
         createdAt: nowIso(),
       });
-      if (done.ok && done.uiAction) applyDockUiAction(done.uiAction);
       return;
     }
     if (pending?.tool) {
@@ -963,23 +1026,34 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
       return;
     }
     if (result.ok && result.uiAction) {
-      applyDockUiAction(result.uiAction);
+      const kind = String(result.uiAction.type || result.uiAction.action || '').toLowerCase();
+      const asked = detectDockNav(userText);
+      if (kind === 'open' && (!asked || asked.action !== 'open')) {
+        /* não abre tela só porque a IA citou o nome da página */
+      } else {
+        applyDockUiAction(result.uiAction);
+      }
     }
     AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(null)).catch(() => {});
     const replyText = result.ok ? result.reply : result.error;
     if (replyText && claimsDockSaved(replyText)) {
       const fallback = localWrite?.tool ? localWrite : detectDockWrite(userText, { clients, agendaEvents });
-      if (fallback?.tool === 'create_appointment' || fallback?.tool === 'create_client') {
-        const done = await executeDockWrite(fallback, financeApi);
+      if (fallback?.tool === 'create_appointment' || fallback?.tool === 'create_client' || fallback?.tool === 'delete_appointments') {
+        AsyncStorage.setItem(DOCK_PENDING_KEY, JSON.stringify(fallback)).catch(() => {});
+        const ask = pendingWriteSummary(fallback.tool, fallback.args);
         appendMessage({
           id: `assistant-ai-reply-${Date.now()}`,
           from: 'assistant',
           kind: 'text',
-          text: done.ok ? done.message : (done.error || 'Ainda não gravei isso. Repita o nome, o dia e a hora.'),
+          text: ask,
           intent: fallback.tool,
+          pendingAction: fallback,
+          actions: [
+            { label: 'Confirmar', actionType: 'aiConfirm' },
+            { label: 'Cancelar', actionType: 'aiCancel' },
+          ],
           createdAt: nowIso(),
         });
-        if (done.ok && done.uiAction) applyDockUiAction(done.uiAction);
         return;
       }
       appendMessage({
@@ -1092,11 +1166,13 @@ export function MeusGastosChat({ embedded = false, transparentBg = false, ocrEna
           id: `assistant-nav-${Date.now()}`,
           from: 'assistant',
           kind: 'text',
-          text: nav.action === 'close'
-            ? 'Fechei.'
-            : nav.action === 'scroll'
-              ? (nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.')
-              : 'Pronto. Já está na tela.',
+          text: nav.target === 'home' || (nav.target === 'dock' && nav.action === 'close')
+            ? 'Voltei para o início.'
+            : nav.action === 'close'
+              ? 'Fechei.'
+              : nav.action === 'scroll'
+                ? (nav.dir === 'up' ? 'Indo para o topo.' : 'Rolando a página.')
+                : 'Pronto. Já está na tela.',
           createdAt: nowIso(),
         });
         return;

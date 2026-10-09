@@ -34,7 +34,7 @@ const ms = StyleSheet.create({
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
 });
 
-export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenCatalogo, onOpenMeusProfissionais, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenPrivacidade, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, onOpenColaboradores, compact }) {
+export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastro, onOpenPerfil, onOpenAssinatura, onOpenIndique, onOpenQrcode, onOpenAReceber, onOpenClientes, onOpenBancos, onOpenOrcamento, onOpenAnotacoes, onOpenMeusGastos, onOpenListaCompras, onOpenMetasSonhos, onOpenMensagensWhatsApp, onOpenCatalogo, onOpenMeusProfissionais, onOpenImageGenerator, onOpenTemas, onOpenTermos, onOpenPrivacidade, onOpenCalculadoraFull, onOpenOrdemServico, onOpenOrcamentos, onOpenPDV, onOpenEmpresa, onOpenColaboradores, compact }) {
   const { clients, products, services, boletos, checkListItems, suppliers, collaborators } = useFinance();
   const { colors } = useTheme();
   const { showEmpresaFeatures, planLabel, planId, planFeatures } = usePlan();
@@ -247,9 +247,10 @@ export function MenuScreen({ navigation, onClose, onNavigateToTab, onOpenCadastr
             <>
               <MenuItem icon="person-outline" label="Perfil" subtitle="Editar dados pessoais" onPress={onOpenPerfil} />
               <MenuItem icon="wallet-outline" label="Bancos e Cartões" subtitle="Cadastre bancos, cartões e saldos" onPress={onOpenBancos || comingSoon} />
-              <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema escuro e cor principal" onPress={onOpenTemas || comingSoon} />
+              <MenuItem icon="color-palette-outline" label="Temas" subtitle="Tema, cores e layout do Início" onPress={onOpenTemas || comingSoon} />
               <MenuItem icon="card-outline" label="Assinatura" subtitle="Gerencie seu plano" badge={(planId || 'pessoal') === 'pessoal' ? 'Grátis' : null} onPress={onOpenAssinatura} />
               <MenuItem icon="gift-outline" label="Indique um Amigo" subtitle="Ganhe benefícios" onPress={onOpenIndique} />
+              <MenuItem icon="qr-code-outline" label="QR Code dinâmico" subtitle="Gere, salve a imagem e troque o destino" onPress={onOpenQrcode} />
               <MenuItem icon="document-text-outline" label="Termos de Uso" subtitle="Leia os termos do aplicativo" onPress={onOpenTermos || comingSoon} />
               <MenuItem icon="shield-checkmark-outline" label="Política de Privacidade" subtitle="Como tratamos seus dados" onPress={onOpenPrivacidade || comingSoon} />
               <MenuItem icon="star-outline" label="Avaliar App" subtitle="Deixe sua avaliação" />

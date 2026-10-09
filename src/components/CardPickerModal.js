@@ -33,6 +33,9 @@ export function CardPickerModal({
   onSaveLayout,
   hasSavedLayout = false,
   onApplySavedLayout,
+  onSaveFavorite,
+  hasFavorite = false,
+  onApplyFavorite,
 }) {
   const { colors } = useTheme();
   const [order, setOrder] = useState(visibleIds);
@@ -142,16 +145,31 @@ export function CardPickerModal({
             {onSaveLayout ? (
               <>
                 <Text style={[s.sectionTitle, { color: colors.text, marginTop: 8 }]}>Seu layout</Text>
+                <Text style={[s.itemScreen, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Enquanto edita, nada é gravado. Salve para manter. Se sair sem salvar, volta ao último gravado.
+                </Text>
                 <TouchableOpacity
                   onPress={() => { playTapSound(); onSaveLayout(); }}
-                  style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}
+                  style={[s.item, { backgroundColor: colors.bg, borderColor: colors.primary }]}
                 >
                   <Ionicons name="save-outline" size={22} color={colors.primary} />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.itemLabel, { color: colors.text }]}>Salvar organização atual</Text>
-                    <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Guarda ordem, tamanhos e modo botões.</Text>
+                    <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Grava ordem, tamanhos e modo botões neste aparelho e na sua conta.</Text>
                   </View>
                 </TouchableOpacity>
+                {onSaveFavorite ? (
+                  <TouchableOpacity
+                    onPress={() => { playTapSound(); onSaveFavorite(); }}
+                    style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}
+                  >
+                    <Ionicons name="star-outline" size={22} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.itemLabel, { color: colors.text }]}>Salvar como favorito</Text>
+                      <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Guarda um layout extra para reaplicar com um toque.</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
                 {hasSavedLayout && onApplySavedLayout ? (
                   <TouchableOpacity
                     onPress={() => { playTapSound(); onApplySavedLayout(); }}
@@ -161,6 +179,18 @@ export function CardPickerModal({
                     <View style={{ flex: 1 }}>
                       <Text style={[s.itemLabel, { color: colors.text }]}>Carregar layout salvo</Text>
                       <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Volta para a última organização que você salvou.</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+                {hasFavorite && onApplyFavorite ? (
+                  <TouchableOpacity
+                    onPress={() => { playTapSound(); onApplyFavorite(); }}
+                    style={[s.item, { backgroundColor: colors.bg, borderColor: colors.border }]}
+                  >
+                    <Ionicons name="star" size={22} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.itemLabel, { color: colors.text }]}>Aplicar favorito</Text>
+                      <Text style={[s.itemScreen, { color: colors.textSecondary }]}>Usa o layout marcado como favorito.</Text>
                     </View>
                   </TouchableOpacity>
                 ) : null}

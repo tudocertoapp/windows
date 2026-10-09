@@ -42,7 +42,7 @@ function ensureRec() {
   rec.lang = 'pt-BR';
   rec.continuous = true;
   rec.interimResults = true;
-  rec.maxAlternatives = 1;
+  rec.maxAlternatives = 3;
   rec.onresult = (ev) => {
     running = true;
     handlers.onResult?.(ev);

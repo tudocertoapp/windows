@@ -142,11 +142,11 @@ const as = StyleSheet.create({
     padding: 8,
     paddingRight: 44,
     borderLeftWidth: 4,
-    overflow: 'hidden',
-    minHeight: 80,
+    overflow: 'visible',
+    minHeight: 28,
   },
-  eventBlockContent: { flex: 1, flexDirection: 'column', justifyContent: 'flex-start' },
-  eventTitle: { fontSize: 12, fontWeight: '600' },
+  eventBlockContent: { flex: 1, flexDirection: 'column', justifyContent: 'flex-start', overflow: 'visible' },
+  eventTitle: { fontSize: 12, fontWeight: '700', flexShrink: 0 },
   eventTime: { fontSize: 10, marginTop: 2 },
   eventMeta: { fontSize: 9, marginTop: 2 },
   eventActionsWrap: { position: 'absolute', top: 5, right: 7, alignItems: 'center', zIndex: 9999, elevation: 9999 },
@@ -203,8 +203,8 @@ const MAX_LANES = 5;
 function getEventLayouts(events) {
   const withTimes = events.map((e) => {
     const startM = parseTimeToMinutes(e.time);
-    const endM = e.timeEnd ? parseTimeToMinutes(e.timeEnd) : startM + 60;
-    const duration = Math.max(15, endM - startM);
+    const endM = e.timeEnd ? parseTimeToMinutes(e.timeEnd) : startM + 30;
+    const duration = Math.max(30, endM - startM);
     return { event: e, startM, endM, duration };
   }).sort((a, b) => a.startM - b.startM);
 
@@ -1281,11 +1281,11 @@ export function AgendaScreen() {
                         width: `${shouldSplitByFirstHour ? hourSlotWidth : (isLongEvent ? longEventWidth : width)}%`,
                         top: `${rowTop}%`,
                         height: `${rowHeight}%`,
-                        minHeight: webEventBlockTight ? 58 : 80,
-                        paddingVertical: webEventBlockTight ? 6 : 8,
+                        minHeight: webEventBlockTight ? 28 : 32,
+                        paddingVertical: duration < 30 ? 3 : (webEventBlockTight ? 6 : 8),
                         paddingHorizontal: webEventBlockTight ? 8 : 8,
                         paddingRight: webEventBlockTight ? 40 : 44,
-                        overflow: 'hidden',
+                        overflow: 'visible',
                         borderLeftColor: isConcluido ? colors.textSecondary : colors.primary,
                         transform: transformPx ? [{ translateX: transformPx }] : undefined,
                         zIndex: stackZ,
@@ -1327,11 +1327,15 @@ export function AgendaScreen() {
                         />
                       </>
                     )}
-                    <View style={[as.eventBlockContent, { flex: 1, zIndex: 1 }]}>
-                      <Text style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]}>
+                    <View style={[as.eventBlockContent, { flex: 1, zIndex: 1, overflow: 'visible' }]}>
+                      <Text
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        style={[as.eventTitle, { color: colors.text, textDecorationLine: isConcluido ? 'line-through' : 'none' }]}
+                      >
                         {((e.tipo === 'empresa' && e.clientId) ? (clients?.find((c) => c.id === e.clientId)?.name) : null) || (e.title || '').replace(/^Pré-pedido\s*[-–]\s*/i, '').trim() || 'Evento'}
                       </Text>
-                      <Text style={[as.eventTime, { color: colors.primary }]}>
+                      <Text style={[as.eventTime, { color: colors.primary }]} numberOfLines={1}>
                         {e.time || '--:--'}{e.timeEnd ? ` - ${e.timeEnd}` : ''}
                       </Text>
                       {e.tipo === 'empresa' && (() => {

@@ -17,6 +17,7 @@ const SLUG_RESERVED = new Set([
   'calculadora', 'calculadora-flutuante', 'adicionar', 'acoes', 'imagem',
   'assistente', 'indique', 'assinatura', 'perfil', 'cadastros', 'produto',
   'bancos', 'termos', 'privacidade', 'temas', 'anotacoes', 'a-receber',
+  'q', 'qrcode', 'qr-code',
   'favicon', 'robots', 'sitemap',
 ]);
 

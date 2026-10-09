@@ -165,9 +165,9 @@ function scoreIntent(text, history) {
   if (/\b(como (voce|vc) (esta|ta)|tudo bem|td bem|beleza e voce|estou bem|to bem)\b/.test(text) || /^(tudo bem|td bem|blz|beleza)[\s?]*$/.test(text)) bump('how_are_you', 14);
   if (/\b(me chama|me chame|pode me chamar|meu nome e|como quer que eu te chame)\b/.test(text)) bump('set_name', 18);
   if (/\b(calculadora|calculador)\b/.test(text) && /\b(abre|abrir|mostra|mostrar|quero|usa|usar|abre a)\b/.test(text)) bump('open_calculator', 22);
-  if (/\bcalculadora\b/.test(text) && text.split(' ').length <= 5) bump('open_calculator', 18);
   if (/\b(abre|abrir|mostra)\b/.test(text) && /\b(agenda|produtos?|clientes?|pdv|caixa|catalogo|anotaco|compras|receber)\b/.test(text)) bump('open_screen', 16);
   if (/\b(quantos|quais|lista|tenho|cadastrad)\b/.test(text) && /\bprodutos?\b/.test(text)) bump('products_count', 18);
+  if (/\b(quantos|quais|lista|tenho|cadastrad)\b/.test(text) && /\bservicos?\b/.test(text)) bump('services_count', 18);
   if (/\bprodutos?\b/.test(text) && /\b(mais vende|mais vendido|top)\b/.test(text)) bump('product_sales', 16);
   if (hasAny(text, ['financ', 'saldo', 'como estou', 'como estao', 'resumo', 'situacao', 'organiz', 'controle', 'controlar'])) bump('financial_summary', 7);
   if (hasAny(text, ['empresa']) && hasAny(text, ['como', 'resumo', 'andamento', 'situacao'])) bump('financial_summary', 8);

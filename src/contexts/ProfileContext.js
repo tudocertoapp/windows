@@ -22,6 +22,8 @@ const EMPTY_PROFILE = {
   primary_color: null,
   theme_mode: null,
   custom_bg: null,
+  inicio_layout: null,
+  inicio_layout_favorite: null,
   ...EMPTY_EMPRESA_ENDERECO,
 };
 
@@ -39,6 +41,8 @@ function mapProfileFromDb(data, userEmail) {
     primary_color: data.primary_color || null,
     theme_mode: data.theme_mode || null,
     custom_bg: data.custom_bg || null,
+    inicio_layout: data.inicio_layout || null,
+    inicio_layout_favorite: data.inicio_layout_favorite || null,
     ...pickEmpresaFields(data),
   };
 }
@@ -176,8 +180,10 @@ export function ProfileProvider({ children }) {
       if (data.primary_color !== undefined) payload.primary_color = data.primary_color;
       if (data.theme_mode !== undefined) payload.theme_mode = data.theme_mode;
       if (data.custom_bg !== undefined) payload.custom_bg = data.custom_bg;
+      if (data.inicio_layout !== undefined) payload.inicio_layout = data.inicio_layout;
+      if (data.inicio_layout_favorite !== undefined) payload.inicio_layout_favorite = data.inicio_layout_favorite;
       let { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
-      if (error && (error.message?.includes('column') || error.message?.includes('cnpj') || error.message?.includes('endereco') || error.message?.includes('telefone') || error.message?.includes('instagram'))) {
+      if (error && (error.message?.includes('column') || error.message?.includes('cnpj') || error.message?.includes('endereco') || error.message?.includes('telefone') || error.message?.includes('instagram') || error.message?.includes('inicio_layout'))) {
         const payloadBase = { id: user.id, nome: payload.nome, foto: payload.foto, profissao: payload.profissao, empresa: payload.empresa, updated_at: payload.updated_at };
         if (payload.primary_color !== undefined) payloadBase.primary_color = payload.primary_color;
         if (payload.theme_mode !== undefined) payloadBase.theme_mode = payload.theme_mode;

@@ -7,6 +7,7 @@ import { usePlan } from '../contexts/PlanContext';
 import { useProfile } from '../contexts/ProfileContext';
 import { topBarStyles } from '../components/TopBar';
 import { playTapSound } from '../utils/sounds';
+import { InicioLayoutSettings } from '../components/InicioLayoutSettings';
 import { FREE_COLORS } from '../contexts/ThemeContext';
 import { BRAND_GREEN } from '../constants/brandColors';
 import { isFreePlanId } from '../constants/planFeatures';
@@ -381,6 +382,10 @@ export function TemasScreen({ onClose, isModal, onOpenAssinatura }) {
                 );
               })}
             </View>
+          </View>
+
+          <View style={[ts.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <InicioLayoutSettings />
           </View>
 
           {!hasPremiumColors && (

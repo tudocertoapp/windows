@@ -48,6 +48,7 @@ const PAGES = [
   { re: /\b(metas|sonhos)\b/, target: 'goals', label: 'metas' },
   { re: /\b(temas?|aparencia)\b/, target: 'themes', label: 'temas' },
   { re: /\bindique\b/, target: 'referral', label: 'indique' },
+  { re: /\b(qr ?code|qrcode dinamico|codigo qr)\b/, target: 'qrcode', label: 'QR Code dinâmico' },
   { re: /\b(scanner|comprovante|notinha)\b/, target: 'receipt', label: 'leitura de comprovante' },
   { re: /\b(imagem motivacional|gerador de imagem)\b/, target: 'image', label: 'imagem' },
   { re: /\b(profissional|profissionais)\b/, target: 'professionals', label: 'profissionais' },
@@ -59,10 +60,13 @@ const PAGES = [
 function detectNav(text) {
   const t = fold(text);
   if (!t) return null;
+  const writing = /\b(agende|agendar|agendamento|cadastre|cadastrar|cadastra|marca(?:r)?|sessao|cancela|cancelar|exclui|excluir|apaga)\b/.test(t);
+  if (writing) return null;
   const dataAsk = /\b(quantos?|quanto|qnts|qtd|quantidade|cadastr|saldo|vendeu|vendas|lucro|gastei|gasto|despesa|compromisso|agend|horario|hoje tem|o que tem|quem comprou|mais vendeu|registre|lance)\b/.test(t);
   const closing = /\b(fecha|fechar|feche|fechando|esconde|esconder|some|desliga|sai da|sair da|tira a|tira o|pode fechar)\b/.test(t);
-  const opening = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|va para|va pra|va na|vai na)\b/.test(t);
-  const short = t.split(/\s+/).filter(Boolean).length <= 6;
+  const opening = /\b(abre|abra|abrir|mostra|mostre|mostrar|exibe|exibir|vai para|vai pra|ir para|ir pra|quero abrir|quero ver|quero ir|me leva|abre pra|abrir a tela|abrir tela|acesse|acessar|acessa|entra em|va para|va pra|va na|vai na)\b/.test(t);
+  const exitDock = /\b((sair|sai|fecha|fechar|feche|encerrar|desliga)(?:\s+(?:o|do|da|a))?\s+(dock|palco)|sair dock|sai dock|fecha dock)\b/.test(t);
+  const exitHome = /\b(sair da pagina|sai da pagina|sair da tela|sai da tela|sair dessa pagina|fecha a pagina|fechar a pagina|volta(?:r)?\s+(?:pro|pra|para o|para a|ao|a)\s+(inicio|home)|voltar para(?: o)? inicio)\b/.test(t);
   let page = null;
   for (const p of PAGES) {
     if (p.re.test(t)) {
@@ -75,8 +79,13 @@ function detectNav(text) {
     const up = /\b(sobe|subir|topo|cima|inicio da pagina|comeco)\b/.test(t);
     return { target: 'page', label: 'página', action: 'scroll', dir: up ? 'up' : 'down' };
   }
-  if (closing) return { target: page?.target || 'calculator', label: page?.label || 'calculadora', action: 'close' };
-  if (page && (opening || (short && !dataAsk))) return { target: page.target, label: page.label, action: 'open' };
+  if (exitDock) return { target: 'dock', label: 'Dock', action: 'close' };
+  if (exitHome || (closing && (!page || page.target === 'home'))) {
+    return { target: 'home', label: 'início', action: 'open' };
+  }
+  if (closing) return { target: page.target, label: page.label, action: 'close' };
+  const openingScreen = /\b(pagina|tela)\s+(de|do|da|dos|das)\s+/.test(t);
+  if (page && (opening || openingScreen)) return { target: page.target, label: page.label, action: 'open' };
   return null;
 }
 

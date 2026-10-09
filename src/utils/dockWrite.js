@@ -50,6 +50,25 @@ function addMinutes(t, add) {
   return minutesToTime(timeToMinutes(t) + add);
 }
 
+/** Procedimento mínimo ao agendar pelo Dock. */
+const MIN_PROCEDURE_MIN = 30;
+
+function clampProcedureMin(n) {
+  const v = Number(n) || 0;
+  if (v <= 0) return MIN_PROCEDURE_MIN;
+  return Math.max(MIN_PROCEDURE_MIN, Math.min(240, v));
+}
+
+function ensureProcedureEnd(start, end, durationMin) {
+  if (!start) return '';
+  const dur = Number(durationMin) || 0;
+  if (dur >= MIN_PROCEDURE_MIN) return addMinutes(start, dur);
+  if (end && timeToMinutes(end) >= timeToMinutes(start) + MIN_PROCEDURE_MIN) {
+    return normalizeTime(end, '');
+  }
+  return addMinutes(start, MIN_PROCEDURE_MIN);
+}
+
 function normalizeTime(v, fallback = '09:00') {
   const s = String(v || '').trim();
   const m = s.match(/^(\d{1,2})(?::(\d{2}))?/);
@@ -377,6 +396,17 @@ function parseClientName(original) {
   return '';
 }
 
+function parseLoosePersonName(original) {
+  const t = fold(original)
+    .replace(/\b(hoje|amanha|depois de amanha|agora|por favor|cliente|agende|agendar|agenda|marcar|marca|sessao|horario|hora|horas|as|ate|das|para|pra|pro)\b/g, ' ')
+    .replace(/\b\d{1,2}(?::\d{2})?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const words = t.split(' ').filter((w) => w.length >= 2 && !isNameStop(w));
+  const who = words.slice(0, 4).join(' ').trim();
+  return who.length >= 2 ? who : '';
+}
+
 function parseHourToken(raw) {
   const n = Number(raw);
   if (Number.isFinite(n)) return n;
@@ -478,7 +508,7 @@ function parseTimeRange(original) {
     if (/\b(da )?tarde\b/.test(t) && h2 < h1 && h2 <= 11) h2 += 12;
     const start = formatClock(h1, range[2]);
     const end = formatClock(h2, range[4]);
-    if (timeToMinutes(end) >= timeToMinutes(start) + 10) return { time: start, timeEnd: end };
+    return { time: start, timeEnd: ensureProcedureEnd(start, end, 0) };
   }
   const ate = src.match(/\b(?:ate|até)\s*(?:as|às)?\s*(\d{1,2})(?::(\d{2}))?\b/i);
   const start = parseTimeFromText(src.replace(/\b(?:ate|até)\s*(?:as|às)?\s*\d{1,2}(?::\d{2})?\b/ig, ' '));
@@ -486,7 +516,7 @@ function parseTimeRange(original) {
     let h = Number(ate[1]);
     h = applyClockPeriod(h, src);
     const end = formatClock(h, ate[2]);
-    if (timeToMinutes(end) >= timeToMinutes(start) + 10) return { time: start, timeEnd: end };
+    return { time: start, timeEnd: ensureProcedureEnd(start, end, 0) };
   }
   return null;
 }
@@ -496,9 +526,14 @@ function parseAgendaTimes(original) {
   const durationMin = parseDurationMinutes(original);
   const time = range?.time || parseTimeFromText(original);
   let timeEnd = range?.timeEnd || '';
-  if (time && durationMin >= 10) timeEnd = addMinutes(time, durationMin);
-  if (time && !timeEnd) timeEnd = addMinutes(time, 10);
-  return { time: time || '', timeEnd: timeEnd || '', durationMin: durationMin || 0 };
+  if (time) {
+    timeEnd = ensureProcedureEnd(time, timeEnd, durationMin);
+  }
+  return {
+    time: time || '',
+    timeEnd: timeEnd || '',
+    durationMin: time ? clampProcedureMin(durationMin || (timeEnd ? timeToMinutes(timeEnd) - timeToMinutes(time) : 0)) : (durationMin || 0),
+  };
 }
 
 function looksLikeTimeValue(s) {
@@ -698,6 +733,39 @@ export function detectDockWrite(original, lists = {}) {
   return null;
 }
 
+export function mergeAppointmentFromSpeech(args, original, lists = {}) {
+  const prev = args && typeof args === 'object' ? args : {};
+  const spoken = matchSpokenClient(original, lists.clients);
+  const parsed = parseClientName(original);
+  const loose = parseLoosePersonName(original);
+  let name = spoken?.name || parsed || prev.clientName || '';
+  if (!name || isNameStop(name)) name = loose || spoken?.name || prev.clientName || '';
+  if (isNameStop(name)) name = prev.clientName || '';
+  const times = parseAgendaTimes(original);
+  const hint = extractDateHint(original);
+  return {
+    ...prev,
+    clientName: name,
+    clientId: spoken?.id || prev.clientId || null,
+    title: name || prev.title || 'Sessão',
+    date: hint || prev.date || toAgendaBrDate(original),
+    time: times.time || prev.time || '',
+    timeEnd: times.timeEnd || prev.timeEnd || '',
+    durationMin: times.durationMin || prev.durationMin || 0,
+  };
+}
+
+export function appointmentNeedsParams(args = {}) {
+  const name = clip(args.clientName || (args.title && args.title !== 'Sessão' && args.title !== 'Atendimento' ? args.title : ''));
+  const time = String(args.time || '').trim();
+  if ((!name || isNameStop(name) || name.length < 2) && !time) {
+    return 'Qual o nome do cliente e o horário?';
+  }
+  if (!name || isNameStop(name) || name.length < 2) return 'Qual o nome do cliente?';
+  if (!time) return `Qual o horário para ${name}?`;
+  return '';
+}
+
 export function pendingWriteSummary(tool, args = {}) {
   if (tool === 'need_params') return args.message || 'Faltou um dado. Pode repetir?';
   if (tool === 'delete_appointments') {
@@ -842,14 +910,9 @@ export async function executeDockWrite(pending, finance) {
     const clientName = clip(args.clientName || args.name || (args.title && args.title !== 'Atendimento' && args.title !== 'Sessão' ? args.title : ''));
     const date = toAgendaBrDate(args.date || '');
     const time = String(args.time || '').trim() ? normalizeTime(args.time, '') : '';
-    const durationMin = Math.max(0, Number(args.durationMin) || 0);
+    const durationMin = clampProcedureMin(args.durationMin);
     let timeEnd = '';
-    if (time && durationMin >= 10) timeEnd = addMinutes(time, durationMin);
-    else if (time && args.timeEnd && timeToMinutes(args.timeEnd) >= timeToMinutes(time) + 10) {
-      timeEnd = normalizeTime(args.timeEnd, '');
-    } else if (time) {
-      timeEnd = addMinutes(time, 10);
-    }
+    if (time) timeEnd = ensureProcedureEnd(time, args.timeEnd, durationMin);
     const matched = args.clientId
       ? (finance?.clients || []).find((c) => String(c.id) === String(args.clientId))
       : (clientName && !isNameStop(clientName)
@@ -885,9 +948,9 @@ export async function executeDockWrite(pending, finance) {
     if (!ev) {
       return { ok: false, error: 'Não consegui gravar na agenda. Tente de novo.' };
     }
-    const dur = timeEnd ? timeToMinutes(timeEnd) - timeToMinutes(time) : 0;
-    const span = timeEnd && dur >= 10 ? ` até ${timeEnd}` : '';
-    const durLabel = dur >= 10 ? ` (${dur} min)` : '';
+    const dur = timeEnd ? Math.max(MIN_PROCEDURE_MIN, timeToMinutes(timeEnd) - timeToMinutes(time)) : MIN_PROCEDURE_MIN;
+    const span = timeEnd ? ` até ${timeEnd}` : '';
+    const durLabel = ` (${dur} min)`;
     return {
       ok: true,
       message: `Agendei ${who} em ${date} às ${time}${span}${durLabel}.`,
@@ -966,7 +1029,7 @@ export async function executeDockWrite(pending, finance) {
     const nextName = clip(args.nextName || args.patch?.title || args.patch?.name);
     const patch = { ...(args.patch || {}) };
     delete patch.name;
-    const durationMin = Math.max(0, Number(patch.durationMin) || 0);
+    const durationMin = Number(patch.durationMin) || 0;
     delete patch.durationMin;
     const client = nextName ? findExactOrUnique(finance?.clients, nextName, 'name') : null;
     if (nextName) {
@@ -975,14 +1038,16 @@ export async function executeDockWrite(pending, finance) {
       if (client?.id) patch.clientId = client.id;
     }
     const start = patch.time || found.time;
-    if (durationMin >= 10 && start) {
+    if (durationMin > 0 && start) {
       patch.time = start;
-      patch.timeEnd = addMinutes(start, durationMin);
+      patch.timeEnd = addMinutes(start, clampProcedureMin(durationMin));
     } else if (patch.time && !patch.timeEnd) {
       const oldDur = found.time && found.timeEnd
-        ? Math.max(10, timeToMinutes(found.timeEnd) - timeToMinutes(found.time))
-        : 10;
+        ? Math.max(MIN_PROCEDURE_MIN, timeToMinutes(found.timeEnd) - timeToMinutes(found.time))
+        : MIN_PROCEDURE_MIN;
       patch.timeEnd = addMinutes(patch.time, oldDur);
+    } else if (start && patch.timeEnd && timeToMinutes(patch.timeEnd) < timeToMinutes(start) + MIN_PROCEDURE_MIN) {
+      patch.timeEnd = addMinutes(start, MIN_PROCEDURE_MIN);
     }
     if (Object.keys(patch).length) {
       await finance.updateAgendaEvent(found.id, patch);

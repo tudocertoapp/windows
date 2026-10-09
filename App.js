@@ -33,6 +33,9 @@ import { playBrandIntroSound } from './src/utils/sounds';
 import { CLIENT_REGISTRATION_PATH } from './src/utils/clientRegistrationLink';
 import { getPublicLojaRoute } from './src/utils/lojaPublicLink';
 import { LojaPublicaScreen } from './src/screens/LojaPublicaScreen';
+import { getPublicQrCodeFromPath } from './src/utils/dynamicQr';
+import { QrRedirectScreen } from './src/screens/QrRedirectScreen';
+import { applyDesktopZoomLock } from './src/utils/lockAppZoom';
 
 const BRAND_INTRO_ONCE_KEY = '@tudocerto_brand_intro_once_v1';
 
@@ -64,13 +67,14 @@ function webPathWantsLoginScreen() {
   if (path === '/' || path === '') return false;
   const first = path.split('/').filter(Boolean)[0] || '';
   const lower = first.toLowerCase();
-  if (lower === 'loja' || lower === 'cadastro-cliente') return false;
+  if (lower === 'loja' || lower === 'cadastro-cliente' || lower === 'q') return false;
   return true;
 }
 
 function AppContent() {
   const publicCadastroOwnerId = getPublicCadastroOwnerId();
   const publicLojaRoute = Platform.OS === 'web' ? getPublicLojaRoute() : null;
+  const publicQrCode = Platform.OS === 'web' ? getPublicQrCodeFromPath() : null;
   const { user, isGuest, loading } = useAuth();
   const isWeb = Platform.OS === 'web';
   const canUseApp = Boolean(user) || (!isWeb && isGuest);
@@ -168,6 +172,14 @@ function AppContent() {
     );
   }
 
+  if (publicQrCode) {
+    return (
+      <ThemeProvider>
+        <QrRedirectScreen code={publicQrCode} />
+      </ThemeProvider>
+    );
+  }
+
   if (showSplash) {
     return (
       <SplashScreen
@@ -225,6 +237,7 @@ function AppContent() {
 export default function App() {
   const isWeb = Platform.OS === 'web';
   const publicLojaRoute = isWeb ? getPublicLojaRoute() : null;
+  const publicQrCode = isWeb ? getPublicQrCodeFromPath() : null;
   const rootStyle = isWeb
     ? { flex: 1, width: '100%', minWidth: '100%', minHeight: '100vh', maxWidth: '100%', zoom: 1.12 }
     : { flex: 1 };
@@ -233,6 +246,11 @@ export default function App() {
     if (Platform.OS === 'android' && NavigationBar) {
       NavigationBar.setBackgroundColorAsync('#00000000').catch(() => {});
     }
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return undefined;
+    return applyDesktopZoomLock();
   }, []);
 
   useEffect(() => {
@@ -277,6 +295,16 @@ export default function App() {
       <ErrorBoundary>
         <ThemeProvider>
           <LojaPublicaScreen ownerUserId={publicLojaRoute.ownerUserId} lojaSlug={publicLojaRoute.slug} />
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
+  }
+
+  if (publicQrCode) {
+    return (
+      <ErrorBoundary>
+        <ThemeProvider>
+          <QrRedirectScreen code={publicQrCode} />
         </ThemeProvider>
       </ErrorBoundary>
     );

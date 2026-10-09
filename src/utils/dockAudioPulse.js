@@ -34,10 +34,16 @@ export function getDockAnalyser() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return analyser;
   if (!ctx) {
-    ctx = new AC();
+    try {
+      ctx = new AC({ latencyHint: 'interactive' });
+    } catch (_) {
+      ctx = new AC();
+    }
     analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.78;
+    analyser.minDecibels = -100;
+    analyser.maxDecibels = -30;
+    analyser.smoothingTimeConstant = 0.8;
   }
   const id = streamId(stream);
   if (id && id !== hookedId) {
@@ -72,7 +78,7 @@ export function readMicRms() {
 
 export function isMicQuiet(speaking = false) {
   const a = getDockAnalyser();
-  if (!a) return false;
+  if (!a) return true;
   const rms = timeRms(a);
   if (!speaking && rms < 0.055) {
     ambientRms = ambientRms * 0.92 + rms * 0.08;

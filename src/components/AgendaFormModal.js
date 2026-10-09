@@ -25,6 +25,7 @@ import { TimePickerInput } from './TimePickerInput';
 import { MoneyInput } from './MoneyInput';
 import { parseMoney } from '../utils/format';
 import { promptConcluirAgenda } from '../utils/agendaFaturamento';
+import { confirmDestructive } from '../utils/confirm';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsDesktopLayout } from '../utils/platformLayout';
 
@@ -55,6 +56,7 @@ function timeToMinutes(t) {
 }
 
 const MIN_DURATION_MIN = 10;
+const DEFAULT_DURATION_MIN = 30;
 const DURATION_OPTS = [10, 20, 30, 40, 50, 60];
 const MAX_MINUTES = 23 * 60 + 59;
 
@@ -73,12 +75,17 @@ function clampEndTime(start, end) {
   const s = timeToMinutes(start);
   const minEnd = Math.min(s + MIN_DURATION_MIN, MAX_MINUTES);
   const e = timeToMinutes(end);
-  if (!end || e < minEnd) return minutesToTime(minEnd);
+  if (!end) return minutesToTime(Math.min(s + DEFAULT_DURATION_MIN, MAX_MINUTES));
+  if (e < minEnd) return minutesToTime(minEnd);
   return minutesToTime(e);
 }
 
 function durationMinutes(start, end) {
   return timeToMinutes(end) - timeToMinutes(start);
+}
+
+function isCompleteTime(t) {
+  return /^\d{1,2}:\d{2}$/.test(String(t || '').trim());
 }
 
 export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, initialData, onOpenNewClient, onOpenNewService }) {
@@ -96,8 +103,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
   const [date, setDate] = useState(initialDate || todayStr());
   const [amount, setAmount] = useState('0,00');
   const [timeStart, setTimeStart] = useState(nowTimeStr());
-  const [timeEnd, setTimeEnd] = useState(() => addMinutesToTime(nowTimeStr(), MIN_DURATION_MIN));
-  const [durationMin, setDurationMin] = useState(MIN_DURATION_MIN);
+  const [timeEnd, setTimeEnd] = useState(() => addMinutesToTime(nowTimeStr(), DEFAULT_DURATION_MIN));
+  const [durationMin, setDurationMin] = useState(DEFAULT_DURATION_MIN);
   const [showClientPicker, setShowClientPicker] = useState(false);
   const [spokenClientName, setSpokenClientName] = useState('');
   const [showServicePicker, setShowServicePicker] = useState(false);
@@ -115,8 +122,8 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
         if (saved && typeof saved === 'string' && saved.trim() && /^\d{1,2}:\d{2}$/.test(saved.trim())) {
           const start = saved.trim();
           setTimeStart(start);
-          setTimeEnd(addMinutesToTime(start, MIN_DURATION_MIN));
-          setDurationMin(MIN_DURATION_MIN);
+          setTimeEnd(addMinutesToTime(start, DEFAULT_DURATION_MIN));
+          setDurationMin(DEFAULT_DURATION_MIN);
         }
       });
     }
@@ -130,26 +137,38 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
 
   const applyStartTime = (nextStart) => {
     const start = String(nextStart || '').trim();
-    const prevDur = durationMinutes(timeStart, timeEnd);
-    const keep = prevDur >= MIN_DURATION_MIN ? prevDur : (durationMin >= MIN_DURATION_MIN ? durationMin : MIN_DURATION_MIN);
-    const end = addMinutesToTime(start, keep);
+    const chipOn = isCompleteTime(timeStart) && isCompleteTime(timeEnd) && DURATION_OPTS.includes(durationMinutes(timeStart, timeEnd));
     setTimeStart(start);
-    setTimeEnd(end);
-    const dur = durationMinutes(start, end);
-    setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur);
+    if (!isCompleteTime(start)) return;
+    if (chipOn) {
+      const keep = durationMinutes(timeStart, timeEnd);
+      setTimeEnd(addMinutesToTime(start, keep >= MIN_DURATION_MIN ? keep : DEFAULT_DURATION_MIN));
+      setDurationMin(DURATION_OPTS.includes(keep) ? keep : keep);
+      return;
+    }
+    if (isCompleteTime(timeEnd)) {
+      const dur = durationMinutes(start, timeEnd);
+      setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur);
+    }
   };
 
   const applyEndTime = (nextEnd) => {
-    const end = clampEndTime(timeStart, nextEnd);
+    const raw = String(nextEnd || '').trim();
+    setTimeEnd(raw);
+    if (!isCompleteTime(raw) || !isCompleteTime(timeStart)) {
+      setDurationMin(-1);
+      return;
+    }
+    const end = clampEndTime(timeStart, raw);
     setTimeEnd(end);
     const dur = durationMinutes(timeStart, end);
-    setDurationMin(DURATION_OPTS.includes(dur) ? dur : dur);
+    setDurationMin(DURATION_OPTS.includes(dur) ? dur : -1);
   };
 
   const applyDuration = (mins) => {
     const n = Math.max(MIN_DURATION_MIN, Number(mins) || MIN_DURATION_MIN);
     setDurationMin(n);
-    setTimeEnd(addMinutesToTime(timeStart, n));
+    if (isCompleteTime(timeStart)) setTimeEnd(addMinutesToTime(timeStart, n));
   };
 
   useEffect(() => {
@@ -231,7 +250,7 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
         {
           const spokenTime = data.time || data.timeStart;
           const start = spokenTime || nowTimeStr();
-          const end = data.timeEnd && spokenTime ? clampEndTime(start, data.timeEnd) : addMinutesToTime(start, MIN_DURATION_MIN);
+          const end = data.timeEnd && spokenTime ? clampEndTime(start, data.timeEnd) : addMinutesToTime(start, DEFAULT_DURATION_MIN);
           setTimeStart(start);
           setTimeEnd(end);
           const dur = durationMinutes(start, end);
@@ -342,22 +361,15 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
     });
   };
 
-  const handleExcluir = () => {
-    if (!isEdit) return;
+  const handleExcluir = async () => {
+    if (!isEdit || !editingEvent?.id) return;
     playTapSound();
     const alertTitle = tipo === 'empresa' ? 'Excluir atendimento' : 'Excluir evento';
     const alertMsg = tipo === 'empresa' ? 'Quer realmente excluir este atendimento?' : 'Quer realmente excluir este evento?';
-    Alert.alert(alertTitle, alertMsg, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: () => {
-          deleteAgendaEvent(editingEvent.id);
-          onClose();
-        },
-      },
-    ]);
+    const ok = await confirmDestructive(alertTitle, alertMsg);
+    if (!ok) return;
+    await deleteAgendaEvent(editingEvent.id);
+    onClose();
   };
 
   const inputS = [s.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }];
@@ -415,14 +427,19 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
     <Modal visible transparent animationType="fade">
       <View style={s.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.keyboard, isDesktopWeb ? { justifyContent: 'flex-start', alignItems: 'stretch' } : null]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[s.keyboard, isDesktopWeb ? { justifyContent: 'flex-start', alignItems: 'stretch', maxHeight: '100%' } : null]}
+        >
           <TouchableOpacity
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
             style={[
               s.card,
               { backgroundColor: colors.card, borderColor: colors.border },
-              isDesktopWeb ? { maxWidth: '100%', minHeight: '100%', maxHeight: '100%', borderRadius: 0 } : null,
+              isDesktopWeb
+                ? { maxWidth: '100%', flex: 1, minHeight: 0, maxHeight: '100%', borderRadius: 0, width: '100%' }
+                : null,
             ]}
           >
             <View style={s.header}>
@@ -437,12 +454,12 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
             </View>
 
             <ScrollView
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               nestedScrollEnabled
-              style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1 } : null]}
-              contentContainerStyle={s.scrollContent}
+              style={[s.scroll, isDesktopWeb ? { maxHeight: undefined, flex: 1, minHeight: 0 } : null]}
+              contentContainerStyle={[s.scrollContent, { paddingBottom: GAP * 2 }]}
             >
               {showEmpresaFeatures && (
                 <View style={[s.toggleRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
@@ -613,22 +630,23 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
               )}
             </ScrollView>
 
-            {isEdit && (
-              <View style={s.actionsRow}>
-                {tipo === 'empresa' && (
-                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#10b981' }]} onPress={handleConcluir}>
-                    <Text style={s.actionText}>FATURAR</Text>
+            <View style={s.footer}>
+              {isEdit && (
+                <View style={s.actionsRow}>
+                  {tipo === 'empresa' && (
+                    <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#10b981' }]} onPress={handleConcluir}>
+                      <Text style={s.actionText}>FATURAR</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#ef4444' }]} onPress={(ev) => { ev?.stopPropagation?.(); handleExcluir(); }}>
+                    <Text style={s.actionText}>EXCLUIR</Text>
                   </TouchableOpacity>
-                )}
-                <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#ef4444' }]} onPress={handleExcluir}>
-                  <Text style={s.actionText}>EXCLUIR</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <TouchableOpacity style={[s.confirmBtn, { backgroundColor: colors.primary }]} onPress={handleConfirm}>
-              <Text style={s.confirmText}>CONFIRMAR</Text>
-            </TouchableOpacity>
+                </View>
+              )}
+              <TouchableOpacity style={[s.confirmBtn, { backgroundColor: colors.primary }]} onPress={handleConfirm}>
+                <Text style={s.confirmText}>CONFIRMAR</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </View>
@@ -796,33 +814,34 @@ export function AgendaFormModal({ visible, onClose, editingEvent, initialDate, i
 
 const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 8 },
-  keyboard: { width: '100%', justifyContent: 'center', alignItems: 'center' },
-  card: { width: '100%', maxWidth: MODAL_MAX_WIDTH, borderRadius: 24, padding: GAP, borderWidth: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: GAP },
-  title: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  scroll: { maxHeight: MODAL_SCROLL_MAX_HEIGHT },
-  scrollContent: { paddingBottom: GAP },
-  toggleRow: { flexDirection: 'row', borderRadius: RADIUS, borderWidth: 1, padding: 4, marginBottom: GAP },
-  toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10 },
+  keyboard: { flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', maxHeight: '100%' },
+  card: { width: '100%', maxWidth: MODAL_MAX_WIDTH, borderRadius: 24, padding: GAP, borderWidth: 1, maxHeight: '95%', minHeight: 0 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: GAP, flexShrink: 0 },
+  title: { fontSize: 18, fontWeight: '700', flex: 1, paddingRight: 8 },
+  closeBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  scroll: { maxHeight: MODAL_SCROLL_MAX_HEIGHT, minHeight: 0 },
+  scrollContent: { paddingBottom: GAP, flexGrow: 0 },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: RADIUS, borderWidth: 1, padding: 4, marginBottom: GAP },
+  toggleBtn: { flex: 1, minWidth: 90, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10 },
   toggleText: { fontSize: 14, fontWeight: '600' },
   rowLabel: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   novoLink: { fontSize: 12, fontWeight: '700' },
-  input: { borderWidth: 1, borderRadius: RADIUS, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, minHeight: INPUT_HEIGHT },
-  inputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: RADIUS, paddingHorizontal: 14, minHeight: INPUT_HEIGHT },
-  inputFlex: { flex: 1, fontSize: 15 },
+  input: { borderWidth: 1, borderRadius: RADIUS, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, minHeight: INPUT_HEIGHT, width: '100%' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: RADIUS, paddingHorizontal: 14, minHeight: INPUT_HEIGHT, width: '100%' },
+  inputFlex: { flex: 1, fontSize: 15, minWidth: 0, width: '100%' },
   yearText: { fontSize: 14, fontWeight: '600' },
   select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: RADIUS, paddingHorizontal: 14, minHeight: INPUT_HEIGHT, marginBottom: GAP },
-  selectText: { fontSize: 15, flex: 1 },
-  twoCol: { flexDirection: 'row', gap: GAP, marginBottom: GAP },
+  selectText: { fontSize: 15, flex: 1, minWidth: 0 },
+  twoCol: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, marginBottom: GAP },
   durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   durationChip: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, minWidth: 64, alignItems: 'center' },
-  half: { flex: 1 },
-  actionsRow: { flexDirection: 'row', gap: 10, marginTop: 2, marginBottom: 8 },
-  actionBtn: { flex: 1, borderRadius: RADIUS, paddingVertical: 12, alignItems: 'center' },
+  half: { flex: 1, minWidth: 160 },
+  footer: { flexShrink: 0, paddingTop: 8 },
+  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2, marginBottom: 8 },
+  actionBtn: { flex: 1, minWidth: 120, borderRadius: RADIUS, paddingVertical: 12, alignItems: 'center' },
   actionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  confirmBtn: { borderRadius: RADIUS, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  confirmBtn: { borderRadius: RADIUS, paddingVertical: 16, alignItems: 'center', marginTop: 0 },
   confirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   pickerCard: { width: '100%', maxWidth: 340, borderRadius: 20, padding: GAP, borderWidth: 1 },
   itemPickerCard: { width: '100%', maxWidth: ITEM_PICKER_MAX_WIDTH, maxHeight: ITEM_PICKER_MAX_HEIGHT, borderRadius: 20, padding: GAP, borderWidth: 1 },

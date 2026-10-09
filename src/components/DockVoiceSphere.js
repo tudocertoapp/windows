@@ -3,6 +3,9 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { DOCK_BLUE } from '../constants/brandColors';
 import { resolveDockSpectrum } from '../constants/dockSpectrums';
 import { readDockAudio } from '../utils/dockAudioPulse';
+import { chromeDot, chromeHair, fitDockCanvas } from '../utils/dockCanvas';
+
+let drawDpr = 1;
 
 const COUNT = 220;
 
@@ -63,24 +66,12 @@ function paintMalha(ctx, pts, t, audio, energy, live, cx, cy, radius, rot) {
     q.a = 0.18 + (q.z + 1.2) * 0.28 + energy * 0.25;
     projected.push(q);
   }
-  ctx.lineWidth = 0.55;
-  for (let i = 0; i < projected.length; i += 10) {
-    const a = projected[i];
-    const b = projected[(i + 13) % projected.length];
-    const c = projected[(i + 21) % projected.length];
-    ctx.strokeStyle = `rgba(0, 180, 255, ${Math.max(0.04, Math.min(a.a, b.a) * 0.45)})`;
-    ctx.beginPath();
-    ctx.moveTo(a.sx, a.sy);
-    ctx.lineTo(b.sx, b.sy);
-    ctx.lineTo(c.sx, c.sy);
-    ctx.stroke();
-  }
   for (let i = 0; i < projected.length; i += 1) {
     const p = projected[i];
-    ctx.globalAlpha = Math.max(0.18, Math.min(0.9, p.a));
+    ctx.globalAlpha = Math.max(0.4, Math.min(0.95, p.a));
     ctx.fillStyle = energy > 0.35 ? '#7AE2FF' : DOCK_BLUE;
     ctx.beginPath();
-    ctx.arc(p.sx, p.sy, 0.42 + Math.max(0, p.z) * 0.28 + audio.rms * 0.55, 0, Math.PI * 2);
+    ctx.arc(p.sx, p.sy, chromeDot(drawDpr, 0.85 + Math.max(0, p.z) * 0.32 + audio.rms * 0.5), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -99,7 +90,7 @@ function paintNuvem(ctx, pts, t, audio, energy, live, cx, cy, radius, rot) {
     ctx.globalAlpha = shade;
     ctx.fillStyle = q.z > 0.2 ? '#9AE8FF' : DOCK_BLUE;
     ctx.beginPath();
-    ctx.arc(q.sx, q.sy, 0.48 + audio.rms * 0.7 + Math.max(0, q.z) * 0.32, 0, Math.PI * 2);
+    ctx.arc(q.sx, q.sy, chromeDot(drawDpr, 0.48 + audio.rms * 0.7 + Math.max(0, q.z) * 0.32), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -186,7 +177,7 @@ function paintGrade(ctx, t, audio, energy, cx, cy, radius, rot) {
   const lats = 12;
   const lons = 16;
   ctx.strokeStyle = `rgba(0, 180, 255, ${0.28 + energy * 0.4})`;
-  ctx.lineWidth = 0.9;
+  ctx.lineWidth = chromeHair(drawDpr);
   for (let i = 1; i < lats; i += 1) {
     const lat = (i / lats) * Math.PI;
     ctx.beginPath();
@@ -391,7 +382,7 @@ function paintNeural(ctx, pts, t, audio, energy, live, cx, cy, radius, rot) {
     const wave = 1 + Math.sin(t * 1.5 + i) * (0.04 + audio.high * 0.14);
     nodes.push(rotProject(p, (wave + energy * 0.28) * (live ? 1 : 0.92), rot.cosY, rot.sinY, rot.cosX, rot.sinX, cx, cy, radius));
   }
-  ctx.lineWidth = 0.65;
+  ctx.lineWidth = chromeHair(drawDpr);
   for (let i = 0; i < nodes.length; i += 1) {
     for (let j = i + 1; j < nodes.length; j += 1) {
       const dx = nodes[i].sx - nodes[j].sx;
@@ -526,24 +517,17 @@ export function DockVoiceSphere({
     if (Platform.OS !== 'web') return undefined;
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    const ctx = canvas.getContext('2d');
     let t = 0;
 
     const paint = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth || size;
-      const h = canvas.clientHeight || size;
-      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
-        canvas.width = Math.floor(w * dpr);
-        canvas.height = Math.floor(h * dpr);
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const { ctx, w, h, dpr } = fitDockCanvas(canvas, size, size);
+      drawDpr = dpr;
       ctx.clearRect(0, 0, w, h);
 
       const audio = readDockAudio(speaking, listening);
-      const live = speaking || listening || audio.rms > 0.04;
+      const live = true;
       t += speaking ? 0.045 : listening ? 0.028 : 0.018;
-      const energy = Math.min(1, 0.32 + audio.rms * 1.15);
+      const energy = Math.min(1, 0.38 + audio.rms * 1.15);
       const maxR = Math.min(w, h) * 0.47;
       const radius = maxR;
       const cx = w / 2;
@@ -589,7 +573,7 @@ export function DockVoiceSphere({
     <View style={[styles.wrap, { width: size, height: size, overflow: 'visible' }]} pointerEvents="none">
       {React.createElement('canvas', {
         ref: canvasRef,
-        style: { width: '100%', height: '100%', display: 'block', overflow: 'visible' },
+        style: { width: size, height: size, display: 'block' },
       })}
     </View>
   );

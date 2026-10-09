@@ -144,7 +144,93 @@ function pendingSummary(tool, args) {
   return 'Posso fazer essa alteração. Confirmar?';
 }
 
-async function answerNative({ db, userId, firstName, preferredName, message, history, pendingAction, confirm, autoConfirm }) {
+const STOP = new Set([
+  'o', 'a', 'os', 'as', 'um', 'uma', 'de', 'do', 'da', 'dos', 'das', 'e', 'ou', 'que', 'qual', 'quais',
+  'quanto', 'quantos', 'quem', 'como', 'onde', 'quando', 'esse', 'essa', 'isso', 'meu', 'minha', 'seu',
+  'sua', 'tem', 'tenho', 'cadastrado', 'cadastrada', 'cliente', 'clientes', 'produto', 'produtos',
+  'servico', 'servicos', 'agenda', 'hoje', 'amanha', 'dock', 'me', 'pra', 'para', 'por', 'com',
+]);
+
+function nameHits(haystack, names) {
+  const t = fold(haystack);
+  let best = '';
+  (names || []).forEach((n) => {
+    const f = fold(n);
+    if (f.length >= 3 && t.includes(f) && f.length > best.length) best = n;
+  });
+  return best;
+}
+
+async function answerFromAccount(db, userId, original, text) {
+  const [clients, products, services, agenda] = await Promise.all([
+    runTool('get_clients', db, userId, { limit: 40 }),
+    runTool('get_products', db, userId, {}),
+    runTool('get_services', db, userId, {}),
+    runTool('get_appointments', db, userId, { mode: 'all' }),
+  ]);
+  const who = nameHits(original, clients?.nomes);
+  if (who) {
+    const d = await runTool('get_client_details', db, userId, { name: who });
+    if (d?.found) {
+      const extra = d.ultima?.data ? ` Última venda em ${d.ultima.data}.` : '';
+      return { message: `${d.nome} está no cadastro, com ${d.gastoFmt} em vendas.${extra}`, intent: 'client_details' };
+    }
+    return { message: `${who} está no cadastro de clientes.`, intent: 'clients' };
+  }
+  const prod = nameHits(original, products?.nomes);
+  if (prod) {
+    const s = await runTool('get_products', db, userId, { name: prod });
+    const p = s?.encontrado;
+    if (p) return { message: `Produto ${p.nome}: ${p.precoFmt}. Estoque ${p.estoque}.`, intent: 'products_count' };
+  }
+  const svc = nameHits(original, services?.nomes);
+  if (svc) {
+    const s = await runTool('get_services', db, userId, { name: svc });
+    const p = s?.encontrado;
+    if (p) return { message: `Serviço ${p.nome}: ${p.precoFmt}.`, intent: 'services_count' };
+  }
+  const evNames = []
+    .concat(agenda?.hojeLista || [])
+    .concat(agenda?.futuros || [])
+    .concat(agenda?.passados || [])
+    .map((e) => e.titulo)
+    .filter(Boolean);
+  const evWho = nameHits(original, evNames);
+  if (evWho && agenda) {
+    const all = [...(agenda.hojeLista || []), ...(agenda.futuros || []), ...(agenda.passados || [])];
+    const hit = all.find((e) => fold(e.titulo) === fold(evWho) || fold(e.titulo).includes(fold(evWho)));
+    if (hit) return { message: `Na agenda: ${fmtEvent(hit)}.`, intent: 'appointments' };
+  }
+  const toks = fold(original).split(/\s+/).filter((w) => w.length >= 4 && !STOP.has(w));
+  if (toks.length && /\b(quem|qual|quais|tem|tenho|cadastro|cadastr)\b/.test(text)) {
+    if (clients?.total) {
+      return {
+        message: `Você tem ${clients.total} cliente${clients.total === 1 ? '' : 's'}. Nomes: ${(clients.nomes || []).slice(0, 8).join(', ')}.`,
+        intent: 'clients',
+      };
+    }
+  }
+  return null;
+}
+
+function memoryHit(memory, text) {
+  if (!Array.isArray(memory) || !memory.length) return null;
+  const t = fold(text);
+  for (let i = memory.length - 1; i >= 0; i -= 1) {
+    const item = memory[i];
+    const body = fold(item?.text || item?.content || item);
+    if (body.length < 8) continue;
+    const words = body.split(/\s+/).filter((w) => w.length >= 4 && !STOP.has(w));
+    const hits = words.filter((w) => t.includes(w)).length;
+    if (hits >= 2 || (words[0] && t.includes(body.slice(0, 24)))) {
+      const said = String(item?.text || item?.content || item).trim().slice(0, 180);
+      return said;
+    }
+  }
+  return null;
+}
+
+async function answerNative({ db, userId, firstName, preferredName, message, history, pendingAction, confirm, autoConfirm, memory }) {
   const name = firstNameSafe(preferredName) || firstNameSafe(firstName);
   const original = String(message || '').trim();
   const fixed = correctQuery(original);
@@ -176,7 +262,36 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     return { message: 'Ok, não alterei nada.', intent: 'cancelled' };
   }
   if (pendingAction?.tool && isConfirm(text)) {
-    return answerNative({ db, userId, firstName, message: 'sim', history, pendingAction, confirm: true });
+    return answerNative({ db, userId, firstName, preferredName, message: 'sim', history, pendingAction, confirm: true, memory });
+  }
+  if (pendingAction?.tool) {
+    const extra = detectMutation(text, original);
+    if (extra?.tool) {
+      let merged = extra.args || {};
+      if (pendingAction.tool === 'create_client' && extra.tool === 'create_appointment') {
+        merged = {
+          ...extra.args,
+          clientName: extra.args.clientName || pendingAction.args?.name,
+          title: extra.args.title || pendingAction.args?.name,
+        };
+      } else if (extra.tool === pendingAction.tool) {
+        merged = { ...pendingAction.args, ...extra.args };
+      }
+      const args = sanitizeCreateArgs(extra.tool, merged);
+      if (args) {
+        return {
+          message: pendingSummary(extra.tool, args),
+          intent: extra.tool,
+          pendingAction: { tool: extra.tool, args },
+        };
+      }
+    }
+    const keep = sanitizeCreateArgs(pendingAction.tool, pendingAction.args) || pendingAction.args;
+    return {
+      message: pendingSummary(pendingAction.tool, keep),
+      intent: pendingAction.tool,
+      pendingAction: { tool: pendingAction.tool, args: keep },
+    };
   }
 
   const followEarly = lastFollowUp(history);
@@ -301,13 +416,13 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
   }
   if (intent === 'who') {
     return {
-      message: 'Sou o Dock, assessor do Tudo Certo. Cadastro, agenda, lançamentos e as telas do aplicativo.',
+      message: 'Sou o Dock, assessor do Tudo Certo. Olho os dados reais da conta, cadastro, agendo, lanço entrada e saída, e abro as telas. Não invento número.',
       intent,
     };
   }
   if (intent === 'help') {
     return {
-      message: 'Pode pedir: agendar cliente, cadastrar, lançar entrada ou saída, abrir agenda, ou perguntar a hora.',
+      message: 'Pode pedir para cadastrar, agendar, lançar, abrir telas, ver saldo, vendas e agenda, ou fazer conta (soma, porcentagem, raiz, média). Confirmo antes de gravar.',
       intent,
     };
   }
@@ -435,6 +550,16 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     }
     return replyAgendaReasoning(text, ctx);
   }
+  if (intent === 'services_count') {
+    const s = await runTool('get_services', db, userId, {});
+    const lista = s.nomes?.length ? ` Alguns: ${s.nomes.slice(0, 8).join(', ')}.` : '';
+    return {
+      message: s.cadastrados
+        ? `Você tem ${s.cadastrados} serviço${s.cadastrados === 1 ? '' : 's'} cadastrado${s.cadastrados === 1 ? '' : 's'}.${lista}`
+        : 'Ainda não achei serviço cadastrado nesta conta.',
+      intent,
+    };
+  }
   if (intent === 'products_low' || intent === 'products_count') {
     const s = await runTool('get_products', db, userId, {});
     const amostra = s.nomes?.length ? ` Tipo: ${s.nomes.slice(0, 6).join(', ')}.` : '';
@@ -449,8 +574,20 @@ async function answerNative({ db, userId, firstName, preferredName, message, his
     return { message: `Você tem ${s.cadastrados} produtos. Acabando: ${s.acabando.map((p) => `${p.nome} (${p.estoque})`).join(', ')}.`, intent };
   }
 
+  const taught = memoryHit(memory, text);
+  if (taught) {
+    return { message: `Usei o que você me ensinou: ${taught}`, intent: 'memory' };
+  }
+
+  const fromAccount = await answerFromAccount(db, userId, original, text);
+  if (fromAccount) return fromAccount;
+
+  if (/\b(oi|ola|eai|eae|opa|hey)\b/.test(text) && text.split(/\s+/).length <= 4) {
+    return { message: 'Olá. Eu sou o Dock. Em que posso ajudar?', intent: 'greeting' };
+  }
+
   return {
-    message: 'Não entendi. Posso olhar agenda, gastos, vendas, produtos ou abrir uma tela. Como posso ajudar?',
+    message: 'Não achei isso nos dados da conta. Diga o nome do cliente, produto ou serviço, peça uma tela, um cadastro, saldo, ou uma conta (ex.: 15% de 80).',
     intent: 'clarify',
   };
 }
