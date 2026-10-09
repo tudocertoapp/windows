@@ -5,6 +5,7 @@
   "framework": null,
   "rewrites": [
     { "source": "/api/ai/chat", "destination": "/api/vision/ocr?task=assistant" },
+    { "source": "/q/:code", "destination": "/api/qr/go?code=:code" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
