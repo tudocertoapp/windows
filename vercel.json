@@ -7,6 +7,6 @@
     { "source": "/api/ai/chat", "destination": "/api/vision/ocr?task=assistant" },
     { "source": "/q/:code", "destination": "/api/qr/go?code=:code" },
     { "source": "/q/:code/", "destination": "/api/qr/go?code=:code" },
-    { "source": "/((?!api/|q/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

@@ -9,14 +9,6 @@ const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
   let html = fs.readFileSync(indexPath, 'utf8');
   let changed = false;
 
-  // QR dinâmico: sai desta página ANTES de pintar a logo / carregar o React.
-  if (!html.includes('__TC_QR_GO__')) {
-    const qrBoot =
-      '<script>/*__TC_QR_GO__*/(function(){try{var m=(location.pathname||"").match(/^\\/q\\/(\\d{1,4})\\/?$/);if(!m)return;var c=("0000"+m[1]).slice(-4);document.documentElement.style.background="#0f172a";document.documentElement.style.visibility="hidden";location.replace("/api/qr/go?code="+c);}catch(e){}})();</script>';
-    html = html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}\n    ${qrBoot}`);
-    changed = true;
-  }
-
   // Garante que /assets e @font-face usem a raiz do app (evita resolução relativa ao path do bundle).
   if (!html.includes('<base ')) {
     html = html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}\n    <base href="/" />`);
